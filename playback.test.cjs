@@ -130,3 +130,22 @@ test('qualidade mostra a taxa da fonte e libera o atalho quando não há Full HD
  assert.equal(s.el('quality-info').textContent,'1280 × 720 · Dublado · 2,0 Mbps');assert.equal(s.el('quality-alt').hidden,false);
  s.controller.stop();await p;
 });
+test('volume é aplicado ao vídeo, pode ser silenciado e volta ao normal',async()=>{
+ const s=harness(),p=s.controller.start(238,1,new AbortController().signal);await new Promise(setImmediate);
+ const v=s.el('direct-video');
+ s.controller.setVolume(0.3);assert.equal(Number(v.volume.toFixed(2)),0.3);assert.match(s.el('volume-toggle').textContent,/🔉|🔊/);
+ s.controller.setVolume(0.9);assert.match(s.el('volume-toggle').textContent,/🔊/);
+ s.controller.toggleMute();assert.equal(v.muted,true);assert.equal(s.el('volume-toggle').textContent,'🔇');
+ s.controller.toggleMute();assert.equal(v.muted,false);
+ s.controller.setVolume(2);assert.equal(v.volume,1);s.controller.setVolume(-1);assert.equal(v.volume,0);
+ s.controller.stop();await p;
+});
+test('barra de progresso leva a qualquer ponto do filme',async()=>{
+ const s=harness(),p=s.controller.start(238,1,new AbortController().signal);await new Promise(setImmediate);
+ const v=s.el('direct-video');v.duration=1000;v.currentTime=0;
+ s.controller.irPara(250);assert.equal(Math.round(v.currentTime),250);
+ s.controller.irPara(990);assert.equal(Math.round(v.currentTime),990);
+ s.controller.irPara(5000);assert.equal(Math.round(v.currentTime),1000);
+ s.controller.irPara(-10);assert.equal(Math.round(v.currentTime),0);
+ s.controller.stop();await p;
+});
