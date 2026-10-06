@@ -1,7 +1,26 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
 const { createCatalog } = require('./app/src/main/assets/catalog.js');
 const good = value => ({ ok: true, json: async () => value });
+
+// No aparelho não existe servidor: a página do modo com anúncios precisa responder
+// as rotas /api pelo catálogo local, senão série nenhuma abre.
+test('a página do modo com anúncios usa o catálogo local no aparelho', () => {
+    const pagina = fs.readFileSync(__dirname + '/app/src/main/assets/assistir.html', 'utf8');
+    assert.ok(pagina.includes('<script src="/android.js"></script>'), 'precisa carregar android.js');
+    assert.ok(pagina.includes("typeof androidCatalog !== 'undefined'"), 'precisa preferir o catálogo local');
+    assert.ok(pagina.includes('consulta.request('), 'precisa usar o catálogo escolhido para episódios');
+});
+
+test('episódio usa a VidLink e a VidSrc como fontes e mantém os índices estáveis', async () => {
+    const catalogo = createCatalog(async () => good({ imdb_id: 'tt0247082' }), 'test');
+    const dados = await catalogo.request('/api/episode/1431/1/1');
+    assert.equal(dados.players[0].url, 'https://vidlink.pro/tv/1431/1/1');
+    assert.equal(dados.players[0].index, 0);
+    assert.equal(dados.players[1].url, 'https://vidsrc.to/embed/tv/1431/1/1');
+    assert.ok(dados.players.every(p => p.dub === false && p.optional === true));
+});
 test('catalog uses HTTPS TMDB directly and preserves independent ranking rules', async () => {
     const seen = [];
     const catalog = createCatalog(async url => {

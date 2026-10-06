@@ -46,7 +46,9 @@ document.addEventListener('keydown', event => {
 });
 
 document.addEventListener('DOMContentLoaded',()=>{
+    const barra=document.querySelector('.barra');
+    if(!barra)return;
     const button=document.createElement('button');button.className='quiet';button.textContent='Cursor';button.setAttribute('aria-label','Ativar cursor do controle');
     button.onclick=()=>{location.href='/remote-pointer';};
-    document.querySelector('.barra').append(button);
+    barra.append(button);
 });
