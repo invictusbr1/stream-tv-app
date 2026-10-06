@@ -1,0 +1,49 @@
+{
+  "name": "stream-tv",
+  "version": "1.8.6",
+  "description": "",
+  "main": "launcher.js",
+  "bin": "launcher.js",
+  "scripts": {
+    "start": "node launcher.js",
+    "build:exe": "pkg . --targets node18-win-x64 --output \"dist/Stream TV.exe\"",
+    "test": "node --test playback.test.cjs auto-player.test.cjs library.test.cjs android/catalog.test.cjs personal.test.cjs pwa.test.cjs",
+    "start:web": "node server.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "axios": "^1.18.1",
+    "express": "^5.2.1",
+    "hls.js": "1.7.3"
+  },
+  "pkg": {
+    "scripts": [
+      "server.js",
+      "launcher.js",
+      "playback-source.js",
+      "android/app/src/main/assets/catalog.js",
+      "pwa/page.cjs"
+    ],
+    "assets": [
+      "index.html",
+      "playback.js",
+      "node_modules/hls.js/dist/hls.min.js",
+      "node_modules/hls.js/LICENSE",
+      "library.js",
+      "auth.js",
+      "jarvis.js",
+      "android/app/src/main/assets/assistir.html",
+      "android/app/src/main/assets/catalog.js",
+      "personal.js",
+      "config.local.json",
+      ".env.example",
+      "pwa/*"
+    ]
+  },
+  "devDependencies": {
+    "pkg": "^5.8.1"
+  }
+}

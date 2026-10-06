@@ -1,0 +1,13 @@
+{
+  "name": "stream-tv",
+  "version": "1.0.0",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "axios": "^1.7.2",
+    "puppeteer": "^22.12.1"
+  }
+}

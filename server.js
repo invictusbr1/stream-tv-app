@@ -1,0 +1,614 @@
+const express = require('express');
+const axios   = require('axios');
+const fs      = require('fs');
+const path    = require('path');
+const os      = require('os');
+axios.defaults.timeout = 12000;
+const app     = express();
+const PORT    = process.env.PORT || 3000;
+const LOCAL_CONFIG = (() => {
+    const files = [path.join(process.cwd(), 'config.local.json'), path.join(path.dirname(process.execPath), 'config.local.json'), path.join(__dirname, 'config.local.json')];
+    for (const file of files) { try { return JSON.parse(fs.readFileSync(file, 'utf8')); } catch { /* configuração opcional */ } }
+    return {};
+})();
+const LOCAL_AI_KEYS = (() => {
+    const files = [
+        process.env.STREAMTV_API_FILE,
+        path.join(os.homedir(), 'OneDrive', 'Área de Trabalho', 'api.txt'),
+        path.join(os.homedir(), 'Desktop', 'api.txt')
+    ].filter(Boolean);
+    for (const file of files) {
+        try {
+            const text = fs.readFileSync(file, 'utf8');
+            const groq = text.match(/gsk_[A-Za-z0-9_-]{20,}/)?.[0] || '';
+            const gemini = text.match(/AIza[A-Za-z0-9_-]{20,}/)?.[0] || '';
+            if (groq || gemini) return { groq, gemini };
+        } catch { /* arquivo local opcional */ }
+    }
+    return { groq: '', gemini: '' };
+})();
+const GROQ_KEY = process.env.GROQ_API_KEY || LOCAL_AI_KEYS.groq;
+const GEMINI_KEY = process.env.GEMINI_API_KEY || LOCAL_AI_KEYS.gemini;
+const PAGE_CANDIDATES = process.pkg
+    ? [path.join(path.dirname(process.execPath), 'index.html'), path.join(__dirname, 'index.html')]
+    : [path.join(__dirname, 'index.html')];
+
+// ============================================================
+// CORS
+// ============================================================
+app.use((req, res, next) => {
+    res.setHeader('Access-Control-Allow-Origin',  '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', '*');
+    if (req.method === 'OPTIONS') return res.sendStatus(200);
+    next();
+});
+app.use(express.json());
+const JARVIS_PROVIDER = String(process.env.JARVIS_PROVIDER || 'groq').toLowerCase();
+const JARVIS_SISTEMA = 'Você é o Jarvis do Stream TV. Responda em português e nunca prometa que uma fonte funciona.';
+// Se o provedor aposentar um modelo, o Jarvis tenta o próximo da lista antes de responder erro.
+const JARVIS_PREFERIDOS = {
+    groq: ['openai/gpt-oss-120b', 'openai/gpt-oss-20b', 'qwen/qwen3.8-27b', 'llama-3.3-70b-versatile'],
+    gemini: ['gemini-2.5-flash-lite', 'gemini-2.5-flash']
+};
+const MODELO_NAO_CONVERSA = /whisper|guard|orpheus|tts|embedding|moderation/i;
+const jarvisUsage = new Map();
+let cacheModelosGroq = null;
+async function modelosGroqDisponiveis() {
+    if (cacheModelosGroq) return cacheModelosGroq;
+    try {
+        const r = await axios.get('https://api.groq.com/openai/v1/models', { timeout: 8000, headers: { Authorization: `Bearer ${GROQ_KEY}` } });
+        cacheModelosGroq = (r.data?.data || []).map(modelo => modelo.id).filter(id => !MODELO_NAO_CONVERSA.test(id));
+    } catch { cacheModelosGroq = []; }
+    return cacheModelosGroq;
+}
+async function modelosJarvis(provider) {
+    const escolhido = String(process.env.JARVIS_MODEL || '').trim();
+    const ordem = [...(escolhido && JARVIS_PROVIDER === provider ? [escolhido] : []), ...(JARVIS_PREFERIDOS[provider] || [])];
+    if (provider !== 'groq') return [...new Set(ordem)];
+    const disponiveis = await modelosGroqDisponiveis();
+    const conhecidos = ordem.filter(modelo => !disponiveis.length || disponiveis.includes(modelo));
+    return [...new Set([...conhecidos, ...disponiveis.filter(id => !conhecidos.includes(id))])].slice(0, 4);
+}
+app.post('/api/jarvis', async (req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    const prompt = typeof req.body?.prompt === 'string' ? req.body.prompt.trim().slice(0, 1200) : '';
+    if (!prompt) return res.status(400).json({ error: 'Escreva o que deseja encontrar.' });
+    const ip = String(req.ip || 'unknown').slice(0, 80), now = Date.now();
+    const usage = jarvisUsage.get(ip) || { started: now, count: 0 };
+    if (now - usage.started > 86400000) { usage.started = now; usage.count = 0; }
+    if (usage.count >= 40) return res.status(429).json({ error: 'Limite gratuito diário atingido. Tente novamente amanhã.' });
+    usage.count++; jarvisUsage.set(ip, usage);
+    const providers = JARVIS_PROVIDER === 'gemini' ? ['gemini', 'groq'] : ['groq', 'gemini'];
+    const available = providers.filter(provider => provider === 'gemini' ? GEMINI_KEY : GROQ_KEY);
+    if (!available.length) return res.status(503).json({ error: 'Jarvis ainda não foi configurado neste servidor.' });
+    for (const provider of available) {
+        for (const model of await modelosJarvis(provider)) {
+            try {
+                let answer;
+                if (provider === 'gemini') {
+                    const r = await axios.post(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(GEMINI_KEY)}`, { contents: [{ role: 'user', parts: [{ text: `${JARVIS_SISTEMA}\n\n${prompt}` }] }], generationConfig: { temperature: 0.6, maxOutputTokens: 700 } }, { timeout: 20000 });
+                    answer = r.data?.candidates?.[0]?.content?.parts?.map(part => part.text || '').join('').trim();
+                } else {
+                    const r = await axios.post('https://api.groq.com/openai/v1/chat/completions', { model, temperature: 0.6, max_tokens: 900, messages: [{ role: 'system', content: JARVIS_SISTEMA }, { role: 'user', content: prompt }] }, { timeout: 20000, headers: { Authorization: `Bearer ${GROQ_KEY}` } });
+                    answer = r.data?.choices?.[0]?.message?.content?.trim();
+                }
+                if (answer) return res.json({ answer, provider, model });
+            } catch { if (provider === 'groq') cacheModelosGroq = null; /* modelo aposentado: reconsulta a lista */ }
+        }
+    }
+    res.status(502).json({ error: 'O Jarvis está indisponível no momento. Nenhuma cobrança foi iniciada pelo Stream TV.' });
+});
+app.get(['/','/index.html'], (req, res) => {
+    for (const file of PAGE_CANDIDATES) {
+        try { return res.type('html').send(require('./pwa/page.cjs').webPage(fs.readFileSync(file, 'utf8'))); } catch { /* tenta o próximo local */ }
+    }
+    res.status(500).send('Interface do Stream TV não encontrada.');
+});
+app.get('/manifest.webmanifest',(req,res)=>res.type('application/manifest+json').sendFile(path.join(__dirname,'pwa/manifest.webmanifest')));
+app.get('/sw.js',(req,res)=>{res.setHeader('Cache-Control','no-cache');res.type('js').sendFile(path.join(__dirname,'pwa/sw.js'));});
+app.get(['/pwa/install.js','/pwa/icon-180.png','/pwa/icon-192.png','/pwa/icon-512.png'],(req,res)=>res.sendFile(path.join(__dirname,req.path)));
+app.get('/api/health', (req, res) => res.json({ status: 'ok', app: 'stream-tv' }));
+app.get('/hls.min.js', (req, res) => res.type('js').send(fs.readFileSync(path.join(__dirname, 'node_modules/hls.js/dist/hls.min.js'))));
+app.get('/playback.js', (req, res) => res.type('js').send(fs.readFileSync(path.join(__dirname, 'playback.js'))));
+app.get('/api/playback/:id', async (req, res) => {
+    if (!/^\d{1,10}$/.test(req.params.id)) return res.sendStatus(400);
+    res.setHeader('Cache-Control', 'no-store');
+    try {
+        const r = await axios.get(`https://v2.watchplay.shop/movie/${req.params.id}`, { timeout: 10000, maxRedirects: 0, maxContentLength: 1024 * 1024, responseType: 'text' });
+        res.json(require('./playback-source').parseWatchPlay(r.data));
+    } catch { res.status(502).json({ error: 'Reprodução direta dublada indisponível.' }); }
+});
+
+const TMDB_KEY = 'b803dfcad0baeafbb66a673ffe98a5ef';
+
+const libraryCatalog=require('./android/app/src/main/assets/catalog').createCatalog(async (url,options)=>{const r=await axios.get(url,{signal:options?.signal});return {ok:true,json:async()=>r.data};},TMDB_KEY);
+app.get(['/api/explore','/api/genres','/api/top-br',/^\/api\/(tv|season|episode)\//],async(req,res)=>{try{res.json(await libraryCatalog.request(req.originalUrl));}catch{res.status(502).json({error:'Catálogo indisponível'});}});
+app.get('/personal.js',(req,res)=>res.sendFile(path.join(__dirname,'personal.js')));
+app.get('/library.js',(req,res)=>res.type('js').send(fs.readFileSync(path.join(__dirname,'library.js'))));
+app.get('/auth.js',(req,res)=>res.type('js').send(fs.readFileSync(path.join(__dirname,'auth.js'))));
+app.get('/jarvis.js',(req,res)=>res.type('js').send(fs.readFileSync(path.join(__dirname,'jarvis.js'))));
+
+app.get('/assistir.html',(req,res)=>res.type('html').send(fs.readFileSync(path.join(__dirname,'android/app/src/main/assets/assistir.html'))));
+app.get('/catalog.js',(req,res)=>res.type('js').send(fs.readFileSync(path.join(__dirname,'android/app/src/main/assets/catalog.js'))));
+app.get('/config.json',(req,res)=>res.json({
+    tmdbKey: TMDB_KEY,
+    app: 'desktop',
+    versionName: (() => { try { return require('./package.json').version; } catch { return ''; } })(),
+    // O anon key do Supabase é público por desenho; chaves de serviço nunca são enviadas ao cliente.
+    supabaseUrl: process.env.SUPABASE_URL || LOCAL_CONFIG.supabaseUrl || '',
+    supabaseAnonKey: process.env.SUPABASE_ANON_KEY || LOCAL_CONFIG.supabaseAnonKey || ''
+}));
+
+const OSCAR_SELECTION = [
+    238, 240, 424, 13, 122, 497, 680, 389, 11216, 244786,
+    129, 857, 313369,
+];
+
+const CACHE = new Map();
+const CACHE_TTL = 10 * 60 * 1000;
+
+function mapFilme(f) {
+    return {
+        id:      f.id,
+        titulo:  f.title || f.name,
+        sinopse: f.overview || '',
+        nota:    f.vote_average ? Number(f.vote_average).toFixed(1) : 'N/A',
+        ano:     (f.release_date || f.first_air_date || '').substring(0, 4),
+        capa:    f.poster_path ? `https://image.tmdb.org/t/p/w500${f.poster_path}` : '',
+        fundo:   f.backdrop_path ? `https://image.tmdb.org/t/p/w1280${f.backdrop_path}` : '',
+        popularidade: Number(f.popularity || 0),
+        votos:   Number(f.vote_count || 0),
+    };
+}
+
+async function tmdbGet(url) {
+    const cached = CACHE.get(url);
+    if (cached && cached.expires > Date.now()) return cached.value;
+    const r = await axios.get(url, { timeout: 15000 });
+    CACHE.set(url, { value: r.data, expires: Date.now() + CACHE_TTL });
+    return r.data;
+}
+
+async function descobrir(params) {
+    const query = new URLSearchParams({ api_key: TMDB_KEY, language: 'pt-BR', include_adult: 'false', page: '1', ...params });
+    const data = await tmdbGet(`https://api.themoviedb.org/3/discover/movie?${query}`);
+    return (data.results || []).map(mapFilme);
+}
+
+async function oscarPremiados() {
+    const data = await Promise.all(OSCAR_SELECTION.map(async id => {
+        try { return mapFilme(await tmdbGet(`https://api.themoviedb.org/3/movie/${id}?api_key=${TMDB_KEY}&language=pt-BR`)); }
+        catch { return null; }
+    }));
+    return data.filter(Boolean).sort((a, b) => Number(b.nota === 'N/A' ? 0 : b.nota) - Number(a.nota === 'N/A' ? 0 : a.nota));
+}
+
+const H = {
+    'User-Agent':      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
+    'Accept':          'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+    'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8',
+    'Accept-Encoding': 'gzip, deflate, br',
+    'Cache-Control':   'no-cache',
+    'Upgrade-Insecure-Requests': '1',
+};
+
+// ============================================================
+// FONTES — atualizado em 06/10/2026 com teste em navegador real
+//
+// ATIVAS (entregaram vídeo no teste):
+//   PipocaCine → 720p, faixas de áudio PT e EN. Tem anúncio: só como último caso.
+//   VidLink    → 1080p (HEVC), a única opção Full HD encontrada. Tem anúncio.
+//
+// DESLIGADAS (dub:false e sem optional): ficam fora da lista do aplicativo.
+//   watchcdn, cdn-embed, ultraembed → página vazia ou anúncio, sem vídeo
+//   vidsrc.me, autoembed, moviesapi, vidsrc.in → resposta vazia, erro ou anúncio
+//   vidsrc.wtf, vidfast, vidbinge, 2embed, multiembed, videasy, nontongo, 111movies,
+//   embed.su, vidjoy, smashy, filmxy, vidsrc.to, vidsrc.net, vidsrc.mov, vidora.su
+//     → Cloudflare, verificação humana ou pop-up de anúncio; nenhum entregou vídeo limpo
+//   superflixapi.monster, streambetter.shop → pedem confirmação humana ("não sou robô")
+//
+// REGRA DO PROJETO: fonte sem anúncio primeiro; anúncio somente como último caso,
+// sempre fora do aplicativo, na janela separada do modo com anúncios.
+// ============================================================
+function getFontes(filmeId, imdbId) {
+    const imdb = imdbId || filmeId; // fallback para tmdb se sem imdb
+    return [
+
+        // ── Último caso: abre em janela separada para os anúncios da fonte ──
+        {
+            nome:     'PipocaCine (720p · PT e original)',
+            url:      `https://pipocacine.lat/embed/${filmeId}`,
+            referer:  'https://pipocacine.lat/',
+            dub:      false,
+            optional: true,
+            comAnuncios: true,
+            qualidade:'720p · áudio PT e EN',
+            modo:     'direto',
+            timeout:  8000,
+        },
+        {
+            nome:     'VidLink (Full HD)',
+            url:      `https://vidlink.pro/movie/${filmeId}`,
+            referer:  'https://vidlink.pro/',
+            dub:      false,
+            optional: true,
+            comAnuncios: true,
+            qualidade:'1080p (HEVC)',
+            modo:     'direto',
+            timeout:  8000,
+        },
+
+        // ── Desligadas: não entregaram vídeo em 06/10/2026 ────
+        {
+            nome:    'WatchCDN (indisponível)',
+            url:     `https://embed.watchcdn.org/filme/${imdb}`,
+            referer: 'https://watchcdn.org/',
+            dub:     false,
+            modo:    'direto',
+            timeout: 8000,
+        },
+        {
+            nome:    'CdnEmbed (somente anúncio)',
+            url:     `https://cdn-embed.com/filme/${filmeId}`,
+            referer: 'https://embedmovies.org/',
+            dub:     false,
+            modo:    'direto',
+            timeout: 8000,
+        },
+        {
+            nome:    'UltraEmbed (indisponível)',
+            url:     `https://ultraembed.com/filme/${imdb}`,
+            referer: 'https://ultraembed.com/',
+            dub:     false,
+            modo:    'direto',
+            timeout: 8000,
+        },
+        {
+            nome:    'VidSrc.me (indisponível)',
+            url:     `https://vidsrc.me/embed/movie?tmdb=${filmeId}`,
+            referer: 'https://vidsrc.me/',
+            dub:     false,
+            modo:    'proxy',
+            timeout: 10000,
+        },
+        {
+            nome:    'AutoEmbed (somente anúncio)',
+            url:     `https://autoembed.co/movie/tmdb/${filmeId}`,
+            referer: 'https://autoembed.co/',
+            dub:     false,
+            modo:    'proxy',
+            timeout: 8000,
+        },
+        {
+            nome:    'MoviesAPI (indisponível)',
+            url:     `https://moviesapi.club/movie/${filmeId}`,
+            referer: 'https://moviesapi.club/',
+            dub:     false,
+            modo:    'proxy',
+            timeout: 8000,
+        },
+        {
+            nome:    'VidSrc.in (indisponível)',
+            url:     `https://vidsrc.in/embed/movie?tmdb=${filmeId}`,
+            referer: 'https://vidsrc.in/',
+            dub:     false,
+            modo:    'proxy',
+            timeout: 8000,
+        },
+    ];
+}
+
+// ============================================================
+// BUSCA IMDB ID pelo TMDB ID
+// Necessário para fontes que usam IMDB (watchcdn, ultraembed)
+// ============================================================
+async function getImdbId(tmdbId) {
+    try {
+        const r = await axios.get(
+            `https://api.themoviedb.org/3/movie/${tmdbId}/external_ids?api_key=${TMDB_KEY}`,
+            { timeout: 5000 }
+        );
+        return r.data.imdb_id || null; // ex: "tt1234567"
+    } catch {
+        return null;
+    }
+}
+
+// ============================================================
+// Detectores de bloqueio — fontes com esses padrões são descartadas
+// ============================================================
+const BLOQUEIOS = [
+    'challenges.cloudflare.com',
+    'captcha-gate',
+    'hcaptcha.com',
+    'recaptcha',
+    'disable-devtool',
+    'turnstile',
+    'ZpQw9XkLmN8',
+    "window['",
+    'atob(',
+];
+
+const ERROS_HTML = ['not found', 'not available', 'access denied', 'forbidden', '404 error'];
+
+// ============================================================
+// Testa fontes proxy (baixa HTML e valida)
+// ============================================================
+async function testarProxy(fonte) {
+    try {
+        const r = await axios.get(fonte.url, {
+            headers: { ...H, 'Referer': fonte.referer, 'Origin': new URL(fonte.url).origin },
+            responseType:   'text',
+            timeout:        fonte.timeout,
+            maxRedirects:   10,
+            validateStatus: s => s === 200,
+        });
+
+        const html = r.data || '';
+        if (!r.headers['content-type']?.includes('text/html')) return { ok: false, motivo: 'não é HTML' };
+        if (html.length < 400) return { ok: false, motivo: 'resposta vazia' };
+
+        for (const b of BLOQUEIOS) {
+            if (html.includes(b)) return { ok: false, manual: true, motivo: 'Esta fonte precisa ser aberta no navegador para verificação' };
+        }
+
+        const low = html.toLowerCase();
+        for (const e of ERROS_HTML) {
+            if (low.includes(e) && html.length < 5000) return { ok: false, motivo: `erro: ${e}` };
+        }
+
+        return { ok: true };
+    } catch (err) {
+        return { ok: false, manual: [401, 403, 429, 503].includes(err.response?.status), motivo: err.code || err.message };
+    }
+}
+
+// ============================================================
+// Testa fontes diretas (só verifica se domínio responde)
+// ============================================================
+async function testarDireto(fonte) {
+    try {
+        const r = await axios.get(fonte.url, {
+            headers:        { ...H, 'Referer': fonte.referer },
+            timeout:        fonte.timeout,
+            maxRedirects:   5,
+            responseType:   'text',
+            maxContentLength: 2 * 1024 * 1024,
+            validateStatus: s => s >= 200 && s < 300,
+        });
+        const html = String(r.data || '').trim();
+        if (!r.headers['content-type']?.includes('text/html')) return { ok: false, motivo: 'Resposta não é uma página de vídeo' };
+        if (html.length < 400) return { ok: false, motivo: 'Fonte retornou uma página vazia' };
+        if (/challenges\.cloudflare\.com|hcaptcha\.com|captcha-gate|turnstile|recaptcha/i.test(html)) return { ok: false, manual: true, motivo: 'Fonte exige verificação no navegador' };
+        if (ERROS_HTML.some(e => html.toLowerCase().includes(e)) && html.length < 5000) return { ok: false, motivo: 'Conteúdo indisponível na fonte' };
+        return { ok: true };
+    } catch (err) {
+        return { ok: false, manual: [401, 403, 429, 503].includes(err.response?.status), motivo: err.code || err.message };
+    }
+}
+
+// ============================================================
+// Limpa HTML antes de servir (fontes proxy)
+// ============================================================
+function limparHtml(html, baseUrl) {
+    html = html.replace(
+        /<script[^>]+src=["'][^"']*(?:popads|popcash|adsterra|adnxs|histats|doubleclick|googlesyndication|amazon-adsystem)[^"']*["'][^>]*><\/script>/gi, ''
+    );
+    html = html.replace(/<script(?![^>]*src)[^>]*>([\s\S]*?)<\/script>/gi, (match, code) => {
+        const low = code.toLowerCase();
+        if (low.includes('window.open(') || low.includes('location.replace(') ||
+            (low.includes('window.location') && low.includes('=') && !low.includes('addeventlistener'))) {
+            return '<!-- removido -->';
+        }
+        return match;
+    });
+    html = html.replace(/<meta[^>]*http-equiv=["'](?:X-Frame-Options|Content-Security-Policy)["'][^>]*>/gi, '');
+    if (/<head/i.test(html)) {
+        html = html.replace(/<head([^>]*)>/i, `<head$1><base href="${baseUrl}/">`);
+    } else {
+        html = `<base href="${baseUrl}/">` + html;
+    }
+    return html;
+}
+
+// ============================================================
+// ROTA 1 — Em alta
+// ============================================================
+app.get('/api/em-alta', async (req, res) => {
+    try {
+        const r = await tmdbGet(`https://api.themoviedb.org/3/movie/popular?api_key=${TMDB_KEY}&language=pt-BR&page=1`);
+        res.json((r.results || []).map(mapFilme));
+    } catch (e) { res.status(500).json([]); }
+});
+
+// ============================================================
+// ROTA 1B — Rankings para a tela inicial
+// ============================================================
+app.get('/api/rankings', async (req, res) => {
+    try {
+        res.json(await libraryCatalog.request(req.originalUrl));
+    } catch (e) {
+        console.error('[rankings] falha:', e.message);
+        res.status(502).json({ error: 'Não foi possível carregar os rankings.' });
+    }
+});
+
+// ============================================================
+// ROTA 2 — Busca
+// ============================================================
+app.get('/api/buscar', async (req, res) => {
+    const nome = req.query.nome;
+    if (!nome) return res.status(400).json([]);
+    try {
+        const r = await axios.get(`https://api.themoviedb.org/3/search/movie?api_key=${TMDB_KEY}&query=${encodeURIComponent(nome)}&language=pt-BR`);
+        res.json((r.data.results || []).map(mapFilme));
+    } catch (e) { res.status(500).json([]); }
+});
+
+// ============================================================
+// ROTA 3 — Detecta players
+// Busca IMDB ID do filme em paralelo com os testes de fonte
+// ============================================================
+app.get('/api/player/:id', async (req, res) => {
+    const filmeId = req.params.id;
+    if (!/^\d{1,10}$/.test(filmeId)) return res.status(400).json({ error: 'Identificador de filme inválido' });
+
+    // Busca IMDB ID em paralelo (necessário para fontes BR)
+    const imdbId = await getImdbId(filmeId);
+    console.log(`\n[player] ID ${filmeId} → IMDB: ${imdbId || 'não encontrado'}`);
+
+    const fontes = getFontes(filmeId, imdbId);
+    console.log(`[player] Testando ${fontes.length} fontes...`);
+
+    const resultados = await Promise.allSettled(
+        fontes.map((fonte, i) => ({ fonte, i })).filter(({ fonte }) => fonte.dub || fonte.optional).map(async ({ fonte, i }) => {
+            const t0    = Date.now();
+            const teste = fonte.modo === 'proxy'
+                ? await testarProxy(fonte)
+                : await testarDireto(fonte);
+            console.log(`  [${i}] ${fonte.nome.padEnd(22)} ${teste.ok?'✅':'❌'} ${Date.now()-t0}ms  ${teste.motivo||''}`);
+            return { fonte, teste, i };
+        })
+    );
+
+    const players = resultados
+        .filter(r => r.status === 'fulfilled')
+        .map(({ value: { fonte, teste, i } }) => ({
+            nome:      fonte.nome,
+            dub:       fonte.dub,
+            optional: Boolean(fonte.optional),
+            funcionou: teste.ok,
+            qualidade: fonte.qualidade || null,
+            manual:    Boolean(teste.manual)||Boolean(fonte.comAnuncios),
+            status:    teste.ok ? 'pagina-acessivel' : teste.manual ? 'verificacao-no-navegador' : 'indisponivel',
+            motivo:    teste.motivo || null,
+            url:       fonte.url,
+            urlCompatibilidade: `/assistir/${filmeId}/${i}`,
+        }))
+        .sort((a, b) => {
+            const s = p => (p.funcionou ? 10 : 0) + (p.nome.startsWith('CdnEmbed') ? 1 : 0);
+            return s(b) - s(a);
+        });
+
+    try { const additional=await libraryCatalog.sources(filmeId); players.push(...additional.filter(p=>p.index>=8)); } catch {}
+    const melhor = players.find(p => p.dub && p.funcionou) || null;
+    console.log(`[player] Melhor: ${melhor?.nome || 'nenhuma'}\n`);
+    res.json({ players, melhor });
+});
+
+// ============================================================
+// Modo opcional em aba separada. Mantém o contexto de incorporação exigido
+// pelo fornecedor, permitindo seus formulários, pop-ups e verificações.
+// A abertura é sempre uma escolha do usuário, nunca um fallback automático.
+app.get('/assistir/:filmeId/:fonteIndex', async (req, res) => {
+    const { filmeId, fonteIndex } = req.params;
+    if (!/^\d{1,10}$/.test(filmeId) || !/^[0-7]$/.test(fonteIndex)) return res.status(400).send('Fonte inválida');
+    return res.redirect(`/assistir.html?id=${filmeId}&source=${fonteIndex}`);
+});
+
+// ROTA 4 — Proxy reverso (fontes modo "proxy")
+// ============================================================
+app.get('/proxy/player/:filmeId/:fonteIndex', async (req, res) => {
+    const { filmeId, fonteIndex } = req.params;
+    const imdbId = await getImdbId(filmeId);
+    const fontes = getFontes(filmeId, imdbId);
+    const fonte  = fontes[parseInt(fonteIndex)];
+
+    if (!fonte) return res.status(400).send('Fonte inválida');
+    console.log(`[proxy] → ${fonte.nome}`);
+
+    res.removeHeader('X-Frame-Options');
+    res.removeHeader('Content-Security-Policy');
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.setHeader('Content-Security-Policy', 'sandbox allow-scripts allow-presentation');
+
+    try {
+        const r = await axios.get(fonte.url, {
+            headers: { ...H, 'Referer': fonte.referer, 'Origin': new URL(fonte.url).origin },
+            responseType: 'arraybuffer',
+            timeout:      fonte.timeout + 5000,
+            maxRedirects: 10,
+        });
+
+        const html = Buffer.from(r.data).toString('utf-8');
+
+        for (const b of BLOQUEIOS) {
+            if (html.includes(b)) {
+                return res.send(htmlErro(fonte.nome, 'Proteção detectada — tente outra fonte'));
+            }
+        }
+
+        res.send(limparHtml(html, new URL(fonte.url).origin));
+    } catch (err) {
+        res.status(502).send(htmlErro(fonte.nome, err.code || err.message));
+    }
+});
+
+// ============================================================
+// ROTA 5 — Debug
+// ============================================================
+app.get('/debug/player/:filmeId/:fonteIndex', async (req, res) => {
+    const { filmeId, fonteIndex } = req.params;
+    const imdbId = await getImdbId(filmeId);
+    const fontes = getFontes(filmeId, imdbId);
+    const fonte  = fontes[parseInt(fonteIndex)];
+    if (!fonte) return res.status(400).send('Fonte inválida');
+
+    try {
+        const r = await axios.get(fonte.url, {
+            headers: { ...H, 'Referer': fonte.referer || fonte.url },
+            responseType: 'text', timeout: 15000, maxRedirects: 10,
+        });
+        const html = r.data || '';
+        res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+        res.send([
+            `=== DEBUG [${fonteIndex}] ${fonte.nome} ===`,
+            `TMDB ID   : ${filmeId}`,
+            `IMDB ID   : ${imdbId || 'não encontrado'}`,
+            `URL       : ${fonte.url}`,
+            `Modo      : ${fonte.modo}`,
+            `Status    : ${r.status}`,
+            `Ct-Type   : ${r.headers['content-type']}`,
+            `Tamanho   : ${html.length} chars`,
+            ``,
+            `=== IFRAMEs ===`,
+            ...[...html.matchAll(/<iframe[^>]+src=["']([^"']+)["']/gi)].map(m => '  ' + m[1]),
+            ``,
+            `=== BLOQUEIOS ===`,
+            ...BLOQUEIOS.filter(b => html.includes(b)).map(b => '  ⚠ ' + b),
+            ``,
+            `=== PRIMEIROS 3000 CHARS ===`,
+            html.substring(0, 3000),
+        ].join('\n'));
+    } catch (err) {
+        res.status(502).send(`Erro: ${err.message}`);
+    }
+});
+
+// ============================================================
+// Helpers HTML
+// ============================================================
+function htmlErro(nome, motivo) {
+    return `<!DOCTYPE html><html><body style="background:#111;color:#fff;font-family:sans-serif;
+display:flex;align-items:center;justify-content:center;height:100vh;flex-direction:column;gap:14px;text-align:center;padding:24px">
+<div style="font-size:2.5rem">⚠️</div>
+<h2 style="color:#E50914">Fonte indisponível</h2>
+<p style="color:#888">${nome}</p>
+<p style="color:#555;font-size:.8rem">${motivo || ''}</p>
+<p style="color:#444;font-size:.75rem">Tente outra fonte na barra acima.</p>
+</body></html>`;
+}
+
+// ============================================================
+app.listen(PORT, '0.0.0.0', () => {
+    const privado = ip => /^192\.168\./.test(ip) || /^10\./.test(ip) || /^172\.(1[6-9]|2\d|3[01])\./.test(ip);
+    const rede = Object.values(os.networkInterfaces()).flat()
+        .filter(item => item && item.family === 'IPv4' && !item.internal)
+        .map(item => item.address);
+    const alvo = rede.find(privado) || rede[0];
+    console.log('\n  Stream TV está no ar.');
+    console.log(`  Neste computador  : http://localhost:${PORT}`);
+    if (alvo) console.log(`  No iPhone/celular : http://${alvo}:${PORT}   (mesma rede Wi-Fi)`);
+    console.log('  Reprodução dublada sem anúncio: WatchPlay. Último caso: PipocaCine e VidLink (com anúncios).\n');
+});

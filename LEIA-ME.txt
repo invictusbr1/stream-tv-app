@@ -1,0 +1,23 @@
+STREAM TV 1.1.0
+
+Abra “Stream TV.exe”. O aplicativo inicia o serviço local e abre a interface no navegador padrão.
+
+O catálogo mostra quatro seleções:
+- Mais relevantes: popularidade e procura no TMDB.
+- Melhores avaliados: nota com volume mínimo de votos.
+- Oscar e premiados: seleção editorial de vencedores e indicados.
+- Novidades: lançamentos recentes com avaliação mínima.
+
+É necessário estar conectado à internet para carregar o catálogo e os players externos.
+
+VERIFICAÇÃO TRAVADA OU PLAYER PREMIUM
+Na tela do filme, use "Abrir modo com anúncios".
+Na nova aba, escolha Premium, se essa for a opção desejada, e conclua a verificação pessoalmente.
+O catálogo fica aberto. A reprodução embutida é interrompida para evitar áudio duplicado.
+Use a lista de fontes para tentar outra fonte, inclusive as que exigem verificação. A aba opcional permite os formulários e pop-ups do fornecedor; o player embutido continua com suas restrições originais.
+A opção não remove verificações nem garante disponibilidade do fornecedor.
+
+ANDROID
+Este executável é exclusivo para Windows.
+Um atalho para localhost depende deste computador e não funciona fora de casa.
+Uma versão Android independente precisa consultar o catálogo diretamente no aparelho ou usar um servidor hospedado.
