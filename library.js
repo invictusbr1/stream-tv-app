@@ -25,10 +25,10 @@ window.StreamLibrary=(()=>{
 window.StreamChrome=(()=>{
  let timer;
  function wake(){clearTimeout(timer);const player=el('player');player.classList.remove('chrome-hidden');if(!player.classList.contains('ativo'))return;
-  timer=setTimeout(()=>{if(!el('opcoes').hidden||el('loading').classList.contains('vis'))return;const v=el('direct-video');if(v&&v.paused)return;const focused=document.activeElement;if(focused?.closest('.barra')||focused?.closest('#direct-controls')){(v||el('frame')).focus();}player.classList.add('chrome-hidden');},5000);
+  timer=setTimeout(()=>{if(!el('opcoes').hidden||el('loading').classList.contains('vis'))return;const v=el('direct-video');if(v&&v.paused)return;const focused=document.activeElement;if(focused?.closest('.barra')||focused?.closest('.player-top')||focused?.closest('#direct-controls')||focused?.closest('.player-tools')){(v||el('frame')).focus();}player.classList.add('chrome-hidden');},5000);
  }
  for(const name of ['pointermove','pointerdown','keydown'])document.addEventListener(name,wake,true);
- document.addEventListener('focusin',()=>{if(document.activeElement?.closest('.barra')||document.activeElement?.closest('#direct-controls')||!el('opcoes').hidden)wake();});
+ document.addEventListener('focusin',()=>{if(document.activeElement?.closest('.barra')||document.activeElement?.closest('.player-top')||document.activeElement?.closest('#direct-controls')||document.activeElement?.closest('.player-tools')||!el('opcoes').hidden)wake();});
  let wasActive=false;new MutationObserver(()=>{const active=el('player').classList.contains('ativo');if(active!==wasActive){wasActive=active;wake();}}).observe(el('player'),{attributes:true,attributeFilter:['class']});
  new MutationObserver(wake).observe(el('loading'),{attributes:true,attributeFilter:['class']});
  new MutationObserver(wake).observe(el('opcoes'),{attributes:true,attributeFilter:['hidden']});

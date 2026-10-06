@@ -1,25 +1,19 @@
 'use strict';
 // First-party video element: actual playback events, HLS quality and fullscreen.
 window.StreamPlayback = (() => {
-    document.querySelector('.quality').textContent='O vídeo direto usa a melhor qualidade oferecida pela fonte. Fontes alternativas podem ter seus próprios controles.';
+    const notaQualidade=document.querySelector('.quality');if(notaQualidade)notaQualidade.textContent='O áudio e a qualidade são definidos pela fonte; o aplicativo escolhe a melhor opção disponível.';
     const preference=document.createElement('label');preference.style.cssText='display:flex;gap:10px;align-items:center;margin:20px 0;font-size:13px';
     const checkbox=document.createElement('input');checkbox.type='checkbox';checkbox.id='auto-fullscreen';
     let stored=null;try{stored=localStorage.getItem('streamtv-fullscreen');}catch{}
     checkbox.checked=stored===null?/StreamTVAndroidTV/.test(navigator.userAgent):stored==='true';
     checkbox.onchange=()=>{try{localStorage.setItem('streamtv-fullscreen',String(checkbox.checked));}catch{}};
     preference.append(checkbox,document.createTextNode('Abrir filmes em tela cheia'));el('fontes').before(preference);
-    const section=document.createElement('div');section.id='direct-quality';section.hidden=true;
-    section.innerHTML='<div class="options-label">Qualidade do vídeo</div><p id="quality-info">Original · Dublado</p><p id="quality-limit"></p><select id="quality-select" aria-label="Qualidade do vídeo"><option value="best">Melhor disponível</option></select><button class="quiet" id="quality-alt" hidden onclick="abrirOpcoes()">Ver todas as fontes e qualidades</button>';
-    el('fontes').before(section);
     el('quality-select').onchange=e=>quality(e.target.value);
-    const subtitles=document.createElement('div');subtitles.id='subtitle-panel';subtitles.innerHTML='<div class="options-label">Legendas</div><select id="subtitle-select" aria-label="Legendas"><option value="-1">Desativadas</option></select><p id="subtitle-info">Abra um vídeo para consultar as legendas.</p>';el('fontes').before(subtitles);
     el('subtitle-select').onchange=e=>setSubtitle(Number(e.target.value));
     let subtitleChoice=-1,progressFilm=null,lastSaved=0,resumeApplied=false,audioChoice=-1,speed=1;
     try{speed=Number(localStorage.getItem('streamtv-speed'))||1;}catch{}
     if(![0.75,1,1.25,1.5,2].includes(speed))speed=1;
-    const speedPanel=document.createElement('div');speedPanel.id='speed-panel';speedPanel.innerHTML='<div class="options-label">Velocidade</div><select id="speed-select" aria-label="Velocidade de reprodução"><option value="0.75">0,75×</option><option value="1">Normal (1×)</option><option value="1.25">1,25×</option><option value="1.5">1,5×</option><option value="2">2×</option></select><p id="speed-info">A velocidade escolhida fica salva neste aparelho.</p>';el('fontes').before(speedPanel);
-    const audioPanel=document.createElement('div');audioPanel.id='audio-panel';audioPanel.hidden=true;audioPanel.innerHTML='<div class="options-label">Faixa de áudio</div><select id="audio-select" aria-label="Faixa de áudio"></select><p id="audio-info">A opção dublada é escolhida automaticamente quando a fonte oferece.</p>';el('fontes').before(audioPanel);
-    function setSpeed(value){speed=[0.75,1,1.25,1.5,2].includes(Number(value))?Number(value):1;if(video)video.playbackRate=speed;const select=el('speed-select');if(select)select.value=String(speed);try{localStorage.setItem('streamtv-speed',String(speed));}catch{}}
+    function setSpeed(value){speed=[0.75,1,1.25,1.5,2].includes(Number(value))?Number(value):1;if(video)video.playbackRate=speed;const select=el('speed-select');if(select)select.value=String(speed);try{localStorage.setItem('streamtv-speed',String(speed));}catch{}atualizarBotoesAjuste();}
     function setAudio(value){const escolha=Number(value);audioChoice=Number.isInteger(escolha)&&escolha>=0?escolha:-1;if(hls&&audioChoice>=0)hls.audioTrack=audioChoice;}
     el('speed-select').onchange=e=>setSpeed(e.target.value);
     el('audio-select').onchange=e=>setAudio(e.target.value);
@@ -44,7 +38,7 @@ window.StreamPlayback = (() => {
         if(subtitleChoice>=tracks.length)subtitleChoice=-1;select.value=String(subtitleChoice);select.disabled=!tracks.length;
         el('subtitle-info').textContent=tracks.length?'Escolha uma faixa ou mantenha desativadas.':'Esta fonte não forneceu legendas ao player. Em fontes externas, use o botão CC do próprio player.';
     }
-    function setSubtitle(index){const tracks=hls?.subtitleTracks||Array.from(video?.textTracks||[]);subtitleChoice=Number.isInteger(index)&&index>=0&&index<tracks.length?index:-1;
+    function setSubtitle(index){atualizarBotoesAjuste();const tracks=hls?.subtitleTracks||Array.from(video?.textTracks||[]);subtitleChoice=Number.isInteger(index)&&index>=0&&index<tracks.length?index:-1;
         if(hls){hls.subtitleDisplay=subtitleChoice>=0;hls.subtitleTrack=subtitleChoice;}else tracks.forEach((t,i)=>t.mode=i===subtitleChoice?'showing':'disabled');
     }
 
@@ -75,7 +69,7 @@ window.StreamPlayback = (() => {
         el('quality-info').textContent=(width&&height?`${width} × ${height} · Dublado`:height?`${height}p · Dublado`:'Original · Dublado')+taxa;
         const best=hls?.levels[bestLevel()],maxWidth=best?.width||width,maxHeight=best?.height||height;
         el('quality-limit').textContent=maxWidth>=1920||maxHeight>=1080?'Full HD ou superior disponível nesta fonte.':maxWidth||maxHeight?'Esta fonte não oferece Full HD para este filme.':'Verificando a resolução oferecida pela fonte…';
-        const alt=el('quality-alt');if(alt)alt.hidden=Boolean(maxWidth>=1920||maxHeight>=1080);
+        const alt=el('quality-alt');if(alt)alt.hidden=Boolean(maxWidth>=1920||maxHeight>=1080);atualizarBotoesAjuste();
     }
     function quality(value){if(hls)hls.currentLevel=value==='best'?bestLevel():Number(value);}
     function qualityMenu(){const select=el('quality-select');select.hidden=false;select.replaceChildren();const values=[['best','Melhor disponível'],['-1','Automática (conexão)']];if(hls)hls.levels.forEach((l,i)=>{if(l.height)values.push([String(i),`${l.height}p`]);});for(const [value,label] of values){const o=document.createElement('option');o.value=value;o.textContent=label;select.append(o);}select.value='best';el('direct-quality').hidden=false;}
@@ -102,10 +96,10 @@ window.StreamPlayback = (() => {
             };
             startupTimer=setTimeout(pictureTimeout,12000);
             signal.addEventListener('abort',()=>{if(current())failure();},{once:true});
-            video.addEventListener('playing',()=>{if(!current())return;el('direct-resume').hidden=true;awaitPicture();el('direct-toggle').textContent='Pausar';showControls(!initialFocus);initialFocus=true;});
+            video.addEventListener('playing',()=>{if(!current())return;el('direct-resume').hidden=true;awaitPicture();el('direct-toggle').textContent='⏸';el('direct-toggle').setAttribute('aria-label','Pausar');showControls(!initialFocus);initialFocus=true;});
             video.addEventListener('canplay',()=>{if(!current())return;play();},{once:true});
             video.addEventListener('loadedmetadata',()=>{if(current()){qualityInfo();subtitleMenu();resume();}});
-            video.addEventListener('pause',()=>{if(current()){saveProgress();el('direct-toggle').textContent='Reproduzir';showControls();}});
+            video.addEventListener('pause',()=>{if(current()){saveProgress();el('direct-toggle').textContent='▶';el('direct-toggle').setAttribute('aria-label','Reproduzir');showControls();}});
             video.addEventListener('timeupdate',()=>{if(current()){resume();if(resumeApplied&&Date.now()-lastSaved>2000){saveProgress();lastSaved=Date.now();}if(settle)awaitPicture();el('direct-time').textContent=clock(video.currentTime)+' / '+clock(video.duration);el('direct-progress').value=Number.isFinite(video.duration)&&video.duration>0?video.currentTime/video.duration:0;}});
             video.addEventListener('click',()=>showControls(true));
             video.textTracks?.addEventListener?.('addtrack',()=>{if(current()){subtitleMenu();setSubtitle(subtitleChoice);}});
@@ -121,16 +115,21 @@ window.StreamPlayback = (() => {
             }else if(video.canPlayType('application/vnd.apple.mpegurl')){video.src=data.url;el('direct-quality').hidden=false;el('quality-select').hidden=true;play();}else failure();
         });
     }
+    function marcarAtivo(botao,ativo){if(!botao)return;if(ativo)botao.setAttribute('data-ativo','');else botao.removeAttribute('data-ativo');}
+    function atualizarBotoesAjuste(){const botaoQualidade=el('menu-quality-btn');if(botaoQualidade){const altura=hls?.levels?.[bestLevel()]?.height||video?.videoHeight||0;botaoQualidade.textContent=altura?altura+'p':'HD';}const botaoVelocidade=el('menu-speed-btn');if(botaoVelocidade)botaoVelocidade.textContent=String(speed).replace('.',',')+'×';marcarAtivo(el('menu-subs-btn'),subtitleChoice>=0);marcarAtivo(el('menu-audio-btn'),audioChoice>=0);}
     function clock(seconds){if(!Number.isFinite(seconds))return '--:--';const n=Math.floor(seconds);return Math.floor(n/60)+':'+String(n%60).padStart(2,'0');}
     function showControls(focus=false){if(!direct)return;window.StreamChrome?.wake();clearTimeout(controlsTimer);el('direct-controls').hidden=false;if(focus)el('direct-toggle').focus();controlsTimer=setTimeout(()=>{if(video&&!video.paused&&el('opcoes').hidden){if(el('direct-controls').contains(document.activeElement))video.focus();el('direct-controls').hidden=true;}},6000);}
     function toggle(){if(video)video.paused?play():video.pause();showControls();}
     function seek(seconds){if(video&&Number.isFinite(video.duration))video.currentTime=Math.max(0,Math.min(video.duration,video.currentTime+seconds));showControls();}
+    // Mover o dedo ou o mouse traz os controles de volta enquanto o vídeo roda.
+    document.addEventListener('pointermove',()=>{if(direct&&video)showControls();},{passive:true});
     return {start,stop,play,quality,toggle,seek,showControls,setSubtitle,saveProgress,setSpeed,setAudio,audioMenu,isActive:()=>direct};
 })();
-window.StreamSetFullscreen=function(enabled){el('player').classList.toggle('expanded',enabled);el('fullscreen-toggle').textContent=enabled?'Sair da tela cheia':'Tela cheia';};
+function mostrarIconeTelaCheia(ativo){const b=el('fullscreen-toggle');if(!b)return;b.textContent=ativo?'⤡':'⛶';b.setAttribute('aria-label',ativo?'Sair da tela cheia':'Tela cheia');}
+window.StreamSetFullscreen=function(enabled){el('player').classList.toggle('expanded',enabled);mostrarIconeTelaCheia(enabled);};
 window.StreamExitFullscreen=function(){if(/StreamTVAndroid/.test(navigator.userAgent)&&el('player').classList.contains('expanded')){window.StreamSetFullscreen(false);location.href='/player-fullscreen?enabled=0';}};
-async function telaCheia(){const ios=/iPhone|iPad|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);const nativeVideo=el('direct-video');if(ios&&nativeVideo?.webkitEnterFullscreen){try{nativeVideo.webkitEnterFullscreen();return;}catch{}}if(/StreamTVAndroid/.test(navigator.userAgent)){const enabled=!el('player').classList.contains('expanded');window.StreamSetFullscreen(enabled);location.href='/player-fullscreen?enabled='+(enabled?'1':'0');return;}try{if(document.fullscreenElement)await document.exitFullscreen();else await el('player').requestFullscreen();}catch{el('player').classList.toggle('expanded');el('fullscreen-toggle').textContent=el('player').classList.contains('expanded')?'Sair da tela cheia':'Tela cheia';}}
-document.addEventListener('fullscreenchange',()=>{el('fullscreen-toggle').textContent=document.fullscreenElement?'Sair da tela cheia':'Tela cheia';});
+async function telaCheia(){const ios=/iPhone|iPad|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);const nativeVideo=el('direct-video');if(ios&&nativeVideo?.webkitEnterFullscreen){try{nativeVideo.webkitEnterFullscreen();return;}catch{}}if(/StreamTVAndroid/.test(navigator.userAgent)){const enabled=!el('player').classList.contains('expanded');window.StreamSetFullscreen(enabled);location.href='/player-fullscreen?enabled='+(enabled?'1':'0');return;}try{if(document.fullscreenElement)await document.exitFullscreen();else await el('player').requestFullscreen();}catch{el('player').classList.toggle('expanded');mostrarIconeTelaCheia(el('player').classList.contains('expanded'));}}
+document.addEventListener('fullscreenchange',()=>{mostrarIconeTelaCheia(Boolean(document.fullscreenElement));});
 // Direction keys navigate controls; only an explicit seek button changes time.
 document.addEventListener('keydown',event=>{
     const v=el('direct-video');if(!v||!el('opcoes').hidden)return;
