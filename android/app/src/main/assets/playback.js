@@ -32,15 +32,26 @@ window.StreamPlayback = (() => {
     function resume(){if(!video||!progressFilm||resumeApplied||!Number.isFinite(video.duration)||video.duration<=0)return;const position=window.StreamPersonal?.position(progressFilm)||0;try{if(position>=5&&position<video.duration-30)video.currentTime=position;resumeApplied=true;}catch{}}
     document.addEventListener('visibilitychange',()=>{if(document.hidden)saveProgress();});
     window.addEventListener?.('pagehide',saveProgress);
+    function listaDeLegendas(){
+        const doHls=hls?.subtitleTracks||[];
+        const rotulos=new Set(doHls.map(t=>t.name||t.label||t.language||''));
+        const nativas=Array.from(video?.textTracks||[]).filter(t=>!rotulos.has(t.label||t.language||''));
+        return {tracks:[...doHls,...nativas],hlsCount:doHls.length};
+    }
     function subtitleMenu(){
-        const tracks=hls?.subtitleTracks||Array.from(video?.textTracks||[]);const select=el('subtitle-select');select.replaceChildren();
+        const tracks=listaDeLegendas().tracks;const select=el('subtitle-select');select.replaceChildren();
         const off=document.createElement('option');off.value='-1';off.textContent='Desativadas';select.append(off);
         tracks.forEach((t,i)=>{const option=document.createElement('option');option.value=String(i);option.textContent=t.name||t.label||t.lang||t.language||`Legenda ${i+1}`;select.append(option);});
         if(subtitleChoice>=tracks.length)subtitleChoice=-1;select.value=String(subtitleChoice);select.disabled=!tracks.length;
-        el('subtitle-info').textContent=tracks.length?'Escolha uma faixa ou mantenha desativadas.':'Esta fonte não forneceu legendas ao player. Em fontes externas, use o botão CC do próprio player.';
+        el('subtitle-info').textContent=tracks.length?'Escolha uma faixa ou mantenha desativadas.':'Sem legendas ainda. Coloque arquivos .srt na pasta Legendas do aplicativo, com o nome do filme.';
     }
-    function setSubtitle(index){atualizarBotoesAjuste();const tracks=hls?.subtitleTracks||Array.from(video?.textTracks||[]);subtitleChoice=Number.isInteger(index)&&index>=0&&index<tracks.length?index:-1;
-        if(hls){hls.subtitleDisplay=subtitleChoice>=0;hls.subtitleTrack=subtitleChoice;}else tracks.forEach((t,i)=>t.mode=i===subtitleChoice?'showing':'disabled');
+    function setSubtitle(index){
+        atualizarBotoesAjuste();
+        const {tracks,hlsCount}=listaDeLegendas();
+        const escolha=Number.isInteger(index)&&index>=0&&index<tracks.length?index:-1;
+        subtitleChoice=escolha;
+        if(hls){const noHls=escolha>=0&&escolha<hlsCount;hls.subtitleDisplay=noHls;hls.subtitleTrack=noHls?escolha:-1;}
+        tracks.slice(hlsCount).forEach((trilha,posicao)=>{if(trilha&&typeof trilha==='object'&&'mode' in trilha)trilha.mode=(escolha===hlsCount+posicao)?'showing':'disabled';});
     }
 
     const android=/StreamTVAndroid/.test(navigator.userAgent);
@@ -99,7 +110,7 @@ window.StreamPlayback = (() => {
             signal.addEventListener('abort',()=>{if(current())failure();},{once:true});
             video.addEventListener('playing',()=>{if(!current())return;el('direct-resume').hidden=true;awaitPicture();el('direct-toggle').textContent='⏸';el('direct-toggle').setAttribute('aria-label','Pausar');showControls(!initialFocus);initialFocus=true;});
             video.addEventListener('canplay',()=>{if(!current())return;play();},{once:true});
-            video.addEventListener('loadedmetadata',()=>{if(current()){qualityInfo();subtitleMenu();buscaLivre();atualizarVolume();resume();}});
+            video.addEventListener('loadedmetadata',()=>{if(current()){qualityInfo();subtitleMenu();buscaLivre();atualizarVolume();resume();window.StreamLegendas?.anexar?.(video,progressFilm).then?.(()=>{if(current())subtitleMenu();}).catch?.(()=>{});}});
             video.addEventListener('pause',()=>{if(current()){saveProgress();el('direct-toggle').textContent='▶';el('direct-toggle').setAttribute('aria-label','Reproduzir');showControls();}});
             video.addEventListener('timeupdate',()=>{if(current()){resume();if(resumeApplied&&Date.now()-lastSaved>2000){saveProgress();lastSaved=Date.now();}if(settle)awaitPicture();el('direct-time').textContent=clock(video.currentTime)+' / '+clock(video.duration);const barra=el('direct-progress');if(barra&&!arrastando)barra.value=Number.isFinite(video.duration)&&video.duration>0?Math.round(video.currentTime/video.duration*1000):0;}});
             video.addEventListener('click',()=>showControls(true));

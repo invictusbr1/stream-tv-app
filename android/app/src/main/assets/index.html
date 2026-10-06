@@ -98,6 +98,16 @@ body{background:radial-gradient(900px 520px at 12% -10%,#1a2130,transparent 65%)
 .ajuste[hidden]{display:none}
 .ajuste select{width:100%;background:#1b2130;color:#fff;border:1px solid #38415a;border-radius:10px;padding:11px;margin-top:6px}
 /* iPhone: área segura do notch, toque sem zoom acidental e barra de endereço recolhível */
+/* Portão de entrada (nome obrigatório) */
+#portao{position:fixed;inset:0;z-index:60;display:flex;align-items:center;justify-content:center;background:#05070bf2;-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);padding:20px}
+.portao-card{width:min(420px,96vw);background:#12161f;border:1px solid #ffffff1f;border-radius:18px;padding:26px;box-shadow:0 24px 70px #000c}
+.portao-card h2{margin:0 0 10px;font-size:22px}
+.portao-card p{color:#aab4c4;font-size:13.5px;line-height:1.6;margin:0 0 14px}
+.portao-card label{display:grid;gap:8px;font-size:13px;color:#c3ccda;margin-bottom:16px}
+.portao-card input{width:100%;padding:13px;border-radius:11px;border:1px solid #3a4358;background:#1b2130;color:#fff;font-size:16px}
+.portao-card button{width:100%}
+.portao-erro{color:#ff9ba7;font-size:12.5px;min-height:18px;margin:10px 0 0}
+.portao-nota{color:#7d8798;font-size:11.5px;margin:12px 0 0}
 /* Barra arrastável e volume */
 .scrub{display:block;width:100%;height:22px;background:transparent;-webkit-appearance:none;appearance:none;cursor:pointer;padding:0}
 .scrub::-webkit-slider-runnable-track{height:6px;border-radius:99px;background:#ffffff2e}
@@ -188,7 +198,7 @@ function tentarNovamente(){if(filmeAtual)abrirPlayer(filmeAtual.id,filmeAtual.ti
 function fechar(){if(fonteAtual>=0&&players[fonteAtual])lembrarFonte(players[fonteAtual].nome);window.StreamExitFullscreen?.();++playerVersion;playerRequest?.abort();pararFrame();if(document.fullscreenElement)document.exitFullscreen().catch(()=>{});el('player').classList.remove('expanded');fecharOpcoes(false);el('player').classList.remove('ativo');el('loading').classList.remove('vis');el('abrir-externo').removeAttribute('href');players=[];fonteAtual=-1;document.body.style.overflow='';ultimoFoco?.focus();window.StreamPersonal?.render();}
 document.addEventListener('keydown',e=>{if(!el('player').classList.contains('ativo'))return;if(e.key==='Escape'){e.preventDefault();if(!el('opcoes').hidden)fecharOpcoes();else fechar();}if(e.key==='Tab'&&!el('opcoes').hidden){const nodes=[...el('opcoes').querySelectorAll('button:not(:disabled),select,a[href],summary')].filter(n=>n.getClientRects().length);const first=nodes[0],last=nodes[nodes.length-1];if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus();}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus();}}});
 carregarRankings();
-</script><script src="/hls.min.js"></script><script src="/playback.js"></script><script src="/library.js"></script><script src="/personal.js"></script><script src="/auth.js"></script><script src="/jarvis.js"></script>
+</script><script src="/hls.min.js"></script><script src="/playback.js"></script><script src="/library.js"></script><script src="/personal.js"></script><script src="/auth.js"></script><script src="/jarvis.js"></script><script src="/acesso.js"></script><script src="/legendas.js"></script>
 <div id="update-aviso" class="toast" hidden><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" style="fill:none;stroke:#ff5566;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round"><path d="M12 4v10"></path><path d="M8 10.5l4 4 4-4"></path><path d="M5 19h14"></path></svg><strong>Nova versão disponível</strong><span>Atualize sem perder o histórico.</span><a href="/check-updates">Atualizar</a><button class="fechar" aria-label="Fechar aviso" onclick="document.getElementById('update-aviso').hidden=true">×</button></div>
 <script>
 (function(){
