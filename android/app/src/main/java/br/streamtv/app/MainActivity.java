@@ -156,7 +156,34 @@ public final class MainActivity extends Activity {
         web.setWebViewClient(new WebViewClient() {
             @Override public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
                 Uri uri = request.getUrl();
-                if (!HOST.equals(uri.getHost())) return null;
+                if (!HOST.equals(uri.getHost())) {
+                    // Robô das séries: se a página da fonte responder que não tem este
+                    // episódio, o aplicativo troca de fonte sozinho.
+                    if (request.isForMainFrame() && main != null && main.getUrl() != null && local(Uri.parse(main.getUrl()))) {
+                        try {
+                            HttpsURLConnection checagem = (HttpsURLConnection) new URL(uri.toString()).openConnection();
+                            checagem.setConnectTimeout(6000); checagem.setReadTimeout(6000);
+                            checagem.setInstanceFollowRedirects(true);
+                            checagem.setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36");
+                            if (checagem.getResponseCode() == 200) {
+                                String corpo;
+                                try (InputStream entrada = checagem.getInputStream(); ByteArrayOutputStream saida = new ByteArrayOutputStream()) {
+                                    byte[] bloco = new byte[8192]; int lidos; int total = 0;
+                                    while ((lidos = entrada.read(bloco)) != -1 && total < 262144) { saida.write(bloco, 0, lidos); total += lidos; }
+                                    corpo = new String(saida.toByteArray(), StandardCharsets.UTF_8);
+                                }
+                                if (Pattern.compile("not available|couldn't find|not found|não disponível|nao disponivel|conteúdo indisponível|conteudo indisponivel", Pattern.CASE_INSENSITIVE).matcher(corpo).find()) {
+                                    main.post(() -> main.evaluateJavascript("window.StreamFonteFalhou && window.StreamFonteFalhou('a fonte não tem este episódio')", null));
+                                    checagem.disconnect();
+                                    return new WebResourceResponse("text/html", "UTF-8", 200, "OK", Collections.singletonMap("Cache-Control", "no-store"),
+                                        new ByteArrayInputStream("<html><body style='background:#000;color:#999;font:14px sans-serif;padding:24px'>Trocando de fonte…</body></html>".getBytes(StandardCharsets.UTF_8)));
+                                }
+                            }
+                            checagem.disconnect();
+                        } catch (Exception e) { /* segue o carregamento normal */ }
+                    }
+                    return null;
+                }
                 if (!trusted || !local(uri) || !"GET".equals(request.getMethod())) return error(403);
                 String path = uri.getPath();
                 if (path != null && path.matches("/api/playback/[0-9]{1,10}")) return directPlayback(path.substring("/api/playback/".length()));

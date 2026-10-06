@@ -241,6 +241,40 @@ app.get('/api/legendas/online', async (req, res) => {
         res.status(502).json({ error: 'Não foi possível consultar as legendas agora.' });
     }
 });
+
+// ============================================================
+// VERIFICADOR DE FONTE — o robô checa, antes de abrir, se a fonte
+// realmente tem este filme/episódio.
+// ============================================================
+const SINAL_SEM_CONTEUDO = /not available|couldn'?t find|no disponible|n[ãa]o dispon[íi]vel|conte[úu]do indispon[íi]vel|not found|404 error|video not found/i;
+
+app.get('/api/fonte', async (req, res) => {
+    const tipo = String(req.query.tipo || 'movie');
+    const id = String(req.query.id || '');
+    const season = String(req.query.season || '');
+    const episode = String(req.query.episode || '');
+    const indice = Number(req.query.fonte || 0);
+    if (!/^\d{1,10}$/.test(id)) return res.status(400).json({ ok: false, motivo: 'identificador inválido' });
+    try {
+        const rota = tipo === 'tv' ? `/api/episode/${id}/${season}/${episode}` : `/api/player/${id}`;
+        const dados = await libraryCatalog.request(rota);
+        const escolhida = (dados.players || []).find(item => item.index === indice && item.funcionou);
+        if (!escolhida) return res.json({ ok: false, motivo: 'fonte não encontrada' });
+        const r = await axios.get(escolhida.url, {
+            headers: { ...H, Referer: escolhida.url },
+            timeout: 9000,
+            maxRedirects: 5,
+            responseType: 'text',
+            maxContentLength: 2 * 1024 * 1024,
+            validateStatus: status => status < 500
+        });
+        const html = String(r.data || '');
+        const semConteudo = SINAL_SEM_CONTEUDO.test(html);
+        res.json({ ok: !semConteudo && r.status < 400, status: r.status, motivo: semConteudo ? 'esta fonte não tem este episódio' : 'ok' });
+    } catch (erro) {
+        res.json({ ok: false, motivo: 'não foi possível verificar a fonte' });
+    }
+});
 app.get('/hls.min.js', (req, res) => res.type('js').send(fs.readFileSync(path.join(__dirname, 'node_modules/hls.js/dist/hls.min.js'))));
 app.get('/playback.js', (req, res) => res.type('js').send(fs.readFileSync(path.join(__dirname, 'playback.js'))));
 app.get('/api/playback/:id', async (req, res) => {

@@ -47,7 +47,7 @@ test('manual episode sources remain visible and open the validated compatibility
  for(const bad of ['/assistir.html?id=238&source=11','/assistir.html?id=238&source=10&redirect=x','/assistir.html?type=tv&id=94796&season=1&episode=2&source=5'])assert.equal(s.run(`urlExterna(${JSON.stringify(bad)})`),null);
  assert.equal(s.run("urlExterna('/assistir.html?id=238&source=10')"),'http://localhost:3106/assistir.html?id=238&source=10');
 });
-test('episode opens eligible embedded source automatically but never navigates to manual ads or search',async()=>{
- const s=setup();const p={nome:'Episode embed',optional:true,dub:false,funcionou:true,url:'https://embed.example/serie/94796/1/2'};
- s.fetch(async()=>({ok:true,json:async()=>({players:[{...p,manual:true,url:'https://manual.example'},p]})}));await s.run("abrirPlayer(94796,'Episode',{season:1,number:2})");assert.equal(s.get('opcoes').hidden,true);assert.equal(s.get('frame').src,p.url);s.timeout();assert.equal(s.get('opcoes').hidden,false);assert.equal(s.get('frame').src,'about:blank');
+test('episode plays automatically on the best source without asking',async()=>{
+ const s=setup();const p={nome:'Episode embed',optional:true,dub:false,funcionou:true,url:'https://embed.example/serie/94796/1/2',urlCompatibilidade:'/assistir.html?type=tv&id=94796&season=1&episode=2&source=0'};
+ s.fetch(async()=>({ok:true,json:async()=>({players:[{...p,manual:true,url:'https://manual.example',urlCompatibilidade:'/assistir.html?type=tv&id=94796&season=1&episode=2&source=1'},p]})}));await s.run("abrirPlayer(94796,'Episode',{season:1,number:2})");assert.equal(s.get('opcoes').hidden,true);assert.equal(s.run('location.href'),'http://localhost:3106'+p.urlCompatibilidade);
 });

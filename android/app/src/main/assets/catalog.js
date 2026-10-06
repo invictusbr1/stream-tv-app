@@ -98,8 +98,8 @@
             if(season){const d=await tmdb(`tv/${season[1]}/season/${season[2]}`,{},signal);return {episodes:(d.episodes||[]).map(x=>({number:x.episode_number,name:x.name,overview:x.overview,date:x.air_date,image:x.still_path?`https://image.tmdb.org/t/p/w300${x.still_path}`:null}))};}
             let ep=url.pathname.match(/^\/api\/episode\/(\d{1,10})\/(\d{1,3})\/([1-9]\d{0,3})$/);
             if(ep){const [_,id,season,episode]=ep;return {players:[
-                {nome:'VidLink (séries)',url:`https://vidlink.pro/tv/${id}/${season}/${episode}`,dub:false,optional:true,funcionou:true,status:'audio-nao-confirmado',qualidade:'até 1080p · com anúncios',manual:true,index:0,urlCompatibilidade:`/assistir.html?type=tv&id=${id}&season=${season}&episode=${episode}&source=0`},
-                {nome:'VidSrc (séries)',url:`https://vidsrc.to/embed/tv/${id}/${season}/${episode}`,dub:false,optional:true,funcionou:true,status:'audio-nao-confirmado',qualidade:'com anúncios',manual:true,index:1,urlCompatibilidade:`/assistir.html?type=tv&id=${id}&season=${season}&episode=${episode}&source=1`},...extras(id,null,true,season,episode)
+                {nome:'VidLink (séries)',url:`https://vidlink.pro/tv/${id}/${season}/${episode}`,dub:false,optional:true,funcionou:true,status:'audio-nao-confirmado',qualidade:'até 1080p',index:0,urlCompatibilidade:`/assistir.html?type=tv&id=${id}&season=${season}&episode=${episode}&source=0`},
+                {nome:'VidSrc (séries)',url:`https://vidsrc.to/embed/tv/${id}/${season}/${episode}`,dub:false,optional:true,funcionou:true,status:'audio-nao-confirmado',qualidade:'720p e 1080p',index:1,urlCompatibilidade:`/assistir.html?type=tv&id=${id}&season=${season}&episode=${episode}&source=1`},...extras(id,null,true,season,episode)
             ]};}
             if (url.pathname === '/api/buscar') {
                 const q = (url.searchParams.get('nome') || '').trim();
