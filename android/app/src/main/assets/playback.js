@@ -27,7 +27,7 @@ window.StreamPlayback = (() => {
         panel.hidden=false;
         el('audio-info').textContent=pt>=0?'A faixa dublada em português está selecionada.':'Esta fonte não informou uma faixa dublada; confira o áudio antes de assistir.';
     }
-    function saveProgress(){if(video&&progressFilm&&resumeApplied)window.StreamPersonal?.record(progressFilm,video.currentTime,video.duration);}
+    function saveProgress(){if(!video)return;if(progressFilm)window.StreamAuth?.publicarAssistindo?.(progressFilm,video.currentTime);if(progressFilm&&resumeApplied)window.StreamPersonal?.record(progressFilm,video.currentTime,video.duration);}
     function resume(){if(!video||!progressFilm||resumeApplied||!Number.isFinite(video.duration)||video.duration<=0)return;const position=window.StreamPersonal?.position(progressFilm)||0;try{if(position>=5&&position<video.duration-30)video.currentTime=position;resumeApplied=true;}catch{}}
     document.addEventListener('visibilitychange',()=>{if(document.hidden)saveProgress();});
     window.addEventListener?.('pagehide',saveProgress);
