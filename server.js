@@ -45,7 +45,7 @@ app.use((req, res, next) => {
 });
 app.use(express.json());
 const JARVIS_PROVIDER = String(process.env.JARVIS_PROVIDER || 'groq').toLowerCase();
-const JARVIS_SISTEMA = 'Você é o Jarvis do Stream TV. Responda em português e nunca prometa que uma fonte funciona.';
+const JARVIS_SISTEMA = 'Você é o Jarvis do Conecta TV. Responda em português e nunca prometa que uma fonte funciona.';
 // Se o provedor aposentar um modelo, o Jarvis tenta o próximo da lista antes de responder erro.
 const JARVIS_PREFERIDOS = {
     groq: ['openai/gpt-oss-120b', 'openai/gpt-oss-20b', 'qwen/qwen3.8-27b', 'llama-3.3-70b-versatile'],
@@ -97,13 +97,13 @@ app.post('/api/jarvis', async (req, res) => {
             } catch { if (provider === 'groq') cacheModelosGroq = null; /* modelo aposentado: reconsulta a lista */ }
         }
     }
-    res.status(502).json({ error: 'O Jarvis está indisponível no momento. Nenhuma cobrança foi iniciada pelo Stream TV.' });
+    res.status(502).json({ error: 'O Jarvis está indisponível no momento. Nenhuma cobrança foi iniciada pelo Conecta TV.' });
 });
 app.get(['/','/index.html'], (req, res) => {
     for (const file of PAGE_CANDIDATES) {
         try { return res.type('html').send(require('./pwa/page.cjs').webPage(fs.readFileSync(file, 'utf8'))); } catch { /* tenta o próximo local */ }
     }
-    res.status(500).send('Interface do Stream TV não encontrada.');
+    res.status(500).send('Interface do Conecta TV não encontrada.');
 });
 app.get('/manifest.webmanifest',(req,res)=>res.type('application/manifest+json').sendFile(path.join(__dirname,'pwa/manifest.webmanifest')));
 app.get('/sw.js',(req,res)=>{res.setHeader('Cache-Control','no-cache');res.type('js').sendFile(path.join(__dirname,'pwa/sw.js'));});
@@ -607,7 +607,7 @@ app.listen(PORT, '0.0.0.0', () => {
         .filter(item => item && item.family === 'IPv4' && !item.internal)
         .map(item => item.address);
     const alvo = rede.find(privado) || rede[0];
-    console.log('\n  Stream TV está no ar.');
+    console.log('\n  Conecta TV está no ar.');
     console.log(`  Neste computador  : http://localhost:${PORT}`);
     if (alvo) console.log(`  No iPhone/celular : http://${alvo}:${PORT}   (mesma rede Wi-Fi)`);
     console.log('  Reprodução dublada sem anúncio: WatchPlay. Último caso: PipocaCine e VidLink (com anúncios).\n');

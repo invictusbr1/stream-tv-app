@@ -1,6 +1,6 @@
 param(
     [Parameter(Mandatory=$true)][string]$ApkPath,
-    [string]$Notes = 'Atualização do Stream TV.',
+    [string]$Notes = 'Atualização do Conecta TV.',
     [string]$Token = ''
 )
 $ErrorActionPreference = 'Stop'
@@ -30,7 +30,7 @@ if ($existente) {
     }
 }
 else {
-    $corpo = @{ tag_name = $tag; name = "Stream TV $release"; body = $Notes; draft = $false; prerelease = $false } | ConvertTo-Json
+    $corpo = @{ tag_name = $tag; name = "Conecta TV $release"; body = $Notes; draft = $false; prerelease = $false } | ConvertTo-Json
     $existente = Invoke-RestMethod -Uri "https://api.github.com/repos/$repo/releases" -Headers $headers -Method Post -Body $corpo -ContentType 'application/json'
 }
 

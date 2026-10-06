@@ -200,7 +200,7 @@ public final class MainActivity extends Activity {
                 popupPanel.setOrientation(LinearLayout.VERTICAL);
                 popupPanel.setBackgroundColor(Color.BLACK);
                 Button close = new Button(MainActivity.this);
-                close.setText("Voltar ao Stream TV");
+                close.setText("Voltar ao Conecta TV");
                 close.setOnClickListener(v -> closePopup());
                 popupPanel.addView(close, new LinearLayout.LayoutParams(-1, -2));
                 popup = createWebView(false);

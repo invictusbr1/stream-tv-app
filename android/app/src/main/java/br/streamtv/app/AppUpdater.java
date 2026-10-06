@@ -37,7 +37,7 @@ final class AppUpdater {
     void pause(){active=false;timer.removeCallbacks(periodic);}
     void close(){timer.removeCallbacks(periodic);worker.shutdownNow();}
     private void ui(Runnable r){activity.runOnUiThread(()->{if(!activity.isFinishing()&&!activity.isDestroyed())r.run();});}
-    private void tell(String message){if(active)new AlertDialog.Builder(activity).setTitle("Atualizações do Stream TV").setMessage(message).setPositiveButton("OK",null).show();}
+    private void tell(String message){if(active)new AlertDialog.Builder(activity).setTitle("Atualizações do Conecta TV").setMessage(message).setPositiveButton("OK",null).show();}
     private long version(PackageInfo p){return Build.VERSION.SDK_INT>=28?p.getLongVersionCode():p.versionCode;}
     private PackageInfo installed() throws Exception{return activity.getPackageManager().getPackageInfo(activity.getPackageName(),PackageManager.GET_SIGNATURES);}
     void check(boolean explicit){
@@ -60,11 +60,11 @@ final class AppUpdater {
             if(Build.VERSION.SDK_INT>=33&&activity.checkSelfPermission("android.permission.POST_NOTIFICATIONS")!=PackageManager.PERMISSION_GRANTED){activity.requestPermissions(new String[]{"android.permission.POST_NOTIFICATIONS"},741);return;}
             NotificationManager manager=(NotificationManager)activity.getSystemService(Activity.NOTIFICATION_SERVICE);
             if(manager==null)return;
-            if(Build.VERSION.SDK_INT>=26)manager.createNotificationChannel(new NotificationChannel("stream-tv-updates","Atualizações do Stream TV",NotificationManager.IMPORTANCE_DEFAULT));
+            if(Build.VERSION.SDK_INT>=26)manager.createNotificationChannel(new NotificationChannel("stream-tv-updates","Atualizações do Conecta TV",NotificationManager.IMPORTANCE_DEFAULT));
             Intent open=new Intent(activity,MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP|Intent.FLAG_ACTIVITY_CLEAR_TOP);
             PendingIntent pendingIntent=PendingIntent.getActivity(activity,741,open,Build.VERSION.SDK_INT>=23?PendingIntent.FLAG_IMMUTABLE|PendingIntent.FLAG_UPDATE_CURRENT:PendingIntent.FLAG_UPDATE_CURRENT);
             android.app.Notification.Builder builder=Build.VERSION.SDK_INT>=26?new android.app.Notification.Builder(activity,"stream-tv-updates"):new android.app.Notification.Builder(activity);
-            manager.notify(741,builder.setSmallIcon(android.R.drawable.stat_sys_download_done).setContentTitle("Atualização do Stream TV").setContentText("A versão "+version+" está pronta. Toque para atualizar.").setContentIntent(pendingIntent).setAutoCancel(true).build());
+            manager.notify(741,builder.setSmallIcon(android.R.drawable.stat_sys_download_done).setContentTitle("Atualização do Conecta TV").setContentText("A versão "+version+" está pronta. Toque para atualizar.").setContentIntent(pendingIntent).setAutoCancel(true).build());
         }catch(Exception ignored){}
     }
     private HttpsURLConnection connection(String url) throws Exception {HttpsURLConnection c=(HttpsURLConnection)new URL(url).openConnection();c.setConnectTimeout(15000);c.setReadTimeout(20000);c.setInstanceFollowRedirects(false);c.setRequestProperty("User-Agent","StreamTV-Updater");c.setRequestProperty("Cache-Control","no-cache");return c;}
@@ -87,8 +87,8 @@ final class AppUpdater {
     private void verify(File f,long expected) throws Exception {PackageInfo old=installed(),next=activity.getPackageManager().getPackageArchiveInfo(f.getAbsolutePath(),PackageManager.GET_SIGNATURES);if(next==null||!activity.getPackageName().equals(next.packageName)||version(next)<=version(old)||(expected>0&&version(next)!=expected)||!UpdatePolicy.sameSigners(signers(old.signatures),signers(next.signatures)))throw new IOException("signature or version");}
     private void install(){if(pending==null||!pending.isFile())return;
         try{verify(pending,0);
-            if(Build.VERSION.SDK_INT>=26&&!activity.getPackageManager().canRequestPackageInstalls()){new AlertDialog.Builder(activity).setTitle("Permitir atualização").setMessage("Na próxima tela, permita que o Stream TV instale atualizações. Depois volte para confirmar a instalação.").setNegativeButton("Agora não",null).setPositiveButton("Abrir configuração",(v,w)->{try{awaitingPermission=true;activity.startActivity(new Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,Uri.parse("package:"+activity.getPackageName())));}catch(Exception e){awaitingPermission=false;tell("Abra as configurações do Android e permita instalações pelo Stream TV.");}}).show();return;}
-            Uri uri=Uri.parse("content://"+activity.getPackageName()+".updates/update.apk");Intent intent=new Intent(Intent.ACTION_VIEW).setDataAndType(uri,"application/vnd.android.package-archive").addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);intent.setClipData(ClipData.newRawUri("Stream TV",uri));activity.startActivity(intent);
+            if(Build.VERSION.SDK_INT>=26&&!activity.getPackageManager().canRequestPackageInstalls()){new AlertDialog.Builder(activity).setTitle("Permitir atualização").setMessage("Na próxima tela, permita que o Conecta TV instale atualizações. Depois volte para confirmar a instalação.").setNegativeButton("Agora não",null).setPositiveButton("Abrir configuração",(v,w)->{try{awaitingPermission=true;activity.startActivity(new Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,Uri.parse("package:"+activity.getPackageName())));}catch(Exception e){awaitingPermission=false;tell("Abra as configurações do Android e permita instalações pelo Conecta TV.");}}).show();return;}
+            Uri uri=Uri.parse("content://"+activity.getPackageName()+".updates/update.apk");Intent intent=new Intent(Intent.ACTION_VIEW).setDataAndType(uri,"application/vnd.android.package-archive").addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);intent.setClipData(ClipData.newRawUri("Conecta TV",uri));activity.startActivity(intent);
         }catch(Exception e){tell("Não foi possível abrir o instalador deste aparelho. Você ainda pode instalar o APK manualmente.");}
     }
 }

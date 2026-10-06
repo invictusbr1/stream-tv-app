@@ -1,4 +1,4 @@
-# Stream TV Android 1.2.0 — teste pessoal
+# Conecta TV Android — teste pessoal
 
 Aplicativo independente do PC. A interface e a consulta HTTPS ao TMDB ficam no aparelho. Não há servidor Node, porta local ou domínio hospedado necessário. A reprodução depende de internet, do Android System WebView e dos fornecedores externos.
 

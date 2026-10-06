@@ -1,12 +1,12 @@
 {
   "name": "stream-tv",
-  "version": "1.8.7",
-  "description": "",
+  "version": "1.8.8",
+  "description": "Conecta TV - catalogo, players e aplicativos (Android, Windows, iPhone)",
   "main": "launcher.js",
   "bin": "launcher.js",
   "scripts": {
     "start": "node launcher.js",
-    "build:exe": "pkg . --targets node18-win-x64 --output \"dist/Stream TV.exe\"",
+    "build:exe": "pkg . --targets node18-win-x64 --output \"dist/Conecta TV.exe\"",
     "test": "node --test playback.test.cjs auto-player.test.cjs library.test.cjs android/catalog.test.cjs personal.test.cjs pwa.test.cjs",
     "start:web": "node server.js"
   },

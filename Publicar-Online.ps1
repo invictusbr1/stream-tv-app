@@ -1,11 +1,11 @@
-# Publica o Stream TV num endereco https temporario, para abrir no celular fora de casa.
+# Publica o Conecta TV num endereco https temporario, para abrir no celular fora de casa.
 $ErrorActionPreference = 'Stop'
 $raiz = Split-Path -Parent $MyInvocation.MyCommand.Path
 $nuvem = Join-Path $env:USERPROFILE '.streamtv\cloudflared.exe'
 if (-not (Test-Path -LiteralPath $nuvem)) { throw "Arquivo cloudflared.exe nao encontrado em $nuvem" }
 
 Write-Host ''
-Write-Host '  Iniciando o Stream TV...' -ForegroundColor Cyan
+Write-Host '  Iniciando o Conecta TV...' -ForegroundColor Cyan
 $servidor = Start-Process -FilePath 'node' -ArgumentList 'server.js' -WorkingDirectory $raiz -PassThru -WindowStyle Hidden
 
 $log = Join-Path $env:TEMP 'stream-tv-tunel.log'

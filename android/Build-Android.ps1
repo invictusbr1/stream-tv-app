@@ -27,5 +27,5 @@ $apk = Join-Path $buildPath 'app\build\outputs\apk\debug\app-debug.apk'
 if ($LASTEXITCODE -ne 0) { throw 'Assinatura inválida.' }
 $versionName = [regex]::Match((Get-Content -LiteralPath (Join-Path $PSScriptRoot 'app\build.gradle') -Raw), "versionName\s+'([^']+)'").Groups[1].Value
 if (-not $versionName) { throw 'versionName não encontrado em app/build.gradle.' }
-Copy-Item -LiteralPath $apk -Destination (Join-Path $outputPath "Stream-TV-Android-$versionName.apk") -Force
+Copy-Item -LiteralPath $apk -Destination (Join-Path $outputPath "Conecta-TV-Android-$versionName.apk") -Force
 Write-Output 'APK de teste compilado, verificado e copiado.'

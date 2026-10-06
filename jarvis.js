@@ -1,6 +1,6 @@
 (function () {
   const MODELOS_GROQ = ['openai/gpt-oss-120b', 'openai/gpt-oss-20b', 'qwen/qwen3.8-27b', 'llama-3.3-70b-versatile'];
-  const INSTRUCAO = 'Você é o Jarvis do Stream TV. Responda em português, seja direto e nunca prometa que uma fonte funciona.';
+  const INSTRUCAO = 'Você é o Jarvis do Conecta TV. Responda em português, seja direto e nunca prometa que uma fonte funciona.';
   let configPromise;
 
   function setStatus(message, error) {

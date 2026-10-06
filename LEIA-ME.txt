@@ -1,23 +1,38 @@
-STREAM TV 1.1.0
+CONECTA TV
 
-Abra “Stream TV.exe”. O aplicativo inicia o serviço local e abre a interface no navegador padrão.
+NO COMPUTADOR
+1. Abra o atalho "Conecta TV" da Área de Trabalho (ou dê dois cliques em
+   "Iniciar Conecta TV.cmd").
+2. O navegador abre em http://localhost:3000
+3. Para encerrar, feche a janela preta.
 
-O catálogo mostra quatro seleções:
-- Mais relevantes: popularidade e procura no TMDB.
-- Melhores avaliados: nota com volume mínimo de votos.
-- Oscar e premiados: seleção editorial de vencedores e indicados.
-- Novidades: lançamentos recentes com avaliação mínima.
+NO CELULAR OU NA TV BOX
+Mesma rede Wi-Fi, em casa: no celular, abra o endereço que aparece na janela do
+aplicativo (algo como http://192.168.1.6:3000).
 
-É necessário estar conectado à internet para carregar o catálogo e os players externos.
+Fora de casa: dê dois cliques em "Acesso pelo celular.cmd". A janela mostra um
+endereço que começa com https. Abra no Safari ou no Chrome e use "Adicionar à
+Tela de Início". Deixe a janela aberta enquanto assiste. Esse endereço muda toda
+vez que você abre o atalho de novo.
 
-VERIFICAÇÃO TRAVADA OU PLAYER PREMIUM
-Na tela do filme, use "Abrir modo com anúncios".
-Na nova aba, escolha Premium, se essa for a opção desejada, e conclua a verificação pessoalmente.
-O catálogo fica aberto. A reprodução embutida é interrompida para evitar áudio duplicado.
-Use a lista de fontes para tentar outra fonte, inclusive as que exigem verificação. A aba opcional permite os formulários e pop-ups do fornecedor; o player embutido continua com suas restrições originais.
-A opção não remove verificações nem garante disponibilidade do fornecedor.
+APLICATIVO ANDROID
+Instale o APK mais recente por cima do atual, sem desinstalar, para manter o
+histórico e o "continuar assistindo". O próprio aplicativo avisa quando existe
+versão nova: aparece uma bolinha vermelha no ícone de seta, no topo da tela.
 
-ANDROID
-Este executável é exclusivo para Windows.
-Um atalho para localhost depende deste computador e não funciona fora de casa.
-Uma versão Android independente precisa consultar o catálogo diretamente no aparelho ou usar um servidor hospedado.
+JARVIS (ASSISTENTE DE IA)
+Funciona no computador e no celular. Usa a chave que está no arquivo api.txt da
+sua Área de Trabalho. Sem esse arquivo, o Jarvis avisa que não foi configurado.
+
+PLAYERS
+A reprodução dublada e sem anúncio é a fonte principal, escolhida sozinha. As
+opções com anúncio aparecem separadas, para usar somente quando a principal não
+funcionar.
+
+SÉRIES
+Episódios usam as fontes com anúncio (VidLink e VidSrc), porque não existe fonte
+limpa de série nas verificações feitas até hoje.
+
+CÓDIGO E ATUALIZAÇÕES
+https://github.com/invictusbr1/stream-tv-app
+https://github.com/invictusbr1/stream-tv-atualizacoes
