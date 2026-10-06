@@ -20,7 +20,7 @@ window.StreamPlayback = (() => {
     el('audio-select').onchange=e=>setAudio(e.target.value);
     function audioMenu(){
         const tracks=hls?.audioTracks||[],panel=el('audio-panel');if(!panel)return;
-        if(tracks.length<2){panel.hidden=true;return;}
+        if(tracks.length<2){const unica=el('audio-select');if(unica){unica.disabled=true;unica.replaceChildren();const opcao=document.createElement('option');opcao.textContent='Faixa única desta fonte';unica.append(opcao);}panel.hidden=false;return;}
         const select=el('audio-select');select.replaceChildren();
         tracks.forEach((track,index)=>{const option=document.createElement('option');option.value=String(index);option.textContent=track.name||track.label||track.lang||`Faixa ${index+1}`;select.append(option);});
         const pt=tracks.findIndex(portuguese);
