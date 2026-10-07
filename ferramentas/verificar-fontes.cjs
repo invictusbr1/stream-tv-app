@@ -122,10 +122,16 @@ function avaliar(fonte, r) {
 
   const catalogo = JSON.parse(fs.readFileSync(path.join(RAIZ, 'fontes.json'), 'utf8'));
   catalogo.atualizadoEm = hoje;
-  for (const lista of [catalogo.filmes, catalogo.series]) {
+  const normalizar = texto => String(texto || '').toLowerCase().replace(/\(.*?\)/g, '').replace(/[^a-z0-9]/g, '');
+  for (const lista of [catalogo.filmes, catalogo.series, catalogo.descartadas]) {
     for (const entrada of lista) {
-      const achado = resultados.find(r => r.nome === entrada.nome || r.nome.startsWith(entrada.nome));
-      if (achado) entrada.verificadoEm = hoje;
+      const achado = resultados.find(r => normalizar(r.nome) === normalizar(entrada.nome) || normalizar(r.nome).startsWith(normalizar(entrada.nome)));
+      if (!achado) continue;
+      entrada.verificadoEm = hoje;
+      entrada.situacaoMedida = achado.situacao;
+      if (achado.midia?.video) entrada.qualidadeMedida = achado.midia.video;
+      if (achado.midia?.audio) entrada.audioMedido = achado.midia.audio;
+      if (achado.audioInformado) entrada.audioInformado = achado.audioInformado;
     }
   }
   fs.writeFileSync(path.join(RAIZ, 'fontes.json'), JSON.stringify(catalogo, null, 2) + '\n');

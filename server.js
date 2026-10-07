@@ -319,6 +319,7 @@ app.get('/personal.js',(req,res)=>res.sendFile(path.join(__dirname,'personal.js'
 app.get('/library.js',(req,res)=>res.type('js').send(fs.readFileSync(path.join(__dirname,'library.js'))));
 app.get('/auth.js',(req,res)=>res.type('js').send(fs.readFileSync(path.join(__dirname,'auth.js'))));
 app.get('/jarvis.js',(req,res)=>res.type('js').send(fs.readFileSync(path.join(__dirname,'jarvis.js'))));
+app.get('/fontes.json',(req,res)=>res.type('json').sendFile(path.join(__dirname,'fontes.json')));
 app.get('/acesso.js',(req,res)=>res.type('js').send(fs.readFileSync(path.join(__dirname,'acesso.js'))));
 app.get('/legendas.js',(req,res)=>res.type('js').send(fs.readFileSync(path.join(__dirname,'legendas.js'))));
 

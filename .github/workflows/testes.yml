@@ -14,8 +14,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      # Os testes automatizados usam apenas recursos nativos do Node:
-      # não é preciso instalar dependências para verificá-los.
+      # Instala a partir do arquivo de trava: se ele estiver quebrado, o CI acusa.
+      - run: npm ci --omit=dev --no-audit --no-fund
       - name: Verificação de sintaxe
         run: |
           for arquivo in server.js playback.js library.js personal.js auth.js jarvis.js acesso.js legendas.js android/app/src/main/assets/catalog.js; do

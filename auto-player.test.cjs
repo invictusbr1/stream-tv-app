@@ -56,3 +56,13 @@ test('episode opens automatically on the best scored source',async()=>{
  assert.equal(s.get('opcoes').hidden,true,'painel não deve aparecer');
  assert.equal(s.run('location.href'),'http://localhost:3106'+p1.urlCompatibilidade,'abre na melhor fonte, não numa busca');
 });
+test('o robô usa a verificação medida: fonte marcada como indisponível perde a vez',async()=>{
+ const s=setup();
+ // simula o fontes.json já carregado: a VidLink está indisponível na última verificação
+ s.run('medidasFontes={vidlink:{situacao:"indisponível",em:"2026-10-07",dublado:null}}');
+ const ruim={nome:'VidLink (séries)',optional:true,dub:false,funcionou:true,manual:true,qualidade:'até 1080p · com anúncios',url:'https://vidlink.pro/tv/94796/1/2',urlCompatibilidade:'/assistir.html?type=tv&id=94796&season=1&episode=2&source=0'};
+ const boa={nome:'VidSrc (séries)',optional:true,dub:false,funcionou:true,manual:true,qualidade:'até 1080p · com anúncios',url:'https://vidsrc.to/embed/tv/94796/1/2',urlCompatibilidade:'/assistir.html?type=tv&id=94796&season=1&episode=2&source=1'};
+ s.fetch(async()=>({ok:true,json:async()=>({players:[ruim,boa]})}));
+ await s.run("abrirPlayer(94796,'Episode',{season:1,number:2})");
+ assert.equal(s.run('location.href'),'http://localhost:3106'+boa.urlCompatibilidade,'prefere a fonte que passou na verificação');
+});

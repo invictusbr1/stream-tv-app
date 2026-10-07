@@ -6,13 +6,10 @@
       "tipo": "filme",
       "url": "https://v2.watchplay.shop/movie/27205",
       "situacao": "link direto",
-      "m3u8": "https://vid7102402.hclod.qzz.io/st/_s3_/v01/27205/playlist.m3u8?md5=kw_uI5DUdUasBxSs9P7muQ&expires=1791338799",
+      "m3u8": "https://vid7102402.hclod.qzz.io/st/_s3_/v01/27205/playlist.m3u8?md5=WxupR73o15qceu1hKDTedQ&expires=1791339114",
       "audioInformado": "Dublado",
       "detalhe": "áudio informado: Dublado",
-      "midia": {
-        "video": "1280x720",
-        "audio": "und"
-      }
+      "midia": null
     },
     {
       "nome": "PipocaCine",
@@ -42,8 +39,8 @@
       "nome": "VidSrc (séries)",
       "tipo": "serie",
       "url": "https://vidsrc.to/embed/tv/1431/1/1",
-      "situacao": "indisponível",
-      "detalhe": "HTTP 403",
+      "situacao": "abre (JavaScript)",
+      "detalhe": "não é possível medir sem navegador",
       "midia": null
     },
     {
@@ -58,16 +55,16 @@
       "nome": "SuperFlix",
       "tipo": "serie",
       "url": "https://superflixapi.monster/serie/1431/1/1",
-      "situacao": "indisponível",
-      "detalhe": "HTTP 403",
+      "situacao": "verificação humana",
+      "detalhe": "pede confirmação no navegador",
       "midia": null
     },
     {
       "nome": "Dattebayo BR",
       "tipo": "serie",
       "url": "https://www.dattebayo-br.com/anime-dublado",
-      "situacao": "indisponível",
-      "detalhe": "HTTP 403",
+      "situacao": "abre (JavaScript)",
+      "detalhe": "não é possível medir sem navegador",
       "midia": null
     },
     {
