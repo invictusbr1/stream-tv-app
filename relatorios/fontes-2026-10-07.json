@@ -1,0 +1,95 @@
+{
+  "atualizadoEm": "2026-10-07",
+  "resultados": [
+    {
+      "nome": "WatchPlay",
+      "tipo": "filme",
+      "url": "https://v2.watchplay.shop/movie/27205",
+      "situacao": "link direto",
+      "m3u8": "https://vid7102402.hclod.qzz.io/st/_s3_/v01/27205/playlist.m3u8?md5=ki_7yvPP701nBU_Ext-JUA&expires=1791335522",
+      "audioInformado": "Dublado",
+      "detalhe": "áudio informado: Dublado",
+      "midia": null
+    },
+    {
+      "nome": "PipocaCine",
+      "tipo": "filme",
+      "url": "https://pipocacine.lat/embed/27205",
+      "situacao": "abre (JavaScript)",
+      "detalhe": "não é possível medir sem navegador",
+      "midia": null
+    },
+    {
+      "nome": "VidLink",
+      "tipo": "filme",
+      "url": "https://vidlink.pro/movie/27205",
+      "situacao": "abre (JavaScript)",
+      "detalhe": "não é possível medir sem navegador",
+      "midia": null
+    },
+    {
+      "nome": "VidLink (séries)",
+      "tipo": "serie",
+      "url": "https://vidlink.pro/tv/1431/1/1",
+      "situacao": "abre (JavaScript)",
+      "detalhe": "não é possível medir sem navegador",
+      "midia": null
+    },
+    {
+      "nome": "VidSrc (séries)",
+      "tipo": "serie",
+      "url": "https://vidsrc.to/embed/tv/1431/1/1",
+      "situacao": "abre (JavaScript)",
+      "detalhe": "não é possível medir sem navegador",
+      "midia": null
+    },
+    {
+      "nome": "StreamBetter",
+      "tipo": "serie",
+      "url": "https://streambetter.shop/serie/1431/1/1",
+      "situacao": "verificação humana",
+      "detalhe": "pede confirmação no navegador",
+      "midia": null
+    },
+    {
+      "nome": "SuperFlix",
+      "tipo": "serie",
+      "url": "https://superflixapi.monster/serie/1431/1/1",
+      "situacao": "verificação humana",
+      "detalhe": "pede confirmação no navegador",
+      "midia": null
+    },
+    {
+      "nome": "Dattebayo BR",
+      "tipo": "serie",
+      "url": "https://www.dattebayo-br.com/anime-dublado",
+      "situacao": "abre (JavaScript)",
+      "detalhe": "não é possível medir sem navegador",
+      "midia": null
+    },
+    {
+      "nome": "WatchCDN",
+      "tipo": "filme",
+      "url": "https://embed.watchcdn.org/filme/tt1375666",
+      "situacao": "sem resposta",
+      "detalhe": "ENOTFOUND",
+      "midia": null
+    },
+    {
+      "nome": "CdnEmbed",
+      "tipo": "filme",
+      "url": "https://cdn-embed.com/filme/27205",
+      "situacao": "vazio",
+      "detalhe": "0 bytes",
+      "midia": null
+    },
+    {
+      "nome": "UltraEmbed",
+      "tipo": "filme",
+      "url": "https://ultraembed.com/filme/tt1375666",
+      "situacao": "indisponível",
+      "detalhe": "HTTP 404",
+      "midia": null
+    }
+  ]
+}

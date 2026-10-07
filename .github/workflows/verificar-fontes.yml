@@ -5,6 +5,9 @@ on:
     - cron: '0 9 * * 1'   # toda segunda-feira, 6h no horário de Brasília
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   verificar:
     runs-on: ubuntu-latest

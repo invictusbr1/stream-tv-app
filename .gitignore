@@ -28,5 +28,3 @@ android/app/src/main/assets/assistir.html
 android/app/src/main/assets/catalog.js
 # Pasta legada mantida só no computador
 stream-tv/
-# Relatórios gerados pela verificação de fontes
-relatorios/
