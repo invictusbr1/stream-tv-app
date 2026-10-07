@@ -13,13 +13,17 @@ test('a página do modo com anúncios usa o catálogo local no aparelho', () => 
     assert.ok(pagina.includes('consulta.request('), 'precisa usar o catálogo escolhido para episódios');
 });
 
-test('episódio mantém as fontes e os índices estáveis', async () => {
+test('episódio lista apenas as fontes com papel definido (dublado com verificação e busca de doramas)', async () => {
     const catalogo = createCatalog(async () => good({ imdb_id: 'tt0247082' }), 'test');
     const dados = await catalogo.request('/api/episode/1431/1/1');
-    assert.equal(dados.players[0].url, 'https://vidlink.pro/tv/1431/1/1');
+    assert.equal(dados.players.length, 3, 'lista enxuta: sem fontes mortas ou repetidas');
+    assert.equal(dados.players[0].url, 'https://streambetter.shop/serie/1431/1/1');
     assert.equal(dados.players[0].index, 0);
-    assert.equal(dados.players[1].url, 'https://vidsrc.to/embed/tv/1431/1/1');
-    assert.ok(dados.players.every(p => p.dub === false && p.optional === true));
+    assert.equal(dados.players[1].url, 'https://superflixapi.monster/serie/1431/1/1');
+    assert.equal(dados.players[2].directory, 'pobreflix');
+    assert.ok(dados.players.every(p => p.optional === true && p.manual === true), 'nenhuma abre sozinha');
+    assert.ok(dados.players.slice(0, 2).every(p => p.dub === true), 'as duas primeiras são as dubladas');
+    assert.ok(!dados.players.some(p => /vidlink|vidsrc|dattebayo|plenoflu|watchcdn/i.test(p.nome)), 'fontes antigas saíram da lista');
 });
 test('catalog uses HTTPS TMDB directly and preserves independent ranking rules', async () => {
     const seen = [];
@@ -85,15 +89,17 @@ test('Brazil top list filters availability, caps ten, and never claims national 
 test('season and episode routes retain exact numbers and fixed provider origins',async()=>{
  const urls=[];const c=createCatalog(async u=>{urls.push(new URL(u).pathname);return good({episodes:[{episode_number:4,name:'Quatro'}]});},'test');
  const d=await c.request('/api/season/1399/2');assert.equal(urls[0],'/3/tv/1399/season/2');assert.equal(d.episodes[0].number,4);
- const e=await c.request('/api/episode/1399/2/4');assert.equal(e.players[0].url,'https://vidlink.pro/tv/1399/2/4');assert.equal(e.players[1].url,'https://vidsrc.to/embed/tv/1399/2/4');assert(e.players.every(p=>p.dub===false));assert.equal(e.players.every(p=>p.manual===true),true,'fonte com anúncio só abre se o usuário escolher');
+ const e=await c.request('/api/episode/1399/2/4');assert.equal(e.players[0].url,'https://streambetter.shop/serie/1399/2/4');assert.equal(e.players[1].url,'https://superflixapi.monster/serie/1399/2/4');assert.equal(e.players.filter(p=>p.dub===true).length,2);assert.equal(e.players.every(p=>p.manual===true),true,'fonte com anúncio só abre se o usuário escolher');
  await assert.rejects(c.request('/api/episode/1399/2/0'));await assert.rejects(c.request('/api/season/../2'));
 });
-test('new alternatives preserve episode coordinates and never claim confirmed dubbing',async()=>{
+test('as opções de episódio mantêm as coordenadas e nunca prometem dublagem confirmada',async()=>{
  const c=createCatalog(async()=>good({imdb_id:'tt0068646'}),'test');
  const ep=(await c.request('/api/episode/108978/2/4')).players;
- assert.equal(ep.find(p=>p.index===3).url,'https://superflixapi.monster/serie/108978/2/4');
- assert.equal(ep.find(p=>p.index===4).directory,'doramogo');assert.equal(ep.find(p=>p.index===5).directory,'pobreflix');assert.equal(ep.find(p=>p.index===6).directory,'plenoflu');assert.equal(ep.find(p=>p.index===7).directory,'dattebayo');
- for(const p of ep.filter(p=>p.index>=2)){assert.equal(p.dub,false);assert.equal(p.manual,true);assert(p.urlCompatibilidade.includes('season=2&episode=4'));}
+ assert.equal(ep.length,3);
+ assert.equal(ep.find(p=>p.index===0).url,'https://streambetter.shop/serie/108978/2/4');
+ assert.equal(ep.find(p=>p.index===1).url,'https://superflixapi.monster/serie/108978/2/4');
+ assert.equal(ep.find(p=>p.index===2).directory,'pobreflix');
+ for(const p of ep){assert.equal(p.manual,true);assert(p.urlCompatibilidade.includes('season=2&episode=4'));assert.notEqual(p.status,'dublado-confirmado');}
  const movie=await c.sources(238);assert.equal(movie.find(p=>p.index===8).url,'https://superflixapi.monster/filme/tt0068646');assert.equal(movie.find(p=>p.index===10).directory,'pobreflix');
 });
 test('external searches use exact title encoding and fixed origins, not guessed episode slugs',async()=>{

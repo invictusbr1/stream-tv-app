@@ -26,11 +26,9 @@ const ALVOS = [
   ['WatchPlay', 'filme', `https://v2.watchplay.shop/movie/${FILME}`],
   ['PipocaCine', 'filme', `https://pipocacine.lat/embed/${FILME}`],
   ['VidLink', 'filme', `https://vidlink.pro/movie/${FILME}`],
-  ['VidLink (séries)', 'serie', `https://vidlink.pro/tv/${SERIE[0]}/${SERIE[1]}/${SERIE[2]}`],
-  ['VidSrc (séries)', 'serie', `https://vidsrc.to/embed/tv/${SERIE[0]}/${SERIE[1]}/${SERIE[2]}`],
   ['StreamBetter', 'serie', `https://streambetter.shop/serie/${SERIE[0]}/${SERIE[1]}/${SERIE[2]}`],
   ['SuperFlix', 'serie', `https://superflixapi.monster/serie/${SERIE[0]}/${SERIE[1]}/${SERIE[2]}`],
-  ['Dattebayo BR', 'serie', 'https://www.dattebayo-br.com/anime-dublado'],
+  ['YouCine · doramas e novelas', 'serie', 'https://youcinehd.lat/'],
   ['WatchCDN', 'filme', `https://embed.watchcdn.org/filme/${IMDB}`],
   ['CdnEmbed', 'filme', `https://cdn-embed.com/filme/${FILME}`],
   ['UltraEmbed', 'filme', `https://ultraembed.com/filme/${IMDB}`],
@@ -113,6 +111,24 @@ function avaliar(fonte, r) {
     const linha = { nome, tipo, url, ...avaliacao, midia };
     resultados.push(linha);
     console.log(`${nome.padEnd(18)} ${avaliacao.situacao.padEnd(20)} ${midia ? `vídeo ${midia.video} áudio ${midia.audio}` : avaliacao.detalhe}`);
+  }
+
+  // Fonte limpa automática das séries: quem resolve é o próprio aplicativo.
+  try {
+    const escolhido = await require(path.join(RAIZ, 'series-source')).resolverEpisodio({ tmdbId: SERIE[0], temporada: SERIE[1], episodio: SERIE[2] });
+    const situacao = escolhido ? 'funciona' : 'sem-resposta';
+    resultados.push({
+      nome: 'Limpo · Conecta TV',
+      tipo: 'serie',
+      url: escolhido ? escolhido.urlAplicativo : '(sem endereço)',
+      situacao,
+      detalhe: escolhido ? `fonte ${escolhido.fonte}, ${escolhido.resolucao}, legenda em português: ${escolhido.legendaPortugues ? 'sim' : 'não'}` : 'nenhuma fonte limpa respondeu',
+      m3u8: null,
+      midia: escolhido ? { video: escolhido.resolucao, audio: escolhido.audio } : null
+    });
+    console.log(`${'Limpo · Conecta TV'.padEnd(18)} ${situacao.padEnd(20)} ${escolhido ? `${escolhido.resolucao} · legenda PT: ${escolhido.legendaPortugues ? 'sim' : 'não'}` : 'nenhuma fonte limpa respondeu'}`);
+  } catch (erro) {
+    resultados.push({ nome: 'Limpo · Conecta TV', tipo: 'serie', situacao: 'erro', detalhe: erro.message, m3u8: null, midia: null });
   }
 
   fs.mkdirSync(PASTA_RELATORIOS, { recursive: true });

@@ -1,6 +1,6 @@
 {
   "atualizadoEm": "2026-10-07",
-  "comoFunciona": "Cada fonte tem o resultado da última verificação real (navegador + medição de vídeo). O robô do aplicativo usa estes dados para escolher a fonte: sem anúncio primeiro, depois dublado, depois qualidade.",
+  "comoFunciona": "Cada fonte tem o resultado da última verificação real (navegador + medição de vídeo). O robô do aplicativo usa estes dados para escolher a fonte: sem anúncio primeiro, depois dublado, depois qualidade. A lista é curta de propósito: só entra o que tem papel definido e foi medido.",
   "filmes": [
     {
       "nome": "WatchPlay",
@@ -11,6 +11,17 @@
       "verificadoEm": "2026-10-07",
       "situacaoMedida": "link direto",
       "audioInformado": "Dublado"
+    },
+    {
+      "nome": "Conecta TV · Full HD",
+      "semAnuncio": true,
+      "dublado": false,
+      "qualidadeMedida": "1920x800",
+      "audio": "original, com legenda em português quando disponível",
+      "status": "funciona",
+      "verificadoEm": "2026-10-07",
+      "situacaoMedida": "link direto pelo aplicativo",
+      "observacao": "Opção Full HD, escolhida no botão do player; o dublado continua automático."
     },
     {
       "nome": "PipocaCine",
@@ -34,61 +45,91 @@
   ],
   "series": [
     {
-      "nome": "VidLink (séries)",
-      "semAnuncio": false,
-      "dublado": null,
-      "qualidadeMedida": "1080p",
+      "nome": "Limpo · Conecta TV",
+      "papel": "principal automática",
+      "semAnuncio": true,
+      "dublado": false,
+      "qualidadeMedida": "720p",
+      "audio": "original, com legenda em português ligada sozinha quando a fonte tem essa faixa",
       "status": "funciona",
-      "exemplos": [
-        "Game of Thrones 1x1 (720p)",
-        "The Last of Us 1x1 (1080p)"
-      ],
-      "naoTem": [
-        "CSI 1431"
-      ],
       "verificadoEm": "2026-10-07",
-      "situacaoMedida": "abre (JavaScript)"
-    },
-    {
-      "nome": "VidSrc (séries)",
-      "semAnuncio": false,
-      "dublado": null,
-      "qualidadeMedida": "até 1080p",
-      "status": "funciona",
+      "situacaoMedida": "funciona",
       "exemplos": [
-        "CSI 1x1 (busca a mídia)"
+        "Game of Thrones 1x1 (720p, legenda Portuguese (Brazilian))",
+        "CSI 1x1 (720p)"
       ],
-      "verificadoEm": "2026-10-07",
-      "situacaoMedida": "abre (JavaScript)"
+      "observacao": "Abre sozinha dentro do aplicativo, sem anúncio, sem sair da tela e sem pedir nada.",
+      "audioMedido": "original"
     },
     {
       "nome": "StreamBetter",
+      "papel": "dublado · última opção",
       "semAnuncio": false,
-      "dublado": null,
+      "dublado": true,
       "status": "verificacao-humana",
-      "observacao": "pede confirmação 'não sou robô'",
+      "observacao": "pede confirmação 'não sou robô' da própria fonte; abre dentro do player pelo botão Dublado",
       "verificadoEm": "2026-10-07",
       "situacaoMedida": "verificação humana"
     },
     {
       "nome": "SuperFlix",
+      "papel": "dublado · alternativa",
       "semAnuncio": false,
-      "dublado": null,
+      "dublado": true,
       "status": "verificacao-humana",
+      "observacao": "mesmo esquema de verificação da fonte",
       "verificadoEm": "2026-10-07",
       "situacaoMedida": "verificação humana"
     },
     {
-      "nome": "Dattebayo BR",
+      "nome": "YouCine · doramas e novelas",
+      "papel": "busca manual dublada",
       "semAnuncio": false,
       "dublado": true,
       "status": "catalogo-de-busca",
-      "observacao": "animes dublados em português",
+      "observacao": "só para dorama e novela dublada; a escolha do episódio é feita no site",
       "verificadoEm": "2026-10-07",
       "situacaoMedida": "abre (JavaScript)"
     }
   ],
   "descartadas": [
+    {
+      "nome": "VidLink (séries)",
+      "tipo": "serie",
+      "motivo": "entrega vídeo só em DASH/H.265 (exige outro player) e só em áudio original; saiu da lista",
+      "verificadoEm": "2026-10-07",
+      "situacaoMedida": "abre (JavaScript)"
+    },
+    {
+      "nome": "VidSrc (séries)",
+      "tipo": "serie",
+      "motivo": "não entrega o endereço do vídeo sem executar o JavaScript da página do provedor",
+      "verificadoEm": "2026-10-07"
+    },
+    {
+      "nome": "PlenoFlu",
+      "tipo": "serie",
+      "motivo": "o endereço final do vídeo é bloqueado para uso fora do site",
+      "verificadoEm": "2026-10-07"
+    },
+    {
+      "nome": "Dattebayo BR",
+      "tipo": "serie",
+      "motivo": "é catálogo de anime, não de série; saiu da lista de episódios",
+      "verificadoEm": "2026-10-07"
+    },
+    {
+      "nome": "Videasy, VidFast, MovieAPI, Vidora, VidZee, 2Embed, MultiEmbed, VidSrc.icu, VidSrc.net, VidSrc.cc, VidSrc.pm, VidSrc.rip, Embed69, SmashyStream, PStream",
+      "tipo": "serie",
+      "motivo": "domínio morto, bloqueio de robô, certificado inválido ou nenhum vídeo entregue na varredura de 07/10/2026",
+      "verificadoEm": "2026-10-07"
+    },
+    {
+      "nome": "VidRock, 1Tube/viduki e 4KHDHub",
+      "tipo": "serie",
+      "motivo": "o endereço do vídeo só existe depois de resolver um desafio dentro da página (não é possível automatizar com segurança)",
+      "verificadoEm": "2026-10-07"
+    },
     {
       "nome": "AnimeFire",
       "motivo": "animefire.com é site de notícias; .one/.io entregam casca vazia",
@@ -105,7 +146,7 @@
       "verificadoEm": "2026-10-06"
     },
     {
-      "nome": "MendigoFlix, NetCine, OverFlix, PobreFlix, StreamFlix, TopFilmes, UltraCine",
+      "nome": "MendigoFlix, NetCine, OverFlix, PobreFlix, StreamFlix, TopFilmes, UltraCine, WarezCDN",
       "motivo": "domínios testados não responderam",
       "verificadoEm": "2026-10-06"
     },

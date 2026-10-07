@@ -6,7 +6,7 @@
       "tipo": "filme",
       "url": "https://v2.watchplay.shop/movie/27205",
       "situacao": "link direto",
-      "m3u8": "https://vid7102402.hclod.qzz.io/st/_s3_/v01/27205/playlist.m3u8?md5=WxupR73o15qceu1hKDTedQ&expires=1791339114",
+      "m3u8": "https://vid7102402.hclod.qzz.io/st/_s3_/v01/27205/playlist.m3u8?md5=QLvPbqD8S_tTw6jwBvD_0A&expires=1791376734",
       "audioInformado": "Dublado",
       "detalhe": "áudio informado: Dublado",
       "midia": null
@@ -28,22 +28,6 @@
       "midia": null
     },
     {
-      "nome": "VidLink (séries)",
-      "tipo": "serie",
-      "url": "https://vidlink.pro/tv/1431/1/1",
-      "situacao": "abre (JavaScript)",
-      "detalhe": "não é possível medir sem navegador",
-      "midia": null
-    },
-    {
-      "nome": "VidSrc (séries)",
-      "tipo": "serie",
-      "url": "https://vidsrc.to/embed/tv/1431/1/1",
-      "situacao": "abre (JavaScript)",
-      "detalhe": "não é possível medir sem navegador",
-      "midia": null
-    },
-    {
       "nome": "StreamBetter",
       "tipo": "serie",
       "url": "https://streambetter.shop/serie/1431/1/1",
@@ -60,9 +44,9 @@
       "midia": null
     },
     {
-      "nome": "Dattebayo BR",
+      "nome": "YouCine · doramas e novelas",
       "tipo": "serie",
-      "url": "https://www.dattebayo-br.com/anime-dublado",
+      "url": "https://youcinehd.lat/",
       "situacao": "abre (JavaScript)",
       "detalhe": "não é possível medir sem navegador",
       "midia": null
@@ -90,6 +74,18 @@
       "situacao": "indisponível",
       "detalhe": "HTTP 404",
       "midia": null
+    },
+    {
+      "nome": "Limpo · Conecta TV",
+      "tipo": "serie",
+      "url": "/api/hls?u=aHR0cHM6Ly92aXhzcmMudG8vcGxheWxpc3QvNjY2NzYyP3Rva2VuPWI0MmNjMmE2MDkxMThhMzUzYmUyYmM1YTY3MGRhMzBmJmV4cGlyZXM9MTc5NjU2MDE0MyZoPTE&r=aHR0cHM6Ly92aXhzcmMudG8v",
+      "situacao": "funciona",
+      "detalhe": "fonte Alta definição, 720p, legenda em português: não",
+      "m3u8": null,
+      "midia": {
+        "video": "720p",
+        "audio": "original"
+      }
     }
   ]
 }

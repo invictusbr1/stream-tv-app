@@ -100,11 +100,13 @@
             if(season){const d=await tmdb(`tv/${season[1]}/season/${season[2]}`,{},signal);return {episodes:(d.episodes||[]).map(x=>({number:x.episode_number,name:x.name,overview:x.overview,date:x.air_date,image:x.still_path?`https://image.tmdb.org/t/p/w300${x.still_path}`:null}))};}
             let ep=url.pathname.match(/^\/api\/episode\/(\d{1,10})\/(\d{1,3})\/([1-9]\d{0,3})$/);
             if(ep){const [_,id,season,episode]=ep;return {players:[
-                // Verificação minuciosa de 06/10: a VidLink abriu Game of Thrones (1080p) e
-                // The Last of Us (1080p); a VidSrc abriu o CSI, que não existe na VidLink.
-                {nome:'VidLink (séries)',url:`https://vidlink.pro/tv/${id}/${season}/${episode}`,dub:false,optional:true,funcionou:true,status:'audio-nao-confirmado',qualidade:'até 1080p · com anúncios',manual:true,index:0,urlCompatibilidade:`/assistir.html?type=tv&id=${id}&season=${season}&episode=${episode}&source=0`},
-                {nome:'VidSrc (séries)',url:`https://vidsrc.to/embed/tv/${id}/${season}/${episode}`,dub:false,optional:true,funcionou:true,status:'audio-nao-confirmado',qualidade:'até 1080p · com anúncios',manual:true,index:1,urlCompatibilidade:`/assistir.html?type=tv&id=${id}&season=${season}&episode=${episode}&source=1`},
-                {nome:'StreamBetter (verificação humana)',url:`https://streambetter.shop/serie/${id}/${season}/${episode}`,dub:false,optional:true,funcionou:true,status:'verificacao-no-navegador',qualidade:'com anúncios',manual:true,preferida:true,index:2,urlCompatibilidade:`/assistir.html?type=tv&id=${id}&season=${season}&episode=${episode}&source=2`},...extras(id,null,true,season,episode),{nome:'PlenoFlu (abre em outra aba)',url:'https://plenoflu.com',dub:false,optional:true,funcionou:true,status:'abre-em-outra-aba',qualidade:'dublado · com anúncios',manual:true,directory:'plenoflu',index:6,urlCompatibilidade:`/assistir.html?type=tv&id=${id}&season=${season}&episode=${episode}&source=6`},{nome:'Dattebayo BR · animes dublados',url:'https://www.dattebayo-br.com/anime-dublado',dub:false,optional:true,funcionou:true,status:'escolha-o-episodio',qualidade:'dublado · com anúncios',manual:true,directory:'dattebayo',index:7,urlCompatibilidade:`/assistir.html?type=tv&id=${id}&season=${season}&episode=${episode}&source=6`}
+                // Lista refeita em 07/10/2026 depois de uma varredura nova.
+                // Regra: o player limpo (sem anúncio) toca sozinho; estas opções
+                // são dubladas e só entram depois, dentro do próprio aplicativo,
+                // porque a própria fonte pede uma verificação de segurança.
+                {nome:'Dublado · StreamBetter',url:`https://streambetter.shop/serie/${id}/${season}/${episode}`,dub:true,optional:true,funcionou:true,status:'verificacao-no-navegador',manual:true,preferida:true,index:0,urlCompatibilidade:`/assistir.html?type=tv&id=${id}&season=${season}&episode=${episode}&source=0`},
+                {nome:'Dublado · SuperFlix',url:`https://superflixapi.monster/serie/${id}/${season}/${episode}`,dub:true,optional:true,funcionou:true,status:'verificacao-no-navegador',manual:true,index:1,urlCompatibilidade:`/assistir.html?type=tv&id=${id}&season=${season}&episode=${episode}&source=1`},
+                {nome:'Doramas e novelas dubladas · buscar no site',url:'https://youcinehd.lat/',dub:false,optional:true,funcionou:true,status:'escolha-o-episodio',manual:true,directory:'pobreflix',index:2,urlCompatibilidade:`/assistir.html?type=tv&id=${id}&season=${season}&episode=${episode}&source=2`}
             ]};}
             if (url.pathname === '/api/buscar') {
                 const q = (url.searchParams.get('nome') || '').trim();
