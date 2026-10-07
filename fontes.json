@@ -1,0 +1,109 @@
+{
+  "atualizadoEm": "2026-10-07",
+  "comoFunciona": "Cada fonte tem o resultado da última verificação real (navegador + medição de vídeo). O robô do aplicativo usa estes dados para escolher a fonte: sem anúncio primeiro, depois dublado, depois qualidade.",
+  "filmes": [
+    {
+      "nome": "WatchPlay",
+      "semAnuncio": true,
+      "dublado": true,
+      "qualidadeMedida": "1280x720",
+      "status": "funciona",
+      "verificadoEm": "2026-10-07"
+    },
+    {
+      "nome": "PipocaCine",
+      "semAnuncio": false,
+      "dublado": null,
+      "qualidadeMedida": "1280x720",
+      "audio": "português e original",
+      "status": "funciona",
+      "verificadoEm": "2026-10-07"
+    },
+    {
+      "nome": "VidLink",
+      "semAnuncio": false,
+      "dublado": null,
+      "qualidadeMedida": "1080p",
+      "status": "funciona",
+      "verificadoEm": "2026-10-07"
+    }
+  ],
+  "series": [
+    {
+      "nome": "VidLink (séries)",
+      "semAnuncio": false,
+      "dublado": null,
+      "qualidadeMedida": "1080p",
+      "status": "funciona",
+      "exemplos": [
+        "Game of Thrones 1x1 (720p)",
+        "The Last of Us 1x1 (1080p)"
+      ],
+      "naoTem": [
+        "CSI 1431"
+      ],
+      "verificadoEm": "2026-10-07"
+    },
+    {
+      "nome": "VidSrc (séries)",
+      "semAnuncio": false,
+      "dublado": null,
+      "qualidadeMedida": "até 1080p",
+      "status": "funciona",
+      "exemplos": [
+        "CSI 1x1 (busca a mídia)"
+      ],
+      "verificadoEm": "2026-10-07"
+    },
+    {
+      "nome": "StreamBetter",
+      "semAnuncio": false,
+      "dublado": null,
+      "status": "verificacao-humana",
+      "observacao": "pede confirmação 'não sou robô'",
+      "verificadoEm": "2026-10-07"
+    },
+    {
+      "nome": "SuperFlix",
+      "semAnuncio": false,
+      "dublado": null,
+      "status": "verificacao-humana",
+      "verificadoEm": "2026-10-07"
+    },
+    {
+      "nome": "Dattebayo BR",
+      "semAnuncio": false,
+      "dublado": true,
+      "status": "catalogo-de-busca",
+      "observacao": "animes dublados em português",
+      "verificadoEm": "2026-10-07"
+    }
+  ],
+  "descartadas": [
+    {
+      "nome": "AnimeFire",
+      "motivo": "animefire.com é site de notícias; .one/.io entregam casca vazia",
+      "verificadoEm": "2026-10-06"
+    },
+    {
+      "nome": "CineAgora",
+      "motivo": "só devolveu página de política de privacidade",
+      "verificadoEm": "2026-10-06"
+    },
+    {
+      "nome": "MegaFlix",
+      "motivo": "megaflix.tv é outro site (conteúdo em inglês)",
+      "verificadoEm": "2026-10-06"
+    },
+    {
+      "nome": "MendigoFlix, NetCine, OverFlix, PobreFlix, StreamFlix, TopFilmes, UltraCine",
+      "motivo": "domínios testados não responderam",
+      "verificadoEm": "2026-10-06"
+    },
+    {
+      "nome": "WatchCDN, CdnEmbed, UltraEmbed, VidSrc.me, AutoEmbed, MoviesAPI, VidSrc.in",
+      "motivo": "não entregam vídeo desde 03/10/2026",
+      "verificadoEm": "2026-10-06"
+    }
+  ]
+}

@@ -13,3 +13,22 @@ android/.gradle/
 android/app/src/main/assets/config.json
 acessos.json
 Legendas/
+
+# Arquivos gerados pelo sync-ui.cjs na compilação do Android (fonte é a raiz do projeto)
+android/app/src/main/assets/index.html
+android/app/src/main/assets/playback.js
+android/app/src/main/assets/library.js
+android/app/src/main/assets/personal.js
+android/app/src/main/assets/auth.js
+android/app/src/main/assets/jarvis.js
+android/app/src/main/assets/acesso.js
+android/app/src/main/assets/legendas.js
+android/app/src/main/assets/android.js
+android/app/src/main/assets/assistir.html
+android/app/src/main/assets/catalog.js
+# Pasta legada mantida só no computador
+stream-tv/
+# Relatórios gerados pela verificação de fontes
+relatorios/
+# Arquivos de CI aguardando o escopo "workflow" no token do GitHub
+.github/
