@@ -201,7 +201,7 @@ function mostrarStatus(texto){const alvo=el('player-status');if(alvo)alvo.textCo
 function mostrarFerramentas(){const ferramentas=el('player-tools');if(ferramentas)ferramentas.hidden=false;window.StreamChrome?.wake();}
 function fonteMemoria(){try{return JSON.parse(localStorage.getItem('streamtv-fontes-boas')||'{}');}catch{return {};}}
 function lembrarFonte(nome){if(!nome)return;try{const memoria=fonteMemoria();memoria[filmeAtual?.episode?'serie':'filme']=nome;localStorage.setItem('streamtv-fontes-boas',JSON.stringify(memoria));}catch{}}
-function pontuarFonte(p){const tipo=filmeAtual?.episode?'serie':'filme';let nota=0;if(p.dub===true)nota+=5000;if(!p.manual)nota+=2000;const qualidade=String(p.qualidade||'');if(/1080/.test(qualidade))nota+=900;else if(/720/.test(qualidade))nota+=400;if(p.funcionou)nota+=100;const boa=fonteMemoria()[tipo];if(boa&&p.nome===boa)nota+=9000;try{const ruins=JSON.parse(localStorage.getItem('streamtv-fontes-ruins')||'{}')[tipo]||[];if(ruins.includes(p.nome))nota-=8000;}catch{}return nota;}
+function pontuarFonte(p){const tipo=filmeAtual?.episode?'serie':'filme';let nota=0;if(p.dub===true)nota+=5000;if(!p.manual)nota+=2000;const qualidade=String(p.qualidade||'');if(/1080/.test(qualidade))nota+=900;else if(/720/.test(qualidade))nota+=400;if(p.funcionou)nota+=100;if(p.preferida)nota+=12000;const boa=fonteMemoria()[tipo];if(boa&&p.nome===boa)nota+=9000;try{const ruins=JSON.parse(localStorage.getItem('streamtv-fontes-ruins')||'{}')[tipo]||[];if(ruins.includes(p.nome))nota-=20000;}catch{}return nota;}
 function ordenarPorPrioridade(){players.sort((a,b)=>pontuarFonte(b)-pontuarFonte(a));}
 function abrirFonteAutomatica(indice){
     const p=players[indice];if(!p)return false;
