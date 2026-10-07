@@ -16,9 +16,9 @@ test('a página do modo com anúncios usa o catálogo local no aparelho', () => 
 test('episódio usa a VidLink e a VidSrc como fontes e mantém os índices estáveis', async () => {
     const catalogo = createCatalog(async () => good({ imdb_id: 'tt0247082' }), 'test');
     const dados = await catalogo.request('/api/episode/1431/1/1');
-    assert.equal(dados.players[0].url, 'https://vidlink.pro/tv/1431/1/1');
+    assert.equal(dados.players[0].url, 'https://vidsrc.to/embed/tv/1431/1/1');
     assert.equal(dados.players[0].index, 0);
-    assert.equal(dados.players[1].url, 'https://vidsrc.to/embed/tv/1431/1/1');
+    assert.equal(dados.players[1].url, 'https://vidlink.pro/tv/1431/1/1');
     assert.ok(dados.players.every(p => p.dub === false && p.optional === true));
 });
 test('catalog uses HTTPS TMDB directly and preserves independent ranking rules', async () => {
@@ -85,7 +85,7 @@ test('Brazil top list filters availability, caps ten, and never claims national 
 test('season and episode routes retain exact numbers and fixed provider origins',async()=>{
  const urls=[];const c=createCatalog(async u=>{urls.push(new URL(u).pathname);return good({episodes:[{episode_number:4,name:'Quatro'}]});},'test');
  const d=await c.request('/api/season/1399/2');assert.equal(urls[0],'/3/tv/1399/season/2');assert.equal(d.episodes[0].number,4);
- const e=await c.request('/api/episode/1399/2/4');assert.equal(e.players[0].url,'https://vidlink.pro/tv/1399/2/4');assert.equal(e.players[1].url,'https://vidsrc.to/embed/tv/1399/2/4');assert(e.players.every(p=>p.dub===false));assert.equal(Boolean(e.players[1].manual),false,'série toca dentro do aplicativo, sem passo extra');
+ const e=await c.request('/api/episode/1399/2/4');assert.equal(e.players[0].url,'https://vidsrc.to/embed/tv/1399/2/4');assert.equal(e.players[1].url,'https://vidlink.pro/tv/1399/2/4');assert(e.players.every(p=>p.dub===false));assert.equal(e.players.every(p=>p.manual===true),true,'fonte com anúncio só abre se o usuário escolher');
  await assert.rejects(c.request('/api/episode/1399/2/0'));await assert.rejects(c.request('/api/season/../2'));
 });
 test('new alternatives preserve episode coordinates and never claim confirmed dubbing',async()=>{

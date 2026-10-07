@@ -34,7 +34,8 @@
             const proximoEndereco = new URL(location.href); proximoEndereco.searchParams.set('source', String(proximo)); location.href = proximoEndereco.href;
         };
         window.StreamFonteFalhou = trocarFonte;
-        document.getElementById('outra-fonte').onclick = () => trocarFonte('');
+        document.getElementById('outra-fonte').onclick = () => {ficouBom=true;trocarFonte('');};
+        setTimeout(()=>{if(ficouBom||status.hidden===false)return;status.hidden=false;status.style.background='#2a2113';status.textContent='Se o vídeo não apareceu, toque em ⟳ Outra fonte no topo.';},22000);
         if (!source.directory) {
             try {
                 const verificado = await fetch(`/api/fonte?tipo=${isTV?'tv':'movie'}&id=${id}&season=${season||''}&episode=${episode||''}&fonte=${index}`, { signal: controller.signal }).then(r => (r.ok ? r.json() : null));
@@ -42,7 +43,7 @@
             } catch { /* sem verificador (aparelho sem servidor): segue normalmente */ }
         }
         // Guarda a fonte que funcionou para ela vir primeiro na próxima vez.
-        try{const memoria=JSON.parse(localStorage.getItem('streamtv-fontes-boas')||'{}');memoria[isTV?'serie':'filme']=source.nome;localStorage.setItem('streamtv-fontes-boas',JSON.stringify(memoria));}catch{}
+        let ficouBom=false;setTimeout(()=>{if(ficouBom||document.hidden)return;ficouBom=true;try{const memoria=JSON.parse(localStorage.getItem('streamtv-fontes-boas')||'{}');memoria[isTV?'serie':'filme']=source.nome;localStorage.setItem('streamtv-fontes-boas',JSON.stringify(memoria));}catch{}},15000);
         if(source.directory){
             const url=await catalog.directoryUrl(source,id,isTV,controller.signal);
             status.textContent=isTV?`Busque o título e selecione a temporada ${season}, episódio ${episode} na fonte. Confira se há áudio dublado.`:'Escolha o título na fonte e confira se há áudio dublado.';

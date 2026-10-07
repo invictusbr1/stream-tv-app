@@ -286,6 +286,31 @@ app.get('/api/playback/:id', async (req, res) => {
     } catch { res.status(502).json({ error: 'Reprodução direta dublada indisponível.' }); }
 });
 
+// ============================================================
+// SÉRIE SEM ANÚNCIO — usa a mesma fonte limpa dos filmes.
+// Se a fonte exigir sessão, basta informar o cookie em config.local.json
+// (watchplayCookie) ou na variável WATCHPLAY_COOKIE.
+// ============================================================
+app.get('/api/playback/serie/:id/:season/:episode', async (req, res) => {
+    const { id, season, episode } = req.params;
+    if (!/^\d{1,10}$/.test(id) || !/^\d{1,3}$/.test(season) || !/^[1-9]\d{0,3}$/.test(episode)) return res.sendStatus(400);
+    res.setHeader('Cache-Control', 'no-store');
+    const cookie = process.env.WATCHPLAY_COOKIE || LOCAL_CONFIG.watchplayCookie || '';
+    try {
+        const r = await axios.get(`https://v2.watchplay.shop/serie/${id}/${season}/${episode}`, {
+            timeout: 12000,
+            maxRedirects: 0,
+            maxContentLength: 1024 * 1024,
+            responseType: 'text',
+            validateStatus: status => status === 200,
+            headers: { ...H, ...(cookie ? { Cookie: cookie } : {}) }
+        });
+        res.json(require('./playback-source').parseWatchPlay(r.data));
+    } catch (erro) {
+        res.status(502).json({ error: 'Série dublada sem anúncio indisponível nesta fonte.' });
+    }
+});
+
 const TMDB_KEY = 'b803dfcad0baeafbb66a673ffe98a5ef';
 
 const libraryCatalog=require('./android/app/src/main/assets/catalog').createCatalog(async (url,options)=>{const r=await axios.get(url,{signal:options?.signal});return {ok:true,json:async()=>r.data};},TMDB_KEY);
