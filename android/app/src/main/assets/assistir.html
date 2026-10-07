@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="referrer" content="strict-origin-when-cross-origin"><title>Conecta TV — modo com anúncios</title>
-<style>*{box-sizing:border-box}html,body{margin:0;height:100%;background:#000;color:#fff;font:15px system-ui,-apple-system,'Segoe UI',sans-serif}body{height:100dvh;display:flex;flex-direction:column}.topo{display:flex;align-items:center;gap:10px;padding:10px 14px;background:linear-gradient(180deg,#000000e6,#0000);position:absolute;top:0;left:0;right:0;z-index:3}.icone{display:inline-flex;align-items:center;justify-content:center;min-width:42px;height:42px;border:0;border-radius:12px;background:#ffffff14;color:#fff;font-size:18px;line-height:1;text-decoration:none;cursor:pointer}.icone:hover{background:#ffffff26}.nome-fonte{margin-left:2px;font-size:13.5px;font-weight:600;color:#e9edf4;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.palco{position:relative;flex:1;min-height:0;background:#000}iframe{border:0;width:100%;height:100%;display:block}.aviso{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;padding:32px;font-size:15px;color:#c9d2e0;background:#000;z-index:2}.aviso[hidden]{display:none}</style></head>
-<body><div class="topo"><a class="icone" href="/index.html" aria-label="Voltar ao catálogo" title="Voltar ao catálogo">‹</a><span id="title" class="nome-fonte">Preparando…</span><button id="outra-fonte" class="icone" aria-label="Outra fonte" title="Outra fonte">⟳</button><a class="icone" href="/remote-pointer" aria-label="Cursor do controle" title="Cursor do controle">◇</a></div><div class="palco"><p id="status" class="aviso">Preparando…</p></div><script src="/catalog.js"></script><script src="/android.js"></script><script src="/personal.js"></script><script>
+<style>*{box-sizing:border-box}html,body{margin:0;height:100%;background:#000;color:#fff;font:15px system-ui,-apple-system,'Segoe UI',sans-serif}body{height:100dvh;display:flex;flex-direction:column}.topo{display:flex;align-items:center;gap:10px;padding:10px 14px;background:linear-gradient(180deg,#000000e6,#0000);position:absolute;top:0;left:0;right:0;z-index:3}.icone{display:inline-flex;align-items:center;justify-content:center;min-width:42px;height:42px;border:0;border-radius:12px;background:#ffffff14;color:#fff;font-size:18px;line-height:1;text-decoration:none;cursor:pointer}.icone:hover{background:#ffffff26}.nome-fonte{margin-left:2px;font-size:13.5px;font-weight:600;color:#e9edf4;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.palco{position:relative;flex:1;min-height:0;background:#000}iframe{border:0;width:100%;height:100%;display:block}.aviso{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;padding:32px;font-size:15px;color:#c9d2e0;background:#000;z-index:2}.aviso[hidden]{display:none}.trava{position:absolute;inset:0;z-index:2}:not([hidden]).trava{display:block}</style></head>
+<body><div class="topo"><a class="icone" href="/index.html" aria-label="Voltar ao catálogo" title="Voltar ao catálogo">‹</a><span id="title" class="nome-fonte">Preparando…</span><button id="bloqueio-toque" class="icone" aria-label="Bloquear toque na tela" title="Bloquear o toque na tela">🔓</button><button id="tela-cheia" class="icone" aria-label="Tela cheia" title="Tela cheia">⛶</button><button id="outra-fonte" class="icone" aria-label="Outra fonte" title="Outra fonte">⟳</button><a class="icone" href="/remote-pointer" aria-label="Cursor do controle" title="Cursor do controle">◇</a></div><div class="palco"><div id="trava" class="trava" hidden></div><p id="status" class="aviso">Preparando…</p></div><script src="/catalog.js"></script><script src="/android.js"></script><script src="/personal.js"></script><script>
 (async () => {
     const status = document.getElementById('status');
     const params = new URLSearchParams(location.search);
@@ -56,4 +56,20 @@
     } catch { status.textContent = 'Não foi possível preparar esta fonte. Volte ao catálogo e tente outra.'; }
     finally { clearTimeout(timer); }
 })();
+
+// ---- tela cheia e bloqueio do toque ----
+const trava=document.getElementById("trava"),botaoTrava=document.getElementById("bloqueio-toque"),botaoTela=document.getElementById("tela-cheia");
+let bloqueado=false;
+try{bloqueado=localStorage.getItem("streamtv-trava-toque")==="true";}catch{}
+function aplicarTrava(){trava.hidden=!bloqueado;botaoTrava.textContent=bloqueado?"🔒":"🔓";botaoTrava.title=bloqueado?"Toque na tela bloqueado (não pausa)":"Toque na tela liberado";botaoTrava.setAttribute("aria-label",botaoTrava.title);try{localStorage.setItem("streamtv-trava-toque",String(bloqueado));}catch{}}
+botaoTrava.onclick=()=>{bloqueado=!bloqueado;aplicarTrava();};
+aplicarTrava();
+// depois de 25s, bloqueia sozinho: o vídeo já está rodando e o toque só pausaria
+setTimeout(()=>{if(!bloqueado){bloqueado=true;aplicarTrava();}},25000);
+function alternarTela(){if(document.fullscreenElement){document.exitFullscreen&&document.exitFullscreen();}else{document.documentElement.requestFullscreen&&document.documentElement.requestFullscreen().catch(()=>{});}}
+botaoTela.onclick=alternarTela;
+// tenta abrir em tela cheia (no aparelho a tela cheia é nativa e não depende disso)
+setTimeout(()=>{document.documentElement.requestFullscreen&&document.documentElement.requestFullscreen().catch(()=>{});},1500);
+
+
 </script></body></html>

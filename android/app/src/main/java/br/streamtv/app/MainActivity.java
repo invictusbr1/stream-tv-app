@@ -199,7 +199,8 @@ public final class MainActivity extends Activity {
                 Uri uri = request.getUrl();
                 if (trusted && request.isForMainFrame() && request.hasGesture() && local(uri) && "/check-updates".equals(uri.getPath())) { updater.check(true); return true; }
                 if (trusted && request.isForMainFrame() && fullscreenAction(uri)) return true;
-                if (trusted && request.isForMainFrame() && local(uri) && "/assistir.html".equals(uri.getPath())) setInlineFullscreen(false);
+                if (trusted && request.isForMainFrame() && local(uri) && "/assistir.html".equals(uri.getPath())) setInlineFullscreen(true);
+                if (trusted && request.isForMainFrame() && local(uri) && "/index.html".equals(uri.getPath())) setInlineFullscreen(false);
                 if (trusted && request.isForMainFrame() && local(uri) && "/remote-pointer".equals(uri.getPath())) {
                     if (request.hasGesture()) setPointerMode(!pointerMode);
                     return true;
@@ -211,7 +212,7 @@ public final class MainActivity extends Activity {
                 Uri uri = Uri.parse(url);
                 if (trusted && local(uri) && "/check-updates".equals(uri.getPath())) { updater.check(true); return true; }
                 if (trusted && fullscreenAction(uri)) return true;
-                if (trusted && local(uri) && "/assistir.html".equals(uri.getPath())) setInlineFullscreen(false);
+                if (trusted && local(uri) && "/assistir.html".equals(uri.getPath())) setInlineFullscreen(true);
                 if (trusted && local(uri) && "/remote-pointer".equals(uri.getPath())) { setPointerMode(!pointerMode); return true; }
                 return blockNavigation(uri, trusted); // Android 6 compatibility.
             }
