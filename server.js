@@ -407,9 +407,28 @@ app.get('/api/stream-hd', async (req, res) => {
         // O endereço é entregue pelo próprio aplicativo: o player não precisa
         // falar direto com o provedor (que bloqueia o acesso entre sites).
         res.json({ ok: true, ...dados, urlAplicativo: midia.urlViaProxy(dados.url, midia.refererPadrao('vixsrc.to')) });
-    } catch (erro) {
-        res.json({ ok: false, motivo: 'Fonte Full HD indisponível para este título.' });
-    }
+        return;
+    } catch { /* tenta a segunda fonte de alta definição */ }
+    // Segunda opção: VidSrc (filmes e séries). O endereço só é válido com um
+    // token gerado na hora, atrelado ao próprio aparelho — o resolvedor faz isso.
+    try {
+        const alternativa = await require('./vidsrc-source').resolver(tipo, id, temporada, episodio);
+        if (alternativa) {
+            let host = '';
+            try { host = new URL(alternativa.url).hostname; } catch { /* endereço inválido */ }
+            if (host) midia.liberarHost(host);
+            res.json({
+                ok: true,
+                url: alternativa.url,
+                urlAplicativo: midia.urlViaProxy(alternativa.url, ''),
+                qualidade: alternativa.qualidade,
+                legendas: [],
+                fonte: alternativa.fonte
+            });
+            return;
+        }
+    } catch { /* sem fonte de alta definição */ }
+    res.json({ ok: false, motivo: 'Fonte Full HD indisponível para este título.' });
 });
 
 const TMDB_KEY = 'b803dfcad0baeafbb66a673ffe98a5ef';

@@ -14,6 +14,16 @@ const HOSTS_PERMITIDOS = [
     /(^|\.)hclod\.qzz\.io$/i // servidor de vídeo da fonte dublada limpa
 ];
 
+// Endereços liberados na hora pelos resolvedores do próprio aplicativo (as
+// fontes trocam de servidor de vídeo com frequência). Só entra aqui o que o
+// aplicativo descobriu sozinho — a lista continua fechada para o resto.
+const HOSTS_DESCOBERTOS = new Set();
+
+function liberarHost(host) {
+    const nome = String(host || '').trim().toLowerCase();
+    if (nome) HOSTS_DESCOBERTOS.add(nome);
+}
+
 const REFERERS_CONHECIDOS = {
     'vixsrc.to': 'https://vixsrc.to/',
     'mistyreef77.boats': 'https://vixsrc.to/',
@@ -21,7 +31,10 @@ const REFERERS_CONHECIDOS = {
 };
 
 function hostPermitido(host) {
-    return Boolean(host) && HOSTS_PERMITIDOS.some(padrao => padrao.test(String(host)));
+    const nome = String(host || '');
+    if (!nome) return false;
+    if (HOSTS_DESCOBERTOS.has(nome.toLowerCase())) return true;
+    return HOSTS_PERMITIDOS.some(padrao => padrao.test(nome));
 }
 
 function refererPadrao(host) {
@@ -76,6 +89,7 @@ function reescreverPlaylist(texto, base, referer) {
 
 module.exports = {
     hostPermitido,
+    liberarHost,
     refererPadrao,
     base64url,
     textoDeBase64url,

@@ -110,6 +110,23 @@
                 const d=await tmdb('discover/movie',{watch_region:'BR',with_watch_monetization_types:'flatrate|free|ads',sort_by:'popularity.desc',include_adult:'false','vote_count.gte':'50'},signal);
                 return {items:(d.results||[]).slice(0,10).map(movie),checkedAt:new Date().toISOString()};
             }
+            // Alta definição sem anúncio quando o título não tem dublado limpo:
+            // no celular o próprio aparelho resolve (o provedor libera o acesso
+            // entre sites) e o vídeo toca dentro do player do aplicativo.
+            if(url.pathname==='/api/stream-hd'){
+                const tipo=url.searchParams.get('tipo')==='tv'?'tv':'movie';
+                const id=url.searchParams.get('id')||'';
+                const temporada=url.searchParams.get('season')||'1';
+                const episodio=url.searchParams.get('episode')||'1';
+                if(!/^\d{1,10}$/.test(id))return {ok:false};
+                const fonte=(typeof globalThis!=='undefined'?globalThis:window).VidSrcSource;
+                if(!fonte||typeof fonte.resolver!=='function')return {ok:false,motivo:'sem fonte de alta definição'};
+                try{
+                    const dados=await fonte.resolver(tipo,id,temporada,episodio);
+                    if(!dados)return {ok:false};
+                    return {ok:true,url:dados.url,urlAplicativo:dados.url,qualidade:dados.qualidade,fonte:dados.fonte,legendas:[]};
+                }catch{return {ok:false};}
+            }
             // Top 10 "em alta" do dia, com o nome dos streamings que têm o
             // título no Brasil. A lista muda todo dia e o aplicativo guarda o
             // resultado do dia para não repetir consultas.

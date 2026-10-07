@@ -14,6 +14,7 @@ let html=fs.readFileSync(path.join(root,'index.html'),'utf8').replace(/\r\n/g,'\
 function replace(before,after){if(!html.includes(before))throw Error('UI adapter no longer matches: '+before);html=html.replace(before,after);}
 replace("async function lerJson(url,signal){const r=await fetch(url,{signal});if(!r.ok)throw Error('Indisponível');return r.json();}","async function lerJson(url,signal){if(url.startsWith('/api/playback/')){const r=await fetch(url,{signal});if(!r.ok)throw Error('Indisponível');return r.json();}return (await androidCatalog).request(url,signal);}");
 replace('<script>\n','<script src="/catalog.js"></script><script src="/android.js"></script>\n<script>\n');
+replace('<script>\n','<script src="/vidsrc-source.js"></script>\n<script>\n');
 replace('target="_blank" rel="noopener"','');
 replace("url.origin!==location.origin||!/^\\/assistir\\/\\d{1,10}\\/[0-7]$/.test(url.pathname)||url.search||url.hash||url.username||url.password", "url.origin!==location.origin||url.pathname!=='/assistir.html'||!/^\\d{1,10}$/.test(url.searchParams.get('id')||'')||!/^[0-7]$/.test(url.searchParams.get('source')||'')||[...url.searchParams.keys()].length!==2||url.hash||url.username||url.password");
 // O aviso de atualização do Android já aparece no selo do topo, no aviso da
@@ -38,6 +39,8 @@ fs.writeFileSync(path.join(assets,'config.json'),JSON.stringify({
 console.log('Android UI synchronized.');
 
 fs.copyFileSync(path.join(root,'library.js'),path.join(assets,'library.js'));
+// Resolvedor de alta definição usado pelo aplicativo do celular (sem servidor).
+fs.copyFileSync(path.join(root,'vidsrc-source.js'),path.join(assets,'vidsrc-source.js'));
 
 fs.copyFileSync(path.join(root,'personal.js'),path.join(assets,'personal.js'));
 fs.copyFileSync(path.join(root,'auth.js'),path.join(assets,'auth.js'));

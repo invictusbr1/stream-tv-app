@@ -58,15 +58,31 @@ async function tentarDublada(tmdbId, temporada, episodio, cookie) {
 async function tentarAltaDefinicao(tmdbId, temporada, episodio) {
     try {
         const dados = await comPrazo(require('./vixsrc-source').resolver(tmdbId, 'tv', temporada, episodio), TEMPO);
-        if (!dados || !dados.url) return null;
-        const legendas = Array.isArray(dados.legendas) ? dados.legendas : [];
+        if (dados && dados.url) {
+            const legendas = Array.isArray(dados.legendas) ? dados.legendas : [];
+            return {
+                url: dados.url,
+                audio: 'original',
+                fonte: 'Alta definição',
+                resolucao: dados.qualidade || '',
+                legendas,
+                legendaPortugues: legendas.some(nome => /portugu|brazil|brasil/i.test(String(nome)))
+            };
+        }
+    } catch {
+        /* tenta a fonte seguinte */
+    }
+    // Segunda opção: VidSrc — costuma ter lançamentos que a primeira não tem.
+    try {
+        const alternativa = await comPrazo(require('./vidsrc-source').resolver('tv', tmdbId, temporada, episodio), TEMPO);
+        if (!alternativa || !alternativa.url) return null;
         return {
-            url: dados.url,
+            url: alternativa.url,
             audio: 'original',
-            fonte: 'Alta definição',
-            resolucao: dados.qualidade || '',
-            legendas,
-            legendaPortugues: legendas.some(nome => /portugu|brazil|brasil/i.test(String(nome)))
+            fonte: alternativa.fonte,
+            resolucao: alternativa.qualidade || '',
+            legendas: [],
+            legendaPortugues: false
         };
     } catch {
         return null;
@@ -77,7 +93,11 @@ async function tentarAltaDefinicao(tmdbId, temporada, episodio) {
 function prepararParaPlayer(escolhido) {
     const midia = require('./midia-proxy');
     let referer = '';
-    try { referer = midia.refererPadrao(new URL(escolhido.url).hostname); } catch { /* sem referer */ }
+    try {
+        const host = new URL(escolhido.url).hostname;
+        referer = midia.refererPadrao(host);
+        if (!referer) midia.liberarHost(host); // endereço descoberto pelo próprio aplicativo
+    } catch { /* sem referer */ }
     return { ...escolhido, urlAplicativo: midia.urlViaProxy(escolhido.url, referer) };
 }
 
