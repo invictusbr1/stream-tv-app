@@ -45,6 +45,18 @@ function atualizarFavoritoDaSerie(f){const botao=el('series-fav');if(!botao)retu
    const atualizadoEm=d.checkedAt?String(d.checkedAt).slice(8,10)+'/'+String(d.checkedAt).slice(5,7):'';
    el(idNota).textContent=`Em alta hoje (${atualizadoEm}) · atualizado às ${hora} · toque para abrir. Atualiza sozinho todo dia.`;
  }
+ // Se o ranking do dia falhar, as fileiras são montadas com o catálogo comum —
+ // é melhor mostrar indicados do que mostrar vazio.
+ async function rankingDeReserva(){
+   try{
+     const [filmes,series]=await Promise.allSettled([get('/api/top-br'),get('/api/explore?tipo=tv&page=1')]);
+     const agora=new Date().toISOString();
+     return {
+       filmes: filmes.status==='fulfilled'?{items:(filmes.value.items||[]).slice(0,10),checkedAt:agora}:null,
+       series: series.status==='fulfilled'?{items:(series.value.items||[]).slice(0,10),checkedAt:agora}:null
+     };
+   }catch{return {filmes:null,series:null};}
+ }
  function paintAlta(dados){
    if(dados.filmes)paintTop(dados.filmes,'movie');
    else if(el('alta-filmes-nota'))el('alta-filmes-nota').textContent='Não foi possível buscar o ranking de filmes agora.';
@@ -116,6 +128,10 @@ function atualizarFavoritoDaSerie(f){const botao=el('series-fav');if(!botao)retu
      const guardado=altaGuardada();
      if(guardado)paintAlta(guardado);
      else{
+       // Última reserva: monta as fileiras com o catálogo normal, para o
+       // usuário nunca ficar sem os indicados.
+       const reserva=await rankingDeReserva();
+       if(reserva.filmes||reserva.series){guardarAlta(reserva);paintAlta(reserva);tentativasAlta=0;topBusy=false;return;}
        if(el('alta-filmes-nota'))el('alta-filmes-nota').textContent='Não foi possível buscar o ranking agora. Tentando de novo…';
        if(el('alta-series-nota'))el('alta-series-nota').textContent='Tentando novamente em instantes…';
        // Nova tentativa automática (até três), com espera crescente.
