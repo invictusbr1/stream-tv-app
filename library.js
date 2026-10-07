@@ -140,7 +140,7 @@ window.StreamChrome=(()=>{
  }
  for(const name of ['pointermove','pointerdown','keydown'])document.addEventListener(name,wake,true);
  document.addEventListener('focusin',()=>{if(document.activeElement?.closest('.barra')||document.activeElement?.closest('.player-top')||document.activeElement?.closest('#direct-controls')||document.activeElement?.closest('.player-tools')||!el('opcoes').hidden)wake();});
- let wasActive=false;new MutationObserver(()=>{const active=el('player').classList.contains('ativo');if(active!==wasActive){wasActive=active;wake();}}).observe(el('player'),{attributes:true,attributeFilter:['class']});
+ let wasActive=false;new MutationObserver(()=>{const active=el('player').classList.contains('ativo');if(active!==wasActive){wasActive=active;document.body.classList.toggle('player-aberto',active);wake();}}).observe(el('player'),{attributes:true,attributeFilter:['class']});
  new MutationObserver(wake).observe(el('loading'),{attributes:true,attributeFilter:['class']});
  new MutationObserver(wake).observe(el('opcoes'),{attributes:true,attributeFilter:['hidden']});
  return {wake};

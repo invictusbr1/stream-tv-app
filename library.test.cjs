@@ -56,3 +56,12 @@ test('o cabeçalho do catálogo (com o botão Atualizar) não aparece no celular
  const html=fs.readFileSync(__dirname+'/index.html','utf8');
  assert.match(html,/#label\{display:none\}|\.section-head\{display:none!important\}/,'no celular esse cabeçalho sai da tela');
 });
+
+test('com o player aberto a barra de baixo sai da frente e a fonte com verificação tem máscara',()=>{
+ const html=fs.readFileSync(__dirname+'/index.html','utf8');
+ assert.match(html,/body\.player-aberto \.bottom-nav\{display:none!important\}/,'a barra de baixo não pode cobrir o player');
+ assert.match(html,/#player\.fonte-externa \.area-player:after\{[^}]*height:126px[^}]*pointer-events:none/,'a máscara cobre o rodapé do provedor sem bloquear toques');
+ assert.match(html,/pararFrame\(\);el\('player'\)\?\.classList\.add\('fonte-externa'\)/,'a máscara é ligada só quando a fonte externa abre');
+ const biblioteca=fs.readFileSync(__dirname+'/library.js','utf8');
+ assert.match(biblioteca,/classList\.toggle\('player-aberto',active\)/,'o corpo precisa receber a marca de player aberto');
+});
