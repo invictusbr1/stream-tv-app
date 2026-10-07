@@ -40,6 +40,11 @@ por qual fonte, qualidade, falhas e alertas. Para abrir:
 Quem entra no painel é só quem tem a chave (CENTRAL_KEY). Nada é enviado para
 fora: os dados ficam no seu próprio servidor, na pasta central/dados.
 
+A central também tem aplicativo para o celular (pasta central/android). Ele pede
+uma vez o endereço da central e a chave, e depois abre o painel em tela cheia.
+Para a família ver o painel fora de casa, o ideal é deixar a central num serviço
+sempre ligado (Render, de graça) — o passo a passo está em DEPLOY.md.
+
 PLAYERS
 Só entram fontes dubladas, sem anúncio e em HD. O aplicativo escolhe sozinho,
 lembra qual fonte deu certo para cada título, não repete a que não tem o

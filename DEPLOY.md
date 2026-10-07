@@ -1,5 +1,35 @@
 # Como hospedar o Conecta TV (e a central) de graça
 
+## Onde cada coisa roda (o desenho recomendado)
+
+São dois programas, com necessidades diferentes:
+
+| Programa | O que ele faz | Onde faz sentido rodar |
+| --- | --- | --- |
+| **Conecta TV** | busca a fonte do filme/série, encaminha o vídeo, guarda favoritos | **no seu computador** (é onde já está rodando, com o túnel "Acesso pelo celular") |
+| **Central** | recebe os relatos e mostra o painel de status | **num serviço sempre ligado** — Render free, ou o mesmo PC enquanto estiver ligado |
+
+Por que a central merece um servidor fixo: o celular na rua precisa alcançar o
+painel, e para isso o endereço não pode mudar. O túnel do PC muda de endereço a
+cada abertura; o Render (plano free) dá um endereço fixo em HTTPS.
+
+Se preferir simplicidade total, rode os dois no PC e abra a central pelo mesmo
+túnel — funciona, só não tem endereço fixo.
+
+## Aplicativo da central (Android)
+
+A central também virou aplicativo:
+
+- Fonte: `central/android/` (projeto Android próprio, ícone próprio, nome
+  "Central Conecta TV").
+- Compilar: `pwsh -File central/android/Build-Central.ps1 -ToolRoot <ferramentas>
+  -BuildDirectory <pasta sem acento> -OutputDirectory <saída>`.
+- Instalar no celular, abrir uma vez e informar **endereço da central** +
+  **chave do painel**. Fica guardado; nas próximas vezes abre direto.
+- Publicar atualização: `pwsh -File central/android/Publicar-Central.ps1
+  -ApkPath <apk> -Notes "..."` — sobe no mesmo repositório de releases, com o
+  arquivo de aviso `central.json`.
+
 ## Antes de tudo: o que a hospedagem muda
 
 Hoje o aplicativo só existe dentro da sua rede. Hospedado, ele ganha um endereço
