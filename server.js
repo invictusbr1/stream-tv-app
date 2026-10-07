@@ -346,10 +346,19 @@ app.get('/api/hls', async (req, res) => {
 app.get('/api/playback/:id', async (req, res) => {
     if (!/^\d{1,10}$/.test(req.params.id)) return res.sendStatus(400);
     res.setHeader('Cache-Control', 'no-store');
+    // 1) fonte dublada limpa principal (WatchPlay)
     try {
         const r = await axios.get(`https://v2.watchplay.shop/movie/${req.params.id}`, { timeout: 10000, maxRedirects: 0, maxContentLength: 1024 * 1024, responseType: 'text' });
-        res.json(require('./playback-source').parseWatchPlay(r.data));
-    } catch { res.status(502).json({ error: 'Reprodução direta dublada indisponível.' }); }
+        const dados = require('./playback-source').parseWatchPlay(r.data);
+        return res.json({ ...dados, type: dados.type || 'hls' });
+    } catch { /* tenta a fonte dublada alternativa */ }
+    // 2) fonte dublada limpa alternativa (PipocaCine): arquivo MP4 com faixa
+    //    portuguesa padrão. A página do provedor não é aberta para o usuário.
+    try {
+        const alternativa = await require('./pipoca-source').resolverFilme(req.params.id);
+        if (alternativa) return res.json(alternativa);
+    } catch { /* segue para o aviso */ }
+    res.status(502).json({ error: 'Reprodução direta dublada indisponível.' });
 });
 
 // ============================================================

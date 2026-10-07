@@ -1,13 +1,13 @@
 {
   "name": "stream-tv",
-  "version": "2.5.5",
+  "version": "2.6.0",
   "description": "Conecta TV - catalogo, players e aplicativos (Android, Windows, iPhone)",
   "main": "launcher.js",
   "bin": "launcher.js",
   "scripts": {
     "start": "node launcher.js",
     "build:exe": "pkg . --targets node18-win-x64 --output \"dist/Conecta TV.exe\"",
-    "test": "node --test playback.test.cjs auto-player.test.cjs library.test.cjs android/catalog.test.cjs personal.test.cjs pwa.test.cjs midia-proxy.test.cjs series-source.test.cjs",
+    "test": "node --test playback.test.cjs auto-player.test.cjs library.test.cjs android/catalog.test.cjs personal.test.cjs pwa.test.cjs midia-proxy.test.cjs series-source.test.cjs pipoca-source.test.cjs",
     "start:web": "node server.js",
     "preparar:build": "npm install pkg@5.8.1 --no-save --no-audit --no-fund"
   },
@@ -27,6 +27,7 @@
       "playback-source.js",
       "midia-proxy.js",
       "series-source.js",
+      "pipoca-source.js",
       "android/app/src/main/assets/catalog.js",
       "pwa/page.cjs",
       "vixsrc-source.js"

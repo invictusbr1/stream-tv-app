@@ -24,6 +24,17 @@
       "observacao": "Opção Full HD, escolhida no botão do player; o dublado continua automático."
     },
     {
+      "nome": "PipocaCine · arquivo limpo",
+      "semAnuncio": true,
+      "dublado": true,
+      "qualidadeMedida": "1280x720",
+      "audio": "duas faixas (português e original) — a portuguesa é a padrão",
+      "status": "funciona",
+      "verificadoEm": "2026-10-07",
+      "situacaoMedida": "arquivo direto pelo aplicativo",
+      "observacao": "Entra quando a fonte dublada principal não tem o título. A página do provedor não é aberta: nenhum anúncio chega ao usuário."
+    },
+    {
       "nome": "PipocaCine",
       "semAnuncio": false,
       "dublado": null,

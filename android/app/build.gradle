@@ -6,8 +6,8 @@ android {
         applicationId 'br.streamtv.app'
         minSdk 23
         targetSdk 35
-        versionCode 255
-        versionName '2.5.5'
+        versionCode 260
+        versionName '2.6.0'
     }
     compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
 }
