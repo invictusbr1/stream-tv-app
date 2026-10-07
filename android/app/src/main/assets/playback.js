@@ -10,7 +10,7 @@ window.StreamPlayback = (() => {
     preference.append(checkbox,document.createTextNode('Abrir filmes em tela cheia'));el('fontes').before(preference);
     el('quality-select').onchange=e=>quality(e.target.value);
     el('subtitle-select').onchange=e=>setSubtitle(Number(e.target.value));
-    let subtitleChoice=-1,progressFilm=null,lastSaved=0,resumeApplied=false,audioChoice=-1,speed=1,volume=1,mudo=false,arrastando=false;
+    let subtitleChoice=-1,progressFilm=null,lastSaved=0,resumeApplied=false,audioChoice=-1,speed=1,volume=1,mudo=false,arrastando=false,rotuloAudio='Dublado';
     try{const guardado=localStorage.getItem('streamtv-volume');if(guardado!==null)volume=Math.min(1,Math.max(0,Number(guardado)));mudo=localStorage.getItem('streamtv-mudo')==='true';}catch{}
     try{speed=Number(localStorage.getItem('streamtv-speed'))||1;}catch{}
     if(![0.75,1,1.25,1.5,2].includes(speed))speed=1;
@@ -78,7 +78,7 @@ window.StreamPlayback = (() => {
     function qualityInfo(level){
         const width=level?.width||video?.videoWidth||0,height=level?.height||video?.videoHeight||0;
         const taxa=Number(level?.bitrate)>0?` · ${(level.bitrate/1000000).toFixed(1).replace('.',',')} Mbps`:'';
-        el('quality-info').textContent=(width&&height?`${width} × ${height} · Dublado`:height?`${height}p · Dublado`:'Original · Dublado')+taxa;
+        el('quality-info').textContent=(width&&height?`${width} × ${height} · ${rotuloAudio}`:height?`${height}p · ${rotuloAudio}`:`Original · ${rotuloAudio}`)+taxa;
         const best=hls?.levels[bestLevel()],maxWidth=best?.width||width,maxHeight=best?.height||height;
         el('quality-limit').textContent=maxWidth>=1920||maxHeight>=1080?'Full HD ou superior disponível nesta fonte.':maxWidth||maxHeight?'Esta fonte não oferece Full HD para este filme.':'Verificando a resolução oferecida pela fonte…';
         const alt=el('quality-alt');if(alt)alt.hidden=Boolean(maxWidth>=1920||maxHeight>=1080);atualizarBotoesAjuste();
@@ -87,8 +87,8 @@ window.StreamPlayback = (() => {
     function qualityMenu(){const select=el('quality-select');select.hidden=false;select.replaceChildren();const values=[['best','Melhor disponível'],['-1','Automática (conexão)']];if(hls)hls.levels.forEach((l,i)=>{if(l.height)values.push([String(i),`${l.height}p`]);});for(const [value,label] of values){const o=document.createElement('option');o.value=value;o.textContent=label;select.append(o);}select.value='best';el('direct-quality').hidden=false;}
     function play(){if(!video)return;const target=video,token=generation;target.play().catch(e=>{if(token!==generation||target!==video)return;if(e.name==='NotAllowedError'){el('loading').classList.remove('vis');el('direct-resume').hidden=false;}else failure();});}
     function failure(){const pending=settle;settle=null;if(pending){stop();pending(false);}else if(direct){stop();mostrarErro('A reprodução foi interrompida.','Tente novamente ou escolha outra fonte em Opções.');}}
-        async function start(id,version,signal,caminho,urlDireta){stop();const token=generation;let data;if(urlDireta){data={url:urlDireta,audio:'fonte',source:'Full HD',type:'hls'};}else{try{data=await lerJson(caminho||`/api/playback/${id}`,signal);}catch{return false;}}if(token!==generation||(signal&&signal.aborted)||version!==playerVersion)return false;if(urlDireta){if(!/^(\/api\/hls\?|https:\/\/vixsrc\.to\/)/i.test(data.url))return false;}else if(data.audio!=='pt-BR'||!/^(\/api\/hls\?|https:\/\/[a-z0-9-]+\.hclod\.qzz\.io\/)/i.test(data.url))return false;
-        progressFilm=typeof filmeAtual!=='undefined'?{...filmeAtual}:null;resumeApplied=false;lastSaved=0;video=document.createElement('video');video.id='direct-video';video.controls=false;video.autoplay=true;video.playsInline=true;video.preload='auto';video.tabIndex=0;video.setAttribute('aria-label','Filme dublado');video.setAttribute('webkit-playsinline','');video.setAttribute('x-webkit-airplay','allow');video.style.cssText='width:100%;height:100%;object-fit:contain;background:#000';video.playbackRate=speed;try{video.volume=volume;video.muted=mudo;}catch{}atualizarVolume();el('frame').hidden=true;document.querySelector('.area-player').prepend(video);const speedSelect=el('speed-select');if(speedSelect)speedSelect.value=String(speed);audioMenu();direct=true;showControls();
+        async function start(id,version,signal,caminho,urlDireta,originalPermitido){stop();const token=generation;let data;if(urlDireta){data={url:urlDireta,audio:'fonte',source:'Full HD',type:'hls'};}else{try{data=await lerJson(caminho||`/api/playback/${id}`,signal);}catch{return false;}}if(token!==generation||(signal&&signal.aborted)||version!==playerVersion)return false;if(urlDireta){if(!/^(\/api\/hls\?|https:\/\/vixsrc\.to\/)/i.test(data.url))return false;}else if(data.audio!=='pt-BR'||!/^(\/api\/hls\?|https:\/\/[a-z0-9-]+\.hclod\.qzz\.io\/)/i.test(data.url))return false;
+        rotuloAudio=originalPermitido?'som original':'Dublado';progressFilm=typeof filmeAtual!=='undefined'?{...filmeAtual}:null;resumeApplied=false;lastSaved=0;video=document.createElement('video');video.id='direct-video';video.controls=false;video.autoplay=true;video.playsInline=true;video.preload='auto';video.tabIndex=0;video.setAttribute('aria-label',originalPermitido?'Filme em Full HD':'Filme dublado');video.setAttribute('webkit-playsinline','');video.setAttribute('x-webkit-airplay','allow');video.style.cssText='width:100%;height:100%;object-fit:contain;background:#000';video.playbackRate=speed;try{video.volume=volume;video.muted=mudo;}catch{}atualizarVolume();el('frame').hidden=true;document.querySelector('.area-player').prepend(video);const speedSelect=el('speed-select');if(speedSelect)speedSelect.value=String(speed);audioMenu();direct=true;showControls();
         return new Promise(resolve=>{settle=resolve;const current=()=>token===generation&&version===playerVersion;const ready=()=>{if(!current()||!video.videoWidth||!video.videoHeight)return;clearTimeout(startupTimer);el('loading').classList.remove('vis');const done=settle;settle=null;if(done)done(true);};
             let recovered=false, nativeFallback=false;
             const awaitPicture=()=>{
@@ -118,11 +118,11 @@ window.StreamPlayback = (() => {
             video.addEventListener('error',()=>{if(current())failure();});
             if(window.Hls?.isSupported()){
                 hls=new Hls({enableWorker:true,maxBufferLength:45,maxMaxBufferLength:90,backBufferLength:30,manifestLoadingMaxRetry:2,levelLoadingMaxRetry:2,fragLoadingMaxRetry:3,fragLoadingRetryDelay:700,abrEwmaDefaultEstimate:1200000});
-                hls.on(Hls.Events.MANIFEST_PARSED,()=>{if(!current())return;if(!enforceAudio())return;qualityMenu();quality('best');audioMenu();subtitleMenu();setSubtitle(subtitleChoice);play();});
+                hls.on(Hls.Events.MANIFEST_PARSED,()=>{if(!current())return;if(!originalPermitido&&!enforceAudio())return;qualityMenu();quality('best');audioMenu();subtitleMenu();setSubtitle(subtitleChoice);play();});
                 hls.on(Hls.Events.LEVEL_SWITCHED,(_,d)=>{if(current()){const l=hls.levels[d.level];qualityInfo(l);}});
                 hls.on(Hls.Events.SUBTITLE_TRACKS_UPDATED,()=>{if(current()){subtitleMenu();setSubtitle(subtitleChoice);}});
-                hls.on(Hls.Events.AUDIO_TRACKS_UPDATED,()=>{if(current()){enforceAudio();audioMenu();}});
-                hls.on(Hls.Events.AUDIO_TRACK_SWITCHED,()=>{if(current())enforceAudio();});
+                hls.on(Hls.Events.AUDIO_TRACKS_UPDATED,()=>{if(current()){if(!originalPermitido)enforceAudio();audioMenu();}});
+                hls.on(Hls.Events.AUDIO_TRACK_SWITCHED,()=>{if(current()&&!originalPermitido)enforceAudio();});
                 hls.on(Hls.Events.ERROR,(_,d)=>{if(!current()||!d.fatal)return;if(d.type==='mediaError'&&!recovered){recovered=true;hls.recoverMediaError();clearTimeout(startupTimer);startupTimer=setTimeout(()=>{if(current())failure();},15000);}else failure();});hls.loadSource(data.url);hls.attachMedia(video);
             }else if(video.canPlayType('application/vnd.apple.mpegurl')){video.src=data.url;el('direct-quality').hidden=false;el('quality-select').hidden=true;play();}else failure();
         });
