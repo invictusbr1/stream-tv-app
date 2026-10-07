@@ -24,6 +24,10 @@ central/config.local.json
 # Crachás dos aparelhos autorizados pelo código de acesso (só do seu servidor)
 autorizados.json
 
+# Segredos do servidor (o modelo é o .env.exemplo; o .env nunca vai para o Git)
+deploy/servidor/.env
+deploy/servidor/.env-teste
+
 # Arquivos gerados pelo sync-ui.cjs na compilação do Android (fonte é a raiz do projeto)
 android/app/src/main/assets/index.html
 android/app/src/main/assets/playback.js

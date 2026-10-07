@@ -1,0 +1,63 @@
+# Conecta TV + Central num servidor na nuvem.
+#
+# Subir:   docker compose --env-file .env up -d --build
+# Ver:     docker compose logs -f
+# Parar:   docker compose down
+#
+# O endereço é fixo (o IP público da máquina). O código de acesso
+# (ACESSO_CODIGO) é o que impede qualquer pessoa de usar o aplicativo.
+
+services:
+  app:
+    build:
+      context: ../..
+      dockerfile: Dockerfile
+    image: conecta-tv:servidor
+    restart: unless-stopped
+    environment:
+      PORT: "3000"
+      TZ: ${TZ:-America/Sao_Paulo}
+      ACESSO_CODIGO: ${ACESSO_CODIGO:?defina ACESSO_CODIGO no .env}
+      CENTRAL_URL: http://central:4100
+      CENTRAL_TOKEN: ${CENTRAL_TOKEN:-}
+      ORIGENS_PERMITIDAS: ${ORIGENS_PERMITIDAS:-}
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      SUPABASE_URL: ${SUPABASE_URL:-}
+      SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY:-}
+      DADOS_DIR: /dados
+    volumes:
+      - dados-app:/dados
+    ports:
+      - "3000:3000"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      start_period: 30s
+
+  central:
+    build:
+      context: ../..
+      dockerfile: central/Dockerfile
+    image: conecta-tv-central:servidor
+    restart: unless-stopped
+    environment:
+      PORT: "4100"
+      TZ: ${TZ:-America/Sao_Paulo}
+      CENTRAL_KEY: ${CENTRAL_KEY:?defina CENTRAL_KEY no .env}
+      CENTRAL_TOKEN: ${CENTRAL_TOKEN:-}
+      CENTRAL_DADOS: /dados
+    volumes:
+      - dados-central:/dados
+    ports:
+      - "4100:4100"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4100/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      start_period: 15s
+
+volumes:
+  dados-app:
+  dados-central:

@@ -37,7 +37,11 @@ const PAGE_CANDIDATES = process.pkg
 // SEGURANÇA — cabeçalhos, CORS fechado, limite de uso e portão
 // de entrada por código (usado quando o aplicativo é hospedado).
 // ============================================================
-const DADOS_DIR = process.pkg ? path.dirname(process.execPath) : __dirname;
+// Onde ficam os dados locais (aparelhos autorizados, acessos, legendas).
+// Em servidor/contêiner, DADOS_DIR aponta para um disco que sobrevive às
+// atualizações; no computador, fica na pasta do próprio programa.
+const DADOS_DIR = String(process.env.DADOS_DIR || '').trim()
+    || (process.pkg ? path.dirname(process.execPath) : __dirname);
 const ARQ_ACESSOS = path.join(DADOS_DIR, 'acessos.json');
 const ARQ_LEGENDAS = path.join(DADOS_DIR, 'Legendas');
 
