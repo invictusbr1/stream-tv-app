@@ -98,9 +98,10 @@
             if(season){const d=await tmdb(`tv/${season[1]}/season/${season[2]}`,{},signal);return {episodes:(d.episodes||[]).map(x=>({number:x.episode_number,name:x.name,overview:x.overview,date:x.air_date,image:x.still_path?`https://image.tmdb.org/t/p/w300${x.still_path}`:null}))};}
             let ep=url.pathname.match(/^\/api\/episode\/(\d{1,10})\/(\d{1,3})\/([1-9]\d{0,3})$/);
             if(ep){const [_,id,season,episode]=ep;return {players:[
-                // Ordem definida por teste real: a VidSrc abriu o episódio no aparelho do usuário.
-                {nome:'VidSrc (séries)',url:`https://vidsrc.to/embed/tv/${id}/${season}/${episode}`,dub:false,optional:true,funcionou:true,status:'audio-nao-confirmado',qualidade:'até 1080p · com anúncios',manual:true,index:0,urlCompatibilidade:`/assistir.html?type=tv&id=${id}&season=${season}&episode=${episode}&source=0`},
-                {nome:'VidLink (séries)',url:`https://vidlink.pro/tv/${id}/${season}/${episode}`,dub:false,optional:true,funcionou:true,status:'audio-nao-confirmado',qualidade:'até 1080p · com anúncios',manual:true,index:1,urlCompatibilidade:`/assistir.html?type=tv&id=${id}&season=${season}&episode=${episode}&source=1`},...extras(id,null,true,season,episode)
+                // Restaurado o caminho que funcionava no aparelho do usuário (versões 1.5 a 1.8.6):
+                // o StreamBetter pede uma confirmação humana e depois abre o episódio.
+                {nome:'StreamBetter (verificação humana)',url:`https://streambetter.shop/serie/${id}/${season}/${episode}`,dub:false,optional:true,funcionou:true,status:'verificacao-no-navegador',qualidade:'com anúncios',manual:true,index:0,urlCompatibilidade:`/assistir.html?type=tv&id=${id}&season=${season}&episode=${episode}&source=0`},
+                {nome:'VidSrc (séries)',url:`https://vidsrc.to/embed/tv/${id}/${season}/${episode}`,dub:false,optional:true,funcionou:true,status:'audio-nao-confirmado',qualidade:'até 1080p · com anúncios',manual:true,index:1,urlCompatibilidade:`/assistir.html?type=tv&id=${id}&season=${season}&episode=${episode}&source=1`},...extras(id,null,true,season,episode)
             ]};}
             if (url.pathname === '/api/buscar') {
                 const q = (url.searchParams.get('nome') || '').trim();
