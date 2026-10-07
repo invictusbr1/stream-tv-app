@@ -78,6 +78,18 @@
                 if(!Number.isInteger(page)||page<1||page>500||!/^\d*$/.test(genre))throw Error('Filtro inválido');
                 const params={include_adult:'false',sort_by:'popularity.desc',page:String(page)};
                 if(genre)params.with_genres=genre;else if(kind==='tv')params.with_type='2|4';
+                // "Filmes e séries" juntos: uma lista só, misturando os dois,
+                // ordenada pela popularidade do momento.
+                if(type==='video'&&!isDorama&&!isAnime){
+                    const [filmes,series]=await Promise.all([
+                        tmdb('discover/movie',{...params},signal),
+                        tmdb('discover/tv',{...params,with_type:'2|4'},signal)
+                    ]);
+                    const juntos=[...(filmes.results||[]).map(x=>({...x,media_type:'movie'})),...(series.results||[]).map(x=>({...x,media_type:'tv'}))]
+                        .filter(x=>!x.media_type||['movie','tv'].includes(x.media_type))
+                        .sort((a,b)=>(b.popularity||0)-(a.popularity||0));
+                    return {items:juntos.map(movie),page,pages:Math.min(Math.max(filmes.total_pages||1,series.total_pages||1),500)};
+                }
                 if(isDorama){params.with_origin_country='KR|JP|CN|TW|TH';params.with_genres=[...new Set([genre,'18'].filter(Boolean))].join(',');params.without_genres='16,99,10764,10763,10767';params.with_type='2|4';params[isShort?'with_runtime.lte':'with_runtime.gte']=isShort?'20':'21';if(isShort)params['with_runtime.gte']='1';}
                 if(isAnime){params.with_origin_country='JP';params.with_genres=[...new Set([genre,'16'].filter(Boolean))].join(',');}
                 const q=(url.searchParams.get('nome')||'').trim();
@@ -93,6 +105,24 @@
             if(url.pathname==='/api/top-br'){
                 const d=await tmdb('discover/movie',{watch_region:'BR',with_watch_monetization_types:'flatrate|free|ads',sort_by:'popularity.desc',include_adult:'false','vote_count.gte':'50'},signal);
                 return {items:(d.results||[]).slice(0,10).map(movie),checkedAt:new Date().toISOString()};
+            }
+            // Top 10 "em alta" do dia, com o nome dos streamings que têm o
+            // título no Brasil. A lista muda todo dia e o aplicativo guarda o
+            // resultado do dia para não repetir consultas.
+            if(url.pathname==='/api/alta'){
+                const tipoAlta=url.searchParams.get('tipo')==='tv'?'tv':'movie';
+                const d=await tmdb(`trending/${tipoAlta}/day`,{},signal);
+                const lista=(d.results||[]).filter(x=>!x.media_type||x.media_type!=='person').slice(0,10);
+                const comStreamings=await Promise.all(lista.map(async x=>{
+                    const base=movie({...x,media_type:tipoAlta});
+                    try{
+                        const p=await tmdb(`${tipoAlta}/${x.id}/watch/providers`,{},signal);
+                        const br=(p.results&&p.results.BR)||{};
+                        const nomes=[...(br.flatrate||[]),...(br.free||[]),...(br.ads||[])].map(v=>v.provider_name).filter(Boolean);
+                        return {...base,streamings:[...new Set(nomes)].slice(0,3)};
+                    }catch{return {...base,streamings:[]};}
+                }));
+                return {tipo:tipoAlta,items:comStreamings,checkedAt:new Date().toISOString()};
             }
             let series=url.pathname.match(/^\/api\/tv\/(\d{1,10})$/);
             if(series){const d=await tmdb(`tv/${series[1]}`,{},signal);return {title:d.name,overview:d.overview,seasons:(d.seasons||[]).filter(x=>x.episode_count>0).map(x=>({number:x.season_number,name:x.name,count:x.episode_count}))};}

@@ -8,4 +8,13 @@ function setup(){
 }
 test('title and controls hide after inactivity and wake together',()=>{const s=setup();s.el('player').classList.add('ativo');s.window.StreamChrome.wake();const fn=[...s.timers.values()].at(-1);fn();assert(s.el('player').classList.contains('chrome-hidden'));s.window.StreamChrome.wake();assert(!s.el('player').classList.contains('chrome-hidden'));});
 test('options stay visible while being used',()=>{const s=setup();s.el('player').classList.add('ativo');s.el('opcoes').hidden=false;s.window.StreamChrome.wake();[...s.timers.values()].at(-1)();assert(!s.el('player').classList.contains('chrome-hidden'));});
-test('top list requests refresh every thirty minutes',async()=>{const s=setup();await new Promise(setImmediate);assert.equal(s.requests.filter(x=>x==='/api/top-br').length,1);const refresh=s.intervals.find(x=>x.ms===1800000);assert(refresh);await refresh.fn();assert.equal(s.requests.filter(x=>x==='/api/top-br').length,2);});
+test('o Top 10 do dia (filmes e séries) é buscado uma vez e atualizado em intervalos longos',async()=>{
+ const s=setup();await new Promise(setImmediate);
+ assert.equal(s.requests.filter(x=>x==='/api/alta?tipo=movie').length,1,'pede o ranking de filmes');
+ assert.equal(s.requests.filter(x=>x==='/api/alta?tipo=tv').length,1,'pede o ranking de séries');
+ const refresh=s.intervals.find(x=>x.ms===6*60*60*1000);
+ assert(refresh,'atualiza sozinho a cada 6 horas (o ranking muda por dia)');
+ await refresh.fn();
+ assert.equal(s.requests.filter(x=>x==='/api/alta?tipo=movie').length,2);
+ assert.equal(s.requests.filter(x=>x==='/api/alta?tipo=tv').length,2);
+});

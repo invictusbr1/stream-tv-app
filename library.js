@@ -4,7 +4,7 @@ window.StreamLibrary=(()=>{
  let kind='all',page=1,pages=1,genre='',query='',sequence=0,seriesSequence=0,selected=null,seasonRequest=null,lastTop=0,topBusy=false,topDeferred=null;
  const get=(url,signal)=>lerJson(url,signal||timeoutSignal(18000));
  function results(){el('hero').hidden=true;el('catalogo').classList.add('oculto');el('resultados').classList.remove('oculto');el('library-filters').hidden=false;document.querySelectorAll('.page-controls').forEach(x=>{x.hidden=false;});}
- async function load(){const token=++sequence;results();el('grid').textContent='Carregando…';el('resultados-titulo').textContent=query?`Resultados para “${query}”`:kind==='tv'?'Séries':kind==='dorama'?'Doramas':kind==='short-drama'?'Mininovelas e dramas curtos':kind==='anime'?'Animes · séries':kind==='anime-film'?'Animes · filmes':'Filmes';try{const d=await get('/api/explore?'+new URLSearchParams({tipo:kind,page:String(page),genre,nome:query}));if(token!==sequence)return;pages=d.pages;renderizar(d.items);el('library-page').textContent=`Página ${page} de ${pages}`;el('library-page-bottom').textContent=el('library-page').textContent;el('library-prev').disabled=page<=1;el('library-next').disabled=page>=pages;el('library-prev-bottom').disabled=page<=1;el('library-next-bottom').disabled=page>=pages;el('resultados-titulo').scrollIntoView?.({block:'start'});}catch{if(token===sequence)el('grid').textContent='Não foi possível carregar. Tente novamente.';}}
+ async function load(){const token=++sequence;results();el('grid').textContent='Carregando…';el('resultados-titulo').textContent=query?`Resultados para “${query}”`:kind==='video'?'Filmes e séries':kind==='tv'?'Séries':kind==='dorama'?'Doramas':kind==='short-drama'?'Mininovelas e dramas curtos':kind==='anime'?'Animes · séries':kind==='anime-film'?'Animes · filmes':'Filmes';try{const d=await get('/api/explore?'+new URLSearchParams({tipo:kind,page:String(page),genre,nome:query}));if(token!==sequence)return;pages=d.pages;renderizar(d.items);el('library-page').textContent=`Página ${page} de ${pages}`;el('library-page-bottom').textContent=el('library-page').textContent;el('library-prev').disabled=page<=1;el('library-next').disabled=page>=pages;el('library-prev-bottom').disabled=page<=1;el('library-next-bottom').disabled=page>=pages;el('resultados-titulo').scrollIntoView?.({block:'start'});}catch{if(token===sequence)el('grid').textContent='Não foi possível carregar. Tente novamente.';}}
  async function browse(type,selectedGenre=''){if(el('anime-types'))el('anime-types').hidden=!['anime','anime-film'].includes(type);if(el('library-note'))el('library-note').textContent=type==='short-drama'?'Dramas asiáticos com episódios de até 20 minutos, conforme o cadastro.':type==='dorama'?'Dramas asiáticos, sem animações, reality shows ou programas de entrevistas.':type.startsWith('anime')?'Animações japonesas, organizadas pelos gêneros disponíveis no catálogo.':'';kind=type;page=1;genre=selectedGenre;query='';el('q').value='';const token=++sequence;el('genre-filter').replaceChildren(new Option('Todas',''));try{const genres=await get('/api/genres?tipo='+kind);if(token!==sequence)return;for(const g of genres)el('genre-filter').append(new Option(g.name,g.id));}catch{}if(token===sequence){el('genre-filter').value=genre;load();}}
  function search(){window.StreamPersonal?.search(el('q').value);window.StreamPersonal?.renderSearch();if(el('search-history'))el('search-history').hidden=true;genre='';el('genre-filter').value='';query=el('q').value.trim();const genresByName={'ação':'28','acao':'28','terror':'27','comédia':'35','comedia':'35','aventura':'12','romance':'10749','ficção científica':'878','drama':'18','animação':'16','animacao':'16'};const genreId=genresByName[query.toLocaleLowerCase()];if(genreId&&['all','movie'].includes(kind))return browse('movie',genreId);page=1;load();}
  function home(){if(el('anime-types'))el('anime-types').hidden=true;if(el('library-note'))el('library-note').textContent='';kind='all';++sequence;el('library-filters').hidden=true;query='';}
@@ -31,14 +31,44 @@ function atualizarFavoritoDaSerie(f){const botao=el('series-fav');if(!botao)retu
    const marcar=document.createElement('button');marcar.className='episode-check';const visto=contador.vistos.has(Number(e.number));marcar.setAttribute('aria-pressed',String(visto));marcar.setAttribute('aria-label',visto?`Desmarcar episódio ${e.number} como assistido`:`Marcar episódio ${e.number} como assistido`);marcar.title=visto?'Assistido (toque para desmarcar)':'Marcar como assistido';marcar.textContent=visto?'✓':'○';marcar.onclick=()=>{const personal=window.StreamPersonal;if(!personal?.markWatched)return;personal.markWatched({id:f.id,titulo:f.titulo,episode:{season,number:e.number}},!visto);loadSeason();};
    linha.append(b,marcar);el('episodes').append(linha);}if(!d.episodes.length)el('episode-status').textContent='Sem episódios nesta temporada.';}catch{if(token===seriesSequence&&req===seasonRequest)el('episode-status').textContent='Não foi possível carregar os episódios.';}finally{clearTimeout(timer);}}
  function closeSeries(){++seriesSequence;seasonRequest?.abort();el('series-dialog').close();}
- function paintTop(d){renderizar(d.items,'row-top',true);el('top-updated').textContent='Consultado às '+new Date(d.checkedAt).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})+' · Atualização a cada 30 minutos';}
- async function refreshTop(){if(topBusy)return;topBusy=true;try{const d=await get('/api/top-br');lastTop=Date.now();if(el('player').classList.contains('ativo'))topDeferred=d;else paintTop(d);}catch{el('top-updated').textContent='Atualização indisponível. Nova tentativa em 30 minutos.';}finally{topBusy=false;}}
+ // Top 10 do dia (filmes e séries), com o nome dos streamings que têm o
+ // título no Brasil. Fica guardado no aparelho e só é consultado uma vez por dia.
+ function chaveDoDia(){return 'streamtv-alta-'+new Date().toISOString().slice(0,10);}
+ function altaGuardada(){try{const v=JSON.parse(localStorage.getItem(chaveDoDia())||'null');return v&&v.filmes&&v.series?v:null;}catch{return null;}}
+ function guardarAlta(dados){try{localStorage.setItem(chaveDoDia(),JSON.stringify(dados));const antigas=Object.keys(localStorage).filter(k=>k.startsWith('streamtv-alta-')&&k!==chaveDoDia());antigas.forEach(k=>localStorage.removeItem(k));}catch{}}
+ function paintTop(d,tipo='movie'){
+   const idFila=tipo==='tv'?'row-alta-series':'row-alta-filmes';
+   const idNota=tipo==='tv'?'alta-series-nota':'alta-filmes-nota';
+   if(!el(idFila))return;
+   renderizar(d.items,idFila,true);
+   const hora=new Date(d.checkedAt).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+   const atualizadoEm=d.checkedAt?String(d.checkedAt).slice(8,10)+'/'+String(d.checkedAt).slice(5,7):'';
+   el(idNota).textContent=`Em alta hoje (${atualizadoEm}) · atualizado às ${hora} · toque para abrir. Atualiza sozinho todo dia.`;
+ }
+ function paintAlta(dados){paintTop(dados.filmes,'movie');paintTop(dados.series,'tv');}
+ async function refreshTop(){
+   if(topBusy)return;topBusy=true;
+   try{
+     const guardado=altaGuardada();
+     if(guardado&&!topDeferred){paintAlta(guardado);lastTop=Date.now();topBusy=false;return;}
+     const [filmes,series]=await Promise.all([get('/api/alta?tipo=movie'),get('/api/alta?tipo=tv')]);
+     const dados={filmes,series,pego:new Date().toISOString()};
+     guardarAlta(dados);lastTop=Date.now();
+     if(el('player').classList.contains('ativo'))topDeferred=dados;else paintAlta(dados);
+   }catch{
+     const guardado=altaGuardada();
+     if(guardado)paintAlta(guardado);
+     else if(el('alta-filmes-nota'))el('alta-filmes-nota').textContent='Não foi possível buscar o ranking agora. Tente novamente em instantes.';
+   }finally{topBusy=false;}
+ }
  el('genre-filter').append(new Option('Todas',''));
  el('genre-filter').onchange=()=>{genre=el('genre-filter').value;query='';el('q').value='';page=1;load();};
  el('library-prev').onclick=()=>{if(page>1){--page;load();}};el('library-next').onclick=()=>{if(page<pages){++page;load();}};
  el('season-select').onchange=loadSeason;el('series-close').onclick=closeSeries;el('series-dialog').addEventListener('cancel',e=>{e.preventDefault();closeSeries();});
- setInterval(refreshTop,30*60*1000);document.addEventListener('visibilitychange',()=>{if(!document.hidden&&Date.now()-lastTop>=30*60*1000)refreshTop();});
- setInterval(()=>{if(topDeferred&&!el('player').classList.contains('ativo')){paintTop(topDeferred);topDeferred=null;}},2000);
+ // Uma vez por dia já basta: o ranking muda diariamente.
+ setInterval(refreshTop,6*60*60*1000);
+ document.addEventListener('visibilitychange',()=>{if(!document.hidden&&Date.now()-lastTop>=6*60*60*1000)refreshTop();});
+ setInterval(()=>{if(topDeferred&&!el('player').classList.contains('ativo')){paintAlta(topDeferred);topDeferred=null;}},2000);
  refreshTop();
 // Aba Favoritos: só o que o usuário guardou, sem depender de servidor.
  function favorites(){
