@@ -122,7 +122,10 @@
                 const fonte=(typeof globalThis!=='undefined'?globalThis:window).VidSrcSource;
                 if(!fonte||typeof fonte.resolver!=='function')return {ok:false,motivo:'sem fonte de alta definição'};
                 try{
-                    const dados=await fonte.resolver(tipo,id,temporada,episodio);
+                    let dados=null;
+                    for(let tentativa=0;tentativa<2&&!dados;tentativa++){
+                        try{ dados=await fonte.resolver(tipo,id,temporada,episodio); }catch{ dados=null; }
+                    }
                     if(!dados)return {ok:false};
                     return {ok:true,url:dados.url,urlAplicativo:dados.url,qualidade:dados.qualidade,fonte:dados.fonte,legendas:[]};
                 }catch{return {ok:false};}

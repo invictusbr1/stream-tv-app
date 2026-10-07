@@ -149,3 +149,14 @@ test('barra de progresso leva a qualquer ponto do filme',async()=>{
  s.controller.irPara(-10);assert.equal(Math.round(v.currentTime),0);
  s.controller.stop();await p;
 });
+
+
+test('aceita a lista de reproducao da fonte nova e recusa endereco estranho',async()=>{
+ const s=harness();let terminou=false;
+ s.controller.start(238,1,new AbortController().signal,null,'https://video.exemplo.site/pl/abc/master.m3u8',true).then(()=>{terminou=true;}).catch(()=>{terminou=true;});
+ await new Promise(setImmediate);
+ assert.equal(terminou,false,'a reproducao da fonte nova nao pode ser recusada');
+ const s2=harness();
+ const ruim=await s2.controller.start(238,1,new AbortController().signal,null,'https://site-estranho.example/video',true);
+ assert.equal(ruim,false,'endereco sem formato de video nao pode ser aceito');
+});

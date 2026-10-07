@@ -412,7 +412,12 @@ app.get('/api/stream-hd', async (req, res) => {
     // Segunda opção: VidSrc (filmes e séries). O endereço só é válido com um
     // token gerado na hora, atrelado ao próprio aparelho — o resolvedor faz isso.
     try {
-        const alternativa = await require('./vidsrc-source').resolver(tipo, id, temporada, episodio);
+        // A resolução pode falhar por um instante (API/token). Uma segunda
+        // tentativa evita cair na última opção sem necessidade.
+        let alternativa = null;
+        for (let tentativa = 0; tentativa < 2 && !alternativa; tentativa++) {
+            try { alternativa = await require('./vidsrc-source').resolver(tipo, id, temporada, episodio); } catch { alternativa = null; }
+        }
         if (alternativa) {
             let host = '';
             try { host = new URL(alternativa.url).hostname; } catch { /* endereço inválido */ }
