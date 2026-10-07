@@ -45,11 +45,16 @@ test('catalog uses HTTPS TMDB directly and preserves independent ranking rules',
 test('source indexes are stable across preferred ordering and missing IMDb', async () => {
     const catalog = createCatalog(async () => { throw Error('offline'); }, 'test');
     const { players } = await catalog.request('/api/player/238');
-    assert.equal(players[0].index, 1);
-    assert.equal(players[0].url, 'https://cdn-embed.com/filme/238');
-    assert.equal(players[0].urlCompatibilidade, null);assert.equal(players[0].funcionou,false);assert.equal(players[0].dub,false);
-    assert.equal(players.find(p => p.index === 0).funcionou, false);
-    assert.equal(players.find(p => p.index === 0).urlCompatibilidade, null);
+    // A lista enxuta de filmes começa no índice 6; cada índice é fixo e aponta
+    // sempre para a mesma fonte, mesmo quando a ordem de exibição muda.
+    assert.equal(players[0].index, 6);
+    assert.equal(players[0].url, 'https://vidlink.pro/movie/238');
+    assert.equal(players[0].urlCompatibilidade, '/assistir.html?id=238&source=6');
+    assert.equal(players[0].funcionou, true);
+    assert.equal(players[0].dub, false);
+    assert.ok(players.every(p => p.optional === true && p.manual === true), 'fonte com verificação só abre se o usuário escolher');
+    assert.equal(players.find(p => p.index === 8).url, 'https://superflixapi.monster/filme/238', 'sem IMDb a fonte usa o identificador do TMDB');
+    assert.ok(!players.some(p => /watchcdn|cdn-embed|ultraembed|vid?s?rc\.?me|autoembed|moviesapi|vid?s?rc\.?in/i.test(p.nome)), 'fontes mortas saíram da lista');
     await assert.rejects(catalog.sources('../238'));
 });
 test('search encoding, cancellation and invalid routes', async () => {
@@ -72,8 +77,9 @@ test('provider failures do not masquerade as an empty successful catalog', async
 });
 
 test('PipocaCine uses TMDB with a stable optional source index and no false audio claim',async()=>{
- const c=createCatalog(async()=>good({imdb_id:'tt0068646'}),'test');const sources=await c.sources(238);const p=sources.find(p=>p.nome==='PipocaCine');
- assert.equal(p.index,7);assert.equal(p.url,'https://pipocacine.lat/embed/238');assert.equal(p.dub,false);assert.equal(p.optional,true);assert.equal(p.urlCompatibilidade,'/assistir.html?id=238&source=7');
+ const c=createCatalog(async()=>good({imdb_id:'tt0068646'}),'test');const sources=await c.sources(238);const p=sources.find(p=>p.nome.startsWith('PipocaCine'));
+ assert.equal(p.index,7);assert.equal(p.url,'https://pipocacine.lat/embed/238');assert.equal(p.dub,true);assert.equal(p.optional,true);assert.equal(p.urlCompatibilidade,'/assistir.html?id=238&source=7');
+ assert.equal(p.status,'audio-nao-confirmado','a fonte tem opção dublada, mas o áudio é conferido na hora de abrir');
 });
 
 test('series, doramas, categories and mixed search preserve media type',async()=>{

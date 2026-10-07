@@ -1,6 +1,21 @@
 {
   "atualizadoEm": "2026-10-07",
   "comoFunciona": "Cada fonte tem o resultado da última verificação real (navegador + medição de vídeo). O robô do aplicativo usa estes dados para escolher a fonte: sem anúncio primeiro, depois dublado, depois qualidade. A lista é curta de propósito: só entra o que tem papel definido e foi medido.",
+  "motor": {
+    "arquivo": "fontes-motor.js",
+    "papel": "É o único lugar que escolhe a fonte. Nenhuma tela precisa perguntar nada ao usuário.",
+    "ordem": [
+      "Dublado e limpo (WatchPlay; para filmes, PipocaCine quando a principal não tem o título)",
+      "Alta definição limpa (Vixsrc, com legenda em português ligada sozinha; VidSrc para lançamentos)"
+    ],
+    "inteligencia": [
+      "Lembra por 40 minutos qual fonte abriu cada título — a próxima abertura é direta.",
+      "Guarda acertos e falhas de cada fonte e rebaixa por 6 minutos a que acabou de falhar.",
+      "Tenta duas vezes antes de desistir da fonte, para não cair de qualidade por falha passageira.",
+      "Entrega o endereço já passado pelo encaminhamento do aplicativo: nenhuma página de terceiros é aberta e nenhum anúncio entra no caminho.",
+      "Diagnóstico ao vivo em /api/motor/estado: acertos, falhas e castigo de cada fonte."
+    ]
+  },
   "filmes": [
     {
       "nome": "WatchPlay",
@@ -73,6 +88,19 @@
       "audioMedido": "original"
     },
     {
+      "nome": "Full HD · VidSrc",
+      "papel": "alta definição automática (entra sozinha quando não há dublado)",
+      "semAnuncio": true,
+      "dublado": false,
+      "qualidadeMedida": "1920x1080",
+      "audio": "original",
+      "status": "funciona",
+      "verificadoEm": "2026-10-07",
+      "situacaoMedida": "link direto pelo aplicativo",
+      "observacao": "Resolve o endereço com token gerado na hora e passa pelo encaminhamento do aplicativo: nenhuma página do provedor é aberta.",
+      "audioMedido": "original"
+    },
+    {
       "nome": "StreamBetter",
       "papel": "dublado · última opção",
       "semAnuncio": false,
@@ -110,12 +138,6 @@
       "motivo": "entrega vídeo só em DASH/H.265 (exige outro player) e só em áudio original; saiu da lista",
       "verificadoEm": "2026-10-07",
       "situacaoMedida": "abre (JavaScript)"
-    },
-    {
-      "nome": "VidSrc (séries)",
-      "tipo": "serie",
-      "motivo": "não entrega o endereço do vídeo sem executar o JavaScript da página do provedor",
-      "verificadoEm": "2026-10-07"
     },
     {
       "nome": "PlenoFlu",

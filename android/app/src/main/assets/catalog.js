@@ -52,22 +52,16 @@
             try { imdb = (await tmdb(`movie/${id}/external_ids`, {}, signal)).imdb_id; }
             catch (error) { if (signal && signal.aborted) throw error; }
             if (!/^tt\d+$/.test(imdb || '')) imdb = null;
-            const entries = [
-                ['WatchCDN (indisponível)', `https://embed.watchcdn.org/filme/${imdb}`, false, false],
-                ['CdnEmbed (indisponível)', `https://cdn-embed.com/filme/${id}`, false, false],
-                ['UltraEmbed (indisponível)', `https://ultraembed.com/filme/${imdb}`, false, false],
-                ['VidSrc.me', `https://vidsrc.me/embed/movie?tmdb=${id}`, false, true],
-                ['AutoEmbed', `https://autoembed.co/movie/tmdb/${id}`, false, true],
-                ['MoviesAPI', `https://moviesapi.club/movie/${id}`, false, true],
-                ['VidSrc.in', `https://vidsrc.in/embed/movie?tmdb=${id}`, false, true]
+            // Lista enxuta: só fontes medidas. As que não entregavam vídeo
+            // (WatchCDN, CdnEmbed, UltraEmbed, VidSrc.me, AutoEmbed,
+            // MoviesAPI, VidSrc.in) saíram em 07/10/2026.
+            return [
+                {nome:'VidLink (Full HD)',url:`https://vidlink.pro/movie/${id}`,dub:false,optional:true,funcionou:true,status:'audio-nao-confirmado',qualidade:'1080p (HEVC)',urlCompatibilidade:`/assistir.html?id=${id}&source=6`,manual:true,index:6},
+                {nome:'PipocaCine (dublado, com verificação)',url:`https://pipocacine.lat/embed/${id}`,dub:true,optional:true,funcionou:true,status:'audio-nao-confirmado',qualidade:'720p · PT e EN',urlCompatibilidade:`/assistir.html?id=${id}&source=7`,manual:true,index:7},
+                {nome:'SuperFlix (dublado, com verificação)',url:`https://superflixapi.monster/filme/${imdb || id}`,dub:true,optional:true,funcionou:true,status:'verificacao-no-navegador',qualidade:'dublado',urlCompatibilidade:`/assistir.html?id=${id}&source=8`,manual:true,index:8},
+                {nome:'Doramogo · buscar título',url:'https://www.doramogo.net/',dub:false,optional:true,funcionou:true,status:'escolha-o-episodio',urlCompatibilidade:`/assistir.html?id=${id}&source=9`,manual:true,directory:'doramogo',index:9},
+                {nome:'YouCine · buscar título',url:'https://youcinehd.lat/',dub:false,optional:true,funcionou:true,status:'escolha-o-episodio',urlCompatibilidade:`/assistir.html?id=${id}&source=10`,manual:true,directory:'pobreflix',index:10}
             ];
-            const players = entries.map(([nome, url, dub, available], index) => ({
-                nome, url, dub, funcionou: available, manual: index===1, status: 'nao-testada',
-                motivo: available ? null : 'Fonte indisponível na última verificação.',
-                urlCompatibilidade: available ? `/assistir.html?id=${id}&source=${index}` : null, index
-            }));
-            // Preserve source indices so previously saved compatibility links remain valid.
-            return [players[1], players[0], players[2], {nome:'VidLink (Full HD)',url:`https://vidlink.pro/movie/${id}`,dub:false,optional:true,funcionou:true,status:'audio-nao-confirmado',qualidade:'1080p (HEVC)',urlCompatibilidade:`/assistir.html?id=${id}&source=6`,manual:true,index:6}, {nome:'PipocaCine',url:`https://pipocacine.lat/embed/${id}`,dub:false,optional:true,funcionou:true,status:'audio-nao-confirmado',qualidade:'720p · PT e EN',urlCompatibilidade:`/assistir.html?id=${id}&source=7`,manual:true,index:7},...extras(id,imdb)];
         }
         async function request(input, signal) {
             const url = new URL(input, 'https://appassets.androidplatform.net');

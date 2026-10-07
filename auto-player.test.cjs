@@ -83,3 +83,16 @@ test('o robô usa a verificação medida: fonte marcada como indisponível perde
  await s.run("abrirPlayer(94796,'Episode',{season:1,number:2})");
  assert.equal(s.get('frame').src,boa.url,'prefere a fonte que passou na verificação, dentro do aplicativo');
 });
+test('sem servidor, o próprio aparelho resolve a alta definição limpa e abre o vídeo',async()=>{
+ const s=setup();
+ s.fetch(async()=>({ok:true,json:async()=>({players:[]})}));
+ s.run("var tentativas=[],pedido=null;window.StreamPlayback=StreamPlayback={stop(){},async start(id,versao,sinal,caminho,urlDireta,original){tentativas.push({caminho:caminho||null,url:urlDireta||null,original:Boolean(original)});return Boolean(urlDireta);}};window.VidSrcSource=VidSrcSource={resolver:async(tipo,id,season,episode)=>{pedido={tipo,id,season,episode};return {url:'https://fonte-limpa.example/pl/abc/master.m3u8',fonte:'VidSrc'};}}");
+ await s.run("abrirPlayer(1399,'Serie',{season:2,number:4})");
+ assert.equal(s.run('pedido.tipo'),'tv','o episódio é resolvido como série');
+ assert.equal(String(s.run('pedido.id')),'1399');
+ assert.equal(s.run('pedido.season'),2);assert.equal(s.run('pedido.episode'),4);
+ assert.equal(s.run('tentativas.filter(t=>t.url).length'),1,'a fonte limpa foi aberta direto no player');
+ assert.equal(s.run('tentativas.find(t=>t.url).url'),'https://fonte-limpa.example/pl/abc/master.m3u8');
+ assert.equal(s.run('tentativas.find(t=>t.url).original'),true,'alta definição entra como som original, com legenda em português quando houver');
+ assert.equal(s.get('frame').src,'about:blank','nenhuma página de terceiros é aberta');
+});

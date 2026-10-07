@@ -346,17 +346,20 @@ app.get('/api/hls', async (req, res) => {
 app.get('/api/playback/:id', async (req, res) => {
     if (!/^\d{1,10}$/.test(req.params.id)) return res.sendStatus(400);
     res.setHeader('Cache-Control', 'no-store');
-    // 1) fonte dublada limpa principal (WatchPlay)
+    // O motor escolhe a fonte dublada limpa (e lembra qual deu certo).
     try {
-        const r = await axios.get(`https://v2.watchplay.shop/movie/${req.params.id}`, { timeout: 10000, maxRedirects: 0, maxContentLength: 1024 * 1024, responseType: 'text' });
-        const dados = require('./playback-source').parseWatchPlay(r.data);
-        return res.json({ ...dados, type: dados.type || 'hls' });
-    } catch { /* tenta a fonte dublada alternativa */ }
-    // 2) fonte dublada limpa alternativa (PipocaCine): arquivo MP4 com faixa
-    //    portuguesa padrão. A página do provedor não é aberta para o usuário.
-    try {
-        const alternativa = await require('./pipoca-source').resolverFilme(req.params.id);
-        if (alternativa) return res.json(alternativa);
+        const motor = require('./fontes-motor');
+        const escolhido = await motor.escolher('dublado', { tipo: 'movie', tmdbId: req.params.id });
+        if (escolhido) {
+            const pronto = motor.prepararParaPlayer(escolhido);
+            return res.json({
+                url: pronto.final ? pronto.url : pronto.urlAplicativo,
+                audio: pronto.audio || 'pt-BR',
+                source: pronto.fonte || 'Dublado limpo',
+                type: pronto.type || 'hls',
+                resolucao: pronto.resolucao || ''
+            });
+        }
     } catch { /* segue para o aviso */ }
     res.status(502).json({ error: 'Reprodução direta dublada indisponível.' });
 });
@@ -402,33 +405,21 @@ app.get('/api/stream-hd', async (req, res) => {
     const episodio = String(req.query.episode || '1');
     if (!/^\d{1,10}$/.test(id)) return res.status(400).json({ ok: false });
     res.setHeader('Cache-Control', 'no-store');
+    // O motor tenta as fontes de alta definição na ordem que ele aprendeu.
     try {
-        const dados = await require('./vixsrc-source').resolver(id, tipo, temporada, episodio);
-        // O endereço é entregue pelo próprio aplicativo: o player não precisa
-        // falar direto com o provedor (que bloqueia o acesso entre sites).
-        res.json({ ok: true, ...dados, urlAplicativo: midia.urlViaProxy(dados.url, midia.refererPadrao('vixsrc.to')) });
-        return;
-    } catch { /* tenta a segunda fonte de alta definição */ }
-    // Segunda opção: VidSrc (filmes e séries). O endereço só é válido com um
-    // token gerado na hora, atrelado ao próprio aparelho — o resolvedor faz isso.
-    try {
-        // A resolução pode falhar por um instante (API/token). Uma segunda
-        // tentativa evita cair na última opção sem necessidade.
-        let alternativa = null;
-        for (let tentativa = 0; tentativa < 2 && !alternativa; tentativa++) {
-            try { alternativa = await require('./vidsrc-source').resolver(tipo, id, temporada, episodio); } catch { alternativa = null; }
-        }
-        if (alternativa) {
-            let host = '';
-            try { host = new URL(alternativa.url).hostname; } catch { /* endereço inválido */ }
-            if (host) midia.liberarHost(host);
+        const motor = require('./fontes-motor');
+        const alvo = { tipo, tmdbId: id, temporada, episodio };
+        const escolhido = await motor.escolher('hd', alvo);
+        if (escolhido) {
+            const pronto = motor.prepararParaPlayer(escolhido);
             res.json({
                 ok: true,
-                url: alternativa.url,
-                urlAplicativo: midia.urlViaProxy(alternativa.url, ''),
-                qualidade: alternativa.qualidade,
-                legendas: [],
-                fonte: alternativa.fonte
+                url: pronto.final ? pronto.url : (pronto.urlAplicativo || pronto.url),
+                urlAplicativo: pronto.final ? pronto.url : pronto.urlAplicativo,
+                qualidade: pronto.resolucao || 'Full HD',
+                legendas: pronto.legendas || [],
+                legendaPortugues: Boolean(pronto.legendaPortugues),
+                fonte: pronto.fonte || 'Alta definição'
             });
             return;
         }
@@ -437,6 +428,9 @@ app.get('/api/stream-hd', async (req, res) => {
 });
 
 const TMDB_KEY = 'b803dfcad0baeafbb66a673ffe98a5ef';
+
+// Diagnóstico do motor de fontes: quais estão saudáveis agora.
+app.get('/api/motor/estado', (req, res) => res.json({ fontes: require('./fontes-motor').estado() }));
 
 const libraryCatalog=require('./android/app/src/main/assets/catalog').createCatalog(async (url,options)=>{const r=await axios.get(url,{signal:options?.signal});return {ok:true,json:async()=>r.data};},TMDB_KEY);
 app.get(['/api/explore','/api/genres','/api/top-br','/api/alta',/^\/api\/(tv|season|episode)\//],async(req,res)=>{try{res.json(await libraryCatalog.request(req.originalUrl));}catch{res.status(502).json({error:'Catálogo indisponível'});}});

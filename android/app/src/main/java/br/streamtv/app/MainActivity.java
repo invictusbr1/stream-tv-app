@@ -106,10 +106,13 @@ public final class MainActivity extends Activity {
         return true;
     }
 
-    private WebResourceResponse directPlayback(String id) {
+    // Resolve o endereço direto do vídeo na fonte dublada limpa (WatchPlay).
+    // Vale para filme e para episódio: a página do provedor nunca é aberta
+    // para o usuário, então nenhum anúncio entra no caminho.
+    private WebResourceResponse directPlayback(String pagina) {
         HttpsURLConnection connection = null;
         try {
-            connection = (HttpsURLConnection) new URL("https://v2.watchplay.shop/movie/" + id).openConnection();
+            connection = (HttpsURLConnection) new URL(pagina).openConnection();
             connection.setConnectTimeout(10000); connection.setReadTimeout(10000);
             connection.setInstanceFollowRedirects(false);
             if (connection.getResponseCode() != 200) return error(502);
@@ -186,7 +189,7 @@ public final class MainActivity extends Activity {
                 }
                 if (!trusted || !local(uri) || !"GET".equals(request.getMethod())) return error(403);
                 String path = uri.getPath();
-                if (path != null && path.matches("/api/playback/[0-9]{1,10}")) return directPlayback(path.substring("/api/playback/".length()));
+                if (path != null && path.matches("/api/playback/[0-9]{1,10}")) return directPlayback("https://v2.watchplay.shop/movie/" + path.substring("/api/playback/".length()));
                 String name = "/".equals(path) ? "index.html" : path.substring(1);
                 // Only the bundled public assets can be served; no arbitrary file paths.
                 if (!name.matches("(?:index\\.html|assistir\\.html|personal\\.js|library\\.js|auth\\.js|jarvis\\.js|acesso\\.js|legendas\\.js|fontes\\.json|catalog\\.js|android\\.js|config\\.json|playback\\.js|hls\\.min\\.js|vidsrc-source\\.js)")) return error(404);
