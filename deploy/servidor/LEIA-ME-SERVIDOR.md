@@ -92,3 +92,41 @@ docker compose --env-file deploy/servidor/.env -f deploy/servidor/docker-compose
   máquina em uso.
 - Assim como qualquer hospedagem, o provedor pode reclamar do tipo de conteúdo.
   Se um dia cair, o mesmo instalador sobe em outra máquina em minutos.
+
+## Quantos aparelhos cabem nos 10 TB
+
+Medição real das fontes do aplicativo (média de cinco pedaços espalhados pelo
+vídeo, em 07/10/2026):
+
+| Fonte | Qualidade | Banda medida | Consumo por hora |
+| --- | --- | --- | --- |
+| WatchPlay (dublado, filme) | 720p | ~1,0 Mbps | 0,46 GB |
+| WatchPlay (dublado, série) | 720p | ~0,9 Mbps | 0,42 GB |
+| Vixsrc (alta definição) | 720p | ~0,7 Mbps | 0,30 GB |
+
+Como o que conta é o **total de horas assistidas** (e não a quantidade de
+aparelhos cadastrados), a conta em 10 TB (10.000 GB) fica assim, considerando
+3 horas por dia por aparelho (90 horas/mês):
+
+| Consumo | GB por aparelho/mês | Cabem |
+| --- | --- | --- |
+| 1 Mbps (medido, dublado) | ~40 GB | **~250 aparelhos** |
+| 1,5 Mbps | ~61 GB | ~165 aparelhos |
+| 2,5 Mbps | ~101 GB | ~98 aparelhos |
+| 4 Mbps (1080p típico) | ~162 GB | ~61 aparelhos |
+| 5 Mbps | ~203 GB | ~49 aparelhos |
+| 8 Mbps (1080p pesado) | ~324 GB | ~30 aparelhos |
+
+Em horas: a 1 Mbps, 10 TB cobrem cerca de **22.000 horas** de vídeo por mês.
+
+Traduzindo: para uma família (5 a 10 aparelhos, poucas horas por dia) o consumo
+fica entre 5% e 15% do limite — na prática, nunca acaba. O que aperta primeiro
+não é a franquia, e sim:
+
+1. **Assistir junto, ao mesmo tempo:** cada aparelho abre a própria transmissão.
+   A máquina ARM dá conta de dezenas de acessos simultâneos a 1–2 Mbps.
+2. **A fonte escolhida:** quando não existe dublado e o aplicativo cai no Full HD
+   (3–5 Mbps), o consumo triplica em relação ao dublado 720p.
+3. **A internet de casa, se você usar o PC em vez do servidor:** aí o limite é a
+   velocidade de envio do seu plano (por exemplo, 50 Mbps de upload ≈ 30 a 40
+   pessoas assistindo ao mesmo tempo, mas o normal é ficar bem abaixo disso).

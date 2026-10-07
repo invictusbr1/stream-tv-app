@@ -214,7 +214,9 @@ function chaveDoTitulo(alvo) {
 // tentativa; "não tenho este título" não se repete — a fonte vai para o fim da
 // fila só naquele título, e o resultado bom fica lembrado para a próxima vez.
 async function escolher(papel, alvo) {
-    const chave = chaveDoTitulo(alvo);
+    // A memória é por título E por papel: um filme que abriu dublado não pode
+    // ser devolvido quando o aplicativo pede a versão de alta definição.
+    const chave = `${papel}:${chaveDoTitulo(alvo)}`;
     const lembrado = acertos.get(chave);
     if (lembrado && lembrado.expira > Date.now() && lembrado.dados) return lembrado.dados;
 

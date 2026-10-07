@@ -107,6 +107,24 @@ test('o acerto fica guardado: a próxima abertura não repete a busca', async ()
     assert.equal(chamadas, 1, 'a segunda vez vem do que ficou guardado');
 });
 
+test('a memória é por papel: dublado guardado não vaza para a alta definição', async () => {
+    let dublado = 0, hd = 0;
+    comFontesDeTeste([
+        { id: 'dub', nome: 'Dublado', papel: 'dublado', peso: 100, resolver: async () => { dublado++; return { url: 'https://exemplo/pl/dub/master.m3u8', audio: 'pt-BR', fonte: 'Dublado' }; } },
+        { id: 'hd', nome: 'Alta definição', papel: 'hd', peso: 80, resolver: async () => { hd++; return { url: 'https://exemplo/pl/hd/master.m3u8', audio: 'original', fonte: 'Alta definição' }; } }
+    ]);
+    const primeiro = await motor.escolher('dublado', { tipo: 'movie', tmdbId: '5150' });
+    assert.equal(primeiro.fonte, 'Dublado');
+    const segundo = await motor.escolher('hd', { tipo: 'movie', tmdbId: '5150' });
+    assert.equal(segundo.fonte, 'Alta definição', 'o pedido de Full HD recebe a fonte de alta definição');
+    assert.equal(dublado, 1);
+    assert.equal(hd, 1);
+    // E o dublado continua vindo da memória, sem nova consulta.
+    const terceiro = await motor.escolher('dublado', { tipo: 'movie', tmdbId: '5150' });
+    assert.equal(terceiro.fonte, 'Dublado');
+    assert.equal(dublado, 1);
+});
+
 test('o endereço entregue ao player passa pelo encaminhamento do aplicativo', () => {
     const preparado = motor.prepararParaPlayer({ url: 'https://vixsrc.to/playlist/1?token=abc', audio: 'original', fonte: 'Vixsrc' });
     assert.match(preparado.urlAplicativo, /^\/api\/hls\?u=/);
