@@ -19,21 +19,17 @@ test('only dub candidates; detected failure advances once, then opens options wi
 test('loaded iframe is not interrupted by an assumed playback deadline',async()=>{const s=setup();s.fetch(async()=>({ok:true,json:async()=>({players:sources})}));await s.run("abrirPlayer(238,'Filme')");s.get('frame').onload();assert.equal(s.timers.size,0);assert.equal(s.get('frame').src,sources[0].url);assert(!s.get('loading').classList.contains('vis'));});
 test('close cancels stale source response and stale load events',async()=>{const s=setup();let resolve;s.fetch(()=>new Promise(r=>resolve=r));const pending=s.run("abrirPlayer(238,'Filme')");s.run('fechar()');resolve({ok:true,json:async()=>({players:sources})});await pending;assert.equal(s.run('players.length'),0);assert.equal(s.get('frame').src,'about:blank');assert(!s.get('player').classList.contains('ativo'));assert.equal(s.timers.size,0);});
 test('no dubbed candidate never loads a subtitled source or an ad window',async()=>{const s=setup();s.fetch(async()=>({ok:true,json:async()=>({players:[sources[2]]})}));await s.run("abrirPlayer(238,'Filme')");assert.equal(s.get('frame').src,'about:blank');assert.equal(s.get('opcoes').hidden,false);assert.equal(s.get('abrir-externo').getAttribute('href'),null);});
-test('título sem fonte limpa abre a última opção sozinho, mas só depois de conferir se ela tem o filme',async()=>{
- const s=setup();const an=setup();
+test('fonte com anúncio nunca abre sozinha: o painel avisa e para',async()=>{
+ const s=setup();
  const ad={nome:'Fonte com anúncios',dub:false,optional:true,funcionou:true,manual:true,index:8,url:'https://fonte.example/filme',urlCompatibilidade:'/assistir.html?id=238&source=8'};
  const consultas=[];
- s.fetch(async url=>{
-   consultas.push(String(url));
-   if(String(url).indexOf('/api/fonte')===0)return {ok:true,json:async()=>({ok:true})};
-   return {ok:true,json:async()=>({players:[ad]})};
- });
+ s.fetch(async url=>{consultas.push(String(url));return {ok:true,json:async()=>({players:[ad]})};});
  await s.run("abrirPlayer(238,'Filme')");
- assert.ok(consultas.some(u=>u.indexOf('/api/fonte')===0),'precisa conferir a fonte antes de abrir: ' + consultas.join(' | '));
- assert.equal(s.get('frame').src,ad.url,'abre a fonte que tem o título, dentro do aplicativo');
- assert.equal(s.get('opcoes').hidden,true,'não deve abrir o painel na cara do usuário');
+ assert.equal(s.get('frame').src,'about:blank','nada de página de terceiro abrindo sozinha');
+ assert.equal(s.get('opcoes').hidden,false,'o painel explica em vez de abrir anúncio');
+ assert.ok(!consultas.some(u=>u.indexOf('/api/fonte')===0),'a verificação de fonte com anúncio saiu do caminho');
 });
-test('external mode stops old playback and validates local links',async()=>{const s=setup();s.fetch(async()=>({ok:true,json:async()=>({players:sources})}));await s.run("abrirPlayer(238,'Filme')");s.run('pausarParaExterno({preventDefault(){throw Error()}})');assert.equal(s.get('frame').src,'about:blank');assert.equal(s.timers.size,0);for(const bad of ['https://evil.example/assistir/238/1','/assistir/238/9','/assistir/238/1?redirect=foo','javascript:alert(1)',null])assert.equal(s.run(`urlExterna(${JSON.stringify(bad)})`),null);});
+test('não existe mais modo externo: o player não abre página de terceiros',async()=>{const s=setup();s.fetch(async()=>({ok:true,json:async()=>({players:sources})}));await s.run("abrirPlayer(238,'Filme')");s.run('pausarParaExterno({preventDefault(){bloqueado=true}})');assert.equal(s.run('bloqueado'),true,'sem fonte externa, o clique é bloqueado');assert.equal(s.get('frame').src,sources[0].url,'a reprodução atual não é interrompida');for(const bad of ['https://evil.example/assistir/238/1','/assistir/238/9','/assistir/238/1?redirect=foo','javascript:alert(1)',null])assert.equal(s.run(`urlExterna(${JSON.stringify(bad)})`),null);});
 
 test('transient direct failure retries once and does not open source selection',async()=>{
  const s=setup();s.fetch(async()=>({ok:true,json:async()=>({players:sources})}));
@@ -54,19 +50,17 @@ test('episodes cannot accidentally start a movie with the same TMDB id',async()=
  assert.equal(s.run("urlExterna('/assistir.html?type=tv&id=1399&season=2&episode=4&source=1')"),'http://localhost:3106/assistir.html?type=tv&id=1399&season=2&episode=4&source=1');
  assert.equal(s.run("urlExterna('/assistir.html?type=tv&id=1399&season=2&episode=4&source=1&extra=x')"),null);
 });
-test('manual episode sources remain visible and open inside the player, without leaving the app',async()=>{
- const s=setup();const p={nome:'Doramogo',directory:'doramogo',optional:true,manual:true,dub:false,funcionou:true,urlCompatibilidade:'/assistir.html?type=tv&id=94796&season=1&episode=2&source=3'};
- s.fetch(async()=>({ok:true,json:async()=>({players:[p]})}));await s.run("abrirPlayer(94796,'Dorama',{season:1,number:2})");assert.equal(s.get('opcoes').hidden,false);assert(!s.get('loading').classList.contains('vis'));assert.equal(s.get('frame').src,'about:blank');
- s.run("players=players.map(x=>({...x,url:'https://doramogo.example/episodio'}))");s.get('fontes').children[0].onclick();
+test('fonte marcada como manual não abre e não joga o usuário para fora do app',async()=>{
+ const s=setup();const p={nome:'Fonte com anúncios',optional:true,manual:true,dub:false,funcionou:true,url:'https://fonte.example/episodio',urlCompatibilidade:'/assistir.html?type=tv&id=94796&season=1&episode=2&source=3'};
+ s.fetch(async()=>({ok:true,json:async()=>({players:[p]})}));await s.run("abrirPlayer(94796,'Serie',{season:1,number:2})");assert.equal(s.get('opcoes').hidden,false);assert.equal(s.get('frame').src,'about:blank');
+ s.get('fontes').children[0].onclick();
  assert.equal(s.run('location.href'),undefined,'a fonte abre dentro do aplicativo, sem trocar de página');
- assert.equal(s.get('frame').src,'https://doramogo.example/episodio','a fonte escolhida carrega no próprio player');
- for(const bad of ['/assistir.html?id=238&source=11','/assistir.html?id=238&source=10&redirect=x','/assistir.html?type=tv&id=94796&season=1&episode=2&source=9'])assert.equal(s.run(`urlExterna(${JSON.stringify(bad)})`),null);
- assert.equal(s.run("urlExterna('/assistir.html?type=tv&id=94796&season=1&episode=2&source=7')"),'http://localhost:3106/assistir.html?type=tv&id=94796&season=1&episode=2&source=7');
- assert.equal(s.run("urlExterna('/assistir.html?id=238&source=10')"),'http://localhost:3106/assistir.html?id=238&source=10');
+ assert.equal(s.get('frame').src,'about:blank','nada de fonte com anúncio carregando no player');
+ for(const bad of ['/assistir.html?id=238&source=11','/assistir.html?id=238&source=10&redirect=x','https://evil.example/assistir/238/1'])assert.equal(s.run(`urlExterna(${JSON.stringify(bad)})`),null);
 });
-test('episode opens automatically on the best scored source',async()=>{
- const s=setup();const p1={nome:'VidLink (séries)',optional:true,dub:false,funcionou:true,manual:true,qualidade:'até 1080p · com anúncios',url:'https://vidlink.pro/tv/94796/1/2',urlCompatibilidade:'/assistir.html?type=tv&id=94796&season=1&episode=2&source=0'};
- const p2={nome:'Busca externa',optional:true,dub:false,funcionou:true,manual:true,directory:'doramogo',url:'https://busca.example',urlCompatibilidade:'/assistir.html?type=tv&id=94796&season=1&episode=2&source=4'};
+test('episódio abre sozinho na fonte limpa de melhor pontuação',async()=>{
+ const s=setup();const p1={nome:'Dublado 1080p',optional:true,dub:true,funcionou:true,manual:false,qualidade:'1080p',url:'https://fonte-limpa.example/tv/94796/1/2',urlCompatibilidade:'/assistir.html?type=tv&id=94796&season=1&episode=2&source=0'};
+ const p2={nome:'Dublado 720p',optional:true,dub:true,funcionou:true,manual:false,qualidade:'720p',url:'https://fonte-limpa-720.example/tv/94796/1/2',urlCompatibilidade:'/assistir.html?type=tv&id=94796&season=1&episode=2&source=1'};
  s.fetch(async()=>({ok:true,json:async()=>({players:[p2,p1]})}));
  await s.run("abrirPlayer(94796,'Episode',{season:1,number:2})");
  assert.equal(s.get('opcoes').hidden,true,'painel não deve aparecer');
@@ -75,10 +69,10 @@ test('episode opens automatically on the best scored source',async()=>{
 });
 test('o robô usa a verificação medida: fonte marcada como indisponível perde a vez',async()=>{
  const s=setup();
- // simula o fontes.json já carregado: a VidLink está indisponível na última verificação
- s.run('medidasFontes={vidlink:{situacao:"indisponível",em:"2026-10-07",dublado:null}}');
- const ruim={nome:'VidLink (séries)',optional:true,dub:false,funcionou:true,manual:true,qualidade:'até 1080p · com anúncios',url:'https://vidlink.pro/tv/94796/1/2',urlCompatibilidade:'/assistir.html?type=tv&id=94796&season=1&episode=2&source=0'};
- const boa={nome:'VidSrc (séries)',optional:true,dub:false,funcionou:true,manual:true,qualidade:'até 1080p · com anúncios',url:'https://vidsrc.to/embed/tv/94796/1/2',urlCompatibilidade:'/assistir.html?type=tv&id=94796&season=1&episode=2&source=1'};
+ // simula o fontes.json já carregado: a primeira fonte está indisponível na última verificação
+ s.run('medidasFontes={vidlink:{situacao:"indisponível",em:"2026-10-07",dublado:null},vidsrc:{situacao:"link direto",em:"2026-10-07",dublado:true}}');
+ const ruim={nome:'VidLink (séries)',optional:true,dub:true,funcionou:true,manual:false,url:'https://vidlink.pro/tv/94796/1/2',urlCompatibilidade:'/assistir.html?type=tv&id=94796&season=1&episode=2&source=0'};
+ const boa={nome:'VidSrc (séries)',optional:true,dub:true,funcionou:true,manual:false,url:'https://vidsrc.to/embed/tv/94796/1/2',urlCompatibilidade:'/assistir.html?type=tv&id=94796&season=1&episode=2&source=1'};
  s.fetch(async()=>({ok:true,json:async()=>({players:[ruim,boa]})}));
  await s.run("abrirPlayer(94796,'Episode',{season:1,number:2})");
  assert.equal(s.get('frame').src,boa.url,'prefere a fonte que passou na verificação, dentro do aplicativo');

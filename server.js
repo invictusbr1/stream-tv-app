@@ -381,10 +381,11 @@ app.get('/api/playback/serie/:id/:season/:episode', async (req, res) => {
         const escolhido = await require('./series-source').resolverEpisodio({ tmdbId: id, temporada: season, episodio: episode, cookie });
         if (!escolhido) throw new Error('sem fonte');
         res.json({
-            url: escolhido.urlAplicativo,
+            // Fonte de arquivo direto (dublada) não passa pelo encaminhamento.
+            url: escolhido.final ? escolhido.url : escolhido.urlAplicativo,
             audio: escolhido.audio,
             source: escolhido.fonte,
-            type: 'hls',
+            type: escolhido.type || 'hls',
             resolucao: escolhido.resolucao,
             legendas: escolhido.legendas || [],
             legendaPortugues: Boolean(escolhido.legendaPortugues)

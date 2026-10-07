@@ -83,21 +83,29 @@ function comPrazo(promessa, ms) {
 // Registro das fontes. Para acrescentar uma fonte nova, basta incluir
 // um item aqui: o motor cuida da ordem, do cache e da saúde.
 // ---------------------------------------------------------------
+// Endereço da fonte dublada principal. Filme vai em /movie; episódio vai em
+// /tvshow/{id}/{temporada}/{episódio} — o caminho /serie exige sessão paga e
+// manda para a tela de login, por isso não é usado.
+function enderecoWatchPlay(alvo) {
+    return alvo.tipo === 'tv'
+        ? `https://v2.watchplay.shop/tvshow/${alvo.tmdbId}/${alvo.temporada}/${alvo.episodio}`
+        : `https://v2.watchplay.shop/movie/${alvo.tmdbId}`;
+}
+
 const FONTES = [
     {
         id: 'watchplay',
         nome: 'Dublado · fonte limpa',
         papel: 'dublado',
         peso: 100,
+        seAplica: alvo => alvo.tipo === 'tv' || alvo.tipo === 'movie',
         resolver: async id => {
             const alvo = typeof id === 'object' ? id : { tipo: 'movie', tmdbId: id };
             const axios = require('axios');
             const cookie = process.env.WATCHPLAY_COOKIE || (() => {
                 try { return JSON.parse(require('fs').readFileSync(require('path').join(__dirname, 'config.local.json'), 'utf8')).watchplayCookie || ''; } catch { return ''; }
             })();
-            const endereco = alvo.tipo === 'tv'
-                ? `https://v2.watchplay.shop/serie/${alvo.tmdbId}/${alvo.temporada}/${alvo.episodio}`
-                : `https://v2.watchplay.shop/movie/${alvo.tmdbId}`;
+            const endereco = enderecoWatchPlay(alvo);
             const r = await axios.get(endereco, {
                 timeout: 10000,
                 maxRedirects: 0,
@@ -111,7 +119,22 @@ const FONTES = [
                 }
             });
             const dados = require('./playback-source').parseWatchPlay(r.data);
-            return { ...dados, fonte: dados.source || 'Dublado limpo', resolucao: alvo.tipo === 'tv' ? '720p' : '720p' };
+            return { ...dados, fonte: dados.source || 'Dublado limpo', resolucao: '720p' };
+        }
+    },
+    {
+        // Séries dubladas do PipocaCine: o endereço de cada episódio sai da
+        // página da própria série e o arquivo vai direto para o nosso player.
+        id: 'pipoca-serie',
+        nome: 'Dublado · série (arquivo limpo)',
+        papel: 'dublado',
+        peso: 85,
+        seAplica: alvo => alvo.tipo === 'tv',
+        resolver: async id => {
+            if (typeof id !== 'object') return null;
+            const dados = await require('./pipoca-source').resolverEpisodio(id.tmdbId, id.temporada, id.episodio);
+            if (!dados) return null;
+            return { ...dados, final: true };
         }
     },
     {
@@ -119,6 +142,8 @@ const FONTES = [
         nome: 'PipocaCine · dublado',
         papel: 'dublado',
         peso: 90,
+        // Esta entrada é só de filme; série é tratada logo acima.
+        seAplica: alvo => alvo.tipo !== 'tv',
         resolver: async id => {
             if (typeof id === 'object') return null; // somente filmes
             const dados = await require('./pipoca-source').resolverFilme(id);
@@ -161,10 +186,12 @@ const FONTES = [
 ];
 
 // Ordem do momento: papel primeiro, depois peso, depois saúde da fonte.
-function ordem(papel) {
+// Fontes que não valem para aquele tipo de título (filme x série) nem entram.
+function ordem(papel, alvo) {
     const agora = Date.now();
     return FONTES
         .filter(f => f.papel === papel)
+        .filter(f => !alvo || !f.seAplica || f.seAplica(alvo))
         .map(f => {
             const s = estadoDaFonte(f.id);
             const castigada = s.castigoAte > agora ? 1 : 0;
@@ -192,7 +219,7 @@ async function escolher(papel, alvo) {
     if (lembrado && lembrado.expira > Date.now() && lembrado.dados) return lembrado.dados;
 
     const agora = Date.now();
-    const lista = ordem(papel);
+    const lista = ordem(papel, alvo);
     const semEsteTitulo = fonte => (semTitulo.get(`${chave}|${fonte.id}`) || 0) > agora;
     // Quem já disse que não tem o título só é tentado se ninguém mais responder.
     const tentar = [...lista.filter(f => !semEsteTitulo(f)), ...lista.filter(semEsteTitulo)];
@@ -269,4 +296,4 @@ function esquecerAcertos() {
     acertos.clear();
 }
 
-module.exports = { escolher, prepararParaPlayer, estado, FONTES, reiniciarParaTeste, esquecerAcertos };
+module.exports = { escolher, prepararParaPlayer, estado, FONTES, enderecoWatchPlay, reiniciarParaTeste, esquecerAcertos };

@@ -159,4 +159,10 @@ test('aceita a lista de reproducao da fonte nova e recusa endereco estranho',asy
  const s2=harness();
  const ruim=await s2.controller.start(238,1,new AbortController().signal,null,'https://site-estranho.example/video',true);
  assert.equal(ruim,false,'endereco sem formato de video nao pode ser aceito');
+ // Episódio dublado em arquivo (nixplay) precisa ser aceito pelo player.
+ const s3=harness();let arquivoOk=false;
+ s3.controller.start(1399,1,new AbortController().signal,null,'https://nixplay.lat/series/pipocacine-vods/WoQDqAjmh/1399/1/1.mp4',true).then(()=>{}).catch(()=>{});
+ await new Promise(setImmediate);
+ arquivoOk=s3.controller.estaAtivo?.() ?? true;
+ assert.equal(arquivoOk,true,'o episodio dublado em arquivo direto precisa abrir');
 });

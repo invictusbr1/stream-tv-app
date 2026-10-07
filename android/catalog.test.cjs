@@ -13,17 +13,10 @@ test('a página do modo com anúncios usa o catálogo local no aparelho', () => 
     assert.ok(pagina.includes('consulta.request('), 'precisa usar o catálogo escolhido para episódios');
 });
 
-test('episódio lista apenas as fontes com papel definido (dublado com verificação e busca de doramas)', async () => {
+test('episódio não oferece nenhuma fonte com anúncio', async () => {
     const catalogo = createCatalog(async () => good({ imdb_id: 'tt0247082' }), 'test');
     const dados = await catalogo.request('/api/episode/1431/1/1');
-    assert.equal(dados.players.length, 3, 'lista enxuta: sem fontes mortas ou repetidas');
-    assert.equal(dados.players[0].url, 'https://streambetter.shop/serie/1431/1/1');
-    assert.equal(dados.players[0].index, 0);
-    assert.equal(dados.players[1].url, 'https://superflixapi.monster/serie/1431/1/1');
-    assert.equal(dados.players[2].directory, 'pobreflix');
-    assert.ok(dados.players.every(p => p.optional === true && p.manual === true), 'nenhuma abre sozinha');
-    assert.ok(dados.players.slice(0, 2).every(p => p.dub === true), 'as duas primeiras são as dubladas');
-    assert.ok(!dados.players.some(p => /vidlink|vidsrc|dattebayo|plenoflu|watchcdn/i.test(p.nome)), 'fontes antigas saíram da lista');
+    assert.deepEqual(dados.players, [], 'a lista de opções com anúncio saiu do aplicativo');
 });
 test('catalog uses HTTPS TMDB directly and preserves independent ranking rules', async () => {
     const seen = [];
@@ -42,19 +35,12 @@ test('catalog uses HTTPS TMDB directly and preserves independent ranking rules',
     const calls = seen.length;
     await catalog.request('/api/rankings'); assert.equal(seen.length, calls);
 });
-test('source indexes are stable across preferred ordering and missing IMDb', async () => {
+test('filme não oferece nenhuma fonte com anúncio, mesmo com o IMDb fora do ar', async () => {
     const catalog = createCatalog(async () => { throw Error('offline'); }, 'test');
     const { players } = await catalog.request('/api/player/238');
-    // A lista enxuta de filmes começa no índice 6; cada índice é fixo e aponta
-    // sempre para a mesma fonte, mesmo quando a ordem de exibição muda.
-    assert.equal(players[0].index, 6);
-    assert.equal(players[0].url, 'https://vidlink.pro/movie/238');
-    assert.equal(players[0].urlCompatibilidade, '/assistir.html?id=238&source=6');
-    assert.equal(players[0].funcionou, true);
-    assert.equal(players[0].dub, false);
-    assert.ok(players.every(p => p.optional === true && p.manual === true), 'fonte com verificação só abre se o usuário escolher');
-    assert.equal(players.find(p => p.index === 8).url, 'https://superflixapi.monster/filme/238', 'sem IMDb a fonte usa o identificador do TMDB');
-    assert.ok(!players.some(p => /watchcdn|cdn-embed|ultraembed|vid?s?rc\.?me|autoembed|moviesapi|vid?s?rc\.?in/i.test(p.nome)), 'fontes mortas saíram da lista');
+    assert.deepEqual(players, [], 'nenhuma opção com anúncio é oferecida');
+    const comImdb = createCatalog(async () => good({ imdb_id: 'tt0068646' }), 'test');
+    assert.deepEqual(await comImdb.sources(238), [], 'nem com IMDb a lista volta');
     await assert.rejects(catalog.sources('../238'));
 });
 test('search encoding, cancellation and invalid routes', async () => {
@@ -76,10 +62,9 @@ test('provider failures do not masquerade as an empty successful catalog', async
     await assert.rejects(catalog.request('/api/rankings'));
 });
 
-test('PipocaCine uses TMDB with a stable optional source index and no false audio claim',async()=>{
- const c=createCatalog(async()=>good({imdb_id:'tt0068646'}),'test');const sources=await c.sources(238);const p=sources.find(p=>p.nome.startsWith('PipocaCine'));
- assert.equal(p.index,7);assert.equal(p.url,'https://pipocacine.lat/embed/238');assert.equal(p.dub,true);assert.equal(p.optional,true);assert.equal(p.urlCompatibilidade,'/assistir.html?id=238&source=7');
- assert.equal(p.status,'audio-nao-confirmado','a fonte tem opção dublada, mas o áudio é conferido na hora de abrir');
+test('a página do modo com anúncios não volta a listar fonte com anúncio',async()=>{
+ const pagina=fs.readFileSync(__dirname+'/app/src/main/assets/catalog.js','utf8');
+ for(const dominio of ['vidlink.pro','superflixapi.monster','streambetter.shop','youcinehd.lat','doramogo.net'])assert.ok(!pagina.includes(dominio),`a fonte ${dominio} não pode voltar para o catálogo`);
 });
 
 test('series, doramas, categories and mixed search preserve media type',async()=>{
@@ -92,27 +77,17 @@ test('Brazil top list filters availability, caps ten, and never claims national 
  const c=createCatalog(async u=>{const url=new URL(u);assert.equal(url.searchParams.get('watch_region'),'BR');assert.equal(url.searchParams.get('with_watch_monetization_types'),'flatrate|free|ads');return good({results:Array.from({length:20},(_,i)=>({id:i,title:'Film'}))});},'test');
  const d=await c.request('/api/top-br');assert.equal(d.items.length,10);assert(d.checkedAt);
 });
-test('season and episode routes retain exact numbers and fixed provider origins',async()=>{
+test('season and episode routes retain exact numbers',async()=>{
  const urls=[];const c=createCatalog(async u=>{urls.push(new URL(u).pathname);return good({episodes:[{episode_number:4,name:'Quatro'}]});},'test');
  const d=await c.request('/api/season/1399/2');assert.equal(urls[0],'/3/tv/1399/season/2');assert.equal(d.episodes[0].number,4);
- const e=await c.request('/api/episode/1399/2/4');assert.equal(e.players[0].url,'https://streambetter.shop/serie/1399/2/4');assert.equal(e.players[1].url,'https://superflixapi.monster/serie/1399/2/4');assert.equal(e.players.filter(p=>p.dub===true).length,2);assert.equal(e.players.every(p=>p.manual===true),true,'fonte com anúncio só abre se o usuário escolher');
+ const e=await c.request('/api/episode/1399/2/4');assert.deepEqual(e.players,[],'episódio não traz opção com anúncio');
  await assert.rejects(c.request('/api/episode/1399/2/0'));await assert.rejects(c.request('/api/season/../2'));
 });
-test('as opções de episódio mantêm as coordenadas e nunca prometem dublagem confirmada',async()=>{
+test('o catálogo mantém as coordenadas do episódio e não inventa dublagem',async()=>{
  const c=createCatalog(async()=>good({imdb_id:'tt0068646'}),'test');
  const ep=(await c.request('/api/episode/108978/2/4')).players;
- assert.equal(ep.length,3);
- assert.equal(ep.find(p=>p.index===0).url,'https://streambetter.shop/serie/108978/2/4');
- assert.equal(ep.find(p=>p.index===1).url,'https://superflixapi.monster/serie/108978/2/4');
- assert.equal(ep.find(p=>p.index===2).directory,'pobreflix');
- for(const p of ep){assert.equal(p.manual,true);assert(p.urlCompatibilidade.includes('season=2&episode=4'));assert.notEqual(p.status,'dublado-confirmado');}
- const movie=await c.sources(238);assert.equal(movie.find(p=>p.index===8).url,'https://superflixapi.monster/filme/tt0068646');assert.equal(movie.find(p=>p.index===10).directory,'pobreflix');
-});
-test('external searches use exact title encoding and fixed origins, not guessed episode slugs',async()=>{
- const seen=[];const c=createCatalog(async u=>{seen.push(new URL(u).pathname);return good({name:'A & B / Amor',title:'Filme'});},'test');
- const url=new URL(await c.directoryUrl({directory:'doramogo'},94796,true));assert.equal(url.origin,'https://www.doramogo.net');assert.equal(url.searchParams.get('q'),'A & B / Amor');assert.equal(seen[0],'/3/tv/94796');
- assert.equal(new URL(await c.directoryUrl({directory:'pobreflix'},238,false)).searchParams.get('s'),'Filme');
- await assert.rejects(c.directoryUrl({directory:'evil'},238,false));
+ assert.deepEqual(ep,[],'nenhuma fonte com anúncio');
+ assert.deepEqual(await c.sources(238),[],'nenhuma fonte com anúncio no filme');
 });
 test('discovery pages reach TMDB and initial selections rotate without changing top-ten logic',async()=>{
  const seen=[];const c=createCatalog(async input=>{const u=new URL(input);seen.push(u);return good({results:[],page:3,total_pages:500});},'test');

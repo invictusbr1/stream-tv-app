@@ -3,22 +3,28 @@
   "comoFunciona": "Cada fonte tem o resultado da última verificação real (navegador + medição de vídeo). O robô do aplicativo usa estes dados para escolher a fonte: sem anúncio primeiro, depois dublado, depois qualidade. A lista é curta de propósito: só entra o que tem papel definido e foi medido.",
   "motor": {
     "arquivo": "fontes-motor.js",
-    "papel": "É o único lugar que escolhe a fonte. Nenhuma tela precisa perguntar nada ao usuário.",
+    "papel": "É o único lugar que escolhe a fonte. Nenhuma tela pergunta nada ao usuário.",
+    "regras": [
+      "Dublado — sempre a primeira tentativa.",
+      "Sem anúncio — o endereço do vídeo é lido pelo aplicativo; nenhuma página de terceiro é aberta.",
+      "HD ou Full HD — 720p para cima."
+    ],
     "ordem": [
-      "Dublado e limpo (WatchPlay; para filmes, PipocaCine quando a principal não tem o título)",
-      "Alta definição limpa (Vixsrc, com legenda em português ligada sozinha; VidSrc para lançamentos)"
+      "Dublado limpo: WatchPlay (filme em /movie e episódio em /tvshow) e PipocaCine (arquivo do filme e episódio da série)",
+      "Alta definição limpa, só quando não existe dublado: Vixsrc (com legenda em português) e VidSrc (lançamentos em Full HD)"
     ],
     "inteligencia": [
-      "Lembra por 40 minutos qual fonte abriu cada título — a próxima abertura é direta.",
-      "Guarda acertos e falhas de cada fonte e rebaixa por 6 minutos a que acabou de falhar.",
-      "Tenta duas vezes antes de desistir da fonte, para não cair de qualidade por falha passageira.",
-      "Entrega o endereço já passado pelo encaminhamento do aplicativo: nenhuma página de terceiros é aberta e nenhum anúncio entra no caminho.",
-      "Diagnóstico ao vivo em /api/motor/estado: acertos, falhas e castigo de cada fonte."
+      "Lembra por 40 minutos qual fonte abriu cada título.",
+      "Não repete a fonte que respondeu que não tem aquele título (memória de 30 minutos, só para aquele título).",
+      "Guarda acertos e falhas por fonte e só rebaixa quem falha duas vezes seguidas.",
+      "Erro de conexão ganha uma segunda tentativa antes de trocar de fonte.",
+      "Diagnóstico ao vivo em /api/motor/estado."
     ]
   },
   "filmes": [
     {
       "nome": "WatchPlay",
+      "papel": "dublado · principal",
       "semAnuncio": true,
       "dublado": true,
       "qualidadeMedida": "1280x720",
@@ -28,18 +34,8 @@
       "audioInformado": "Dublado"
     },
     {
-      "nome": "Conecta TV · Full HD",
-      "semAnuncio": true,
-      "dublado": false,
-      "qualidadeMedida": "1920x800",
-      "audio": "original, com legenda em português quando disponível",
-      "status": "funciona",
-      "verificadoEm": "2026-10-07",
-      "situacaoMedida": "link direto pelo aplicativo",
-      "observacao": "Opção Full HD, escolhida no botão do player; o dublado continua automático."
-    },
-    {
       "nome": "PipocaCine · arquivo limpo",
+      "papel": "dublado · alternativa",
       "semAnuncio": true,
       "dublado": true,
       "qualidadeMedida": "1280x720",
@@ -47,97 +43,73 @@
       "status": "funciona",
       "verificadoEm": "2026-10-07",
       "situacaoMedida": "arquivo direto pelo aplicativo",
-      "observacao": "Entra quando a fonte dublada principal não tem o título. A página do provedor não é aberta: nenhum anúncio chega ao usuário."
-    },
-    {
-      "nome": "PipocaCine",
-      "semAnuncio": false,
-      "dublado": null,
-      "qualidadeMedida": "1280x720",
-      "audio": "português e original",
-      "status": "funciona",
-      "verificadoEm": "2026-10-07",
-      "situacaoMedida": "abre (JavaScript)"
-    },
-    {
-      "nome": "VidLink",
-      "semAnuncio": false,
-      "dublado": null,
-      "qualidadeMedida": "1080p",
-      "status": "funciona",
-      "verificadoEm": "2026-10-07",
-      "situacaoMedida": "abre (JavaScript)"
+      "observacao": "Entra quando a fonte dublada principal não tem o título. A página do provedor nunca é aberta."
     }
   ],
   "series": [
     {
-      "nome": "Limpo · Conecta TV",
-      "papel": "principal automática",
+      "nome": "Dublado · WatchPlay",
+      "papel": "dublado · principal (endereço /tvshow)",
       "semAnuncio": true,
-      "dublado": false,
-      "qualidadeMedida": "720p",
-      "audio": "original, com legenda em português ligada sozinha quando a fonte tem essa faixa",
+      "dublado": true,
+      "qualidadeMedida": "1280x720",
+      "audio": "português (dublado)",
       "status": "funciona",
       "verificadoEm": "2026-10-07",
-      "situacaoMedida": "funciona",
+      "situacaoMedida": "link direto",
       "exemplos": [
-        "Game of Thrones 1x1 (720p, legenda Portuguese (Brazilian))",
-        "CSI 1x1 (720p)"
+        "Game of Thrones 1x1",
+        "The Last of Us 1x1",
+        "Breaking Bad 1x1",
+        "Wandinha 1x1",
+        "Round 6 1x1",
+        "Stranger Things 1x1"
       ],
-      "observacao": "Abre sozinha dentro do aplicativo, sem anúncio, sem sair da tela e sem pedir nada.",
-      "audioMedido": "original"
+      "observacao": "O caminho /serie do provedor pede sessão paga; o /tvshow entrega o episódio dublado direto."
+    },
+    {
+      "nome": "Dublado · PipocaCine",
+      "papel": "dublado · alternativa (episódio em arquivo)",
+      "semAnuncio": true,
+      "dublado": true,
+      "qualidadeMedida": "1280x720",
+      "audioMedido": "por (português)",
+      "status": "funciona",
+      "verificadoEm": "2026-10-07",
+      "situacaoMedida": "arquivo direto pelo aplicativo",
+      "exemplos": [
+        "The Boys 1x1 (720p, áudio português)",
+        "Game of Thrones 1x1",
+        "Os Simpsons 1x1 (1280x960)"
+      ],
+      "observacao": "Medido com leitura real do arquivo: 720p, áudio por, aceita avançar e voltar (HTTP 206)."
     },
     {
       "nome": "Full HD · VidSrc",
-      "papel": "alta definição automática (entra sozinha quando não há dublado)",
+      "papel": "alta definição · só quando não existe dublado",
       "semAnuncio": true,
       "dublado": false,
       "qualidadeMedida": "1920x1080",
-      "audio": "original",
+      "audio": "original, com legenda em português quando a fonte oferece a faixa",
       "status": "funciona",
       "verificadoEm": "2026-10-07",
-      "situacaoMedida": "link direto pelo aplicativo",
-      "observacao": "Resolve o endereço com token gerado na hora e passa pelo encaminhamento do aplicativo: nenhuma página do provedor é aberta.",
-      "audioMedido": "original"
-    },
-    {
-      "nome": "StreamBetter",
-      "papel": "dublado · última opção",
-      "semAnuncio": false,
-      "dublado": true,
-      "status": "verificacao-humana",
-      "observacao": "pede confirmação 'não sou robô' da própria fonte; abre dentro do player pelo botão Dublado",
-      "verificadoEm": "2026-10-07",
-      "situacaoMedida": "verificação humana"
-    },
-    {
-      "nome": "SuperFlix",
-      "papel": "dublado · alternativa",
-      "semAnuncio": false,
-      "dublado": true,
-      "status": "verificacao-humana",
-      "observacao": "mesmo esquema de verificação da fonte",
-      "verificadoEm": "2026-10-07",
-      "situacaoMedida": "verificação humana"
-    },
-    {
-      "nome": "YouCine · doramas e novelas",
-      "papel": "busca manual dublada",
-      "semAnuncio": false,
-      "dublado": true,
-      "status": "catalogo-de-busca",
-      "observacao": "só para dorama e novela dublada; a escolha do episódio é feita no site",
-      "verificadoEm": "2026-10-07",
-      "situacaoMedida": "abre (JavaScript)"
+      "situacaoMedida": "link direto pelo aplicativo"
     }
   ],
   "descartadas": [
     {
-      "nome": "VidLink (séries)",
-      "tipo": "serie",
-      "motivo": "entrega vídeo só em DASH/H.265 (exige outro player) e só em áudio original; saiu da lista",
+      "nome": "StreamBetter, SuperFlix, YouCine, Doramogo e VidLink",
+      "tipo": "serie e filme",
+      "motivo": "abriam página de terceiro com anúncio e pediam verificação (Cloudflare Turnstile) — saíram do aplicativo em 07/10/2026 por quebrar a regra \"sem anúncio\"",
       "verificadoEm": "2026-10-07",
-      "situacaoMedida": "abre (JavaScript)"
+      "situacaoMedida": "verificação humana"
+    },
+    {
+      "nome": "PipocaCine (página de embed)",
+      "tipo": "filme",
+      "motivo": "a página tinha anúncio e só servia para abrir o player; o aplicativo passou a ler o arquivo direto do provedor sem abrir nada",
+      "verificadoEm": "2026-10-07",
+      "situacaoMedida": "substituída pela leitura direta"
     },
     {
       "nome": "PlenoFlu",

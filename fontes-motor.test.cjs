@@ -2,6 +2,9 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const motor = require('./fontes-motor');
 
+// Guarda o registro real antes de qualquer teste trocar as fontes.
+const REGISTRO_REAL = motor.FONTES.map(f => `${f.id}:${f.papel}`);
+
 // Troca as fontes reais por fontes de teste, na mesma ordem de papel que o
 // motor usa (dublado antes de alta definição).
 function comFontesDeTeste(lista) {
@@ -107,4 +110,37 @@ test('o acerto fica guardado: a próxima abertura não repete a busca', async ()
 test('o endereço entregue ao player passa pelo encaminhamento do aplicativo', () => {
     const preparado = motor.prepararParaPlayer({ url: 'https://vixsrc.to/playlist/1?token=abc', audio: 'original', fonte: 'Vixsrc' });
     assert.match(preparado.urlAplicativo, /^\/api\/hls\?u=/);
+});
+
+test('a fonte dublada principal usa o caminho de série que não pede login', () => {
+    assert.equal(
+        motor.enderecoWatchPlay({ tipo: 'tv', tmdbId: '1399', temporada: '1', episodio: '1' }),
+        'https://v2.watchplay.shop/tvshow/1399/1/1'
+    );
+    assert.equal(
+        motor.enderecoWatchPlay({ tipo: 'movie', tmdbId: '27205' }),
+        'https://v2.watchplay.shop/movie/27205'
+    );
+});
+
+test('o registro tem fonte dublada de série e de filme, ambas antes da alta definição', () => {
+    const papeis = REGISTRO_REAL;
+    assert.ok(papeis.includes('watchplay:dublado'), 'fonte dublada principal');
+    assert.ok(papeis.includes('pipoca-serie:dublado'), 'série dublada limpa');
+    assert.ok(papeis.includes('pipoca:dublado'), 'filme dublado limpo');
+    assert.ok(papeis.includes('vixsrc:hd') && papeis.includes('vidsrc:hd'), 'alta definição continua como apoio');
+});
+
+test('fonte de filme não é tentada em série (e vice-versa)', async () => {
+    const tentadas = [];
+    const guardadas = motor.FONTES.splice(0, motor.FONTES.length);
+    motor.FONTES.push(
+        { id: 'so-filme', nome: 'Só filme', papel: 'dublado', peso: 100, seAplica: alvo => alvo.tipo !== 'tv', resolver: async () => { tentadas.push('so-filme'); return null; } },
+        { id: 'so-serie', nome: 'Só série', papel: 'dublado', peso: 90, seAplica: alvo => alvo.tipo === 'tv', resolver: async () => { tentadas.push('so-serie'); return { url: 'https://exemplo/pl/a/master.m3u8', audio: 'pt-BR', fonte: 'Só série' }; } }
+    );
+    motor.reiniciarParaTeste();
+    const escolhido = await motor.escolher('dublado', { tipo: 'tv', tmdbId: '1399', temporada: '1', episodio: '1' });
+    assert.equal(escolhido.fonte, 'Só série');
+    assert.deepEqual(tentadas, ['so-serie'], 'a fonte de filme nem foi consultada');
+    motor.FONTES.splice(0, motor.FONTES.length, ...guardadas);
 });

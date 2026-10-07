@@ -106,22 +106,41 @@ public final class MainActivity extends Activity {
         return true;
     }
 
-    // Resolve o endereço direto do vídeo na fonte dublada limpa (WatchPlay).
-    // Vale para filme e para episódio: a página do provedor nunca é aberta
-    // para o usuário, então nenhum anúncio entra no caminho.
-    private WebResourceResponse directPlayback(String pagina) {
+    // Lê uma página do provedor no próprio aparelho. Nenhuma página de terceiro
+    // é aberta para o usuário: só o endereço do vídeo é aproveitado.
+    private String lerPagina(String pagina, String referer) {
         HttpsURLConnection connection = null;
         try {
             connection = (HttpsURLConnection) new URL(pagina).openConnection();
             connection.setConnectTimeout(10000); connection.setReadTimeout(10000);
             connection.setInstanceFollowRedirects(false);
-            if (connection.getResponseCode() != 200) return error(502);
-            String html;
+            connection.setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Mobile Safari/537.36");
+            connection.setRequestProperty("Accept-Language", "pt-BR,pt;q=0.9");
+            if (referer != null) connection.setRequestProperty("Referer", referer);
+            if (connection.getResponseCode() != 200) return null;
             try (InputStream input = connection.getInputStream(); ByteArrayOutputStream bytes = new ByteArrayOutputStream()) {
                 byte[] buffer = new byte[8192]; int count;
-                while ((count = input.read(buffer)) != -1) { bytes.write(buffer, 0, count); if (bytes.size() > 1048576) return error(502); }
-                html = new String(bytes.toByteArray(), StandardCharsets.UTF_8);
+                while ((count = input.read(buffer)) != -1) { bytes.write(buffer, 0, count); if (bytes.size() > 4194304) return null; }
+                return new String(bytes.toByteArray(), StandardCharsets.UTF_8);
             }
+        } catch (Exception e) { return null; }
+        finally { if (connection != null) connection.disconnect(); }
+    }
+
+    private WebResourceResponse jsonMidia(String url, String tipo, String fonte) {
+        try {
+            JSONObject result = new JSONObject();
+            result.put("url", url); result.put("audio", "pt-BR"); result.put("type", tipo); result.put("source", fonte);
+            return new WebResourceResponse("application/json", "UTF-8", 200, "OK", Collections.singletonMap("Cache-Control", "no-store"), new ByteArrayInputStream(result.toString().getBytes(StandardCharsets.UTF_8)));
+        } catch (Exception e) { return error(502); }
+    }
+
+    // Fonte dublada principal: filme em /movie e episódio em /tvshow.
+    // (O caminho /serie do provedor exige sessão paga e manda para o login.)
+    private WebResourceResponse directPlayback(String pagina) {
+        try {
+            String html = lerPagina(pagina, "https://v2.watchplay.shop/");
+            if (html == null) return error(502);
             String quoted = "\"(?:[^\"\\\\]|\\\\.)*\"";
             Matcher audio = Pattern.compile("window\\.MyPlayerAudio\\s*=\\s*(" + quoted + ")").matcher(html);
             Matcher source = Pattern.compile("\\burl\\s*:\\s*(" + quoted + ")").matcher(html);
@@ -129,10 +148,39 @@ public final class MainActivity extends Activity {
             String url = new JSONArray("[" + source.group(1) + "]").getString(0);
             Uri uri = Uri.parse(url);
             if (!"https".equals(uri.getScheme()) || uri.getHost() == null || !uri.getHost().matches("[a-zA-Z0-9-]+\\.hclod\\.qzz\\.io") || uri.getPort() != -1 || uri.getUserInfo() != null || !uri.getPath().endsWith(".m3u8")) return error(502);
-            JSONObject result = new JSONObject(); result.put("url", url); result.put("audio", "pt-BR"); result.put("type", "hls"); result.put("source", "WatchPlay");
-            return new WebResourceResponse("application/json", "UTF-8", 200, "OK", Collections.singletonMap("Cache-Control", "no-store"), new ByteArrayInputStream(result.toString().getBytes(StandardCharsets.UTF_8)));
+            return jsonMidia(url, "hls", "WatchPlay");
         } catch (Exception e) { return error(502); }
-        finally { if (connection != null) connection.disconnect(); }
+    }
+
+    // Segunda opção dublada: o episódio que o PipocaCine publica em arquivo MP4
+    // (720p, áudio em português). Lido da página da série, sem abrir nada.
+    private WebResourceResponse pipocaEpisodio(String id, String temporada, String episodio) {
+        try {
+            String html = lerPagina("https://pipocacine.lat/media/tv?id=" + id + "&s=" + temporada + "&e=" + episodio, "https://pipocacine.lat/");
+            if (html == null) return error(502);
+            Matcher bloco = Pattern.compile("var\\s+SEASONS_DATA\\s*=\\s*(\\{.*?\\});", Pattern.DOTALL).matcher(html);
+            if (!bloco.find()) return error(502);
+            JSONObject dados = new JSONObject(bloco.group(1));
+            JSONObject daTemporada = dados.optJSONObject(String.valueOf(Integer.parseInt(temporada)));
+            if (daTemporada == null) daTemporada = dados.optJSONObject(temporada);
+            if (daTemporada == null) return error(502);
+            JSONObject episodios = daTemporada.optJSONObject("episodes");
+            if (episodios == null) return error(502);
+            JSONObject alvo = episodios.optJSONObject(String.valueOf(Integer.parseInt(episodio)));
+            if (alvo == null) alvo = episodios.optJSONObject(episodio);
+            if (alvo == null || alvo.isNull("url_dub")) return error(502);
+            String url = alvo.optString("url_dub", "");
+            if (!url.matches("https://nixplay\\.lat/series/[a-z0-9-]+/[A-Za-z0-9_-]+/\\d{1,10}/\\d{1,3}/\\d{1,4}\\.mp4")) return error(502);
+            return jsonMidia(url, "file", "PipocaCine");
+        } catch (Exception e) { return error(502); }
+    }
+
+    // Episódio: tenta a fonte dublada principal e, se ela não tiver este
+    // episódio, a segunda opção dublada — sempre dentro do aplicativo.
+    private WebResourceResponse directEpisode(String id, String temporada, String episodio) {
+        WebResourceResponse principal = directPlayback("https://v2.watchplay.shop/tvshow/" + id + "/" + temporada + "/" + episodio);
+        if (principal != null && principal.getStatusCode() == 200) return principal;
+        return pipocaEpisodio(id, temporada, episodio);
     }
 
     @SuppressLint("SetJavaScriptEnabled")
@@ -190,6 +238,10 @@ public final class MainActivity extends Activity {
                 if (!trusted || !local(uri) || !"GET".equals(request.getMethod())) return error(403);
                 String path = uri.getPath();
                 if (path != null && path.matches("/api/playback/[0-9]{1,10}")) return directPlayback("https://v2.watchplay.shop/movie/" + path.substring("/api/playback/".length()));
+                if (path != null && path.matches("/api/playback/serie/[0-9]{1,10}/[0-9]{1,3}/[1-9][0-9]{0,3}")) {
+                    String[] partes = path.split("/");
+                    return directEpisode(partes[4], partes[5], partes[6]);
+                }
                 String name = "/".equals(path) ? "index.html" : path.substring(1);
                 // Only the bundled public assets can be served; no arbitrary file paths.
                 if (!name.matches("(?:index\\.html|assistir\\.html|personal\\.js|library\\.js|auth\\.js|jarvis\\.js|acesso\\.js|legendas\\.js|fontes\\.json|catalog\\.js|android\\.js|config\\.json|playback\\.js|hls\\.min\\.js|vidsrc-source\\.js)")) return error(404);

@@ -25,15 +25,16 @@ Funciona no computador e no celular. Usa a chave que está no arquivo api.txt da
 sua Área de Trabalho. Sem esse arquivo, o Jarvis avisa que não foi configurado.
 
 PLAYERS
-O aplicativo escolhe a fonte sozinho, nesta ordem: dublado e sem anúncio, alta
-definição sem anúncio (com legenda em português) e, por último, as opções com
-anúncio — que só abrem se você escolher na lista. O motor de fontes lembra qual
-deu certo para cada título, não repete a fonte que não tem o episódio e troca de
-fonte sem perguntar nada quando uma falha.
+Só entram fontes dubladas, sem anúncio e em HD. O aplicativo escolhe sozinho,
+lembra qual fonte deu certo para cada título, não repete a que não tem o
+episódio e troca de fonte sem perguntar nada quando uma falha. Nenhuma página de
+terceiro é aberta e nenhuma opção com anúncio existe mais dentro do aplicativo.
 
 SÉRIES
-Episódios usam as fontes com anúncio (VidLink e VidSrc), porque não existe fonte
-limpa de série nas verificações feitas até hoje.
+O episódio abre dublado e sem anúncio: primeiro na fonte dublada principal, e se
+ela não tiver aquele episódio, na segunda fonte dublada (arquivo 720p com áudio
+em português). Só quando nenhuma das duas tem o episódio é que o aplicativo abre
+a alta definição com legenda em português — e avisa na tela que é som original.
 
 CÓDIGO E ATUALIZAÇÕES
 https://github.com/invictusbr1/stream-tv-app

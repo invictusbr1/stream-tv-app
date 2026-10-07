@@ -30,38 +30,18 @@
         async function discover(params, signal) {
             return ((await tmdb('discover/movie', { include_adult: 'false', page: '1', ...params }, signal)).results || []).map(movie);
         }
-        function extras(id, imdb, tv=false, season, episode) {
-            const local=index=>tv?`/assistir.html?type=tv&id=${id}&season=${season}&episode=${episode}&source=${index}`:`/assistir.html?id=${id}&source=${index}`;
-            const base=(nome,index,fields)=>({nome,index,dub:false,optional:true,manual:true,funcionou:true,status:'nao-testada',urlCompatibilidade:local(index),...fields});
-            const list=[base('Doramogo · buscar título',tv?4:9,{directory:'doramogo'}),base('PobreFlix / YouCine · buscar título',tv?5:10,{directory:'pobreflix'})];
-            if(tv||imdb)list.unshift(base('SuperFlix · com anúncios',tv?3:8,{url:tv?`https://superflixapi.monster/serie/${id}/${season}/${episode}`:`https://superflixapi.monster/filme/${imdb}`,status:'verificacao-no-navegador'}));
-            return list;
-        }
-        async function directoryUrl(source, id, tv, signal, season, episode) {
-            const d=await tmdb(`${tv?'tv':'movie'}/${id}`,{},signal);
-            const title=tv?d.name:d.title;if(!title)throw Error('Título indisponível');
-            if(source.directory==='doramogo')return 'https://www.doramogo.net/search/?q='+encodeURIComponent(title);
-            if(source.directory==='pobreflix')return 'https://youcinehd.lat/pesquisar?s='+encodeURIComponent(title);
-            if(source.directory==='dattebayo')return 'https://www.dattebayo-br.com/anime-dublado';
-            if(source.directory==='plenoflu')return `https://plenoflu.com/${tv?'tvshow':'movie'}/${id}${tv?'/'+season+'/'+episode:''}`;
-            throw Error('Fonte inválida');
-        }
         async function sources(id, signal) {
             if (!/^\d{1,10}$/.test(String(id))) throw new Error('Filme inválido');
             let imdb = null;
             try { imdb = (await tmdb(`movie/${id}/external_ids`, {}, signal)).imdb_id; }
             catch (error) { if (signal && signal.aborted) throw error; }
             if (!/^tt\d+$/.test(imdb || '')) imdb = null;
-            // Lista enxuta: só fontes medidas. As que não entregavam vídeo
-            // (WatchCDN, CdnEmbed, UltraEmbed, VidSrc.me, AutoEmbed,
-            // MoviesAPI, VidSrc.in) saíram em 07/10/2026.
-            return [
-                {nome:'VidLink (Full HD)',url:`https://vidlink.pro/movie/${id}`,dub:false,optional:true,funcionou:true,status:'audio-nao-confirmado',qualidade:'1080p (HEVC)',urlCompatibilidade:`/assistir.html?id=${id}&source=6`,manual:true,index:6},
-                {nome:'PipocaCine (dublado, com verificação)',url:`https://pipocacine.lat/embed/${id}`,dub:true,optional:true,funcionou:true,status:'audio-nao-confirmado',qualidade:'720p · PT e EN',urlCompatibilidade:`/assistir.html?id=${id}&source=7`,manual:true,index:7},
-                {nome:'SuperFlix (dublado, com verificação)',url:`https://superflixapi.monster/filme/${imdb || id}`,dub:true,optional:true,funcionou:true,status:'verificacao-no-navegador',qualidade:'dublado',urlCompatibilidade:`/assistir.html?id=${id}&source=8`,manual:true,index:8},
-                {nome:'Doramogo · buscar título',url:'https://www.doramogo.net/',dub:false,optional:true,funcionou:true,status:'escolha-o-episodio',urlCompatibilidade:`/assistir.html?id=${id}&source=9`,manual:true,directory:'doramogo',index:9},
-                {nome:'YouCine · buscar título',url:'https://youcinehd.lat/',dub:false,optional:true,funcionou:true,status:'escolha-o-episodio',urlCompatibilidade:`/assistir.html?id=${id}&source=10`,manual:true,directory:'pobreflix',index:10}
-            ];
+            // Sem fontes com anúncio. Só entra o que atende as três regras do
+            // aplicativo: dublado, sem anúncio e em HD — e isso quem resolve é o
+            // motor de fontes, que entrega o endereço direto para o player.
+            // VidLink, PipocaCine (página), SuperFlix, Doramogo e YouCine saíram
+            // em 07/10/2026: pediam verificação no navegador e exibiam anúncio.
+            return [];
         }
         async function request(input, signal) {
             const url = new URL(input, 'https://appassets.androidplatform.net');
@@ -156,15 +136,9 @@
             let season=url.pathname.match(/^\/api\/season\/(\d{1,10})\/(\d{1,3})$/);
             if(season){const d=await tmdb(`tv/${season[1]}/season/${season[2]}`,{},signal);return {episodes:(d.episodes||[]).map(x=>({number:x.episode_number,name:x.name,overview:x.overview,date:x.air_date,image:x.still_path?`https://image.tmdb.org/t/p/w300${x.still_path}`:null}))};}
             let ep=url.pathname.match(/^\/api\/episode\/(\d{1,10})\/(\d{1,3})\/([1-9]\d{0,3})$/);
-            if(ep){const [_,id,season,episode]=ep;return {players:[
-                // Lista refeita em 07/10/2026 depois de uma varredura nova.
-                // Regra: o player limpo (sem anúncio) toca sozinho; estas opções
-                // são dubladas e só entram depois, dentro do próprio aplicativo,
-                // porque a própria fonte pede uma verificação de segurança.
-                {nome:'Dublado · StreamBetter',url:`https://streambetter.shop/serie/${id}/${season}/${episode}`,dub:true,optional:true,funcionou:true,status:'verificacao-no-navegador',manual:true,preferida:true,index:0,urlCompatibilidade:`/assistir.html?type=tv&id=${id}&season=${season}&episode=${episode}&source=0`},
-                {nome:'Dublado · SuperFlix',url:`https://superflixapi.monster/serie/${id}/${season}/${episode}`,dub:true,optional:true,funcionou:true,status:'verificacao-no-navegador',manual:true,index:1,urlCompatibilidade:`/assistir.html?type=tv&id=${id}&season=${season}&episode=${episode}&source=1`},
-                {nome:'Doramas e novelas dubladas · buscar no site',url:'https://youcinehd.lat/',dub:false,optional:true,funcionou:true,status:'escolha-o-episodio',manual:true,directory:'pobreflix',index:2,urlCompatibilidade:`/assistir.html?type=tv&id=${id}&season=${season}&episode=${episode}&source=2`}
-            ]};}
+            // Nenhuma opção com anúncio neste ponto: o episódio é resolvido pelo
+            // motor de fontes (dublado limpo primeiro, alta definição limpa depois).
+            if(ep)return {players:[]};
             if (url.pathname === '/api/buscar') {
                 const q = (url.searchParams.get('nome') || '').trim();
                 if (!q) return [];
@@ -183,7 +157,7 @@
             if (signal && signal.aborted) throw new DOMException('Aborted', 'AbortError');
             return { relevantes, melhores, recentes, oscar: awards.filter(Boolean).sort((a, b) => (parseFloat(b.nota) || 0) - (parseFloat(a.nota) || 0)) };
         }
-        return { request, sources, directoryUrl, describe:async(id,tv,signal)=>movie({...await tmdb(`${tv?'tv':'movie'}/${id}`,{},signal),media_type:tv?'tv':'movie'}) };
+        return { request, sources, describe:async(id,tv,signal)=>movie({...await tmdb(`${tv?'tv':'movie'}/${id}`,{},signal),media_type:tv?'tv':'movie'}) };
     }
     if (typeof module !== 'undefined' && module.exports) module.exports = { createCatalog };
     else root.createCatalog = createCatalog;

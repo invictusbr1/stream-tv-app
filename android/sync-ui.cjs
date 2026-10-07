@@ -15,7 +15,9 @@ function replace(before,after){if(!html.includes(before))throw Error('UI adapter
 replace("async function lerJson(url,signal){const r=await fetch(url,{signal});if(!r.ok)throw Error('Indisponível');return r.json();}","async function lerJson(url,signal){if(url.startsWith('/api/playback/')){const r=await fetch(url,{signal});if(!r.ok)throw Error('Indisponível');return r.json();}return (await androidCatalog).request(url,signal);}");
 replace('<script>\n','<script src="/catalog.js"></script><script src="/android.js"></script>\n<script>\n');
 replace('<script>\n','<script src="/vidsrc-source.js"></script>\n<script>\n');
-replace('target="_blank" rel="noopener"','');
+// O link de "fonte com anúncios" saiu da interface; se algum dia voltar a
+// existir, o Android abre dentro da própria janela.
+if(html.includes('target="_blank" rel="noopener"'))html=html.replace('target="_blank" rel="noopener"','');
 replace("url.origin!==location.origin||!/^\\/assistir\\/\\d{1,10}\\/[0-7]$/.test(url.pathname)||url.search||url.hash||url.username||url.password", "url.origin!==location.origin||url.pathname!=='/assistir.html'||!/^\\d{1,10}$/.test(url.searchParams.get('id')||'')||!/^[0-7]$/.test(url.searchParams.get('source')||'')||[...url.searchParams.keys()].length!==2||url.hash||url.username||url.password");
 // O aviso de atualização do Android já aparece no selo do topo, no aviso da
 // tela e na gaveta ("Atualizar aplicativo"); o link extra "Atualizações" que
