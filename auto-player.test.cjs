@@ -9,7 +9,7 @@ function setup(){
  cloneNode(){return node(id);},replaceWith(n){nodes.set(id,n);},querySelectorAll(){return [];}};}
  const get=id=>{if(!nodes.has(id))nodes.set(id,node(id));return nodes.get(id);};
  const doc={getElementById:get,createElement:()=>node(),body:node(),activeElement:node(),addEventListener(){},querySelector:s=>get(s),querySelectorAll:()=>[]};
- const ctx=vm.createContext({document:doc,window:{},navigator:{userAgent:'Test'},URL,location:{origin:'http://localhost:3106'},AbortController,Set,console,fetch:(...a)=>fetchImpl(...a),setTimeout:(fn,ms)=>{const id=++seq;timers.set(id,{fn,ms});return id;},clearTimeout:id=>timers.delete(id)});
+ const ctx=vm.createContext({document:doc,window:{},navigator:{userAgent:'Test'},URL,URLSearchParams,location:{origin:'http://localhost:3106'},AbortController,Set,console,fetch:(...a)=>fetchImpl(...a),setTimeout:(fn,ms)=>{const id=++seq;timers.set(id,{fn,ms});return id;},clearTimeout:id=>timers.delete(id)});
  vm.runInContext(fs.readFileSync(root+'index.html','utf8').match(/<script>\r?\n([\s\S]*?)<\/script>/)[1],ctx);
  timers.clear();
  return {get,timers,run:s=>vm.runInContext(s,ctx),fetch(fn){fetchImpl=fn;},timeout(){const pair=[...timers].find(([id,t])=>t.ms===15000);assert(pair);timers.delete(pair[0]);pair[1].fn();}};
@@ -19,6 +19,20 @@ test('only dub candidates; detected failure advances once, then opens options wi
 test('loaded iframe is not interrupted by an assumed playback deadline',async()=>{const s=setup();s.fetch(async()=>({ok:true,json:async()=>({players:sources})}));await s.run("abrirPlayer(238,'Filme')");s.get('frame').onload();assert.equal(s.timers.size,0);assert.equal(s.get('frame').src,sources[0].url);assert(!s.get('loading').classList.contains('vis'));});
 test('close cancels stale source response and stale load events',async()=>{const s=setup();let resolve;s.fetch(()=>new Promise(r=>resolve=r));const pending=s.run("abrirPlayer(238,'Filme')");s.run('fechar()');resolve({ok:true,json:async()=>({players:sources})});await pending;assert.equal(s.run('players.length'),0);assert.equal(s.get('frame').src,'about:blank');assert(!s.get('player').classList.contains('ativo'));assert.equal(s.timers.size,0);});
 test('no dubbed candidate never loads a subtitled source or an ad window',async()=>{const s=setup();s.fetch(async()=>({ok:true,json:async()=>({players:[sources[2]]})}));await s.run("abrirPlayer(238,'Filme')");assert.equal(s.get('frame').src,'about:blank');assert.equal(s.get('opcoes').hidden,false);assert.equal(s.get('abrir-externo').getAttribute('href'),null);});
+test('título sem fonte limpa abre a última opção sozinho, mas só depois de conferir se ela tem o filme',async()=>{
+ const s=setup();const an=setup();
+ const ad={nome:'Fonte com anúncios',dub:false,optional:true,funcionou:true,manual:true,index:8,url:'https://fonte.example/filme',urlCompatibilidade:'/assistir.html?id=238&source=8'};
+ const consultas=[];
+ s.fetch(async url=>{
+   consultas.push(String(url));
+   if(String(url).indexOf('/api/fonte')===0)return {ok:true,json:async()=>({ok:true})};
+   return {ok:true,json:async()=>({players:[ad]})};
+ });
+ await s.run("abrirPlayer(238,'Filme')");
+ assert.ok(consultas.some(u=>u.indexOf('/api/fonte')===0),'precisa conferir a fonte antes de abrir: ' + consultas.join(' | '));
+ assert.equal(s.get('frame').src,ad.url,'abre a fonte que tem o título, dentro do aplicativo');
+ assert.equal(s.get('opcoes').hidden,true,'não deve abrir o painel na cara do usuário');
+});
 test('external mode stops old playback and validates local links',async()=>{const s=setup();s.fetch(async()=>({ok:true,json:async()=>({players:sources})}));await s.run("abrirPlayer(238,'Filme')");s.run('pausarParaExterno({preventDefault(){throw Error()}})');assert.equal(s.get('frame').src,'about:blank');assert.equal(s.timers.size,0);for(const bad of ['https://evil.example/assistir/238/1','/assistir/238/9','/assistir/238/1?redirect=foo','javascript:alert(1)',null])assert.equal(s.run(`urlExterna(${JSON.stringify(bad)})`),null);});
 
 test('transient direct failure retries once and does not open source selection',async()=>{
