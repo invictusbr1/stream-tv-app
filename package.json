@@ -26,7 +26,8 @@
       "launcher.js",
       "playback-source.js",
       "android/app/src/main/assets/catalog.js",
-      "pwa/page.cjs"
+      "pwa/page.cjs",
+      "vixsrc-source.js"
     ],
     "assets": [
       "index.html",

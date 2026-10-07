@@ -311,6 +311,25 @@ app.get('/api/playback/serie/:id/:season/:episode', async (req, res) => {
     }
 });
 
+// ============================================================
+// FULL HD SEM ANÚNCIO — resolvedor do Vixsrc (endereço direto do vídeo).
+// Usado como opção de melhor qualidade; o áudio é o da fonte (normalmente original).
+// ============================================================
+app.get('/api/stream-hd', async (req, res) => {
+    const tipo = String(req.query.tipo || 'movie') === 'tv' ? 'tv' : 'movie';
+    const id = String(req.query.id || '');
+    const temporada = String(req.query.season || '1');
+    const episodio = String(req.query.episode || '1');
+    if (!/^\d{1,10}$/.test(id)) return res.status(400).json({ ok: false });
+    res.setHeader('Cache-Control', 'no-store');
+    try {
+        const dados = await require('./vixsrc-source').resolver(id, tipo, temporada, episodio);
+        res.json({ ok: true, ...dados });
+    } catch (erro) {
+        res.json({ ok: false, motivo: 'Fonte Full HD indisponível para este título.' });
+    }
+});
+
 const TMDB_KEY = 'b803dfcad0baeafbb66a673ffe98a5ef';
 
 const libraryCatalog=require('./android/app/src/main/assets/catalog').createCatalog(async (url,options)=>{const r=await axios.get(url,{signal:options?.signal});return {ok:true,json:async()=>r.data};},TMDB_KEY);
