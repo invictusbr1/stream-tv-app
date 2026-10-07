@@ -4,3 +4,40 @@ test('searches survive reopening, deduplicate and allow individual/all deletion'
 test('progress survives reopening, distinguishes episodes and removes completed films',()=>{const {storage,data}=setup(),film={id:238,titulo:'Filme',capa:'poster'};data.save(film,120,1000);assert.equal(createPersonal(storage).position(film),120);data.save({...film,episode:{season:1,number:1}},60,1000);assert.equal(data.history().length,2);data.save(film,980,1000);assert.equal(data.position(film),0);assert.equal(data.history().length,1);data.remove(data.history()[0]);assert.equal(data.history().length,0);});
 test('failed startup cannot overwrite saved position and unavailable storage does not crash',()=>{const {data}=setup(),film={id:238,titulo:'Filme'};data.save(film,120,1000);data.save(film,0,NaN);assert.equal(data.position(film),120);const unavailable=createPersonal({getItem(){throw Error()},setItem(){throw Error()}});unavailable.search('Teste');assert.deepEqual(unavailable.history(),[]);});
 test('manual external bookmark preserves minutes even without duration',()=>{const {data,storage}=setup(),film={id:238615,titulo:'Sem Retorno'};data.save(film,1930,null,true);const reopened=createPersonal(storage);assert.equal(reopened.position(film),1930);assert.equal(reopened.history()[0].manual,true);data.save(film,null,null);assert.equal(data.history()[0].manual,true);assert.equal(data.position(film),1930);data.save(film,1940,7000);assert.equal(data.history()[0].manual,false);});
+
+test('favoritar guarda o título, sobrevive ao reabrir e pode ser desfeito',()=>{
+ const {storage,data}=setup();const serie={id:1399,titulo:'Game of Thrones',capa:'capa.jpg',tipo:'tv',ano:'2011',nota:'8.4'};
+ assert.equal(data.isFavorite(1399),false);
+ assert.equal(data.toggleFavorite(serie),true);
+ assert.equal(data.isFavorite(1399),true);
+ const reopened=createPersonal(storage);
+ assert.equal(reopened.favorites().length,1);
+ assert.equal(reopened.favorites()[0].titulo,'Game of Thrones');
+ assert.equal(reopened.favorites()[0].tipo,'tv');
+ data.toggleFavorite({id:1399,titulo:'Game of Thrones'});
+ assert.equal(data.isFavorite(1399),false);
+ assert.equal(createPersonal(storage).favorites().length,0);
+ data.toggleFavorite({id:'não é id',titulo:'Inválido'});
+ assert.equal(data.favorites().length,0);
+});
+
+test('contador sabe quais episódios da temporada já foram vistos',()=>{
+ const {data,storage}=setup();const serie={id:1399,titulo:'Game of Thrones'},ep=(n)=>({...serie,episode:{season:1,number:n}});
+ data.markWatched(ep(1));data.markWatched(ep(2));
+ assert.equal(data.isWatched(ep(1)),true);
+ assert.equal(data.isWatched(ep(3)),false);
+ assert.equal(data.isWatched({...serie,episode:{season:2,number:1}}),false);
+ const vistos=createPersonal(storage).watched().filter(x=>String(x.id)==='1399'&&x.episode.season===1).map(x=>x.episode.number);
+ assert.deepEqual(vistos.sort(),[1,2]);
+ data.markWatched(ep(1),false);
+ assert.equal(data.isWatched(ep(1)),false);
+ assert.equal(createPersonal(storage).watched().length,1);
+});
+
+test('terminar um episódio marca ele como assistido sozinho',()=>{
+ const {data}=setup();const serie={id:1399,titulo:'Game of Thrones',episode:{season:1,number:5}};
+ data.save(serie,300,1500);
+ assert.equal(data.isWatched(serie),false);
+ data.save(serie,1490,1500);
+ assert.equal(data.isWatched(serie),true,'faltando menos de 30 segundos conta como assistido');
+});

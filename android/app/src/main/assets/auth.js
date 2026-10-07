@@ -46,7 +46,13 @@
 
   function localData() {
     const read = key => { try { return JSON.parse(localStorage.getItem(key) || '[]'); } catch { return []; } };
-    return { progress: read('streamtv-progress').slice(0, 100), searches: read('streamtv-searches').slice(0, 100), dispositivos: atualizarMeuDispositivo() };
+    return {
+      progress: read('streamtv-progress').slice(0, 100),
+      searches: read('streamtv-searches').slice(0, 100),
+      favoritos: read('streamtv-favoritos').slice(0, 300),
+      assistidos: read('streamtv-assistidos').slice(0, 800),
+      dispositivos: atualizarMeuDispositivo()
+    };
   }
 
   // ---------------------------------------------------------------
@@ -231,11 +237,13 @@
     if (!session?.access_token) return;
     const cloud = session.user?.user_metadata?.streamtv;
     const local = localData();
-    if ((!local.progress.length && !local.searches.length) && cloud) {
+    if ((!local.progress.length && !local.searches.length && !(local.favoritos || []).length) && cloud) {
       try {
         localStorage.setItem('streamtv-progress', JSON.stringify(Array.isArray(cloud.progress) ? cloud.progress : []));
         localStorage.setItem('streamtv-searches', JSON.stringify(Array.isArray(cloud.searches) ? cloud.searches : []));
-        window.StreamPersonal?.render(); window.StreamPersonal?.renderSearch();
+        localStorage.setItem('streamtv-favoritos', JSON.stringify(Array.isArray(cloud.favoritos) ? cloud.favoritos : []));
+        localStorage.setItem('streamtv-assistidos', JSON.stringify(Array.isArray(cloud.assistidos) ? cloud.assistidos : []));
+        window.StreamPersonal?.render(); window.StreamPersonal?.renderSearch(); window.StreamPersonal?.renderFavoritos?.();
       } catch { /* armazenamento local pode estar indisponível */ }
     }
     await syncCloud();
