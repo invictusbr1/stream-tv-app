@@ -19,13 +19,19 @@ test('o Top 10 do dia (filmes e séries) é buscado uma vez e atualizado em inte
  assert.equal(s.requests.filter(x=>x==='/api/alta?tipo=tv').length,2);
 });
 
-test('o menu de categorias fica ancorado na tela, e não no botão, para não abrir fora dela',()=>{
+test('a gaveta de categorias é fixa na tela (nunca abre fora dela) e o celular usa barra de baixo',()=>{
  const html=fs.readFileSync(__dirname+'/index.html','utf8');
- const painel=html.match(/\.menu-cat-painel\{[^}]*\}/);
- assert.ok(painel,'precisa existir a regra do painel do menu');
+ const gaveta=html.match(/\.gaveta\{[^}]*\}/);
+ assert.ok(gaveta,'precisa existir a regra da gaveta');
+ assert.match(gaveta[0],/position:fixed/,'a gaveta fica presa à tela');
+ assert.match(gaveta[0],/inset:0/);
+ const painel=html.match(/\.gaveta-painel\{[^}]*\}/);
+ assert.ok(painel,'precisa existir a regra do painel da gaveta');
  assert.match(painel[0],/position:absolute/);
- assert.match(painel[0],/right:4vw/,'ancorado na borda da tela');
- assert.match(painel[0],/width:min\(320px,88vw\)/);
- assert.ok(!/\.menu-cat\{position:relative/.test(html),'o botão ⋯ não pode ser a âncora do painel (abria fora da tela no celular)');
- assert.match(html,/@media\(max-width:900px\)\{\.nav-chips\{display:none!important\}\.menu-cat\{display:block\}\}/,'no celular a barra some e o ⋯ aparece');
+ assert.match(painel[0],/left:0/);
+ assert.match(painel[0],/width:min\(330px,88vw\)/,'nunca passa da largura da tela');
+ assert.match(html,/@media\(max-width:900px\)\{[\s\S]*?\.nav-chips\{display:none!important\}/,'no celular a barra de cima some');
+ assert.match(html,/\.bottom-nav\{display:flex;position:fixed/,'no celular aparece a barra de navegação de baixo');
+ assert.match(html,/id="gaveta-categorias"/);
+ assert.match(html,/id="bottom-nav"/);
 });

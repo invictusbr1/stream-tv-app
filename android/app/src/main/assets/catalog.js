@@ -17,11 +17,15 @@
             return value;
         }
         function movie(f) {
+            // Nomes de gênero em português, usados no destaque da tela inicial.
+            const GENEROS = {28:'Ação',12:'Aventura',16:'Animação',35:'Comédia',80:'Crime',99:'Documentário',18:'Drama',10751:'Família',14:'Fantasia',36:'História',27:'Terror',10402:'Música',9648:'Mistério',10749:'Romance',878:'Ficção científica',10770:'Cinema TV',53:'Suspense',10752:'Guerra',37:'Faroeste',10759:'Ação e aventura',10762:'Infantil',10763:'Notícias',10764:'Reality show',10765:'Ficção científica e fantasia',10766:'Novela',10767:'Talk show',10768:'Guerra e política'};
+            const generos = (f.genre_ids || []).map(id => GENEROS[id]).filter(Boolean).slice(0, 3);
             return { id: f.id, tipo: f.media_type==='tv'||(!f.title&&f.name)?'tv':'movie', titulo: f.title || f.name || 'Sem título', sinopse: f.overview || '',
                 nota: f.vote_average ? Number(f.vote_average).toFixed(1) : 'N/A',
                 ano: (f.release_date || f.first_air_date || '').slice(0, 4),
                 capa: f.poster_path ? `https://image.tmdb.org/t/p/w500${f.poster_path}` : '',
-                fundo: f.backdrop_path ? `https://image.tmdb.org/t/p/w1280${f.backdrop_path}` : '' };
+                fundo: f.backdrop_path ? `https://image.tmdb.org/t/p/w1280${f.backdrop_path}` : '',
+                generos };
         }
         async function discover(params, signal) {
             return ((await tmdb('discover/movie', { include_adult: 'false', page: '1', ...params }, signal)).results || []).map(movie);
@@ -115,12 +119,21 @@
                 const lista=(d.results||[]).filter(x=>!x.media_type||x.media_type!=='person').slice(0,10);
                 const comStreamings=await Promise.all(lista.map(async x=>{
                     const base=movie({...x,media_type:tipoAlta});
+                    // A arte com o nome do título (como nos streamings) e onde
+                    // ele está disponível no Brasil.
+                    let logo='';
+                    try{
+                        const img=await tmdb(`${tipoAlta}/${x.id}/images`,{include_image_language:'pt,en,null'},signal);
+                        const logos=(img.logos||[]).slice().sort((a,b)=>(b.vote_average||0)-(a.vote_average||0));
+                        const escolhido=logos.find(l=>l.iso_639_1==='pt')||logos.find(l=>l.iso_639_1==='en')||logos[0];
+                        if(escolhido&&escolhido.file_path)logo=`https://image.tmdb.org/t/p/w500${escolhido.file_path}`;
+                    }catch{}
                     try{
                         const p=await tmdb(`${tipoAlta}/${x.id}/watch/providers`,{},signal);
                         const br=(p.results&&p.results.BR)||{};
                         const nomes=[...(br.flatrate||[]),...(br.free||[]),...(br.ads||[])].map(v=>v.provider_name).filter(Boolean);
-                        return {...base,streamings:[...new Set(nomes)].slice(0,3)};
-                    }catch{return {...base,streamings:[]};}
+                        return {...base,logo,streamings:[...new Set(nomes)].slice(0,3)};
+                    }catch{return {...base,logo,streamings:[]};}
                 }));
                 return {tipo:tipoAlta,items:comStreamings,checkedAt:new Date().toISOString()};
             }

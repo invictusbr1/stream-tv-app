@@ -45,7 +45,52 @@ function atualizarFavoritoDaSerie(f){const botao=el('series-fav');if(!botao)retu
    const atualizadoEm=d.checkedAt?String(d.checkedAt).slice(8,10)+'/'+String(d.checkedAt).slice(5,7):'';
    el(idNota).textContent=`Em alta hoje (${atualizadoEm}) · atualizado às ${hora} · toque para abrir. Atualiza sozinho todo dia.`;
  }
- function paintAlta(dados){paintTop(dados.filmes,'movie');paintTop(dados.series,'tv');}
+ function paintAlta(dados){paintTop(dados.filmes,'movie');paintTop(dados.series,'tv');montarDestaques(dados.filmes.items,dados.series.items);}
+ // ---------------------------------------------------------------
+ // Destaque grande da tela inicial, no estilo dos streamings: a arte do
+ // título, o ano, o gênero, "Assistir agora", o "+" e as bolinhas que
+ // trocam de título sozinhas.
+ // ---------------------------------------------------------------
+ let destaques=[],destaqueAtual=0,destaqueTimer=null;
+ function destaqueAtivo(){return destaques.length>0;}
+ function atualizarBotaoDestaque(f){const b=el('hero-add');if(!b)return;const marcado=Boolean(window.StreamPersonal?.isFavorite?.(f.id));b.setAttribute('aria-pressed',String(marcado));b.textContent=marcado?'✓':'+';b.title=marcado?'Remover dos favoritos':'Guardar em Favoritos';}
+ function mostrarDestaque(indice){
+   if(!destaques.length)return;
+   destaqueAtual=(indice+destaques.length)%destaques.length;
+   const f=destaques[destaqueAtual];
+   const imagem=el('hero-image');if(imagem){imagem.hidden=false;imagem.src=f.fundo||f.capa||'';}
+   const arte=el('hero-logo');if(arte){if(f.logo){arte.hidden=false;arte.src=f.logo;arte.alt=f.titulo;}else{arte.hidden=true;arte.removeAttribute('src');}}
+   const titulo=el('hero-title');titulo.hidden=Boolean(f.logo);titulo.textContent=f.titulo;
+   el('hero-eyebrow').textContent=f.tipo==='tv'?'Série em alta hoje':'Filme em alta hoje';
+   el('hero-meta').textContent=[f.ano,(f.generos||[]).join(' · '),f.nota&&f.nota!=='N/A'?`★ ${f.nota}`:''].filter(Boolean).join(' · ');
+   el('hero-description').textContent=f.sinopse||'';
+   const jogar=el('hero-play');jogar.hidden=false;jogar.onclick=()=>abrirPlayer(f.id,f.titulo);
+   const add=el('hero-add');if(add){add.hidden=false;atualizarBotaoDestaque(f);add.onclick=()=>{const personal=window.StreamPersonal;if(!personal?.toggleFavorite)return;personal.toggleFavorite(f);atualizarBotaoDestaque(f);personal.renderFavoritos?.();};}
+   const pontos=el('hero-dots');
+   if(pontos)[...pontos.children].forEach((b,i)=>b.setAttribute('aria-current',String(i===destaqueAtual)));
+   window.StreamPersonal?.remember(f);
+ }
+ function agendarDestaque(){clearTimeout(destaqueTimer);destaqueTimer=setTimeout(()=>{if(el('player').classList.contains('ativo')||document.hidden||el('hero').hidden)return agendarDestaque();mostrarDestaque(destaqueAtual+1);agendarDestaque();},7000);}
+ function montarDestaques(filmes,series){
+   const misturados=[];const limite=Math.max((filmes||[]).length,(series||[]).length);
+   for(let i=0;i<limite&&misturados.length<6;i++){
+     if((filmes||[])[i])misturados.push(filmes[i]);
+     if((series||[])[i]&&misturados.length<6)misturados.push(series[i]);
+   }
+   destaques=misturados.filter(x=>x&&(x.fundo||x.capa));
+   const pontos=el('hero-dots');
+   if(!destaques.length){if(pontos)pontos.hidden=true;return;}
+   if(pontos){
+     pontos.replaceChildren();pontos.hidden=destaques.length<2;
+     destaques.forEach((_,i)=>{const b=document.createElement('button');b.type='button';b.setAttribute('aria-label',`Destaque ${i+1} de ${destaques.length}`);b.onclick=()=>{mostrarDestaque(i);agendarDestaque();};pontos.append(b);});
+   }
+   mostrarDestaque(0);agendarDestaque();
+ }
+ function ligarArrasteDestaque(){
+   const palco=el('hero');if(!palco||palco.__arrasteLigado)return;palco.__arrasteLigado=true;let inicioX=null;
+   palco.addEventListener('pointerdown',e=>{if(e.target.closest('button'))return;inicioX=e.clientX;},{passive:true});
+   palco.addEventListener('pointerup',e=>{if(inicioX===null)return;const d=e.clientX-inicioX;inicioX=null;if(Math.abs(d)<45)return;mostrarDestaque(destaqueAtual+(d<0?1:-1));agendarDestaque();},{passive:true});
+ }
  async function refreshTop(){
    if(topBusy)return;topBusy=true;
    try{
@@ -84,7 +129,8 @@ function atualizarFavoritoDaSerie(f){const botao=el('series-fav');if(!botao)retu
   if(!lista.length){el('grid').replaceChildren();const aviso=document.createElement('p');aviso.className='msg';aviso.textContent='Você ainda não guardou nada aqui. Toque na ☆ de um filme ou de uma série para ele aparecer nesta aba.';el('grid').append(aviso);return;}
   renderizar(lista);
  }
- return {reabrir,open,browse,search,home,closeSeries,favorites};
+ ligarArrasteDestaque();
+ return {reabrir,open,browse,search,home,closeSeries,favorites,destaqueAtivo,mostrarDestaque};
 })();
 // One inactivity clock controls both the title bar and bottom controls, including TV key events.
 window.StreamChrome=(()=>{
