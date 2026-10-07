@@ -226,9 +226,13 @@ function pontuarFonte(p){const tipo=filmeAtual?.episode?'serie':'filme';let nota
         if(medido.dublado===true)nota+=600;
     }if(p.dub===true)nota+=5000;if(!p.manual)nota+=2000;const qualidade=String(p.qualidade||'');if(/1080/.test(qualidade))nota+=900;else if(/720/.test(qualidade))nota+=400;if(p.funcionou)nota+=100;if(p.preferida)nota+=12000;const boa=fonteMemoria()[tipo];if(boa&&p.nome===boa)nota+=9000;try{const ruins=JSON.parse(localStorage.getItem('streamtv-fontes-ruins')||'{}')[tipo]||[];if(ruins.includes(p.nome))nota-=20000;}catch{}return nota;}
 function ordenarPorPrioridade(){players.sort((a,b)=>pontuarFonte(b)-pontuarFonte(a));}
+function guardarPosicaoDaSerie(){
+    if(!filmeAtual?.episode)return;
+    try{localStorage.setItem('streamtv-ultimo-episodio',JSON.stringify({id:filmeAtual.id,titulo:filmeAtual.titulo,season:filmeAtual.episode.season,episode:filmeAtual.episode.number}));}catch{}
+}
 function abrirFonteAutomatica(indice){
     const p=players[indice];if(!p)return false;
-    lembrarFonte(p.nome);mostrarStatus("Abrindo "+p.nome.replace(/\s*\(.*?\)/,"")+"…");
+    guardarPosicaoDaSerie();lembrarFonte(p.nome);mostrarStatus("Abrindo "+p.nome.replace(/\s*\(.*?\)/,"")+"…");
     const destino=urlExterna(p.urlCompatibilidade);
     if(!destino){carregarFonte(indice,true,true);return true;}
     // A página de reprodução do aplicativo não usa sandbox, então os players
@@ -253,7 +257,17 @@ carregarRankings();
 <div id="update-aviso" class="toast" hidden><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" style="fill:none;stroke:#ff5566;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round"><path d="M12 4v10"></path><path d="M8 10.5l4 4 4-4"></path><path d="M5 19h14"></path></svg><strong>Nova versão disponível</strong><span>Atualize sem perder o histórico.</span><a href="/check-updates">Atualizar</a><button class="fechar" aria-label="Fechar aviso" onclick="document.getElementById('update-aviso').hidden=true">×</button></div>
 <script>
 (function(){
-    const FEED='https://raw.githubusercontent.com/invictusbr1/stream-tv-atualizacoes/main/latest.json';
+    // Volta para a série de onde o usuário saiu (usado pelo botão voltar da reprodução).
+(function(){
+    const parametros=new URLSearchParams(location.search);
+    const serie=Number(parametros.get('serie')||0);
+    if(!serie)return;
+    const temporada=Number(parametros.get('temporada')||1);
+    const abrir=()=>window.StreamLibrary?.reabrir?.(serie,temporada);
+    if(document.readyState==='complete')setTimeout(abrir,300);
+    else window.addEventListener('load',()=>setTimeout(abrir,300));
+})();
+const FEED='https://raw.githubusercontent.com/invictusbr1/stream-tv-atualizacoes/main/latest.json';
     const topo=document.getElementById('topbar');
     const aoRolar=()=>topo&&topo.classList.toggle('rolado',window.scrollY>24);
     window.addEventListener('scroll',aoRolar,{passive:true});aoRolar();
