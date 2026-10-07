@@ -10,10 +10,12 @@ NO CELULAR OU NA TV BOX
 Mesma rede Wi-Fi, em casa: no celular, abra o endereço que aparece na janela do
 aplicativo (algo como http://192.168.1.6:3000).
 
-Fora de casa: dê dois cliques em "Acesso pelo celular.cmd". A janela mostra um
-endereço que começa com https. Abra no Safari ou no Chrome e use "Adicionar à
-Tela de Início". Deixe a janela aberta enquanto assiste. Esse endereço muda toda
-vez que você abre o atalho de novo.
+Fora de casa (endereço fixo): dê dois cliques em "Endereco fixo (Tailscale)" na
+Área de Trabalho uma única vez. Depois disso, o celular acessa sempre o mesmo
+endereço, de qualquer rede. O passo a passo está em ENDERECO-FIXO.md.
+
+Fora de casa (endereço temporário): dê dois cliques em "Conecta TV no celular.cmd".
+A janela mostra um endereço que começa com https, mas ele muda a cada abertura.
 
 APLICATIVO ANDROID
 Instale o APK mais recente por cima do atual, sem desinstalar, para manter o
