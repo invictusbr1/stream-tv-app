@@ -38,6 +38,21 @@ window.StreamPlayback = (() => {
         const nativas=Array.from(video?.textTracks||[]).filter(t=>!rotulos.has(t.label||t.language||''));
         return {tracks:[...doHls,...nativas],hlsCount:doHls.length};
     }
+    // Quando o áudio é o original, a legenda em português entra ligada sozinha.
+    function nomeDaTrilhaDeLegenda(t){return String(t?.name||t?.label||t?.lang||t?.language||'');}
+    function indiceLegendaPortugues(){
+        const trilhas=hls?.subtitleTracks||[];
+        const brasileira=trilhas.findIndex(t=>/portugu[eê]s\s*\(?brazil|brazil.*portugu/i.test(nomeDaTrilhaDeLegenda(t)));
+        if(brasileira>=0)return brasileira;
+        return trilhas.findIndex(t=>/portugu|brazil|brasil|^pt([-_]|$)/i.test(nomeDaTrilhaDeLegenda(t)));
+    }
+    function escolherLegendaAutomatica(){
+        if(subtitleChoice>=0||rotuloAudio==='Dublado')return false;
+        const indice=indiceLegendaPortugues();
+        if(indice<0)return false;
+        setSubtitle(indice);
+        return true;
+    }
     function subtitleMenu(){
         const tracks=listaDeLegendas().tracks;const select=el('subtitle-select');select.replaceChildren();
         const off=document.createElement('option');off.value='-1';off.textContent='Desativadas';select.append(off);
@@ -87,8 +102,8 @@ window.StreamPlayback = (() => {
     function qualityMenu(){const select=el('quality-select');select.hidden=false;select.replaceChildren();const values=[['best','Melhor disponível'],['-1','Automática (conexão)']];if(hls)hls.levels.forEach((l,i)=>{if(l.height)values.push([String(i),`${l.height}p`]);});for(const [value,label] of values){const o=document.createElement('option');o.value=value;o.textContent=label;select.append(o);}select.value='best';el('direct-quality').hidden=false;}
     function play(){if(!video)return;const target=video,token=generation;target.play().catch(e=>{if(token!==generation||target!==video)return;if(e.name==='NotAllowedError'){el('loading').classList.remove('vis');el('direct-resume').hidden=false;}else failure();});}
     function failure(){const pending=settle;settle=null;if(pending){stop();pending(false);}else if(direct){stop();mostrarErro('A reprodução foi interrompida.','Tente novamente ou escolha outra fonte em Opções.');}}
-        async function start(id,version,signal,caminho,urlDireta,originalPermitido){stop();const token=generation;let data;if(urlDireta){data={url:urlDireta,audio:'fonte',source:'Full HD',type:'hls'};}else{try{data=await lerJson(caminho||`/api/playback/${id}`,signal);}catch{return false;}}if(token!==generation||(signal&&signal.aborted)||version!==playerVersion)return false;if(urlDireta){if(!/^(\/api\/hls\?|https:\/\/vixsrc\.to\/)/i.test(data.url))return false;}else if(data.audio!=='pt-BR'||!/^(\/api\/hls\?|https:\/\/[a-z0-9-]+\.hclod\.qzz\.io\/)/i.test(data.url))return false;
-        rotuloAudio=originalPermitido?'som original':'Dublado';progressFilm=typeof filmeAtual!=='undefined'?{...filmeAtual}:null;resumeApplied=false;lastSaved=0;video=document.createElement('video');video.id='direct-video';video.controls=false;video.autoplay=true;video.playsInline=true;video.preload='auto';video.tabIndex=0;video.setAttribute('aria-label',originalPermitido?'Filme em Full HD':'Filme dublado');video.setAttribute('webkit-playsinline','');video.setAttribute('x-webkit-airplay','allow');video.style.cssText='width:100%;height:100%;object-fit:contain;background:#000';video.playbackRate=speed;try{video.volume=volume;video.muted=mudo;}catch{}atualizarVolume();el('frame').hidden=true;document.querySelector('.area-player').prepend(video);const speedSelect=el('speed-select');if(speedSelect)speedSelect.value=String(speed);audioMenu();direct=true;showControls();
+        async function start(id,version,signal,caminho,urlDireta,originalPermitido){stop();const token=generation;let data;if(urlDireta){data={url:urlDireta,audio:'fonte',source:'Full HD',type:'hls'};}else{try{data=await lerJson(caminho||`/api/playback/${id}`,signal);}catch{return false;}}if(token!==generation||(signal&&signal.aborted)||version!==playerVersion)return false;const enderecoAceito=/^(\/api\/hls\?|https:\/\/[a-z0-9-]+\.hclod\.qzz\.io\/)/i.test(data.url);if(urlDireta){if(!/^(\/api\/hls\?|https:\/\/vixsrc\.to\/)/i.test(data.url))return false;}else if(!enderecoAceito||(data.audio!=='pt-BR'&&!originalPermitido))return false;
+        rotuloAudio=data.audio==='pt-BR'?'Dublado':'som original';progressFilm=typeof filmeAtual!=='undefined'?{...filmeAtual}:null;resumeApplied=false;lastSaved=0;video=document.createElement('video');video.id='direct-video';video.controls=false;video.autoplay=true;video.playsInline=true;video.preload='auto';video.tabIndex=0;video.setAttribute('aria-label',rotuloAudio==='Dublado'?'Filme dublado':'Filme em alta definição');video.setAttribute('webkit-playsinline','');video.setAttribute('x-webkit-airplay','allow');video.style.cssText='width:100%;height:100%;object-fit:contain;background:#000';video.playbackRate=speed;try{video.volume=volume;video.muted=mudo;}catch{}atualizarVolume();el('frame').hidden=true;document.querySelector('.area-player').prepend(video);const speedSelect=el('speed-select');if(speedSelect)speedSelect.value=String(speed);audioMenu();direct=true;showControls();
         return new Promise(resolve=>{settle=resolve;const current=()=>token===generation&&version===playerVersion;const ready=()=>{if(!current()||!video.videoWidth||!video.videoHeight)return;clearTimeout(startupTimer);el('loading').classList.remove('vis');const done=settle;settle=null;if(done)done(true);};
             let recovered=false, nativeFallback=false;
             const awaitPicture=()=>{
@@ -120,7 +135,7 @@ window.StreamPlayback = (() => {
                 hls=new Hls({enableWorker:true,maxBufferLength:45,maxMaxBufferLength:90,backBufferLength:30,manifestLoadingMaxRetry:2,levelLoadingMaxRetry:2,fragLoadingMaxRetry:3,fragLoadingRetryDelay:700,abrEwmaDefaultEstimate:1200000});
                 hls.on(Hls.Events.MANIFEST_PARSED,()=>{if(!current())return;if(!originalPermitido&&!enforceAudio())return;qualityMenu();quality('best');audioMenu();subtitleMenu();setSubtitle(subtitleChoice);play();});
                 hls.on(Hls.Events.LEVEL_SWITCHED,(_,d)=>{if(current()){const l=hls.levels[d.level];qualityInfo(l);}});
-                hls.on(Hls.Events.SUBTITLE_TRACKS_UPDATED,()=>{if(current()){subtitleMenu();setSubtitle(subtitleChoice);}});
+                hls.on(Hls.Events.SUBTITLE_TRACKS_UPDATED,()=>{if(!current())return;subtitleMenu();if(!escolherLegendaAutomatica())setSubtitle(subtitleChoice);});
                 hls.on(Hls.Events.AUDIO_TRACKS_UPDATED,()=>{if(current()){if(!originalPermitido)enforceAudio();audioMenu();}});
                 hls.on(Hls.Events.AUDIO_TRACK_SWITCHED,()=>{if(current()&&!originalPermitido)enforceAudio();});
                 hls.on(Hls.Events.ERROR,(_,d)=>{if(!current()||!d.fatal)return;if(d.type==='mediaError'&&!recovered){recovered=true;hls.recoverMediaError();clearTimeout(startupTimer);startupTimer=setTimeout(()=>{if(current())failure();},15000);}else failure();});hls.loadSource(data.url);hls.attachMedia(video);
@@ -140,7 +155,7 @@ window.StreamPlayback = (() => {
     function seek(seconds){if(video&&Number.isFinite(video.duration))video.currentTime=Math.max(0,Math.min(video.duration,video.currentTime+seconds));showControls();}
     // Mover o dedo ou o mouse traz os controles de volta enquanto o vídeo roda.
     document.addEventListener('pointermove',()=>{if(direct&&video)showControls();},{passive:true});
-    return {start,stop,play,quality,toggle,seek,showControls,setSubtitle,saveProgress,setSpeed,setAudio,audioMenu,setVolume,toggleMute,irPara,isActive:()=>direct};
+    return {start,stop,play,quality,toggle,seek,showControls,setSubtitle,saveProgress,setSpeed,setAudio,audioMenu,setVolume,toggleMute,irPara,isActive:()=>direct,estado:()=>({audio:rotuloAudio,legenda:subtitleChoice})};
 })();
 function mostrarIconeTelaCheia(ativo){const b=el('fullscreen-toggle');if(!b)return;b.textContent=ativo?'⤡':'⛶';b.setAttribute('aria-label',ativo?'Sair da tela cheia':'Tela cheia');}
 window.StreamSetFullscreen=function(enabled){el('player').classList.toggle('expanded',enabled);mostrarIconeTelaCheia(enabled);};

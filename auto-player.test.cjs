@@ -40,10 +40,12 @@ test('episodes cannot accidentally start a movie with the same TMDB id',async()=
  assert.equal(s.run("urlExterna('/assistir.html?type=tv&id=1399&season=2&episode=4&source=1')"),'http://localhost:3106/assistir.html?type=tv&id=1399&season=2&episode=4&source=1');
  assert.equal(s.run("urlExterna('/assistir.html?type=tv&id=1399&season=2&episode=4&source=1&extra=x')"),null);
 });
-test('manual episode sources remain visible and open the validated compatibility page',async()=>{
+test('manual episode sources remain visible and open inside the player, without leaving the app',async()=>{
  const s=setup();const p={nome:'Doramogo',directory:'doramogo',optional:true,manual:true,dub:false,funcionou:true,urlCompatibilidade:'/assistir.html?type=tv&id=94796&season=1&episode=2&source=3'};
  s.fetch(async()=>({ok:true,json:async()=>({players:[p]})}));await s.run("abrirPlayer(94796,'Dorama',{season:1,number:2})");assert.equal(s.get('opcoes').hidden,false);assert(!s.get('loading').classList.contains('vis'));assert.equal(s.get('frame').src,'about:blank');
- s.get('fontes').children[0].onclick();assert.equal(s.run('location.href'),'http://localhost:3106'+p.urlCompatibilidade);
+ s.run("players=players.map(x=>({...x,url:'https://doramogo.example/episodio'}))");s.get('fontes').children[0].onclick();
+ assert.equal(s.run('location.href'),undefined,'a fonte abre dentro do aplicativo, sem trocar de página');
+ assert.equal(s.get('frame').src,'https://doramogo.example/episodio','a fonte escolhida carrega no próprio player');
  for(const bad of ['/assistir.html?id=238&source=11','/assistir.html?id=238&source=10&redirect=x','/assistir.html?type=tv&id=94796&season=1&episode=2&source=9'])assert.equal(s.run(`urlExterna(${JSON.stringify(bad)})`),null);
  assert.equal(s.run("urlExterna('/assistir.html?type=tv&id=94796&season=1&episode=2&source=7')"),'http://localhost:3106/assistir.html?type=tv&id=94796&season=1&episode=2&source=7');
  assert.equal(s.run("urlExterna('/assistir.html?id=238&source=10')"),'http://localhost:3106/assistir.html?id=238&source=10');
@@ -54,7 +56,8 @@ test('episode opens automatically on the best scored source',async()=>{
  s.fetch(async()=>({ok:true,json:async()=>({players:[p2,p1]})}));
  await s.run("abrirPlayer(94796,'Episode',{season:1,number:2})");
  assert.equal(s.get('opcoes').hidden,true,'painel não deve aparecer');
- assert.equal(s.run('location.href'),'http://localhost:3106'+p1.urlCompatibilidade,'abre na melhor fonte, não numa busca');
+ assert.equal(s.get('frame').src,p1.url,'abre na melhor fonte, dentro do aplicativo');
+ assert.equal(s.run('location.href'),undefined,'sem sair da tela do player');
 });
 test('o robô usa a verificação medida: fonte marcada como indisponível perde a vez',async()=>{
  const s=setup();
@@ -64,5 +67,5 @@ test('o robô usa a verificação medida: fonte marcada como indisponível perde
  const boa={nome:'VidSrc (séries)',optional:true,dub:false,funcionou:true,manual:true,qualidade:'até 1080p · com anúncios',url:'https://vidsrc.to/embed/tv/94796/1/2',urlCompatibilidade:'/assistir.html?type=tv&id=94796&season=1&episode=2&source=1'};
  s.fetch(async()=>({ok:true,json:async()=>({players:[ruim,boa]})}));
  await s.run("abrirPlayer(94796,'Episode',{season:1,number:2})");
- assert.equal(s.run('location.href'),'http://localhost:3106'+boa.urlCompatibilidade,'prefere a fonte que passou na verificação');
+ assert.equal(s.get('frame').src,boa.url,'prefere a fonte que passou na verificação, dentro do aplicativo');
 });

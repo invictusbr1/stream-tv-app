@@ -353,9 +353,12 @@ app.get('/api/playback/:id', async (req, res) => {
 });
 
 // ============================================================
-// SÉRIE SEM ANÚNCIO — usa a mesma fonte limpa dos filmes.
-// Se a fonte exigir sessão, basta informar o cookie em config.local.json
-// (watchplayCookie) ou na variável WATCHPLAY_COOKIE.
+// EPISÓDIOS — o robô procura sozinho a melhor opção, na ordem da regra do
+// aplicativo: primeiro dublado e limpo; depois alta definição limpa, com
+// legenda em português quando a fonte tiver. Sempre entregue pelo próprio
+// aplicativo, então nada abre em página de terceiros e não há anúncio.
+// A sessão da fonte dublada (opcional) vem de config.local.json
+// (watchplayCookie) ou da variável WATCHPLAY_COOKIE.
 // ============================================================
 app.get('/api/playback/serie/:id/:season/:episode', async (req, res) => {
     const { id, season, episode } = req.params;
@@ -363,17 +366,19 @@ app.get('/api/playback/serie/:id/:season/:episode', async (req, res) => {
     res.setHeader('Cache-Control', 'no-store');
     const cookie = process.env.WATCHPLAY_COOKIE || LOCAL_CONFIG.watchplayCookie || '';
     try {
-        const r = await axios.get(`https://v2.watchplay.shop/serie/${id}/${season}/${episode}`, {
-            timeout: 12000,
-            maxRedirects: 0,
-            maxContentLength: 1024 * 1024,
-            responseType: 'text',
-            validateStatus: status => status === 200,
-            headers: { ...H, ...(cookie ? { Cookie: cookie } : {}) }
+        const escolhido = await require('./series-source').resolverEpisodio({ tmdbId: id, temporada: season, episodio: episode, cookie });
+        if (!escolhido) throw new Error('sem fonte');
+        res.json({
+            url: escolhido.urlAplicativo,
+            audio: escolhido.audio,
+            source: escolhido.fonte,
+            type: 'hls',
+            resolucao: escolhido.resolucao,
+            legendas: escolhido.legendas || [],
+            legendaPortugues: Boolean(escolhido.legendaPortugues)
         });
-        res.json(require('./playback-source').parseWatchPlay(r.data));
-    } catch (erro) {
-        res.status(502).json({ error: 'Série dublada sem anúncio indisponível nesta fonte.' });
+    } catch {
+        res.status(502).json({ error: 'Nenhuma fonte limpa respondeu para este episódio agora.' });
     }
 });
 
@@ -412,6 +417,9 @@ app.get('/legendas.js',(req,res)=>res.type('js').send(fs.readFileSync(path.join(
 
 app.get('/assistir.html',(req,res)=>res.type('html').send(fs.readFileSync(path.join(__dirname,'android/app/src/main/assets/assistir.html'))));
 app.get('/catalog.js',(req,res)=>res.type('js').send(fs.readFileSync(path.join(__dirname,'android/app/src/main/assets/catalog.js'))));
+// A página de reprodução com anúncios usa este arquivo; sem a rota ele
+// respondia 404 e a página perdia os controles no computador.
+app.get('/android.js',(req,res)=>res.type('js').send(fs.readFileSync(path.join(__dirname,'android/app/src/main/assets/android.js'))));
 app.get('/config.json',(req,res)=>res.json({
     tmdbKey: TMDB_KEY,
     app: 'desktop',
