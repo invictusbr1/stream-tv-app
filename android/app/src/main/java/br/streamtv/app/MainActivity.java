@@ -154,6 +154,30 @@ public final class MainActivity extends Activity {
 
     // Segunda opção dublada: o episódio que o PipocaCine publica em arquivo MP4
     // (720p, áudio em português). Lido da página da série, sem abrir nada.
+    private WebResourceResponse pipocaFilme(String id) {
+        try {
+            String html = lerPagina("https://pipocacine.lat/embed/" + id, "https://pipocacine.lat/");
+            if (html == null) return error(502);
+            Matcher bloco = Pattern.compile("var\\s+videoSources\\s*=\\s*(\\[[^\\]]*\\])").matcher(html);
+            if (!bloco.find()) return error(502);
+            JSONArray lista = new JSONArray(bloco.group(1).replace("\\/", "/"));
+            String escolhida = "";
+            for (int i = 0; i < lista.length(); i++) {
+                JSONObject item = lista.optJSONObject(i);
+                if (item == null) continue;
+                String src = item.optString("src", "");
+                if (src.isEmpty()) continue;
+                if (escolhida.isEmpty()) escolhida = src;
+                if (item.optString("label", "").toLowerCase().contains("dub")) { escolhida = src; break; }
+            }
+            if (escolhida.isEmpty()) return error(502);
+            String url = escolhida.startsWith("http") ? escolhida : new URL(new URL("https://pipocacine.lat/"), escolhida).toString();
+            Uri uri = Uri.parse(url);
+            if (!"https".equals(uri.getScheme()) || uri.getHost() == null || !uri.getHost().endsWith("pipocacine.lat")) return error(502);
+            return jsonMidia(url, "file", "PipocaCine");
+        } catch (Exception e) { return error(502); }
+    }
+
     private WebResourceResponse pipocaEpisodio(String id, String temporada, String episodio) {
         try {
             String html = lerPagina("https://pipocacine.lat/media/tv?id=" + id + "&s=" + temporada + "&e=" + episodio, "https://pipocacine.lat/");
@@ -237,7 +261,12 @@ public final class MainActivity extends Activity {
                 }
                 if (!trusted || !local(uri) || !"GET".equals(request.getMethod())) return error(403);
                 String path = uri.getPath();
-                if (path != null && path.matches("/api/playback/[0-9]{1,10}")) return directPlayback("https://v2.watchplay.shop/movie/" + path.substring("/api/playback/".length()));
+                if (path != null && path.matches("/api/playback/[0-9]{1,10}")) {
+                    String id = path.substring("/api/playback/".length());
+                    WebResourceResponse direto = directPlayback("https://v2.watchplay.shop/movie/" + id);
+                    if (direto != null && direto.getStatusCode() == 200) return direto;
+                    return pipocaFilme(id);
+                }
                 if (path != null && path.matches("/api/playback/serie/[0-9]{1,10}/[0-9]{1,3}/[1-9][0-9]{0,3}")) {
                     String[] partes = path.split("/");
                     return directEpisode(partes[4], partes[5], partes[6]);
