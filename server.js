@@ -277,6 +277,72 @@ app.get('/api/fonte', async (req, res) => {
 });
 app.get('/hls.min.js', (req, res) => res.type('js').send(fs.readFileSync(path.join(__dirname, 'node_modules/hls.js/dist/hls.min.js'))));
 app.get('/playback.js', (req, res) => res.type('js').send(fs.readFileSync(path.join(__dirname, 'playback.js'))));
+
+// ============================================================
+// ENCAMINHAMENTO DO VÍDEO — o provedor de mídia exige um "referer"
+// próprio que o navegador não consegue enviar. O aplicativo busca o
+// vídeo no servidor e repassa ao player, sem abrir páginas externas
+// (ou seja: sem anúncio no caminho do usuário).
+// ============================================================
+const midia = require('./midia-proxy');
+app.get('/api/hls', async (req, res) => {
+    let endereco;
+    let referer = '';
+    let pai = '';
+    try {
+        endereco = new URL(midia.textoDeBase64url(req.query.u));
+        if (req.query.r) referer = midia.textoDeBase64url(req.query.r);
+        if (req.query.p) pai = midia.textoDeBase64url(req.query.p);
+    } catch {
+        return res.sendStatus(400);
+    }
+    if (endereco.protocol !== 'https:' || !midia.hostPermitido(endereco.hostname)) return res.sendStatus(403);
+    const cabecalhosBase = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
+        Accept: '*/*'
+    };
+    if (req.headers.range) cabecalhosBase.Range = req.headers.range;
+    // Alguns provedores só liberam o vídeo quando o pedido vem da própria página
+    // do player. Tenta o endereço de origem informado e, se falhar, o endereço que
+    // indicou o vídeo.
+    const tentativas = [...new Set([referer, pai, midia.refererPadrao(endereco.hostname)].filter(Boolean))];
+    if (!tentativas.length) tentativas.push('');
+    let resposta = null;
+    for (const referencia of tentativas) {
+        const cabecalhos = { ...cabecalhosBase };
+        if (referencia) {
+            cabecalhos.Referer = referencia;
+            try { cabecalhos.Origin = new URL(referencia).origin; } catch { /* referer sem origem */ }
+        }
+        try {
+            const r = await fetch(endereco.href, { headers: cabecalhos, redirect: 'follow' });
+            if (r.ok || r.status === 206 || tentativas.length === 1) { resposta = { r, referencia }; break; }
+        } catch { /* tenta a próxima referência */ }
+    }
+    if (!resposta) return res.sendStatus(502);
+    const { r: respostaFinal, referencia: referenciaFinal } = resposta;
+    try {
+        const tipo = String(respostaFinal.headers.get('content-type') || '');
+        const ehLista = /mpegurl|m3u8/i.test(tipo) || /\.m3u8$/i.test(endereco.pathname);
+        if (ehLista) {
+            const texto = await respostaFinal.text();
+            res.setHeader('Content-Type', 'application/vnd.apple.mpegurl');
+            res.setHeader('Cache-Control', 'no-store');
+            return res.send(midia.reescreverPlaylist(texto, respostaFinal.url || endereco.href, referenciaFinal));
+        }
+        res.status(respostaFinal.status);
+        for (const nome of ['content-type', 'content-length', 'accept-ranges', 'content-range', 'last-modified', 'etag']) {
+            const valor = respostaFinal.headers.get(nome);
+            if (valor) res.setHeader(nome, valor);
+        }
+        if (!respostaFinal.body) return res.end();
+        const { Readable } = require('stream');
+        return Readable.fromWeb(respostaFinal.body).pipe(res);
+    } catch {
+        res.sendStatus(502);
+    }
+});
+
 app.get('/api/playback/:id', async (req, res) => {
     if (!/^\d{1,10}$/.test(req.params.id)) return res.sendStatus(400);
     res.setHeader('Cache-Control', 'no-store');
@@ -324,7 +390,9 @@ app.get('/api/stream-hd', async (req, res) => {
     res.setHeader('Cache-Control', 'no-store');
     try {
         const dados = await require('./vixsrc-source').resolver(id, tipo, temporada, episodio);
-        res.json({ ok: true, ...dados });
+        // O endereço é entregue pelo próprio aplicativo: o player não precisa
+        // falar direto com o provedor (que bloqueia o acesso entre sites).
+        res.json({ ok: true, ...dados, urlAplicativo: midia.urlViaProxy(dados.url, midia.refererPadrao('vixsrc.to')) });
     } catch (erro) {
         res.json({ ok: false, motivo: 'Fonte Full HD indisponível para este título.' });
     }

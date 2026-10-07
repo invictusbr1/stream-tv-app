@@ -50,5 +50,5 @@ $atual = Invoke-RestMethod -Uri "https://api.github.com/repos/$repo/contents/lat
 $envio = @{ message = "Publica atualização $release"; content = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($conteudo)); sha = $atual.sha } | ConvertTo-Json
 Invoke-RestMethod -Uri "https://api.github.com/repos/$repo/contents/latest.json" -Headers $headers -Method Put -Body $envio -ContentType 'application/json' | Out-Null
 
-Write-Output "Publicado: $release — $nome ($bytes bytes)"
+Write-Output "Publicado: $release - $nome ($bytes bytes)"
 Write-Output "sha256: $sha"
