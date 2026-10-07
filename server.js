@@ -100,6 +100,7 @@ app.post('/api/jarvis', async (req, res) => {
     res.status(502).json({ error: 'O Jarvis está indisponível no momento. Nenhuma cobrança foi iniciada pelo Conecta TV.' });
 });
 app.get(['/','/index.html'], (req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
     for (const file of PAGE_CANDIDATES) {
         try { return res.type('html').send(require('./pwa/page.cjs').webPage(fs.readFileSync(file, 'utf8'))); } catch { /* tenta o próximo local */ }
     }
@@ -276,7 +277,9 @@ app.get('/api/fonte', async (req, res) => {
     }
 });
 app.get('/hls.min.js', (req, res) => res.type('js').send(fs.readFileSync(path.join(__dirname, 'node_modules/hls.js/dist/hls.min.js'))));
-app.get('/playback.js', (req, res) => res.type('js').send(fs.readFileSync(path.join(__dirname, 'playback.js'))));
+// O player vai sem cache: a atualização vale na hora, sem o navegador ficar
+// com a versão antiga guardada.
+app.get('/playback.js', (req, res) => { res.setHeader('Cache-Control', 'no-store'); res.type('js').send(fs.readFileSync(path.join(__dirname, 'playback.js'))); });
 
 // ============================================================
 // ENCAMINHAMENTO DO VÍDEO — o provedor de mídia exige um "referer"
@@ -435,13 +438,13 @@ app.get('/api/motor/estado', (req, res) => res.json({ fontes: require('./fontes-
 
 const libraryCatalog=require('./android/app/src/main/assets/catalog').createCatalog(async (url,options)=>{const r=await axios.get(url,{signal:options?.signal});return {ok:true,json:async()=>r.data};},TMDB_KEY);
 app.get(['/api/explore','/api/genres','/api/top-br','/api/alta',/^\/api\/(tv|season|episode)\//],async(req,res)=>{try{res.json(await libraryCatalog.request(req.originalUrl));}catch{res.status(502).json({error:'Catálogo indisponível'});}});
-app.get('/personal.js',(req,res)=>res.sendFile(path.join(__dirname,'personal.js')));
-app.get('/library.js',(req,res)=>res.type('js').send(fs.readFileSync(path.join(__dirname,'library.js'))));
-app.get('/auth.js',(req,res)=>res.type('js').send(fs.readFileSync(path.join(__dirname,'auth.js'))));
-app.get('/jarvis.js',(req,res)=>res.type('js').send(fs.readFileSync(path.join(__dirname,'jarvis.js'))));
-app.get('/fontes.json',(req,res)=>res.type('json').sendFile(path.join(__dirname,'fontes.json')));
-app.get('/acesso.js',(req,res)=>res.type('js').send(fs.readFileSync(path.join(__dirname,'acesso.js'))));
-app.get('/legendas.js',(req,res)=>res.type('js').send(fs.readFileSync(path.join(__dirname,'legendas.js'))));
+app.get('/personal.js',(req,res)=>{res.setHeader('Cache-Control','no-store');res.sendFile(path.join(__dirname,'personal.js'));});
+app.get('/library.js',(req,res)=>{res.setHeader('Cache-Control','no-store');res.type('js').send(fs.readFileSync(path.join(__dirname,'library.js')));});
+app.get('/auth.js',(req,res)=>{res.setHeader('Cache-Control','no-store');res.type('js').send(fs.readFileSync(path.join(__dirname,'auth.js')));});
+app.get('/jarvis.js',(req,res)=>{res.setHeader('Cache-Control','no-store');res.type('js').send(fs.readFileSync(path.join(__dirname,'jarvis.js')));});
+app.get('/fontes.json',(req,res)=>{res.setHeader('Cache-Control','no-store');res.type('json').sendFile(path.join(__dirname,'fontes.json'));});
+app.get('/acesso.js',(req,res)=>{res.setHeader('Cache-Control','no-store');res.type('js').send(fs.readFileSync(path.join(__dirname,'acesso.js')));});
+app.get('/legendas.js',(req,res)=>{res.setHeader('Cache-Control','no-store');res.type('js').send(fs.readFileSync(path.join(__dirname,'legendas.js')));});
 
 app.get('/assistir.html',(req,res)=>res.type('html').send(fs.readFileSync(path.join(__dirname,'android/app/src/main/assets/assistir.html'))));
 app.get('/catalog.js',(req,res)=>res.type('js').send(fs.readFileSync(path.join(__dirname,'android/app/src/main/assets/catalog.js'))));
@@ -918,14 +921,38 @@ display:flex;align-items:center;justify-content:center;height:100vh;flex-directi
 }
 
 // ============================================================
-app.listen(PORT, '0.0.0.0', () => {
+// Se a porta preferida estiver ocupada (uma instância antiga, por exemplo), o
+// aplicativo não fica preso: assume a próxima porta livre e abre o navegador
+// nela, para o usuário nunca ver uma versão velha do player.
+function portaEstaUsada(porta) {
+    return new Promise(resolve => {
+        const teste = require('net').createServer();
+        teste.once('error', () => resolve(true));
+        teste.once('listening', () => teste.close(() => resolve(false)));
+        teste.listen(porta, '0.0.0.0');
+    });
+}
+async function portaLivre(preferida) {
+    for (let passo = 0; passo < 12; passo++) {
+        const candidata = Number(preferida) + passo;
+        if (!(await portaEstaUsada(candidata))) return candidata;
+    }
+    return Number(preferida);
+}
+
+(async () => {
+const PORTA_ESCOLHIDA = await portaLivre(PORT);
+process.env.CONECTA_PORTA = String(PORTA_ESCOLHIDA);
+if (Number(PORTA_ESCOLHIDA) !== Number(PORT)) console.log(`A porta ${PORT} já estava em uso (outra instância aberta). Usando a porta ${PORTA_ESCOLHIDA}.`);
+app.listen(PORTA_ESCOLHIDA, '0.0.0.0', () => {
     const privado = ip => /^192\.168\./.test(ip) || /^10\./.test(ip) || /^172\.(1[6-9]|2\d|3[01])\./.test(ip);
     const rede = Object.values(os.networkInterfaces()).flat()
         .filter(item => item && item.family === 'IPv4' && !item.internal)
         .map(item => item.address);
     const alvo = rede.find(privado) || rede[0];
     console.log('\n  Conecta TV está no ar.');
-    console.log(`  Neste computador  : http://localhost:${PORT}`);
-    if (alvo) console.log(`  No iPhone/celular : http://${alvo}:${PORT}   (mesma rede Wi-Fi)`);
-    console.log('  Reprodução dublada sem anúncio: WatchPlay. Último caso: PipocaCine e VidLink (com anúncios).\n');
+    console.log(`  Neste computador  : http://localhost:${PORTA_ESCOLHIDA}`);
+    if (alvo) console.log(`  No iPhone/celular : http://${alvo}:${PORTA_ESCOLHIDA}   (mesma rede Wi-Fi)`);
+    console.log('  Regra do aplicativo: dublado, sem anúncio e em HD.\n');
 });
+})();
