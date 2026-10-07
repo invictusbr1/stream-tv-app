@@ -68,14 +68,48 @@ https://tv.seudominio.com       -> Conecta TV
 https://painel.seudominio.com   -> Central
 ```
 
-## Qual escolher
+## Caminho 3 — Tailscale Funnel (público, grátis, sem domínio)
+
+Se você quer um endereço fixo **https que abre em qualquer navegador, sem
+instalar nada no outro aparelho** e não quer comprar domínio, o Tailscale tem
+isso: o Funnel. Ele publica um serviço da sua rede privada na internet, num
+endereço fixo do tipo `https://nome-do-pc.sua-rede.ts.net`.
+
+```powershell
+pwsh -File "C:\Users\tikto\Conecta TV\Endereco-Fixo-Tailscale.ps1" -Publico
+```
+
+Precisa ligar o Funnel uma vez no painel do Tailscale
+(`login.tailscale.com/admin/acls` → opção **Funnel**). Como o endereço fica
+público, mantenha o **código de acesso** ligado.
+
+Limite honesto: o Funnel é grátis para uso pessoal, mas passa pela sua conexão
+de casa e tem uso razoável — serve bem para uma pessoa assistindo, não para
+distribuir para muita gente.
+
+## Todas as opções de endereço fixo
+
+| Caminho | Custo | Quem consegue abrir | Precisa instalar no celular? | Observações |
+| --- | --- | --- | --- | --- |
+| **Tailscale (rede privada)** | grátis | só os seus aparelhos | sim (app Tailscale) | o mais simples e seguro; sem porta no roteador |
+| **Tailscale Funnel** | grátis | qualquer navegador | não | endereço `*.ts.net` fixo; limite de uso razoável |
+| **Cloudflare Tunnel + domínio próprio** | domínio (~R$ 10–40/ano) | qualquer navegador | não | endereço bonito (`tv.suacasa.com`), HTTPS automático |
+| **Cloudflare Tunnel + domínio grátis `eu.org`** | grátis | qualquer navegador | não | aprovação pode levar dias; depois funciona igual |
+| **ZeroTier** | grátis | só os seus aparelhos | sim | alternativa ao Tailscale; 25 aparelhos |
+| **ngrok (plano free)** | grátis | qualquer navegador | não | 1 endereço fixo, mas com **limite de banda** — não serve para vídeo longo |
+| **DuckDNS / No-IP + liberar porta no roteador** | grátis | qualquer navegador | não | precisa abrir porta no roteador; não funciona se a operadora usar CGNAT |
+| **IP fixo da operadora** | pago | qualquer navegador | não | peça à operadora; ainda precisa de HTTPS próprio |
+| **Servidor grátis na nuvem (Oracle Always Free, Hugging Face Spaces)** | grátis | qualquer navegador | não | computador ligado 24h; mais configuração e sujeito às regras do serviço |
+
+### Qual escolher
 
 | Situação | Melhor caminho |
 | --- | --- |
-| Celular/computador da família, uso pessoal | **Tailscale** |
-| Quero abrir na TV sem instalar nada nela | Cloudflare + domínio |
-| Não quero gastar nada e não quero conta | Tailscale (a conta é só para a rede privada) |
+| Uso da família, privacidade, zero custo | **Tailscale** (atalho já pronto) |
+| Quero abrir na TV sem instalar nada nela | **Tailscale Funnel** ou Cloudflare + domínio |
 | Quero endereço bonito tipo `tv.suacasa.com` | Cloudflare + domínio |
+| Não quero depender do PC ligado | servidor grátis na nuvem (Oracle Always Free) |
+| Quero o menor esforço | Tailscale |
 
 ## Depois de resolver
 

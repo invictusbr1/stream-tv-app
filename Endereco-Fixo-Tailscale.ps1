@@ -6,9 +6,13 @@
 #
 # Uso normal:  duplo clique no atalho "Endereço fixo (Tailscale)"
 # Conferir:    pwsh -File Endereco-Fixo-Tailscale.ps1 -Conferir
+# Público:     pwsh -File Endereco-Fixo-Tailscale.ps1 -Publico
+#              (cria também um endereço https fixo que abre em qualquer
+#               aparelho, sem instalar nada nele — recurso "Funnel")
 param(
     [switch]$Conferir,
-    [switch]$SemEspera
+    [switch]$SemEspera,
+    [switch]$Publico
 )
 $ErrorActionPreference = 'Stop'
 $raiz = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -106,12 +110,41 @@ Detalhe 'No celular: instale o aplicativo "Tailscale" (Play Store / App Store),'
 Detalhe 'entre com a MESMA conta, deixe ligado — e abra o endereço acima no navegador.'
 Detalhe 'Funciona em qualquer rede (4G, wi-Fi de outro lugar), sem abrir porta no roteador.'
 
+# ---------------------------------------------------------------- opcional: público
+$enderecoPublico = ''
+if ($Publico) {
+    Titulo 'Ligando o endereço público (Funnel)...'
+    Detalhe 'Libera o Conecta TV para abrir em qualquer navegador, sem instalar nada,'
+    Detalhe 'num endereço https fixo do tipo https://SEU-NOME.sua-rede.ts.net'
+    Detalhe 'Como fica público, o código de acesso (ACESSO_CODIGO) passa a ser obrigatório.'
+    if (-not $nome) {
+        Aviso 'Preciso do nome da máquina na rede (MagicDNS) para montar o endereço público.'
+        Detalhe 'Ligue o MagicDNS no painel do Tailscale e rode de novo com -Publico.'
+    } else {
+        try {
+            & $exeTailscale funnel --bg --https=443 "http://localhost:3000" 2>&1 | ForEach-Object { Detalhe $_ }
+            $situacao = (& $exeTailscale funnel status 2>&1 | Out-String)
+            $achado = [regex]::Match($situacao, 'https://[^\s]+')
+            if ($achado.Success) {
+                $enderecoPublico = $achado.Value
+                Ok "Endereço público ...: $enderecoPublico"
+            } else {
+                Aviso 'O Tailscale não confirmou o Funnel.'
+                Detalhe 'Ative em https://login.tailscale.com/admin/acls → opção "Funnel".'
+            }
+        } catch {
+            Aviso "Não consegui ligar o Funnel agora: $($_.Exception.Message)"
+        }
+    }
+}
+
 $conteudo = @(
     'ENDERECO FIXO DO CONECTA TV (Tailscale)',
     '',
     "Conecta TV .....: http://${ip}:3000",
     "Central ........: http://${ip}:4100",
     $(if ($nome) { "Pelo nome ......: http://${nome}:3000" } else { $null }),
+    $(if ($enderecoPublico) { "Publico (https) .: $enderecoPublico" } else { $null }),
     '',
     'No celular: aplicativo Tailscale ligado com a mesma conta.',
     'Nada disso fica exposto na internet: só os seus aparelhos entram.',
