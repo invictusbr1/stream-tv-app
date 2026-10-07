@@ -11,13 +11,17 @@ const express = require('express');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
-const seguranca = require(path.join(__dirname, '..', 'seguranca.js'));
+// require com caminho fixo: é assim que o empacotador (.exe) enxerga o arquivo.
+const seguranca = require('../seguranca.js');
 
 const app = express();
 const PORTA = Number(process.env.PORT || process.env.CENTRAL_PORT || 4100);
 // Onde os dados ficam. Em hospedagem, aponte CENTRAL_DADOS para um disco
-// permanente (volume) — senão o histórico se perde a cada atualização.
-const DADOS = String(process.env.CENTRAL_DADOS || '').trim() || path.join(__dirname, 'dados');
+// permanente (volume) — senão o histórico se perde a cada atualização. No
+// programa instalado (.exe), a pasta fica ao lado do executável, porque dentro
+// do pacote não dá para gravar.
+const DADOS = String(process.env.CENTRAL_DADOS || '').trim()
+    || (process.pkg ? path.join(path.dirname(process.execPath), 'dados') : path.join(__dirname, 'dados'));
 const ARQ_DISPOSITIVOS = path.join(DADOS, 'dispositivos.json');
 const ARQ_EVENTOS = path.join(DADOS, 'eventos.ndjson');
 const ACESSO = (() => {
@@ -26,12 +30,18 @@ const ACESSO = (() => {
     return {};
 })();
 
-// Chave do painel: sem ela o painel não abre.
+// Chave do painel: sem ela o painel não abre. No computador, a chave é criada
+// uma vez e guardada em dados/chave.txt — assim ela não muda a cada abertura.
+const ARQ_CHAVE = path.join(DADOS, 'chave.txt');
 let CHAVE = String(process.env.CENTRAL_KEY || ACESSO.centralKey || '').trim();
 let chaveGerada = false;
 if (CHAVE.length < 8) {
+    try { CHAVE = fs.readFileSync(ARQ_CHAVE, 'utf8').trim(); } catch { CHAVE = ''; }
+}
+if (CHAVE.length < 8) {
     CHAVE = crypto.randomBytes(9).toString('base64url');
     chaveGerada = true;
+    try { fs.mkdirSync(DADOS, { recursive: true }); fs.writeFileSync(ARQ_CHAVE, CHAVE + '\n'); } catch { /* sem permissão: fica só na memória */ }
 }
 // Token opcional que os aplicativos usam para reportar (se vazio, qualquer um
 // da rede pode reportar — só use assim em rede fechada).
@@ -158,6 +168,16 @@ app.post('/api/entrar', (req, res) => {
 app.get('/api/status', exigirChave, (req, res) => res.json(gerarStatus()));
 app.get('/api/health', (req, res) => res.json({ status: 'ok', app: 'central-conecta-tv' }));
 
+// Entrada pela chave no endereço: o atalho do computador abre o painel já
+// dentro, sem digitar nada (a chave vira cookie e sai da barra de endereços).
+app.get('/entrar', (req, res) => {
+    const enviada = String(req.query.chave || '').trim();
+    res.setHeader('Cache-Control', 'no-store');
+    if (enviada.length < 8 || enviada !== CHAVE) return res.status(401).type('html').send(paginaDeChave('Chave incorreta.'));
+    res.setHeader('Set-Cookie', `${COOKIE_CHAVE}=${encodeURIComponent(enviada)}; Path=/; Max-Age=15552000; HttpOnly; SameSite=Lax`);
+    res.redirect('/');
+});
+
 app.get('/', exigirChave, (req, res) => {
     res.setHeader('Cache-Control', 'no-store');
     res.type('html').send(fs.readFileSync(path.join(__dirname, 'painel.html'), 'utf8'));
@@ -258,11 +278,17 @@ if(r.ok){location.href='/';return;}document.querySelector('.erro').textContent='
     const livre = async porta => new Promise(resolve => { const s = require('net').createServer(); s.once('error', () => resolve(false)); s.once('listening', () => s.close(() => resolve(true))); s.listen(porta, '0.0.0.0'); });
     let porta = PORTA;
     for (let i = 0; i < 12; i++) { if (await livre(porta + i)) { porta = PORTA + i; break; } }
-    app.listen(porta, '0.0.0.0', () => {
+    // Escuta em IPv4 e IPv6: assim tanto "localhost" quanto "127.0.0.1" e o IP
+    // da rede da casa funcionam para abrir o painel e para receber os relatos.
+    app.listen(porta, () => {
+        // O atalho do computador usa estas informações para abrir o painel.
+        process.env.CENTRAL_PORTA = String(porta);
+        process.env.CENTRAL_CHAVE = CHAVE;
         console.log('\n  Central do Conecta TV está no ar.');
         console.log(`  Painel : http://localhost:${porta}`);
-        if (chaveGerada) console.log(`  Chave desta execução (guarde): ${CHAVE}\n  Para fixar, defina CENTRAL_KEY no ambiente.`);
-        else console.log('  Chave do painel: a que você configurou (CENTRAL_KEY).');
+        console.log(`  Chave do painel: ${CHAVE}`);
+        if (chaveGerada) console.log('  (chave criada agora e guardada em dados/chave.txt)');
+        console.log(`  No celular (mesma rede): http://SEU-IP:${porta}`);
         if (!TOKEN_APPS) console.log('  Aviso: sem CENTRAL_TOKEN, qualquer aparelho da rede pode enviar dados.\n');
     });
 })();

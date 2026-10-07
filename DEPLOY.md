@@ -7,14 +7,26 @@ São dois programas, com necessidades diferentes:
 | Programa | O que ele faz | Onde faz sentido rodar |
 | --- | --- | --- |
 | **Conecta TV** | busca a fonte do filme/série, encaminha o vídeo, guarda favoritos | **no seu computador** (é onde já está rodando, com o túnel "Acesso pelo celular") |
-| **Central** | recebe os relatos e mostra o painel de status | **num serviço sempre ligado** — Render free, ou o mesmo PC enquanto estiver ligado |
+| **Central** | recebe os relatos e mostra o painel de status | **no seu computador**, como programa instalado (atalho "Central Conecta TV" na Área de Trabalho) |
 
-Por que a central merece um servidor fixo: o celular na rua precisa alcançar o
-painel, e para isso o endereço não pode mudar. O túnel do PC muda de endereço a
-cada abertura; o Render (plano free) dá um endereço fixo em HTTPS.
+### Como está montado hoje (só no PC)
 
-Se preferir simplicidade total, rode os dois no PC e abra a central pelo mesmo
-túnel — funciona, só não tem endereço fixo.
+- Programa da central: `C:\Users\tikto\Conecta TV Central\Central Conecta TV.exe`
+  (atalho na Área de Trabalho). Ao abrir, ele cria a pasta `dados` ao lado do
+  programa com a chave do painel (`dados/chave.txt`) e abre o painel já logado
+  em `http://localhost:4100`.
+- O aplicativo Conecta TV aponta para ela pelo `config.local.json` que fica na
+  pasta do próprio aplicativo: `"central": "http://127.0.0.1:4100"`.
+- Resultado: cada sessão assistida no PC (ou pelo navegador/celular que use esse
+  servidor) aparece no painel, sem depender de internet ou serviço de terceiros.
+
+Usar `127.0.0.1` em vez de `localhost` evita um detalhe chato: no Windows,
+`localhost` pode resolver para IPv6 e a central escuta em IPv4.
+
+Para ver o painel no celular **na mesma rede Wi-Fi**: abra
+`http://SEU-IP:4100` (o IP aparece na janela do programa) e informe a chave. Se
+quiser ver **fora de casa**, aí sim vale publicar a central num serviço — o
+caminho está nas opções abaixo.
 
 ## Aplicativo da central (Android)
 

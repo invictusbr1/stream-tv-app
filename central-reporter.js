@@ -14,7 +14,11 @@ const LOCAL_CONFIG = (() => {
     return {};
 })();
 
-const ENDERECO = String(process.env.CENTRAL_URL || LOCAL_CONFIG.central || '').replace(/\/$/, '');
+// "localhost" pode resolver para IPv6 (::1) e a central do PC escuta em IPv4.
+// Trocamos por 127.0.0.1 para o relato nunca se perder nesse detalhe.
+const ENDERECO = String(process.env.CENTRAL_URL || LOCAL_CONFIG.central || '')
+    .replace(/\/$/, '')
+    .replace(/\/\/localhost(?=[:/]|$)/i, '//127.0.0.1');
 const TOKEN = String(process.env.CENTRAL_TOKEN || LOCAL_CONFIG.centralToken || '').trim();
 
 function configurada() { return Boolean(ENDERECO); }

@@ -1,5 +1,5 @@
 'use strict';
-const CACHE='conecta-tv-web-2.9.0';
+const CACHE='conecta-tv-web-2.9.1';
 const SHELL=['/','/library.js','/personal.js','/playback.js','/hls.min.js','/pwa/install.js','/manifest.webmanifest','/pwa/icon-180.png','/pwa/icon-192.png','/pwa/icon-512.png'];
 self.addEventListener('install',event=>event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(SHELL))));
 self.addEventListener('activate',event=>event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>(k.startsWith('streamtv-web-')||k.startsWith('conecta-tv-web-'))&&k!==CACHE).map(k=>caches.delete(k))))));

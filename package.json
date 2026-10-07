@@ -1,6 +1,6 @@
 {
   "name": "stream-tv",
-  "version": "2.9.0",
+  "version": "2.9.1",
   "description": "Conecta TV - catalogo, players e aplicativos (Android, Windows, iPhone)",
   "main": "launcher.js",
   "bin": "launcher.js",
@@ -24,6 +24,8 @@
     "scripts": [
       "server.js",
       "launcher.js",
+      "central/launcher.js",
+      "central/servidor.js",
       "fontes-motor.js",
       "seguranca.js",
       "central-reporter.js",
@@ -52,7 +54,8 @@
       "config.local.json",
       ".env.example",
       "pwa/*",
-      "fontes.json"
+      "fontes.json",
+      "central/painel.html"
     ]
   }
 }

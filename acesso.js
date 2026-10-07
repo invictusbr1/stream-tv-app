@@ -30,11 +30,27 @@
         return dados;
     }
 
-    async function enderecoCentral() {
+    let cacheConfig = null;
+    async function lerConfig() {
+        if (cacheConfig) return cacheConfig;
         try {
             const config = await fetch('/config.json', { cache: 'no-store' }).then(r => (r.ok ? r.json() : {})).catch(() => ({}));
+            cacheConfig = config || {};
+        } catch { cacheConfig = {}; }
+        return cacheConfig;
+    }
+    async function enderecoCentral() {
+        try {
+            const config = await lerConfig();
             return String(config.central || '').replace(/\/$/, '');
         } catch { return ''; }
+    }
+    // A versão mostrada na central é a do próprio aplicativo (não um número fixo).
+    async function versaoDoApp() {
+        try {
+            const config = await lerConfig();
+            return String(config.versionName || VERSAO).slice(0, 20);
+        } catch { return VERSAO; }
     }
 
     async function registrar(extra) {
@@ -44,7 +60,7 @@
             nome: dados.nome,
             aparelho: dados.aparelho || aparelho(),
             dispositivo: identificador(),
-            versao: extra?.versao || VERSAO,
+            versao: extra?.versao || await versaoDoApp(),
             assistindo: extra?.assistindo || null
         };
         try {
@@ -68,7 +84,7 @@
             nome: dados?.nome || 'Anônimo',
             aparelho: dados?.aparelho || aparelho(),
             dispositivo: identificador(),
-            versao: evento?.versao || VERSAO,
+            versao: evento?.versao || await versaoDoApp(),
             ...evento
         };
         try {
