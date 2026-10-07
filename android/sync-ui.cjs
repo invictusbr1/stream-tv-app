@@ -16,7 +16,9 @@ replace("async function lerJson(url,signal){const r=await fetch(url,{signal});if
 replace('<script>\n','<script src="/catalog.js"></script><script src="/android.js"></script>\n<script>\n');
 replace('target="_blank" rel="noopener"','');
 replace("url.origin!==location.origin||!/^\\/assistir\\/\\d{1,10}\\/[0-7]$/.test(url.pathname)||url.search||url.hash||url.username||url.password", "url.origin!==location.origin||url.pathname!=='/assistir.html'||!/^\\d{1,10}$/.test(url.searchParams.get('id')||'')||!/^[0-7]$/.test(url.searchParams.get('source')||'')||[...url.searchParams.keys()].length!==2||url.hash||url.username||url.password");
-replace('<div class="section-head">', '<div class="section-head"><a href="/check-updates" style="padding:12px;font-size:13px">Atualizações</a>');
+// O aviso de atualização do Android já aparece no selo do topo, no aviso da
+// tela e na gaveta ("Atualizar aplicativo"); o link extra "Atualizações" que
+// ficava no cabeçalho do catálogo saiu de vez.
 fs.writeFileSync(path.join(assets,'index.html'),html);
 fs.copyFileSync(path.join(root,'playback.js'),path.join(assets,'playback.js'));
 fs.copyFileSync(path.join(root,'node_modules/hls.js/dist/hls.min.js'),path.join(assets,'hls.min.js'));

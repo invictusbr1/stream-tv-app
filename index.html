@@ -163,6 +163,14 @@ button,.nav,.icon-btn,.card,a{touch-action:manipulation;-webkit-tap-highlight-co
 .episode-watched{font-style:normal;font-size:11px;font-weight:600;color:#7be495;border:1px solid #3f8f5f;border-radius:999px;padding:1px 8px;margin-left:6px;white-space:nowrap}
 /* Onde o filme ou a série está disponível (dado do TMDB para o Brasil) */
 .card-stream{font-size:11px;color:#ffd166;margin-top:4px;line-height:1.4}
+/* Padrão do cartão: capa sempre colada no topo, título em no máximo duas
+   linhas e rodapé de uma linha. Assim nenhum cartão sai do lugar. */
+.poster-row,.grid{align-items:start}
+.card{display:flex;flex-direction:column;line-height:1.35}
+.card>img{flex:0 0 auto;display:block}
+.card-titulo{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:2.7em;margin:10px 0 5px}
+.card-meta,.card-stream{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.45}
+.card-stream{min-height:16px}
 /* Menu "⋯" das categorias, usado no celular */
 /* Destaque da tela inicial, no estilo dos streamings */
 .hero{min-height:min(620px,78vh);align-items:flex-end;padding-bottom:34px}
@@ -199,8 +207,7 @@ button,.nav,.icon-btn,.card,a{touch-action:manipulation;-webkit-tap-highlight-co
 @media(max-width:900px){.nav-chips{display:none!important}.menu-cat{display:block}}
 @media(max-width:900px){
 .gaveta-abrir{display:inline-flex;align-items:center;justify-content:center}
-#label{display:none}
-.section-head{justify-content:flex-end}
+.section-head{display:none!important}
 .acoes{display:none}
 .bottom-nav{display:flex;position:fixed;left:0;right:0;bottom:0;z-index:30;background:#0b0d12f5;border-top:1px solid #ffffff14;-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);padding:6px 2px calc(6px + env(safe-area-inset-bottom))}
 .bottom-nav button{flex:1;display:grid;justify-items:center;gap:3px;background:none;color:#8f9aab;font-size:10.5px;padding:8px 2px;min-height:0}
@@ -249,7 +256,7 @@ async function lerJson(url,signal){const r=await fetch(url,{signal});if(!r.ok)th
 function favoritoMarcado(id){return Boolean(window.StreamPersonal?.isFavorite?.(id));}
 function atualizarEstrela(botao,marcado){botao.textContent=marcado?'★':'☆';botao.setAttribute('aria-pressed',String(marcado));botao.title=marcado?'Remover dos favoritos':'Guardar em Favoritos';botao.setAttribute('aria-label',marcado?'Remover dos favoritos':'Guardar em Favoritos');}
 function criarBotaoFavorito(f){const b=document.createElement('span');b.className='fav-btn';b.setAttribute('role','button');b.tabIndex=0;atualizarEstrela(b,favoritoMarcado(f.id));const alternar=evento=>{evento.preventDefault();evento.stopPropagation();const personal=window.StreamPersonal;if(!personal?.toggleFavorite)return;atualizarEstrela(b,personal.toggleFavorite(f));personal.renderFavoritos?.();};b.onclick=alternar;b.onkeydown=evento=>{if(evento.key==='Enter'||evento.key===' '){evento.stopPropagation();alternar(evento);}};return b;}
-function criarCard(f,pos=null,premiado=false){window.StreamPersonal?.remember(f);const c=document.createElement('button');c.className='card';c.setAttribute('aria-label',`${f.titulo}, ${f.ano||''}, nota ${f.nota}`);const img=document.createElement('img');img.src=f.capa||'';img.alt='';img.loading='lazy';const title=document.createElement('div');title.className='card-titulo';title.textContent=f.titulo;const meta=document.createElement('div');meta.className='card-meta';meta.textContent=`${f.ano||''}  ·  ★ ${f.nota||'N/A'}`;c.append(img,title,meta);if(Array.isArray(f.streamings)&&f.streamings.length){const onde=document.createElement('div');onde.className='card-stream';onde.textContent=f.streamings.join(' · ');c.append(onde);}if(pos!==null){const n=document.createElement('span');n.className='rank';n.textContent=String(pos).padStart(2,'0');c.append(n);}c.append(criarBotaoFavorito(f));c.onclick=()=>window.StreamLibrary?StreamLibrary.open(f):abrirPlayer(f.id,f.titulo);return c;}
+function criarCard(f,pos=null,premiado=false){window.StreamPersonal?.remember(f);const c=document.createElement('button');c.className='card';c.setAttribute('aria-label',`${f.titulo}, ${f.ano||''}, nota ${f.nota}`);const img=document.createElement('img');img.src=f.capa||'';img.alt='';img.loading='lazy';const title=document.createElement('div');title.className='card-titulo';title.textContent=f.titulo;const meta=document.createElement('div');meta.className='card-meta';meta.textContent=`${f.ano||''}  ·  ★ ${f.nota||'N/A'}`;c.append(img,title,meta);const onde=document.createElement('div');onde.className='card-stream';onde.textContent=Array.isArray(f.streamings)?f.streamings.join(' · '):'';c.append(onde);if(pos!==null){const n=document.createElement('span');n.className='rank';n.textContent=String(pos).padStart(2,'0');c.append(n);}c.append(criarBotaoFavorito(f));c.onclick=()=>window.StreamLibrary?StreamLibrary.open(f):abrirPlayer(f.id,f.titulo);return c;}
 function renderizar(lista,id='grid',rank=false,premiado=false){const g=el(id);g.replaceChildren();if(!lista?.length){const p=document.createElement('p');p.className='msg';p.textContent='Nenhum título disponível.';g.append(p);return;}(id==='grid'?lista:lista.slice(0,12)).forEach((f,i)=>g.append(criarCard(f,rank?i+1:null,premiado)));}
 async function carregarRankings(){rankRequest?.abort();const req=new AbortController();rankRequest=req;const t=setTimeout(()=>req.abort(),25000);try{let round=1;try{round=(Number(localStorage.getItem('streamtv-round'))||0)%10+1;localStorage.setItem('streamtv-round',String(round));}catch{}const d=await lerJson(`${API}/rankings?page=${round}`,req.signal);if(rankRequest!==req)return;renderizar(d.relevantes,'row-relevantes',true);renderizar(d.melhores,'row-melhores',true);renderizar(d.oscar,'row-oscar',false,true);renderizar(d.recentes,'row-recentes');const f=d.relevantes?.[0];if(f&&!window.StreamLibrary?.destaqueAtivo?.()){window.StreamPersonal?.remember(f);el('hero-title').textContent=f.titulo;el('hero-meta').textContent=`${f.ano||''}  ·  ★ ${f.nota||'N/A'}  ·  Em destaque`;el('hero-description').textContent=f.sinopse||'Uma nova história para a sua próxima sessão.';el('hero-image').hidden=!f.fundo;if(f.fundo)el('hero-image').src=f.fundo;el('hero-play').hidden=false;el('hero-play').onclick=()=>abrirPlayer(f.id,f.titulo);}}catch{if(rankRequest!==req)return;for(const id of ['row-relevantes','row-melhores','row-oscar','row-recentes'])el(id).textContent='Não foi possível carregar. Use Atualizar para tentar novamente.';}finally{clearTimeout(t);}}
 function mostrarCabecalhoDoCatalogo(mostrar){const cabecalho=document.querySelector('.section-head');if(cabecalho)cabecalho.hidden=!mostrar;}

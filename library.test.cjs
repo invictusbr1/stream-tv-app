@@ -35,3 +35,24 @@ test('a gaveta de categorias é fixa na tela (nunca abre fora dela) e o celular 
  assert.match(html,/id="gaveta-categorias"/);
  assert.match(html,/id="bottom-nav"/);
 });
+
+test('os cartões seguem um padrão único de alinhamento (capa, título e rodapé)',()=>{
+ const html=fs.readFileSync(__dirname+'/index.html','utf8');
+ const card=html.match(/\.card\{display:flex[^}]*\}/);
+ assert.ok(card,'o cartão precisa ser coluna flexível, para a capa ficar sempre no topo');
+ assert.match(card[0],/flex-direction:column/);
+ const titulo=html.match(/\.card-titulo\{display:-webkit-box[^}]*\}/);
+ assert.ok(titulo,'o título precisa ter limite de linhas');
+ assert.match(titulo[0],/-webkit-line-clamp:2/);
+ assert.match(titulo[0],/min-height:2\.7em/,'duas linhas reservadas deixam todos iguais');
+ assert.match(html,/\.poster-row,\.grid\{align-items:start\}/,'as fileiras começam alinhadas pelo topo');
+ assert.match(html,/\.card-stream\{min-height:16px\}/,'a linha do streaming reserva espaço mesmo vazia');
+ const meta=html.match(/\.card-meta,\.card-stream\{[^}]*\}/);
+ assert.ok(meta,'rodapé de uma linha só');
+ assert.match(meta[0],/text-overflow:ellipsis/);
+});
+
+test('o cabeçalho do catálogo (com o botão Atualizar) não aparece no celular',()=>{
+ const html=fs.readFileSync(__dirname+'/index.html','utf8');
+ assert.match(html,/#label\{display:none\}|\.section-head\{display:none!important\}/,'no celular esse cabeçalho sai da tela');
+});
