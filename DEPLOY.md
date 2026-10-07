@@ -110,6 +110,13 @@ $env:CENTRAL_URL="http://localhost:4100"
 
 ## Opção 3 — qualquer host com Docker
 
+> Para servidor grátis na nuvem (Oracle Always Free, o único que aguenta vídeo
+> com folga), use o pacote pronto em **`deploy/servidor/`**: ele tem o
+> `docker-compose.yml` com aplicativo + central, o instalador de um comando
+> (`Instalar-No-Servidor.sh`) e o passo a passo em `LEIA-ME-SERVIDOR.md`.
+> Vantagem: com o servidor na nuvem o seu computador **não precisa ficar
+> ligado**.
+
 O projeto tem `Dockerfile` e `.dockerignore` prontos:
 
 ```bash
