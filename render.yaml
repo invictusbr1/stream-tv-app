@@ -1,6 +1,7 @@
 services:
+  # ---------------------------------------------------------------- aplicativo
   - type: web
-    name: stream-tv-familia
+    name: conecta-tv
     runtime: node
     plan: free
     buildCommand: npm ci --omit=dev
@@ -9,6 +10,20 @@ services:
     envVars:
       - key: NODE_VERSION
         value: 22
+      # Código de acesso: sem ele, qualquer pessoa com o endereço usa o aplicativo.
+      # Defina um código com pelo menos 8 caracteres no painel do Render.
+      - key: ACESSO_CODIGO
+        sync: false
+      # Endereço da central de status (serviço conecta-tv-central abaixo).
+      - key: CENTRAL_URL
+        fromService:
+          type: web
+          name: conecta-tv-central
+          property: host
+      - key: CENTRAL_TOKEN
+        sync: false
+      - key: ORIGENS_PERMITIDAS
+        sync: false
       - key: JARVIS_PROVIDER
         value: groq
       - key: JARVIS_MODEL
@@ -18,4 +33,22 @@ services:
       - key: SUPABASE_URL
         sync: false
       - key: SUPABASE_ANON_KEY
+        sync: false
+
+  # ---------------------------------------------------------------- central de status
+  - type: web
+    name: conecta-tv-central
+    runtime: node
+    plan: free
+    buildCommand: npm ci --omit=dev
+    startCommand: node central/servidor.js
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_VERSION
+        value: 22
+      # Chave do painel da central (só quem tem entra).
+      - key: CENTRAL_KEY
+        sync: false
+      # Mesmo token usado pelo aplicativo para reportar.
+      - key: CENTRAL_TOKEN
         sync: false

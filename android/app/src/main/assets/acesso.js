@@ -61,6 +61,28 @@
 
     function liberar() { document.getElementById('portao')?.remove(); }
 
+    // Conta para a central o que está sendo assistido e como terminou.
+    async function reportar(evento) {
+        const dados = guardado();
+        const corpo = {
+            nome: dados?.nome || 'Anônimo',
+            aparelho: dados?.aparelho || aparelho(),
+            dispositivo: identificador(),
+            versao: evento?.versao || VERSAO,
+            ...evento
+        };
+        try {
+            const resposta = await fetch('/api/evento', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(corpo) });
+            if (resposta.ok) return true;
+        } catch { /* no aplicativo Android não existe servidor local */ }
+        try {
+            const central = await enderecoCentral();
+            if (!central) return false;
+            const resposta = await fetch(`${central}/api/evento`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(corpo) });
+            return resposta.ok;
+        } catch { return false; }
+    }
+
     function mostrarPortao() {
         if (document.getElementById('portao')) return;
         const caixa = document.createElement('div');
@@ -82,7 +104,7 @@
         campo.addEventListener('keydown', evento => { if (evento.key === 'Enter') { evento.preventDefault(); entrar(); } });
     }
 
-    window.StreamAcesso = { registrar, aparelho, identificador, usuario: guardado, abrirPortao: mostrarPortao };
+    window.StreamAcesso = { registrar, reportar, aparelho, identificador, usuario: guardado, abrirPortao: mostrarPortao };
 
     document.addEventListener('DOMContentLoaded', () => {
         if (guardado()?.nome) registrar().catch(() => {});

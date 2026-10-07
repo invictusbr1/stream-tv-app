@@ -34,16 +34,29 @@ const PAGE_CANDIDATES = process.pkg
     : [path.join(__dirname, 'index.html')];
 
 // ============================================================
-// CORS
+// SEGURANÇA — cabeçalhos, CORS fechado, limite de uso e portão
+// de entrada por código (usado quando o aplicativo é hospedado).
 // ============================================================
-app.use((req, res, next) => {
-    res.setHeader('Access-Control-Allow-Origin',  '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', '*');
-    if (req.method === 'OPTIONS') return res.sendStatus(200);
-    next();
-});
-app.use(express.json());
+const DADOS_DIR = process.pkg ? path.dirname(process.execPath) : __dirname;
+const ARQ_ACESSOS = path.join(DADOS_DIR, 'acessos.json');
+const ARQ_LEGENDAS = path.join(DADOS_DIR, 'Legendas');
+
+const seguranca = require('./seguranca');
+const ACESSO_CODIGO = String(process.env.ACESSO_CODIGO || LOCAL_CONFIG.acessoCodigo || '').trim();
+const ORIGENS_PERMITIDAS = String(process.env.ORIGENS_PERMITIDAS || LOCAL_CONFIG.origensPermitidas || '')
+    .split(',').map(item => item.trim()).filter(Boolean);
+app.set('trust proxy', true);
+app.use(seguranca.cabecalhos({ origensPermitidas: ORIGENS_PERMITIDAS }));
+app.use(express.json({ limit: '256kb' }));
+app.use(seguranca.criarLimitador({
+    janelaMs: Number(process.env.LIMITE_JANELA_MS || 60000),
+    maximo: Number(process.env.LIMITE_PEDIDOS || 400),
+    maximoMidia: Number(process.env.LIMITE_MIDIA || 3000),
+    janelaMidiaMs: 600000
+}));
+const portao = seguranca.criarPortao({ codigo: ACESSO_CODIGO, arquivo: path.join(DADOS_DIR, 'autorizados.json') });
+app.post('/api/entrar', (req, res) => portao.rotaEntrada(req, res));
+app.use((req, res, next) => portao.middleware(req, res, next));
 const JARVIS_PROVIDER = String(process.env.JARVIS_PROVIDER || 'groq').toLowerCase();
 const JARVIS_SISTEMA = 'Você é o Jarvis do Conecta TV. Responda em português e nunca prometa que uma fonte funciona.';
 // Se o provedor aposentar um modelo, o Jarvis tenta o próximo da lista antes de responder erro.
@@ -112,13 +125,23 @@ app.get(['/pwa/install.js','/pwa/icon-180.png','/pwa/icon-192.png','/pwa/icon-51
 app.get('/api/health', (req, res) => res.json({ status: 'ok', app: 'stream-tv' }));
 
 // ============================================================
+// CENTRAL DE STATUS — o aplicativo conta o que foi aberto. A central
+// é opcional e nunca atrasa o player: se ela não responder, seguimos.
+// ============================================================
+const central = require('./central-reporter');
+app.post('/api/evento', async (req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    if (!central.configurada()) return res.json({ ok: true, central: false });
+    const enviado = await central.reportar(req.body || {}).catch(() => false);
+    res.json({ ok: true, central: enviado });
+});
+
+// ============================================================
 // REGISTRO DE ACESSOS — quem entrou, de qual aparelho e de qual IP
 // Os dados ficam num arquivo ao lado do aplicativo e aparecem na central.
 // ============================================================
-const DADOS_DIR = process.pkg ? path.dirname(process.execPath) : __dirname;
-const ARQ_ACESSOS = path.join(DADOS_DIR, 'acessos.json');
-const ARQ_LEGENDAS = path.join(DADOS_DIR, 'Legendas');
-const CHAVE_CENTRAL = process.env.CENTRAL_KEY || LOCAL_CONFIG.centralKey || 'conecta';
+// Sem chave configurada, esta tela não abre (nada de senha padrão).
+const CHAVE_CENTRAL = String(process.env.CENTRAL_KEY || LOCAL_CONFIG.centralKey || '').trim();
 
 function lerAcessos() {
     try { return JSON.parse(fs.readFileSync(ARQ_ACESSOS, 'utf8')) || {}; } catch { return {}; }
@@ -154,13 +177,15 @@ app.post('/api/acesso', (req, res) => {
         vezes: Number(anterior.vezes || 0) + 1
     };
     gravarAcessos(lista);
+    // Repassa para a central de status (quando configurada).
+    require('./central-reporter').reportarAcesso(lista[dispositivo]).catch(() => {});
     const pessoas = new Set(Object.values(lista).map(item => item.nome.toLowerCase())).size;
     console.log(`[acesso] ${nome} · ${lista[dispositivo].aparelho} · ${lista[dispositivo].ip}`);
     res.json({ ok: true, pessoas, aparelhos: Object.keys(lista).length });
 });
 
 app.get('/central', (req, res) => {
-    if (String(req.query.chave || '') !== CHAVE_CENTRAL) {
+    if (CHAVE_CENTRAL.length < 8 || String(req.query.chave || '') !== CHAVE_CENTRAL) {
         res.status(401).type('html').send('<!doctype html><meta charset="utf-8"><body style="background:#0b0e15;color:#e8ecf3;font:16px system-ui;padding:40px">Acesso restrito. Use <code>/central?chave=SUA-CHAVE</code>.</body>');
         return;
     }
@@ -244,38 +269,6 @@ app.get('/api/legendas/online', async (req, res) => {
 });
 
 // ============================================================
-// VERIFICADOR DE FONTE — o robô checa, antes de abrir, se a fonte
-// realmente tem este filme/episódio.
-// ============================================================
-const SINAL_SEM_CONTEUDO = /not available|couldn'?t find|no disponible|n[ãa]o dispon[íi]vel|conte[úu]do indispon[íi]vel|not found|404 error|video not found/i;
-
-app.get('/api/fonte', async (req, res) => {
-    const tipo = String(req.query.tipo || 'movie');
-    const id = String(req.query.id || '');
-    const season = String(req.query.season || '');
-    const episode = String(req.query.episode || '');
-    const indice = Number(req.query.fonte || 0);
-    if (!/^\d{1,10}$/.test(id)) return res.status(400).json({ ok: false, motivo: 'identificador inválido' });
-    try {
-        const rota = tipo === 'tv' ? `/api/episode/${id}/${season}/${episode}` : `/api/player/${id}`;
-        const dados = await libraryCatalog.request(rota);
-        const escolhida = (dados.players || []).find(item => item.index === indice && item.funcionou);
-        if (!escolhida) return res.json({ ok: false, motivo: 'fonte não encontrada' });
-        const r = await axios.get(escolhida.url, {
-            headers: { ...H, Referer: escolhida.url },
-            timeout: 9000,
-            maxRedirects: 5,
-            responseType: 'text',
-            maxContentLength: 2 * 1024 * 1024,
-            validateStatus: status => status < 500
-        });
-        const html = String(r.data || '');
-        const semConteudo = SINAL_SEM_CONTEUDO.test(html);
-        res.json({ ok: !semConteudo && r.status < 400, status: r.status, motivo: semConteudo ? 'esta fonte não tem este episódio' : 'ok' });
-    } catch (erro) {
-        res.json({ ok: false, motivo: 'não foi possível verificar a fonte' });
-    }
-});
 app.get('/hls.min.js', (req, res) => res.type('js').send(fs.readFileSync(path.join(__dirname, 'node_modules/hls.js/dist/hls.min.js'))));
 // O player vai sem cache: a atualização vale na hora, sem o navegador ficar
 // com a versão antiga guardada.
@@ -299,7 +292,8 @@ app.get('/api/hls', async (req, res) => {
     } catch {
         return res.sendStatus(400);
     }
-    if (endereco.protocol !== 'https:' || !midia.hostPermitido(endereco.hostname)) return res.sendStatus(403);
+    // Só https, só host conhecido e nunca a rede de casa (proteção contra SSRF).
+    if (endereco.protocol !== 'https:' || !midia.hostPermitido(endereco.hostname) || seguranca.hostInterno(endereco.hostname)) return res.sendStatus(403);
     const cabecalhosBase = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
         Accept: '*/*'
@@ -457,7 +451,9 @@ app.get('/config.json',(req,res)=>res.json({
     versionName: (() => { try { return require('./package.json').version; } catch { return ''; } })(),
     // O anon key do Supabase é público por desenho; chaves de serviço nunca são enviadas ao cliente.
     supabaseUrl: process.env.SUPABASE_URL || LOCAL_CONFIG.supabaseUrl || '',
-    supabaseAnonKey: process.env.SUPABASE_ANON_KEY || LOCAL_CONFIG.supabaseAnonKey || ''
+    supabaseAnonKey: process.env.SUPABASE_ANON_KEY || LOCAL_CONFIG.supabaseAnonKey || '',
+    // Endereço da central de status (opcional). O aplicativo reporta acessos e sessões para lá.
+    central: String(process.env.CENTRAL_URL || LOCAL_CONFIG.central || '').replace(/\/$/, '')
 }));
 
 const OSCAR_SELECTION = [

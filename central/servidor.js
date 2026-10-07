@@ -1,0 +1,268 @@
+'use strict';
+// Central do Conecta TV — aplicativo separado, só de status.
+//
+// Ele não reproduz nada: recebe o que os aplicativos contam (quem entrou, o que
+// está assistindo, por qual fonte, se deu certo) e mostra tudo em um painel.
+//
+// Como rodar:   node central/servidor.js            (porta 4100)
+// Painel:       http://localhost:4100  → pede a chave (CENTRAL_KEY)
+
+const express = require('express');
+const fs = require('fs');
+const path = require('path');
+const crypto = require('crypto');
+const seguranca = require(path.join(__dirname, '..', 'seguranca.js'));
+
+const app = express();
+const PORTA = Number(process.env.PORT || process.env.CENTRAL_PORT || 4100);
+// Onde os dados ficam. Em hospedagem, aponte CENTRAL_DADOS para um disco
+// permanente (volume) — senão o histórico se perde a cada atualização.
+const DADOS = String(process.env.CENTRAL_DADOS || '').trim() || path.join(__dirname, 'dados');
+const ARQ_DISPOSITIVOS = path.join(DADOS, 'dispositivos.json');
+const ARQ_EVENTOS = path.join(DADOS, 'eventos.ndjson');
+const ACESSO = (() => {
+    const arquivos = [path.join(__dirname, 'config.local.json'), path.join(process.cwd(), 'central', 'config.local.json'), path.join(process.cwd(), 'config.local.json')];
+    for (const arquivo of arquivos) { try { return JSON.parse(fs.readFileSync(arquivo, 'utf8')); } catch { /* opcional */ } }
+    return {};
+})();
+
+// Chave do painel: sem ela o painel não abre.
+let CHAVE = String(process.env.CENTRAL_KEY || ACESSO.centralKey || '').trim();
+let chaveGerada = false;
+if (CHAVE.length < 8) {
+    CHAVE = crypto.randomBytes(9).toString('base64url');
+    chaveGerada = true;
+}
+// Token opcional que os aplicativos usam para reportar (se vazio, qualquer um
+// da rede pode reportar — só use assim em rede fechada).
+const TOKEN_APPS = String(process.env.CENTRAL_TOKEN || ACESSO.centralToken || '').trim();
+const COOKIE_CHAVE = 'central_chave';
+
+fs.mkdirSync(DADOS, { recursive: true });
+
+// ---------------------------------------------------------------- armazenamento
+function lerJson(arquivo, padrao) {
+    try { return JSON.parse(fs.readFileSync(arquivo, 'utf8')); } catch { return padrao; }
+}
+function gravarJson(arquivo, dados) {
+    try { fs.writeFileSync(arquivo, JSON.stringify(dados, null, 1)); } catch (erro) { console.warn('[central] não consegui gravar ' + arquivo + ': ' + erro.message); }
+}
+function anotarEvento(evento) {
+    try { fs.appendFileSync(ARQ_EVENTOS, JSON.stringify(evento) + '\n'); } catch { /* disco cheio ou sem permissão */ }
+}
+function lerEventos(limite = 4000) {
+    try {
+        const linhas = fs.readFileSync(ARQ_EVENTOS, 'utf8').trim().split('\n').filter(Boolean);
+        return linhas.slice(-limite).map(linha => { try { return JSON.parse(linha); } catch { return null; } }).filter(Boolean);
+    } catch { return []; }
+}
+
+// ---------------------------------------------------------------- utilidades
+function ipDoPedido(req) {
+    return String(req.headers['x-forwarded-for'] || '').split(',')[0].trim() || String(req.socket?.remoteAddress || '').replace(/^::ffff:/, '');
+}
+function texto(valor, limite) { return String(valor ?? '').replace(/[\u0000-\u001f]/g, ' ').trim().slice(0, limite); }
+function minutosDesde(iso) { const t = new Date(iso || 0).getTime(); return Number.isFinite(t) ? Math.round((Date.now() - t) / 60000) : null; }
+function curto(iso) { return String(iso || '').slice(0, 16).replace('T', ' '); }
+function chaveDoPedido(req) {
+    const cabecalho = String(req.headers['x-chave'] || '').trim();
+    if (cabecalho) return cabecalho;
+    const bruto = String(req.headers.cookie || '');
+    const achado = bruto.split(';').map(p => p.trim()).find(p => p.startsWith(COOKIE_CHAVE + '='));
+    if (achado) return decodeURIComponent(achado.slice(COOKIE_CHAVE.length + 1));
+    return String(req.query.chave || '');
+}
+
+// ---------------------------------------------------------------- meio de campo
+app.set('trust proxy', true);
+app.use(seguranca.cabecalhos({ origensPermitidas: [] }));
+app.use(express.json({ limit: '256kb' }));
+app.use(seguranca.criarLimitador({ janelaMs: 60000, maximo: 600, maximoMidia: 600 }));
+
+// ---------------------------------------------------------------- relatos dos apps
+app.post('/api/acesso', (req, res) => {
+    if (TOKEN_APPS && String(req.headers['x-central'] || '') !== TOKEN_APPS) return res.status(401).json({ error: 'token da central inválido' });
+    const corpo = req.body || {};
+    const nome = texto(corpo.nome, 60);
+    if (!nome) return res.status(400).json({ error: 'informe o nome' });
+    const dispositivo = texto(corpo.dispositivo, 40) || ('ip-' + ipDoPedido(req));
+    const lista = lerJson(ARQ_DISPOSITIVOS, {});
+    const anterior = lista[dispositivo] || {};
+    const agora = new Date().toISOString();
+    lista[dispositivo] = {
+        dispositivo,
+        nome,
+        aparelho: texto(corpo.aparelho, 40) || anterior.aparelho || 'Aparelho',
+        app: texto(corpo.app, 20) || anterior.app || 'conecta-tv',
+        versao: texto(corpo.versao, 20) || anterior.versao || '',
+        assistindo: corpo.assistindo ? texto(corpo.assistindo, 90) : (anterior.assistindo || null),
+        ip: ipDoPedido(req),
+        primeiroEm: anterior.primeiroEm || agora,
+        ultimoEm: agora,
+        vezes: Number(anterior.vezes || 0) + 1
+    };
+    gravarJson(ARQ_DISPOSITIVOS, lista);
+    const pessoas = new Set(Object.values(lista).map(item => item.nome.toLowerCase())).size;
+    res.json({ ok: true, pessoas, aparelhos: Object.keys(lista).length });
+});
+
+app.post('/api/evento', (req, res) => {
+    if (TOKEN_APPS && String(req.headers['x-central'] || '') !== TOKEN_APPS) return res.status(401).json({ error: 'token da central inválido' });
+    const corpo = req.body || {};
+    const evento = {
+        em: new Date().toISOString(),
+        tipo: texto(corpo.tipo, 24) || 'sessao',
+        dispositivo: texto(corpo.dispositivo, 40),
+        nome: texto(corpo.nome, 60) || 'Anônimo',
+        aparelho: texto(corpo.aparelho, 40),
+        app: texto(corpo.app, 20) || 'conecta-tv',
+        versao: texto(corpo.versao, 20),
+        titulo: texto(corpo.titulo, 120),
+        fonte: texto(corpo.fonte, 40),
+        audio: texto(corpo.audio, 20),
+        resolucao: texto(corpo.resolucao, 20),
+        ms: Number(corpo.ms) || 0,
+        ok: corpo.ok !== false,
+        motivo: texto(corpo.motivo, 120)
+    };
+    anotarEvento(evento);
+    if (evento.dispositivo) {
+        const lista = lerJson(ARQ_DISPOSITIVOS, {});
+        const anterior = lista[evento.dispositivo];
+        if (anterior) {
+            if (evento.titulo) anterior.assistindo = evento.titulo;
+            anterior.ultimoEm = evento.em;
+            gravarJson(ARQ_DISPOSITIVOS, lista);
+        }
+    }
+    res.json({ ok: true });
+});
+
+// ---------------------------------------------------------------- painel
+function exigirChave(req, res, next) {
+    const enviada = chaveDoPedido(req);
+    const aceita = enviada && enviada.length >= 8 && crypto.timingSafeEqual(Buffer.from(enviada.padEnd(64).slice(0, 64)), Buffer.from(CHAVE.padEnd(64).slice(0, 64)));
+    if (aceita) return next();
+    if (String(req.headers.accept || '').includes('text/html')) return res.status(401).type('html').send(paginaDeChave(enviada ? 'Chave incorreta.' : ''));
+    return res.status(401).json({ error: 'informe a chave da central' });
+}
+
+app.post('/api/entrar', (req, res) => {
+    const enviada = String(req.body?.chave || '').trim();
+    if (enviada.length < 8 || enviada !== CHAVE) return res.status(401).json({ error: 'Chave incorreta.' });
+    const seguro = String(req.headers['x-forwarded-proto'] || '').split(',')[0].trim() === 'https';
+    res.setHeader('Set-Cookie', `${COOKIE_CHAVE}=${encodeURIComponent(enviada)}; Path=/; Max-Age=15552000; HttpOnly; SameSite=Lax${seguro ? '; Secure' : ''}`);
+    res.json({ ok: true });
+});
+
+app.get('/api/status', exigirChave, (req, res) => res.json(gerarStatus()));
+app.get('/api/health', (req, res) => res.json({ status: 'ok', app: 'central-conecta-tv' }));
+
+app.get('/', exigirChave, (req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    res.type('html').send(fs.readFileSync(path.join(__dirname, 'painel.html'), 'utf8'));
+});
+
+// ---------------------------------------------------------------- números do painel
+function gerarStatus() {
+    const dispositivos = Object.values(lerJson(ARQ_DISPOSITIVOS, {}));
+    const eventos = lerEventos();
+    const agora = Date.now();
+    const hoje = new Date().toISOString().slice(0, 10);
+
+    const aparelhos = dispositivos.map(item => {
+        const minutos = minutosDesde(item.ultimoEm);
+        return { ...item, online: minutos !== null && minutos < 5, minutos, ultimoCurto: curto(item.ultimoEm), primeiroCurto: curto(item.primeiroEm) };
+    }).sort((a, b) => String(b.ultimoEm).localeCompare(String(a.ultimoEm)));
+
+    const eventosDeHoje = eventos.filter(e => String(e.em).slice(0, 10) === hoje);
+    const sessoes = eventosDeHoje.filter(e => e.tipo === 'play' || e.tipo === 'sessao');
+    const falhas = eventosDeHoje.filter(e => e.ok === false);
+
+    const porFonte = {};
+    for (const evento of eventos.filter(e => e.fonte)) {
+        const alvo = porFonte[evento.fonte] || (porFonte[evento.fonte] = { fonte: evento.fonte, total: 0, ok: 0, falhas: 0, ultimaFalha: null, ultimoUso: null, resolucoes: new Set() });
+        alvo.total++;
+        if (evento.ok === false) { alvo.falhas++; if (!alvo.ultimaFalha || evento.em > alvo.ultimaFalha) alvo.ultimaFalha = evento.em; }
+        else alvo.ok++;
+        if (evento.resolucao) alvo.resolucoes.add(evento.resolucao);
+        if (!alvo.ultimoUso || evento.em > alvo.ultimoUso) alvo.ultimoUso = evento.em;
+    }
+    const fontes = Object.values(porFonte).map(item => ({
+        fonte: item.fonte,
+        total: item.total,
+        ok: item.ok,
+        falhas: item.falhas,
+        taxa: item.total ? Math.round((item.ok / item.total) * 100) : 0,
+        resolucoes: [...item.resolucoes],
+        ultimaFalha: item.ultimaFalha,
+        ultimoUso: item.ultimoUso
+    })).sort((a, b) => b.total - a.total);
+
+    const versoes = {};
+    for (const item of aparelhos) { const v = item.versao || 'sem versão'; versoes[v] = (versoes[v] || 0) + 1; }
+
+    const horas = [];
+    for (let i = 23; i >= 0; i--) {
+        const faixa = new Date(agora - i * 3600000);
+        const rotulo = String(faixa.getHours()).padStart(2, '0') + 'h';
+        const fatia = String(faixa.toISOString()).slice(0, 13);
+        horas.push({ rotulo, quantidade: eventos.filter(e => String(e.em).slice(0, 13) === fatia).length, sessoes: eventos.filter(e => String(e.em).slice(0, 13) === fatia && (e.tipo === 'play' || e.tipo === 'sessao')).length });
+    }
+
+    const alertas = [];
+    for (const fonte of fontes) if (fonte.total >= 4 && fonte.taxa < 70) alertas.push(`Fonte ${fonte.fonte} caiu para ${fonte.taxa}% de sucesso (${fonte.falhas} falhas em ${fonte.total} usos).`);
+    for (const item of aparelhos) if (item.minutos !== null && item.minutos > 7 * 1440) alertas.push(`${item.nome} (${item.aparelho}) está sem dar sinal há ${Math.round(item.minutos / 1440)} dias.`);
+    const desatualizados = aparelhos.filter(item => item.versao && item.versao !== '1.0' && item.versao !== '');
+    if (desatualizados.length > 1) alertas.push(`${desatualizados.length} aparelhos com versão registrada diferente — vale conferir se estão na última atualização.`);
+    if (falhas.length >= 5) alertas.push(`${falhas.length} falhas registradas hoje. Veja a tabela de fontes para saber qual está devendo.`);
+    if (!alertas.length) alertas.push('Tudo em ordem: nenhuma fonte com taxa baixa e nenhum aparelho sumido.');
+
+    return {
+        atualizadoEm: new Date().toISOString(),
+        resumo: {
+            pessoas: new Set(aparelhos.map(a => a.nome.toLowerCase())).size,
+            aparelhos: aparelhos.length,
+            online: aparelhos.filter(a => a.online).length,
+            sessoesHoje: sessoes.length,
+            falhasHoje: falhas.length,
+            fontes: fontes.length
+        },
+        aparelhos,
+        fontes,
+        versoes,
+        horas,
+        alertas,
+        eventos: eventos.slice(-40).reverse().map(e => ({ ...e, emCurto: curto(e.em) }))
+    };
+}
+
+function paginaDeChave(erro) {
+    return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Central Conecta TV</title><style>
+body{margin:0;background:#0b0e15;color:#e8ecf3;font:15px system-ui;display:grid;place-items:center;min-height:100vh}
+form{background:#141924;border:1px solid #ffffff14;border-radius:18px;padding:28px;width:min(340px,90vw)}
+h1{margin:0 0 6px;font-size:20px}p{color:#8d97a8;font-size:13px;margin:0 0 16px}
+input{width:100%;box-sizing:border-box;background:#1c2230;border:1px solid #2c3444;color:#fff;border-radius:10px;padding:12px}
+button{margin-top:16px;width:100%;background:#e50914;border:0;color:#fff;border-radius:10px;padding:12px;font-weight:600}
+.erro{color:#ff8f8f;font-size:13px;margin-top:10px}
+</style></head><body><form id="f"><h1>Central Conecta TV</h1><p>Painel restrito. Informe a chave da central.</p>
+<input id="chave" type="password" placeholder="Chave"><button>Entrar</button><p class="erro">${erro}</p></form>
+<script>document.getElementById('f').onsubmit=async e=>{e.preventDefault();const chave=document.getElementById('chave').value.trim();
+const r=await fetch('/api/entrar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({chave})}).catch(()=>({ok:false}));
+if(r.ok){location.href='/';return;}document.querySelector('.erro').textContent='Chave incorreta.';};</script></body></html>`;
+}
+
+// ---------------------------------------------------------------- escuta
+(async () => {
+    const livre = async porta => new Promise(resolve => { const s = require('net').createServer(); s.once('error', () => resolve(false)); s.once('listening', () => s.close(() => resolve(true))); s.listen(porta, '0.0.0.0'); });
+    let porta = PORTA;
+    for (let i = 0; i < 12; i++) { if (await livre(porta + i)) { porta = PORTA + i; break; } }
+    app.listen(porta, '0.0.0.0', () => {
+        console.log('\n  Central do Conecta TV está no ar.');
+        console.log(`  Painel : http://localhost:${porta}`);
+        if (chaveGerada) console.log(`  Chave desta execução (guarde): ${CHAVE}\n  Para fixar, defina CENTRAL_KEY no ambiente.`);
+        else console.log('  Chave do painel: a que você configurou (CENTRAL_KEY).');
+        if (!TOKEN_APPS) console.log('  Aviso: sem CENTRAL_TOKEN, qualquer aparelho da rede pode enviar dados.\n');
+    });
+})();

@@ -33,6 +33,9 @@ fs.writeFileSync(path.join(assets,'config.json'),JSON.stringify({
   supabaseUrl:process.env.SUPABASE_URL||localConfig.supabaseUrl||'',
   supabaseAnonKey:process.env.SUPABASE_ANON_KEY||localConfig.supabaseAnonKey||'',
   groqKey:CHAVE_JARVIS,
+  // Endereço da central de status (opcional): o aplicativo do celular também
+  // reporta quem entrou e o que está assistindo.
+  central:String(process.env.CENTRAL_URL||localConfig.central||'').replace(/\/$/,''),
   // O selo de atualização na tela compara estes números com o aviso publicado no GitHub.
   app:'android',
   versionCode:Number((fs.readFileSync(path.join(__dirname,'app/build.gradle'),'utf8').match(/versionCode\s+(\d+)/)||[])[1]||0),

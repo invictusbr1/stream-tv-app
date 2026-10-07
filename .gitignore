@@ -17,6 +17,13 @@ Legendas/
 # Histórico local de acertos e falhas do motor de fontes (cada aparelho tem o seu)
 relatorios/fontes-saude.json
 
+# Dados da central de status (dispositivos, sessões e alertas de cada instalação)
+central/dados/
+central/config.local.json
+
+# Crachás dos aparelhos autorizados pelo código de acesso (só do seu servidor)
+autorizados.json
+
 # Arquivos gerados pelo sync-ui.cjs na compilação do Android (fonte é a raiz do projeto)
 android/app/src/main/assets/index.html
 android/app/src/main/assets/playback.js

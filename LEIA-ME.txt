@@ -24,6 +24,22 @@ JARVIS (ASSISTENTE DE IA)
 Funciona no computador e no celular. Usa a chave que está no arquivo api.txt da
 sua Área de Trabalho. Sem esse arquivo, o Jarvis avisa que não foi configurado.
 
+APLICATIVO PRIVADO
+Quando o Conecta TV está hospedado (fora de casa), ele pede um código de acesso
+na primeira vez. Cada aparelho autorizado guarda um crachá por 6 meses. O código
+fica na variável ACESSO_CODIGO do servidor.
+
+CENTRAL DE STATUS (APLICATIVO SEPARADO)
+Fica na pasta "central". Mostra só status: quem entrou, o que está assistindo,
+por qual fonte, qualidade, falhas e alertas. Para abrir:
+
+  1. Na pasta do aplicativo, rode:  node central/servidor.js
+  2. Abra http://localhost:4100 e informe a chave da central.
+  3. Para o aplicativo contar as sessões, aponte CENTRAL_URL para esse endereço.
+
+Quem entra no painel é só quem tem a chave (CENTRAL_KEY). Nada é enviado para
+fora: os dados ficam no seu próprio servidor, na pasta central/dados.
+
 PLAYERS
 Só entram fontes dubladas, sem anúncio e em HD. O aplicativo escolhe sozinho,
 lembra qual fonte deu certo para cada título, não repete a que não tem o

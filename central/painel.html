@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Central do Conecta TV</title>
+<style>
+:root{--fundo:#0b0e15;--painel:#141924;--painel2:#171d29;--borda:#ffffff14;--texto:#e8ecf3;--fraco:#8d97a8;--verde:#2fd07a;--amarelo:#ffc65a;--vermelho:#ff6b6b;--azul:#5aa9ff}
+*{box-sizing:border-box}
+body{margin:0;background:radial-gradient(1200px 600px at 80% -10%,#1b2436 0%,var(--fundo) 55%);color:var(--texto);font:15px/1.45 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;min-height:100vh}
+.topo{display:flex;align-items:center;gap:14px;padding:22px 26px;border-bottom:1px solid var(--borda);position:sticky;top:0;background:#0b0e15ee;backdrop-filter:blur(8px);z-index:5}
+.marca{font-weight:700;letter-spacing:-.3px;font-size:19px}
+.tag{font-size:11px;color:var(--fraco);border:1px solid var(--borda);border-radius:999px;padding:4px 10px}
+.ao-vivo{display:inline-flex;align-items:center;gap:7px;font-size:12px;color:var(--verde)}
+.ponto{width:8px;height:8px;border-radius:50%;background:var(--verde);box-shadow:0 0 0 0 #2fd07a88;animation:pulsa 2s infinite}
+@keyframes pulsa{70%{box-shadow:0 0 0 9px #2fd07a00}100%{box-shadow:0 0 0 0 #2fd07a00}}
+.topo .direita{margin-left:auto;display:flex;align-items:center;gap:14px;color:var(--fraco);font-size:12.5px}
+main{padding:22px 26px 60px;max-width:1400px;margin:0 auto}
+.cartoes{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px;margin-bottom:22px}
+.cartao{background:linear-gradient(180deg,var(--painel2),var(--painel));border:1px solid var(--borda);border-radius:16px;padding:16px 18px}
+.cartao b{display:block;font-size:28px;letter-spacing:-.6px}
+.cartao span{color:var(--fraco);font-size:12.5px}
+.grade{display:grid;grid-template-columns:1.25fr .95fr;gap:18px;align-items:start}
+@media(max-width:1080px){.grade{grid-template-columns:1fr}}
+.bloco{background:var(--painel);border:1px solid var(--borda);border-radius:16px;overflow:hidden;margin-bottom:18px}
+.bloco h2{margin:0;padding:15px 18px;font-size:14.5px;border-bottom:1px solid var(--borda);color:#cfd6e3;font-weight:600;display:flex;align-items:center;gap:8px}
+.bloco h2 small{color:var(--fraco);font-weight:400;margin-left:auto;font-size:12px}
+table{width:100%;border-collapse:collapse}
+th,td{padding:10px 14px;text-align:left;font-size:13px;border-bottom:1px solid #ffffff0d;white-space:nowrap}
+th{color:var(--fraco);font-weight:600;background:#131824}
+tr:last-child td{border-bottom:0}
+tbody tr:hover{background:#ffffff06}
+.nome{font-weight:600}
+.fraco{color:var(--fraco)}
+.selo{display:inline-block;font-size:11px;padding:3px 9px;border-radius:999px;border:1px solid var(--borda)}
+.selo.on{color:var(--verde);border-color:#2fd07a44;background:#2fd07a14}
+.selo.off{color:var(--fraco)}
+.selo.ruim{color:var(--vermelho);border-color:#ff6b6b44;background:#ff6b6b14}
+.selo.bom{color:var(--verde);border-color:#2fd07a44;background:#2fd07a12}
+.selo.medio{color:var(--amarelo);border-color:#ffc65a44;background:#ffc65a12}
+.barra{height:7px;border-radius:999px;background:#ffffff12;overflow:hidden;min-width:70px}
+.barra i{display:block;height:100%;background:linear-gradient(90deg,#2fd07a,#5aa9ff)}
+.alertas{display:grid;gap:9px;padding:14px 16px}
+.alerta{display:flex;gap:10px;align-items:flex-start;background:#1b2130;border:1px solid var(--borda);border-radius:12px;padding:11px 13px;font-size:13px}
+.alerta b{color:var(--amarelo)}
+.horas{display:flex;align-items:flex-end;gap:4px;height:110px;padding:16px}
+.hora{flex:1;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:6px;min-width:0}
+.hora i{width:100%;background:linear-gradient(180deg,#5aa9ff,#2a6fb8);border-radius:4px 4px 0 0;min-height:3px;display:block}
+.hora span{font-size:9.5px;color:var(--fraco);white-space:nowrap}
+.vazio{padding:18px;color:var(--fraco);font-size:13px}
+.erro-topo{margin:0 0 16px;background:#3a1717;border:1px solid #ff6b6b44;color:#ffd0d0;border-radius:12px;padding:12px 14px;font-size:13px;display:none}
+.rodape{color:var(--fraco);font-size:12px;text-align:center;padding:8px 0 30px}
+code{background:#ffffff10;padding:2px 6px;border-radius:6px;font-size:12.5px}
+</style>
+</head>
+<body>
+<header class="topo">
+  <span class="marca">Central Conecta TV</span>
+  <span class="tag">somente status</span>
+  <span class="ao-vivo"><span class="ponto"></span>ao vivo</span>
+  <div class="direita">
+    <span id="atualizado">carregando…</span>
+    <span id="fonte-dados" class="tag">dados locais</span>
+  </div>
+</header>
+<main>
+  <p class="erro-topo" id="erro-topo"></p>
+  <section class="cartoes" id="cartoes"></section>
+  <div class="grade">
+    <div>
+      <section class="bloco">
+        <h2>Aparelhos e pessoas <small id="total-aparelhos"></small></h2>
+        <table><thead><tr><th>Nome</th><th>Aparelho</th><th>Versão</th><th>IP</th><th>Assistindo agora</th><th>Último sinal</th><th>Acessos</th></tr></thead>
+        <tbody id="linha-aparelhos"></tbody></table>
+      </section>
+      <section class="bloco">
+        <h2>Últimas sessões <small>o que abriu, por qual fonte e se deu certo</small></h2>
+        <table><thead><tr><th>Quando</th><th>Quem</th><th>Título</th><th>Fonte</th><th>Áudio</th><th>Qualidade</th><th>Resultado</th></tr></thead>
+        <tbody id="linha-eventos"></tbody></table>
+      </section>
+    </div>
+    <div>
+      <section class="bloco">
+        <h2>Alertas</h2>
+        <div class="alertas" id="alertas"></div>
+      </section>
+      <section class="bloco">
+        <h2>Saúde das fontes <small>acertos e falhas reais</small></h2>
+        <table><thead><tr><th>Fonte</th><th>Usos</th><th>Sucesso</th><th></th><th>Última falha</th></tr></thead>
+        <tbody id="linha-fontes"></tbody></table>
+      </section>
+      <section class="bloco">
+        <h2>Movimento nas últimas 24 horas</h2>
+        <div class="horas" id="horas"></div>
+      </section>
+      <section class="bloco">
+        <h2>Versões do aplicativo</h2>
+        <table><tbody id="linha-versoes"></tbody></table>
+      </section>
+    </div>
+  </div>
+  <p class="rodape">Central do Conecta TV · atualiza sozinha a cada 15 segundos · os dados ficam somente neste servidor</p>
+</main>
+<script>
+const el = id => document.getElementById(id);
+function selo(texto, classe) { return '<span class="selo ' + classe + '">' + texto + '</span>'; }
+function escapar(valor) { return String(valor ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
+function quando(minutos) {
+  if (minutos === null) return '—';
+  if (minutos < 1) return 'agora mesmo';
+  if (minutos < 60) return 'há ' + minutos + ' min';
+  if (minutos < 1440) return 'há ' + Math.round(minutos / 60) + ' h';
+  return 'há ' + Math.round(minutos / 1440) + ' dia(s)';
+}
+function pintar(dados) {
+  const r = dados.resumo;
+  el('cartoes').innerHTML = [
+    ['pessoas', r.pessoas, 'pessoas cadastradas'],
+    ['aparelhos', r.aparelhos, 'aparelhos registrados'],
+    ['online', r.online, 'com sinal agora'],
+    ['sessões hoje', r.sessoesHoje, 'títulos abertos hoje'],
+    ['falhas hoje', r.falhasHoje, 'tentativas que não abriram'],
+    ['fontes', r.fontes, 'fontes em uso']
+  ].map(([titulo, valor, legenda]) => '<div class="cartao"><b>' + valor + '</b><span>' + titulo + ' · ' + legenda + '</span></div>').join('');
+
+  el('total-aparelhos').textContent = dados.aparelhos.length + ' no total';
+  el('linha-aparelhos').innerHTML = dados.aparelhos.length ? dados.aparelhos.map(a => `<tr>
+    <td class="nome">${escapar(a.nome)}</td>
+    <td>${escapar(a.aparelho)}${a.online ? ' ' + selo('online', 'on') : ''}</td>
+    <td class="fraco">${escapar(a.versao || '—')}</td>
+    <td class="fraco">${escapar(a.ip || '—')}</td>
+    <td>${escapar(a.assistindo || '—')}</td>
+    <td class="fraco">${quando(a.minutos)}</td>
+    <td class="fraco">${a.vezes || 1}</td></tr>`).join('') : '<tr><td colspan="7" class="vazio">Nenhum aparelho registrado ainda. Abra o Conecta TV em algum aparelho com a central configurada.</td></tr>';
+
+  el('linha-eventos').innerHTML = dados.eventos.length ? dados.eventos.map(e => `<tr>
+    <td class="fraco">${escapar(String(e.emCurto).slice(11) || '')}</td>
+    <td>${escapar(e.nome)}</td>
+    <td>${escapar(e.titulo || '—')}</td>
+    <td class="fraco">${escapar(e.fonte || '—')}</td>
+    <td>${e.audio === 'pt-BR' ? selo('dublado', 'bom') : escapar(e.audio || '—')}</td>
+    <td class="fraco">${escapar(e.resolucao || '—')}</td>
+    <td>${e.ok === false ? selo('não abriu', 'ruim') : selo('abriu', 'on')}</td></tr>`).join('') : '<tr><td colspan="7" class="vazio">Sem sessões registradas.</td></tr>';
+
+  el('alertas').innerHTML = dados.alertas.map(a => '<div class="alerta"><b>•</b><span>' + escapar(a) + '</span></div>').join('');
+
+  el('linha-fontes').innerHTML = dados.fontes.length ? dados.fontes.map(f => `<tr>
+    <td class="nome">${escapar(f.fonte)}</td>
+    <td class="fraco">${f.total}</td>
+    <td>${f.taxa}%</td>
+    <td style="width:90px"><div class="barra"><i style="width:${f.taxa}%"></i></div></td>
+    <td class="fraco">${f.ultimaFalha ? escapar(String(f.ultimaFalha).slice(11, 16)) : '—'}</td></tr>`).join('') : '<tr><td colspan="5" class="vazio">Nenhum uso de fonte registrado ainda.</td></tr>';
+
+  const maior = Math.max(1, ...dados.horas.map(h => h.quantidade));
+  el('horas').innerHTML = dados.horas.map(h => `<div class="hora" title="${h.quantidade} eventos · ${h.sessoes} sessões">
+    <i style="height:${Math.round((h.quantidade / maior) * 74)}px"></i><span>${escapar(h.rotulo)}</span></div>`).join('');
+
+  const chaves = Object.keys(dados.versoes || {});
+  el('linha-versoes').innerHTML = chaves.length ? chaves.map(v => '<tr><td>' + escapar(v) + '</td><td class="fraco" style="text-align:right">' + dados.versoes[v] + ' aparelho(s)</td></tr>').join('')
+    : '<tr><td class="vazio">Sem versões registradas.</td></tr>';
+
+  el('atualizado').textContent = 'atualizado ' + new Date(dados.atualizadoEm).toLocaleTimeString('pt-BR');
+}
+async function carregar() {
+  try {
+    const resposta = await fetch('/api/status', { cache: 'no-store' });
+    if (resposta.status === 401) { location.href = '/'; return; }
+    if (!resposta.ok) throw Error('HTTP ' + resposta.status);
+    const dados = await resposta.json();
+    el('erro-topo').style.display = 'none';
+    pintar(dados);
+  } catch (erro) {
+    el('erro-topo').textContent = 'Não consegui falar com a central agora (' + erro.message + '). Tentando de novo em instantes.';
+    el('erro-topo').style.display = 'block';
+  }
+}
+carregar();
+setInterval(carregar, 15000);
+</script>
+</body>
+</html>
