@@ -8,7 +8,7 @@
     const params = new URLSearchParams(location.search);
     const id = params.get('id'), index = params.get('source');
     const isTV=params.get('type')==='tv',season=params.get('season'),episode=params.get('episode');
-    if(isTV&&(!/^\d{1,3}$/.test(season||'')||! /^[1-9]\d{0,3}$/.test(episode||'')||!/^[0-6]$/.test(index||''))){status.textContent='Episódio inválido.';return;}
+    if(isTV&&(!/^\d{1,3}$/.test(season||'')||! /^[1-9]\d{0,3}$/.test(episode||'')||!/^[0-8]$/.test(index||''))){status.textContent='Episódio inválido.';return;}
     if (!/^\d{1,10}$/.test(id || '') || !/^(?:[0-9]|10)$/.test(index || '')) { status.textContent = 'Fonte inválida.'; return; }
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 15000);
@@ -28,7 +28,7 @@
         const trocarFonte = async (motivo) => {
             try{const tipo=isTV?'serie':'filme';const ruins=JSON.parse(localStorage.getItem('streamtv-fontes-ruins')||'{}');ruins[tipo]=[...new Set([...(ruins[tipo]||[]),source.nome])].slice(-6);localStorage.setItem('streamtv-fontes-ruins',JSON.stringify(ruins));const boas=JSON.parse(localStorage.getItem('streamtv-fontes-boas')||'{}');if(boas[tipo]===source.nome){boas[tipo]=null;localStorage.setItem('streamtv-fontes-boas',JSON.stringify(boas));}}catch{}
             const proximo = Number(index) + 1;
-            if (proximo > 6) { status.hidden = false; status.textContent = (motivo ? motivo + '. ' : '') + 'Nenhuma outra fonte para tentar. Volte ao catálogo.'; return; }
+            if (proximo > 8) { status.hidden = false; status.textContent = (motivo ? motivo + '. ' : '') + 'Nenhuma outra fonte para tentar. Volte ao catálogo.'; return; }
             status.hidden = false; status.textContent = (motivo ? motivo + '. ' : '') + 'Trocando para a próxima fonte...';
             await new Promise(r => setTimeout(r, 900));
             const proximoEndereco = new URL(location.href); proximoEndereco.searchParams.set('source', String(proximo)); location.href = proximoEndereco.href;
@@ -45,7 +45,7 @@
         // Guarda a fonte que funcionou para ela vir primeiro na próxima vez.
         let ficouBom=false;setTimeout(()=>{if(ficouBom||document.hidden)return;ficouBom=true;try{const memoria=JSON.parse(localStorage.getItem('streamtv-fontes-boas')||'{}');memoria[isTV?'serie':'filme']=source.nome;localStorage.setItem('streamtv-fontes-boas',JSON.stringify(memoria));}catch{}},15000);
         if(source.directory){
-            const url=await catalog.directoryUrl(source,id,isTV,controller.signal);
+            const url=await catalog.directoryUrl(source,id,isTV,controller.signal,season,episode);
             status.textContent=isTV?`Busque o título e selecione a temporada ${season}, episódio ${episode} na fonte. Confira se há áudio dublado.`:'Escolha o título na fonte e confira se há áudio dublado.';
             const link=document.createElement('a');link.href=url;link.target='_blank';link.rel='noopener';link.textContent='Abrir busca na fonte';link.style.cssText='display:block;padding:20px;margin:16px;background:#b91c1c;color:white;font-size:20px';document.body.append(link);link.focus();return;
         }
