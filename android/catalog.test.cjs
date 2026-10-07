@@ -16,7 +16,7 @@ test('a página do modo com anúncios usa o catálogo local no aparelho', () => 
 test('episódio mantém as fontes e os índices estáveis', async () => {
     const catalogo = createCatalog(async () => good({ imdb_id: 'tt0247082' }), 'test');
     const dados = await catalogo.request('/api/episode/1431/1/1');
-    assert.equal(dados.players[0].url, 'https://streambetter.shop/serie/1431/1/1');
+    assert.equal(dados.players[0].url, 'https://vidlink.pro/tv/1431/1/1');
     assert.equal(dados.players[0].index, 0);
     assert.equal(dados.players[1].url, 'https://vidsrc.to/embed/tv/1431/1/1');
     assert.ok(dados.players.every(p => p.dub === false && p.optional === true));
@@ -85,14 +85,14 @@ test('Brazil top list filters availability, caps ten, and never claims national 
 test('season and episode routes retain exact numbers and fixed provider origins',async()=>{
  const urls=[];const c=createCatalog(async u=>{urls.push(new URL(u).pathname);return good({episodes:[{episode_number:4,name:'Quatro'}]});},'test');
  const d=await c.request('/api/season/1399/2');assert.equal(urls[0],'/3/tv/1399/season/2');assert.equal(d.episodes[0].number,4);
- const e=await c.request('/api/episode/1399/2/4');assert.equal(e.players[0].url,'https://streambetter.shop/serie/1399/2/4');assert.equal(e.players[1].url,'https://vidsrc.to/embed/tv/1399/2/4');assert(e.players.every(p=>p.dub===false));assert.equal(e.players.every(p=>p.manual===true),true,'fonte com anúncio só abre se o usuário escolher');
+ const e=await c.request('/api/episode/1399/2/4');assert.equal(e.players[0].url,'https://vidlink.pro/tv/1399/2/4');assert.equal(e.players[1].url,'https://vidsrc.to/embed/tv/1399/2/4');assert(e.players.every(p=>p.dub===false));assert.equal(e.players.every(p=>p.manual===true),true,'fonte com anúncio só abre se o usuário escolher');
  await assert.rejects(c.request('/api/episode/1399/2/0'));await assert.rejects(c.request('/api/season/../2'));
 });
 test('new alternatives preserve episode coordinates and never claim confirmed dubbing',async()=>{
  const c=createCatalog(async()=>good({imdb_id:'tt0068646'}),'test');
  const ep=(await c.request('/api/episode/108978/2/4')).players;
- assert.equal(ep.find(p=>p.index===2).url,'https://superflixapi.monster/serie/108978/2/4');
- assert.equal(ep.find(p=>p.index===3).directory,'doramogo');assert.equal(ep.find(p=>p.index===4).directory,'pobreflix');
+ assert.equal(ep.find(p=>p.index===3).url,'https://superflixapi.monster/serie/108978/2/4');
+ assert.equal(ep.find(p=>p.index===4).directory,'doramogo');assert.equal(ep.find(p=>p.index===5).directory,'pobreflix');
  for(const p of ep.filter(p=>p.index>=2)){assert.equal(p.dub,false);assert.equal(p.manual,true);assert(p.urlCompatibilidade.includes('season=2&episode=4'));}
  const movie=await c.sources(238);assert.equal(movie.find(p=>p.index===8).url,'https://superflixapi.monster/filme/tt0068646');assert.equal(movie.find(p=>p.index===10).directory,'pobreflix');
 });

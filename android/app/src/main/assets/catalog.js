@@ -29,8 +29,8 @@
         function extras(id, imdb, tv=false, season, episode) {
             const local=index=>tv?`/assistir.html?type=tv&id=${id}&season=${season}&episode=${episode}&source=${index}`:`/assistir.html?id=${id}&source=${index}`;
             const base=(nome,index,fields)=>({nome,index,dub:false,optional:true,manual:true,funcionou:true,status:'nao-testada',urlCompatibilidade:local(index),...fields});
-            const list=[base('Doramogo · buscar título',tv?3:9,{directory:'doramogo'}),base('PobreFlix / YouCine · buscar título',tv?4:10,{directory:'pobreflix'})];
-            if(tv||imdb)list.unshift(base('SuperFlix · com anúncios',tv?2:8,{url:tv?`https://superflixapi.monster/serie/${id}/${season}/${episode}`:`https://superflixapi.monster/filme/${imdb}`,status:'verificacao-no-navegador'}));
+            const list=[base('Doramogo · buscar título',tv?4:9,{directory:'doramogo'}),base('PobreFlix / YouCine · buscar título',tv?5:10,{directory:'pobreflix'})];
+            if(tv||imdb)list.unshift(base('SuperFlix · com anúncios',tv?3:8,{url:tv?`https://superflixapi.monster/serie/${id}/${season}/${episode}`:`https://superflixapi.monster/filme/${imdb}`,status:'verificacao-no-navegador'}));
             return list;
         }
         async function directoryUrl(source, id, tv, signal) {
@@ -98,10 +98,11 @@
             if(season){const d=await tmdb(`tv/${season[1]}/season/${season[2]}`,{},signal);return {episodes:(d.episodes||[]).map(x=>({number:x.episode_number,name:x.name,overview:x.overview,date:x.air_date,image:x.still_path?`https://image.tmdb.org/t/p/w300${x.still_path}`:null}))};}
             let ep=url.pathname.match(/^\/api\/episode\/(\d{1,10})\/(\d{1,3})\/([1-9]\d{0,3})$/);
             if(ep){const [_,id,season,episode]=ep;return {players:[
-                // Restaurado o caminho que funcionava no aparelho do usuário (versões 1.5 a 1.8.6):
-                // o StreamBetter pede uma confirmação humana e depois abre o episódio.
-                {nome:'StreamBetter (verificação humana)',url:`https://streambetter.shop/serie/${id}/${season}/${episode}`,dub:false,optional:true,funcionou:true,status:'verificacao-no-navegador',qualidade:'com anúncios',manual:true,index:0,urlCompatibilidade:`/assistir.html?type=tv&id=${id}&season=${season}&episode=${episode}&source=0`},
-                {nome:'VidSrc (séries)',url:`https://vidsrc.to/embed/tv/${id}/${season}/${episode}`,dub:false,optional:true,funcionou:true,status:'audio-nao-confirmado',qualidade:'até 1080p · com anúncios',manual:true,index:1,urlCompatibilidade:`/assistir.html?type=tv&id=${id}&season=${season}&episode=${episode}&source=1`},...extras(id,null,true,season,episode)
+                // Verificação minuciosa de 06/10: a VidLink abriu Game of Thrones (1080p) e
+                // The Last of Us (1080p); a VidSrc abriu o CSI, que não existe na VidLink.
+                {nome:'VidLink (séries)',url:`https://vidlink.pro/tv/${id}/${season}/${episode}`,dub:false,optional:true,funcionou:true,status:'audio-nao-confirmado',qualidade:'até 1080p · com anúncios',manual:true,index:0,urlCompatibilidade:`/assistir.html?type=tv&id=${id}&season=${season}&episode=${episode}&source=0`},
+                {nome:'VidSrc (séries)',url:`https://vidsrc.to/embed/tv/${id}/${season}/${episode}`,dub:false,optional:true,funcionou:true,status:'audio-nao-confirmado',qualidade:'até 1080p · com anúncios',manual:true,index:1,urlCompatibilidade:`/assistir.html?type=tv&id=${id}&season=${season}&episode=${episode}&source=1`},
+                {nome:'StreamBetter (verificação humana)',url:`https://streambetter.shop/serie/${id}/${season}/${episode}`,dub:false,optional:true,funcionou:true,status:'verificacao-no-navegador',qualidade:'com anúncios',manual:true,index:2,urlCompatibilidade:`/assistir.html?type=tv&id=${id}&season=${season}&episode=${episode}&source=2`},...extras(id,null,true,season,episode)
             ]};}
             if (url.pathname === '/api/buscar') {
                 const q = (url.searchParams.get('nome') || '').trim();
