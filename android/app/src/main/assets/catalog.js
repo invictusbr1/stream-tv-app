@@ -38,6 +38,7 @@
             const title=tv?d.name:d.title;if(!title)throw Error('Título indisponível');
             if(source.directory==='doramogo')return 'https://www.doramogo.net/search/?q='+encodeURIComponent(title);
             if(source.directory==='pobreflix')return 'https://youcinehd.lat/pesquisar?s='+encodeURIComponent(title);
+            if(source.directory==='dattebayo')return 'https://www.dattebayo-br.com/anime-dublado';
             throw Error('Fonte inválida');
         }
         async function sources(id, signal) {
@@ -102,7 +103,7 @@
                 // The Last of Us (1080p); a VidSrc abriu o CSI, que não existe na VidLink.
                 {nome:'VidLink (séries)',url:`https://vidlink.pro/tv/${id}/${season}/${episode}`,dub:false,optional:true,funcionou:true,status:'audio-nao-confirmado',qualidade:'até 1080p · com anúncios',manual:true,index:0,urlCompatibilidade:`/assistir.html?type=tv&id=${id}&season=${season}&episode=${episode}&source=0`},
                 {nome:'VidSrc (séries)',url:`https://vidsrc.to/embed/tv/${id}/${season}/${episode}`,dub:false,optional:true,funcionou:true,status:'audio-nao-confirmado',qualidade:'até 1080p · com anúncios',manual:true,index:1,urlCompatibilidade:`/assistir.html?type=tv&id=${id}&season=${season}&episode=${episode}&source=1`},
-                {nome:'StreamBetter (verificação humana)',url:`https://streambetter.shop/serie/${id}/${season}/${episode}`,dub:false,optional:true,funcionou:true,status:'verificacao-no-navegador',qualidade:'com anúncios',manual:true,index:2,urlCompatibilidade:`/assistir.html?type=tv&id=${id}&season=${season}&episode=${episode}&source=2`},...extras(id,null,true,season,episode)
+                {nome:'StreamBetter (verificação humana)',url:`https://streambetter.shop/serie/${id}/${season}/${episode}`,dub:false,optional:true,funcionou:true,status:'verificacao-no-navegador',qualidade:'com anúncios',manual:true,index:2,urlCompatibilidade:`/assistir.html?type=tv&id=${id}&season=${season}&episode=${episode}&source=2`},...extras(id,null,true,season,episode),{nome:'Dattebayo BR · animes dublados',url:'https://www.dattebayo-br.com/anime-dublado',dub:false,optional:true,funcionou:true,status:'escolha-o-episodio',qualidade:'dublado · com anúncios',manual:true,directory:'dattebayo',index:6,urlCompatibilidade:`/assistir.html?type=tv&id=${id}&season=${season}&episode=${episode}&source=6`}
             ]};}
             if (url.pathname === '/api/buscar') {
                 const q = (url.searchParams.get('nome') || '').trim();

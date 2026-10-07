@@ -44,8 +44,8 @@ test('manual episode sources remain visible and open the validated compatibility
  const s=setup();const p={nome:'Doramogo',directory:'doramogo',optional:true,manual:true,dub:false,funcionou:true,urlCompatibilidade:'/assistir.html?type=tv&id=94796&season=1&episode=2&source=3'};
  s.fetch(async()=>({ok:true,json:async()=>({players:[p]})}));await s.run("abrirPlayer(94796,'Dorama',{season:1,number:2})");assert.equal(s.get('opcoes').hidden,false);assert(!s.get('loading').classList.contains('vis'));assert.equal(s.get('frame').src,'about:blank');
  s.get('fontes').children[0].onclick();assert.equal(s.run('location.href'),'http://localhost:3106'+p.urlCompatibilidade);
- for(const bad of ['/assistir.html?id=238&source=11','/assistir.html?id=238&source=10&redirect=x','/assistir.html?type=tv&id=94796&season=1&episode=2&source=6'])assert.equal(s.run(`urlExterna(${JSON.stringify(bad)})`),null);
- assert.equal(s.run("urlExterna('/assistir.html?type=tv&id=94796&season=1&episode=2&source=5')"),'http://localhost:3106/assistir.html?type=tv&id=94796&season=1&episode=2&source=5');
+ for(const bad of ['/assistir.html?id=238&source=11','/assistir.html?id=238&source=10&redirect=x','/assistir.html?type=tv&id=94796&season=1&episode=2&source=7'])assert.equal(s.run(`urlExterna(${JSON.stringify(bad)})`),null);
+ assert.equal(s.run("urlExterna('/assistir.html?type=tv&id=94796&season=1&episode=2&source=6')"),'http://localhost:3106/assistir.html?type=tv&id=94796&season=1&episode=2&source=6');
  assert.equal(s.run("urlExterna('/assistir.html?id=238&source=10')"),'http://localhost:3106/assistir.html?id=238&source=10');
 });
 test('episode opens automatically on the best scored source',async()=>{

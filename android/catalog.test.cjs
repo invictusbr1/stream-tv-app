@@ -92,7 +92,7 @@ test('new alternatives preserve episode coordinates and never claim confirmed du
  const c=createCatalog(async()=>good({imdb_id:'tt0068646'}),'test');
  const ep=(await c.request('/api/episode/108978/2/4')).players;
  assert.equal(ep.find(p=>p.index===3).url,'https://superflixapi.monster/serie/108978/2/4');
- assert.equal(ep.find(p=>p.index===4).directory,'doramogo');assert.equal(ep.find(p=>p.index===5).directory,'pobreflix');
+ assert.equal(ep.find(p=>p.index===4).directory,'doramogo');assert.equal(ep.find(p=>p.index===5).directory,'pobreflix');assert.equal(ep.find(p=>p.index===6).directory,'dattebayo');
  for(const p of ep.filter(p=>p.index>=2)){assert.equal(p.dub,false);assert.equal(p.manual,true);assert(p.urlCompatibilidade.includes('season=2&episode=4'));}
  const movie=await c.sources(238);assert.equal(movie.find(p=>p.index===8).url,'https://superflixapi.monster/filme/tt0068646');assert.equal(movie.find(p=>p.index===10).directory,'pobreflix');
 });
