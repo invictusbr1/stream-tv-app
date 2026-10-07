@@ -18,3 +18,14 @@ test('o Top 10 do dia (filmes e séries) é buscado uma vez e atualizado em inte
  assert.equal(s.requests.filter(x=>x==='/api/alta?tipo=movie').length,2);
  assert.equal(s.requests.filter(x=>x==='/api/alta?tipo=tv').length,2);
 });
+
+test('o menu de categorias fica ancorado na tela, e não no botão, para não abrir fora dela',()=>{
+ const html=fs.readFileSync(__dirname+'/index.html','utf8');
+ const painel=html.match(/\.menu-cat-painel\{[^}]*\}/);
+ assert.ok(painel,'precisa existir a regra do painel do menu');
+ assert.match(painel[0],/position:absolute/);
+ assert.match(painel[0],/right:4vw/,'ancorado na borda da tela');
+ assert.match(painel[0],/width:min\(320px,88vw\)/);
+ assert.ok(!/\.menu-cat\{position:relative/.test(html),'o botão ⋯ não pode ser a âncora do painel (abria fora da tela no celular)');
+ assert.match(html,/@media\(max-width:900px\)\{\.nav-chips\{display:none!important\}\.menu-cat\{display:block\}\}/,'no celular a barra some e o ⋯ aparece');
+});
