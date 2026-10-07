@@ -30,5 +30,3 @@ android/app/src/main/assets/catalog.js
 stream-tv/
 # Relatórios gerados pela verificação de fontes
 relatorios/
-# Arquivos de CI aguardando o escopo "workflow" no token do GitHub
-.github/

@@ -1,0 +1,26 @@
+name: Verificar fontes (semanal)
+
+on:
+  schedule:
+    - cron: '0 9 * * 1'   # toda segunda-feira, 6h no horário de Brasília
+  workflow_dispatch:
+
+jobs:
+  verificar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Instalar ffprobe
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - name: Rodar a verificação
+        run: node ferramentas/verificar-fontes.cjs
+      - name: Publicar o relatório
+        run: |
+          git config user.name "Conecta TV (robô)"
+          git config user.email "robo@conectatv.local"
+          git add fontes.json relatorios || true
+          git commit -m "Relatório automático de fontes ($(date +%d/%m/%Y))" || echo "nada mudou"
+          git push || echo "sem permissão de escrita"
