@@ -117,23 +117,23 @@
                 const tipoAlta=url.searchParams.get('tipo')==='tv'?'tv':'movie';
                 const d=await tmdb(`trending/${tipoAlta}/day`,{},signal);
                 const lista=(d.results||[]).filter(x=>!x.media_type||x.media_type!=='person').slice(0,10);
+                // Uma consulta por título (arte + onde assistir juntas). Antes eram
+                // duas por título, o que estourava o limite do TMDB e derrubava a
+                // lista inteira quando uma delas falhava.
                 const comStreamings=await Promise.all(lista.map(async x=>{
                     const base=movie({...x,media_type:tipoAlta});
-                    // A arte com o nome do título (como nos streamings) e onde
-                    // ele está disponível no Brasil.
                     let logo='';
+                    let streamings=[];
                     try{
-                        const img=await tmdb(`${tipoAlta}/${x.id}/images`,{include_image_language:'pt,en,null'},signal);
-                        const logos=(img.logos||[]).slice().sort((a,b)=>(b.vote_average||0)-(a.vote_average||0));
+                        const extra=await tmdb(`${tipoAlta}/${x.id}`,{language:'pt-BR',append_to_response:'watch/providers,images',include_image_language:'pt,en,null'},signal);
+                        const logos=((extra.images&&extra.images.logos)||[]).slice().sort((a,b)=>(b.vote_average||0)-(a.vote_average||0));
                         const escolhido=logos.find(l=>l.iso_639_1==='pt')||logos.find(l=>l.iso_639_1==='en')||logos[0];
                         if(escolhido&&escolhido.file_path)logo=`https://image.tmdb.org/t/p/w500${escolhido.file_path}`;
-                    }catch{}
-                    try{
-                        const p=await tmdb(`${tipoAlta}/${x.id}/watch/providers`,{},signal);
-                        const br=(p.results&&p.results.BR)||{};
+                        const br=((extra['watch/providers']||{}).results||{}).BR||{};
                         const nomes=[...(br.flatrate||[]),...(br.free||[]),...(br.ads||[])].map(v=>v.provider_name).filter(Boolean);
-                        return {...base,logo,streamings:[...new Set(nomes)].slice(0,3)};
-                    }catch{return {...base,logo,streamings:[]};}
+                        streamings=[...new Set(nomes)].slice(0,3);
+                    }catch{ /* segue sem arte/streaming, mas o título continua na lista */ }
+                    return {...base,logo,streamings};
                 }));
                 return {tipo:tipoAlta,items:comStreamings,checkedAt:new Date().toISOString()};
             }

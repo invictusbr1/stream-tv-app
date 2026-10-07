@@ -45,13 +45,20 @@ function atualizarFavoritoDaSerie(f){const botao=el('series-fav');if(!botao)retu
    const atualizadoEm=d.checkedAt?String(d.checkedAt).slice(8,10)+'/'+String(d.checkedAt).slice(5,7):'';
    el(idNota).textContent=`Em alta hoje (${atualizadoEm}) · atualizado às ${hora} · toque para abrir. Atualiza sozinho todo dia.`;
  }
- function paintAlta(dados){paintTop(dados.filmes,'movie');paintTop(dados.series,'tv');montarDestaques(dados.filmes.items,dados.series.items);}
+ function paintAlta(dados){
+   if(dados.filmes)paintTop(dados.filmes,'movie');
+   else if(el('alta-filmes-nota'))el('alta-filmes-nota').textContent='Não foi possível buscar o ranking de filmes agora.';
+   if(dados.series)paintTop(dados.series,'tv');
+   else if(el('alta-series-nota'))el('alta-series-nota').textContent='Não foi possível buscar o ranking de séries agora.';
+   montarDestaques((dados.filmes&&dados.filmes.items)||[],(dados.series&&dados.series.items)||[]);
+ }
  // ---------------------------------------------------------------
  // Destaque grande da tela inicial, no estilo dos streamings: a arte do
  // título, o ano, o gênero, "Assistir agora", o "+" e as bolinhas que
  // trocam de título sozinhas.
  // ---------------------------------------------------------------
  let destaques=[],destaqueAtual=0,destaqueTimer=null;
+ let tentativasAlta=0;
  function destaqueAtivo(){return destaques.length>0;}
  function atualizarBotaoDestaque(f){const b=el('hero-add');if(!b)return;const marcado=Boolean(window.StreamPersonal?.isFavorite?.(f.id));b.setAttribute('aria-pressed',String(marcado));b.textContent=marcado?'✓':'+';b.title=marcado?'Remover dos favoritos':'Guardar em Favoritos';}
  function mostrarDestaque(indice){
@@ -96,14 +103,25 @@ function atualizarFavoritoDaSerie(f){const botao=el('series-fav');if(!botao)retu
    try{
      const guardado=altaGuardada();
      if(guardado&&!topDeferred){paintAlta(guardado);lastTop=Date.now();topBusy=false;return;}
-     const [filmes,series]=await Promise.all([get('/api/alta?tipo=movie'),get('/api/alta?tipo=tv')]);
+     // Se uma das duas listas falhar, a outra continua aparecendo.
+     const resposta=await Promise.allSettled([get('/api/alta?tipo=movie'),get('/api/alta?tipo=tv')]);
+     const filmes=resposta[0].status==='fulfilled'?resposta[0].value:null;
+     const series=resposta[1].status==='fulfilled'?resposta[1].value:null;
+     if(!filmes&&!series)throw Error('sem ranking');
      const dados={filmes,series,pego:new Date().toISOString()};
+     tentativasAlta=0;
      guardarAlta(dados);lastTop=Date.now();
      if(el('player').classList.contains('ativo'))topDeferred=dados;else paintAlta(dados);
    }catch{
      const guardado=altaGuardada();
      if(guardado)paintAlta(guardado);
-     else if(el('alta-filmes-nota'))el('alta-filmes-nota').textContent='Não foi possível buscar o ranking agora. Tente novamente em instantes.';
+     else{
+       if(el('alta-filmes-nota'))el('alta-filmes-nota').textContent='Não foi possível buscar o ranking agora. Tentando de novo…';
+       if(el('alta-series-nota'))el('alta-series-nota').textContent='Tentando novamente em instantes…';
+       // Nova tentativa automática (até três), com espera crescente.
+       tentativasAlta+=1;
+       if(tentativasAlta<=3)setTimeout(()=>{if(!document.hidden)refreshTop();},15000*tentativasAlta);
+     }
    }finally{topBusy=false;}
  }
  el('genre-filter').append(new Option('Todas',''));

@@ -36,6 +36,16 @@ test('a gaveta de categorias é fixa na tela (nunca abre fora dela) e o celular 
  assert.match(html,/id="bottom-nav"/);
 });
 
+test('o ranking do dia é resiliente: uma lista que falha não apaga a outra',()=>{
+ const biblioteca=fs.readFileSync(__dirname+'/library.js','utf8');
+ assert.match(biblioteca,/Promise\.allSettled\(\[get\('\/api\/alta\?tipo=movie'\),get\('\/api\/alta\?tipo=tv'\)\]\)/,'cada lista é tratada por si');
+ assert.match(biblioteca,/if\(dados\.filmes\)paintTop\(dados\.filmes,'movie'\)/);
+ assert.match(biblioteca,/if\(dados\.series\)paintTop\(dados\.series,'tv'\)/);
+ assert.match(biblioteca,/tentativasAlta<=3/,'nova tentativa automática quando falha');
+ const catalogo=fs.readFileSync(__dirname+'/android/app/src/main/assets/catalog.js','utf8');
+ assert.match(catalogo,/append_to_response:'watch\/providers,images'/,'uma consulta por título, para não estourar o TMDB');
+});
+
 test('os cartões seguem um padrão único de alinhamento (capa, título e rodapé)',()=>{
  const html=fs.readFileSync(__dirname+'/index.html','utf8');
  const card=html.match(/\.card\{display:flex[^}]*\}/);
