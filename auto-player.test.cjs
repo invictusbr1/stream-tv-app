@@ -48,9 +48,11 @@ test('manual episode sources remain visible and open the validated compatibility
  assert.equal(s.run("urlExterna('/assistir.html?type=tv&id=94796&season=1&episode=2&source=5')"),'http://localhost:3106/assistir.html?type=tv&id=94796&season=1&episode=2&source=5');
  assert.equal(s.run("urlExterna('/assistir.html?id=238&source=10')"),'http://localhost:3106/assistir.html?id=238&source=10');
 });
-test('episode never opens an ad source by itself; the list is offered instead',async()=>{
- const s=setup();const p={nome:'Episode embed',optional:true,dub:false,funcionou:true,manual:true,url:'https://embed.example/serie/94796/1/2',urlCompatibilidade:'/assistir.html?type=tv&id=94796&season=1&episode=2&source=0'};
- s.fetch(async()=>({ok:true,json:async()=>({players:[p]})}));await s.run("abrirPlayer(94796,'Episode',{season:1,number:2})");
- assert.equal(s.get('opcoes').hidden,false,'a lista precisa ser oferecida');
- assert.equal(s.get('frame').src,'about:blank','nada com anúncio pode abrir sozinho');
+test('episode opens automatically on the best scored source',async()=>{
+ const s=setup();const p1={nome:'VidLink (séries)',optional:true,dub:false,funcionou:true,manual:true,qualidade:'até 1080p · com anúncios',url:'https://vidlink.pro/tv/94796/1/2',urlCompatibilidade:'/assistir.html?type=tv&id=94796&season=1&episode=2&source=0'};
+ const p2={nome:'Busca externa',optional:true,dub:false,funcionou:true,manual:true,directory:'doramogo',url:'https://busca.example',urlCompatibilidade:'/assistir.html?type=tv&id=94796&season=1&episode=2&source=4'};
+ s.fetch(async()=>({ok:true,json:async()=>({players:[p2,p1]})}));
+ await s.run("abrirPlayer(94796,'Episode',{season:1,number:2})");
+ assert.equal(s.get('opcoes').hidden,true,'painel não deve aparecer');
+ assert.equal(s.run('location.href'),'http://localhost:3106'+p1.urlCompatibilidade,'abre na melhor fonte, não numa busca');
 });
