@@ -45,6 +45,17 @@ function escolherStream(streams) {
     return hls.find(s => /dublado|dual/i.test(String(s.title || '') + ' ' + String(s.name || ''))) || hls[0];
 }
 
+// Quando não existe lista HLS, o addon publica o mesmo filme em MKV (1080p,
+// com faixa em português). O navegador toca esse arquivo SEM SOM, mas o
+// aplicativo consegue convertê-lo (o vídeo é copiado; só o áudio vira AAC) —
+// por isso ele também é oferecido, marcado como "conversão".
+function escolherParaConversao(streams) {
+    const lista = Array.isArray(streams) ? streams : [];
+    const arquivos = lista.filter(s => s && typeof s.url === 'string' && /\.(mkv|mp4)(\?|$)/i.test(s.url));
+    if (!arquivos.length) return null;
+    return arquivos.find(s => /dublado|dual/i.test(String(s.title || '') + ' ' + String(s.name || ''))) || arquivos[0];
+}
+
 async function resolver(tipo, tmdbId, temporada, episodio) {
     const id = String(tmdbId || '').trim();
     if (!/^\d{1,10}$/.test(id)) return null;
@@ -62,6 +73,7 @@ async function resolver(tipo, tmdbId, temporada, episodio) {
     try {
         const r = await axios.get(BASE + caminho, { headers: { 'User-Agent': UA, Accept: 'application/json' }, timeout: 15000, validateStatus: s => s < 500 });
         const escolhido = escolherStream(r.data && r.data.streams);
+        const paraConversao = escolhido ? null : escolherParaConversao(r.data && r.data.streams);
         if (escolhido) {
             dados = {
                 url: escolhido.url,
@@ -69,6 +81,16 @@ async function resolver(tipo, tmdbId, temporada, episodio) {
                 fonte: 'FenixFlix · dublado',
                 resolucao: '720p',
                 type: 'hls',
+                validadeMs: VALIDADE,
+            };
+        } else if (paraConversao) {
+            dados = {
+                url: paraConversao.url,
+                audio: 'pt-BR',
+                fonte: 'FenixFlix · 1080p (conversão)',
+                resolucao: '1080p',
+                type: 'convertido',
+                converter: true,
                 validadeMs: VALIDADE,
             };
         }
@@ -82,4 +104,4 @@ function resolverEpisodio(tmdbId, temporada, episodio) {
     return resolver('tv', tmdbId, temporada, episodio);
 }
 
-module.exports = { resolver, resolverEpisodio, escolherStream, imdbDe, BASE };
+module.exports = { resolver, resolverEpisodio, escolherStream, escolherParaConversao, imdbDe, BASE };

@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { escolherStream } = require('./fenix-source');
+const { escolherStream, escolherParaConversao } = require('./fenix-source');
 
 // Página real do addon (filme "A Queda 2"): tem uma opção legendada e uma
 // dublada, as duas em HLS.
@@ -24,4 +24,15 @@ test('recusa opções que não são lista de reprodução', () => {
 test('sem rótulo dublado, aceita a primeira lista disponível', () => {
     const streams = [{ title: 'Filme', url: 'https://cdn.exemplo/master.m3u8' }];
     assert.equal(escolherStream(streams).url, 'https://cdn.exemplo/master.m3u8');
+});
+
+// Sem lista HLS, o addon publica MKV 1080p (som que o navegador não toca).
+// O aplicativo consegue converter — por isso a opção entra marcada.
+test('sem lista, aceita o arquivo MKV para conversão (preferindo o dublado)', () => {
+    const streams = [
+        { title: 'Filme 🇺🇸 Legendado', url: 'https://cdn.exemplo/filme-legendado.mkv' },
+        { title: 'Filme 🇧🇷 Dublado', url: 'https://cdn.exemplo/filme-dublado.mkv' },
+    ];
+    assert.equal(escolherParaConversao(streams).url, 'https://cdn.exemplo/filme-dublado.mkv');
+    assert.equal(escolherParaConversao([{ title: 'Página', url: 'https://site.exemplo/player' }]), null);
 });

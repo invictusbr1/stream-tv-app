@@ -169,7 +169,9 @@ public final class MainActivity extends Activity {
                 if (item == null) continue;
                 String src = item.optString("src", "");
                 if (src.isEmpty()) continue;
-                if (escolhida.isEmpty()) escolhida = src;
+                // Só aceita a opção rotulada como dublada ("HD DUB"). Sem esse
+                // rótulo o arquivo pode estar no idioma original — nesse caso é
+                // melhor deixar o aplicativo seguir para a próxima fonte.
                 if (item.optString("label", "").toLowerCase().contains("dub")) { escolhida = src; break; }
             }
             if (escolhida.isEmpty()) return error(502);
@@ -359,9 +361,14 @@ public final class MainActivity extends Activity {
                 String path = uri.getPath();
                 if (path != null && path.matches("/api/playback/[0-9]{1,10}")) {
                     String id = path.substring("/api/playback/".length());
-                    WebResourceResponse direto = directPlayback("https://v2.watchplay.shop/movie/" + id);
-                    if (direto != null && direto.getStatusCode() == 200) return direto;
-                    return pipocaFilme(id);
+                    // Dublado CONFERIDO primeiro: o arquivo do PipocaCine tem a
+                    // faixa em português marcada como padrão. A WatchPlay apenas
+                    // "avisa" que é dublada e em alguns títulos entrega o idioma
+                    // original (caso do "A Luta pela Esperança", medido em
+                    // 08/10/2026 por transcrição do áudio) — por isso vem depois.
+                    WebResourceResponse dublado = pipocaFilme(id);
+                    if (dublado != null && dublado.getStatusCode() == 200) return dublado;
+                    return directPlayback("https://v2.watchplay.shop/movie/" + id);
                 }
                 if (path != null && path.matches("/api/playback/serie/[0-9]{1,10}/[0-9]{1,3}/[1-9][0-9]{0,3}")) {
                     String[] partes = path.split("/");

@@ -390,6 +390,21 @@ app.get('/api/playback/:id', async (req, res) => {
         const exceto = String(req.query.exceto || '').split(',').map(item => item.trim()).filter(Boolean);
         const escolhido = await motor.escolher('dublado', { tipo: 'movie', tmdbId: req.params.id }, { exceto });
         if (escolhido) {
+            // Fonte que precisa de conversão (MKV com som que o navegador não
+            // toca): o aplicativo converte e só o áudio muda; a imagem é a
+            // original, sem perda.
+            if (escolhido.converter) {
+                const conversor = require('./conversor');
+                const trabalho = await conversor.iniciar(escolhido.url, { titulo: `filme-${req.params.id}`, referer: escolhido.referer || '' });
+                return res.json({
+                    url: `/api/convertido/${trabalho.id}/index.m3u8`,
+                    audio: escolhido.audio || 'pt-BR',
+                    source: escolhido.fonte || 'Dublado (conversão)',
+                    type: 'hls',
+                    resolucao: escolhido.resolucao || '',
+                    conversao: trabalho.id,
+                });
+            }
             const pronto = motor.prepararParaPlayer(escolhido);
             return res.json({
                 url: pronto.final ? pronto.url : pronto.urlAplicativo,
@@ -413,6 +428,8 @@ app.get('/api/playback/:id', async (req, res) => {
 // (watchplayCookie) ou da variável WATCHPLAY_COOKIE.
 // ============================================================
 app.get('/api/playback/serie/:id/:season/:episode', async (req, res) => {
+    // (a rota usa o conversor quando a fonte só existe em arquivo que o
+    // navegador toca mudo — ver abaixo)
     const { id, season, episode } = req.params;
     if (!/^\d{1,10}$/.test(id) || !/^\d{1,3}$/.test(season) || !/^[1-9]\d{0,3}$/.test(episode)) return res.sendStatus(400);
     res.setHeader('Cache-Control', 'no-store');
@@ -421,6 +438,18 @@ app.get('/api/playback/serie/:id/:season/:episode', async (req, res) => {
         const exceto = String(req.query.exceto || '').split(',').map(item => item.trim()).filter(Boolean);
         const escolhido = await require('./series-source').resolverEpisodio({ tmdbId: id, temporada: season, episodio: episode, cookie, exceto });
         if (!escolhido) throw new Error('sem fonte');
+        if (escolhido.converter) {
+            const conversor = require('./conversor');
+            const trabalho = await conversor.iniciar(escolhido.url, { titulo: `serie-${id}-T${season}E${episode}`, referer: escolhido.referer || '' });
+            return res.json({
+                url: `/api/convertido/${trabalho.id}/index.m3u8`,
+                audio: escolhido.audio || 'pt-BR',
+                source: escolhido.fonte || 'Dublado (conversão)',
+                type: 'hls',
+                resolucao: escolhido.resolucao || '',
+                conversao: trabalho.id,
+            });
+        }
         res.json({
             // Fonte de arquivo direto (dublada) não passa pelo encaminhamento.
             url: escolhido.final ? escolhido.url : escolhido.urlAplicativo,
@@ -435,6 +464,86 @@ app.get('/api/playback/serie/:id/:season/:episode', async (req, res) => {
     } catch {
         res.status(502).json({ error: 'Nenhuma fonte limpa respondeu para este episódio agora.' });
     }
+});
+
+// ------------------------------------------------------------
+// CONVERSÃO DE ARQUIVO — para provedores que entregam MKV com som que o
+// navegador não toca. O vídeo é copiado (sem perda) e o áudio vira AAC.
+// ------------------------------------------------------------
+app.get('/api/converter', async (req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    let endereco = '';
+    try { endereco = midia.textoDeBase64url(req.query.url || ''); } catch { return res.status(400).json({ erro: 'endereço inválido' }); }
+    // Aceita https de fora e o endereço local (127.0.0.1) — este último serve
+    // para conferir conversões de arquivos guardados no próprio computador.
+    const ehLocal = /^http:\/\/127\.0\.0\.1(:\d+)?\//i.test(endereco);
+    const bloqueado = seguranca.hostInterno(new URL(endereco).hostname) && !ehLocal;
+    if ((!ehLocal && !/^https:\/\//i.test(endereco)) || bloqueado) return res.status(400).json({ erro: 'endereço inválido' });
+    try {
+        const conversor = require('./conversor');
+        const trabalho = await conversor.iniciar(endereco, {
+            titulo: String(req.query.titulo || 'video').slice(0, 60),
+            referer: String(req.query.referer || '').slice(0, 200),
+        });
+        res.json({ ok: true, ...trabalho });
+    } catch (erro) {
+        res.status(502).json({ erro: String(erro.message).slice(0, 120) });
+    }
+});
+
+app.get('/api/conversao/:id', (req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    const conversor = require('./conversor');
+    res.json(conversor.estado(String(req.params.id || '')));
+});
+
+// Entrega o arquivo em conversão (com suporte a avançar/voltar, quando o
+// trecho pedido já foi convertido).
+app.get('/api/convertido/:id', (req, res) => {
+    const conversor = require('./conversor');
+    const arquivo = conversor.arquivoDe(String(req.params.id || ''));
+    if (!arquivo) return res.status(404).send('ainda não há conversão');
+    // A conversão é uma lista HLS: o player pede o arquivo e os pedaços.
+    res.setHeader('Cache-Control', 'no-store');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    if (/\.m3u8$/i.test(arquivo)) {
+        res.setHeader('Content-Type', 'application/vnd.apple.mpegurl');
+        return fs.createReadStream(arquivo).pipe(res);
+    }
+    let total = 0;
+    try { total = fs.statSync(arquivo).size; } catch { return res.status(404).send('arquivo indisponível'); }
+    if (!total) return res.status(404).send('ainda sem dados');
+    res.setHeader('Accept-Ranges', 'bytes');
+    res.type(/\.ts$/i.test(arquivo) ? 'video/mp2t' : /\.m4s$/i.test(arquivo) ? 'video/iso.segment' : 'video/mp4');
+    res.setHeader('Cache-Control', 'no-store');
+    const faixa = String(req.headers.range || '');
+    const achado = faixa.match(/bytes=(\d*)-(\d*)/);
+    if (achado) {
+        const inicio = achado[1] ? Number(achado[1]) : 0;
+        const fim = Math.min(achado[2] ? Number(achado[2]) : total - 1, total - 1);
+        if (inicio >= total || fim < inicio) {
+            res.status(416).setHeader('Content-Range', `bytes */${total}`);
+            return res.end();
+        }
+        res.status(206);
+        res.setHeader('Content-Range', `bytes ${inicio}-${fim}/${total}`);
+        res.setHeader('Content-Length', fim - inicio + 1);
+        return fs.createReadStream(arquivo, { start: inicio, end: fim }).pipe(res);
+    }
+    res.setHeader('Content-Length', total);
+    return fs.createReadStream(arquivo).pipe(res);
+});
+
+// Pedaços da conversão (segmentos .ts): mesma pasta, nome conferido.
+app.get('/api/convertido/:id/:pedaco', (req, res) => {
+    const conversor = require('./conversor');
+    const nome = String(req.params.pedaco || '');
+    const arquivo = conversor.caminhoDoPedaço(String(req.params.id || ''), nome);
+    if (!arquivo) return res.status(404).end();
+    res.setHeader('Cache-Control', 'no-store');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Content-Type', /\.m3u8$/i.test(nome) ? 'application/vnd.apple.mpegurl' : /\.ts$/i.test(nome) ? 'video/mp2t' : 'application/octet-stream');
+    return fs.createReadStream(arquivo).pipe(res);
 });
 
 // ============================================================
