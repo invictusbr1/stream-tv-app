@@ -2,6 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const identidade = require('./identidade');
 const { notaDoFornecedor } = require('./cacador');
+const { CATEGORIAS } = require('./cacador');
 
 test('a central reconhece o aplicativo Android e o iPhone', () => {
     assert.equal(identidade.tipoDeAparelho({ app: 'android', aparelho: 'Celular Android' }), 'Aplicativo Android');
@@ -38,6 +39,24 @@ test('a nota do fornecedor segue as regras: dublado, sem anúncio e HD', () => {
     assert.ok(dubladoHd.nota >= 8, 'fonte dublada, rápida e HD tira nota alta');
     assert.equal(notaDoFornecedor([]).nota, 0);
     assert.equal(dubladoHd.detalhes.taxaSucesso, 100);
+});
+
+test('o caçador cobre as cinco categorias, com amostras e candidatas', () => {
+    const ids = CATEGORIAS.map(c => c.id);
+    assert.deepEqual(ids, ['filme', 'serie', 'anime', 'dorama', 'tv-online']);
+    for (const categoria of CATEGORIAS) {
+        assert.ok((categoria.candidatas || []).length >= 3, categoria.id + ' precisa de candidatas');
+        if (categoria.id === 'tv-online') assert.ok(categoria.listas.length >= 5, 'a TV ao vivo precisa de várias listas');
+        else assert.ok(categoria.amostras.length >= 6, categoria.id + ' precisa de pelo menos 6 títulos de teste');
+    }
+    // Fonte que não se aplica à categoria (ex.: PipocaCine em série) não conta
+    // como falha nem entra na média.
+    const comPuladas = notaDoFornecedor([
+        { ok: true, ms: 800, dublado: true, altura: 720 },
+        { ok: false, ms: 0, pulada: true }
+    ]);
+    assert.equal(comPuladas.detalhes.testes, 1);
+    assert.equal(comPuladas.nota > 8, true);
 });
 
 test('o agente só investiga título válido e guarda o caso', async () => {

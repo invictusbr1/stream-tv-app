@@ -217,8 +217,9 @@ app.post('/api/investigar', exigirChave, async (req, res) => {
 // Roda o caçador de fornecedores em segundo plano (demora alguns minutos).
 app.post('/api/cacar', exigirChave, (req, res) => {
     if (cacador.rodando()) return res.json({ ok: true, rodando: true });
-    cacador.cacar().catch(() => {});
-    res.json({ ok: true, iniciado: true, aviso: 'a lista leva alguns minutos; o painel se atualiza sozinho' });
+    const categoria = texto(req.body?.categoria, 20) || 'todas';
+    cacador.cacar(categoria).catch(() => {});
+    res.json({ ok: true, iniciado: true, categoria, aviso: 'a busca leva alguns minutos; o painel se atualiza sozinho' });
 });
 
 app.get('/api/fontes', exigirChave, (req, res) => res.json(cacador.ultimo() || { ranking: [], candidatas: [], atualizadoEm: null }));
@@ -333,6 +334,7 @@ async function gerarStatus() {
         investigacoes: agente.resumo(),
         fontesCacadas: cacador.ultimo(),
         cacadorRodando: cacador.rodando(),
+        cacadorCategoria: cacador.categoriaAtual(),
         eventos: eventos.slice(-40).reverse().map(e => ({ ...e, emCurto: curto(e.em) }))
     };
 }

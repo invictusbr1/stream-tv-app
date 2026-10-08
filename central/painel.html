@@ -55,6 +55,9 @@ tbody tr:hover{background:#ffffff06}
 .nota.alta{color:var(--verde)}
 .nota.media{color:var(--amarelo)}
 .nota.baixa{color:var(--vermelho)}
+.categorias{display:flex;flex-wrap:wrap;gap:8px;padding:14px 14px 0}
+.cat{background:#1b2130;border:1px solid var(--borda);color:var(--texto);border-radius:999px;padding:8px 14px;font-size:13px;cursor:pointer}
+.cat[data-ativo]{background:#e50914;border-color:#e50914;font-weight:600}
 .erro-topo{margin:0 0 16px;background:#3a1717;border:1px solid #ff6b6b44;color:#ffd0d0;border-radius:12px;padding:12px 14px;font-size:13px;display:none}
 .rodape{color:var(--fraco);font-size:12px;text-align:center;padding:8px 0 30px}
 code{background:#ffffff10;padding:2px 6px;border-radius:6px;font-size:12.5px}
@@ -89,8 +92,9 @@ code{background:#ffffff10;padding:2px 6px;border-radius:6px;font-size:12.5px}
     <div>
       <section class="bloco">
         <h2>Fornecedores (nota 0 a 10) <small id="fontes-quando"></small></h2>
-        <div style="padding:12px 14px 0"><button class="botao" id="botao-cacar">Rodar o caçador de fontes</button></div>
-        <table><thead><tr><th>Fonte</th><th>Nota</th><th>Dublado</th><th>Qualidade</th><th>Resposta</th></tr></thead>
+        <div class="categorias" id="categorias"></div>
+        <div style="padding:10px 14px 0"><button class="botao" id="botao-cacar">Rodar o caçador nesta categoria</button></div>
+        <table><thead><tr><th>Fonte</th><th>Nota</th><th id="coluna-extra">Dublado</th><th>Qualidade</th><th>Resposta</th></tr></thead>
         <tbody id="linha-fontes-cacadas"></tbody></table>
         <div id="fontes-candidatas" class="mini"></div>
       </section>
@@ -160,36 +164,62 @@ function pintar(dados) {
   }).join('') : '<tr><td colspan="7" class="vazio">Nenhum aparelho registrado ainda. Abra o Conecta TV em algum aparelho com a central configurada.</td></tr>';
 
   // -------------------------------------------------- caçador de fornecedores
-  const cacadas = dados.fontesCacadas || null;
-  el('fontes-quando').textContent = cacadas && cacadas.atualizadoEm
-    ? 'verificado ' + new Date(cacadas.atualizadoEm).toLocaleString('pt-BR')
-    : 'nunca rodou nesta instalação';
-  const botao = el('botao-cacar');
-  if (botao) {
+  const CATEGORIAS = [
+    ['filme', 'Filmes'], ['serie', 'Séries'], ['anime', 'Animes'],
+    ['dorama', 'Doramas e novelas'], ['tv-online', 'TV ao vivo']
+  ];
+  const porCategoria = (dados.fontesCacadas && dados.fontesCacadas.porCategoria) || {};
+  let categoriaAtual = localStorage.getItem('central-categoria') || 'filme';
+  if (!CATEGORIAS.some(c => c[0] === categoriaAtual)) categoriaAtual = 'filme';
+
+  el('categorias').innerHTML = CATEGORIAS.map(([id, nome]) =>
+    `<button class="cat" data-cat="${id}" ${id === categoriaAtual ? 'data-ativo' : ''}>${nome}</button>`).join('');
+  for (const botaoCat of el('categorias').querySelectorAll('.cat')) {
+    botaoCat.onclick = () => { categoriaAtual = botaoCat.dataset.cat; localStorage.setItem('central-categoria', categoriaAtual); pintarCategoria(); };
+  }
+
+  function pintarCategoria() {
+    for (const botaoCat of el('categorias').querySelectorAll('.cat')) {
+      if (botaoCat.dataset.cat === categoriaAtual) botaoCat.setAttribute('data-ativo', ''); else botaoCat.removeAttribute('data-ativo');
+    }
+    const cacadas = porCategoria[categoriaAtual] || null;
+    const aoVivo = categoriaAtual === 'tv-online';
+    el('coluna-extra').textContent = aoVivo ? 'Canais' : 'Dublado';
+    el('fontes-quando').textContent = cacadas && cacadas.atualizadoEm
+      ? 'verificado ' + new Date(cacadas.atualizadoEm).toLocaleString('pt-BR')
+      : 'esta categoria ainda não foi verificada';
+    const botao = el('botao-cacar');
     botao.disabled = Boolean(dados.cacadorRodando);
-    botao.textContent = dados.cacadorRodando ? 'Caçando… (alguns minutos)' : 'Rodar o caçador de fontes';
+    const nomeCategoria = (CATEGORIAS.find(c => c[0] === categoriaAtual) || [])[1] || '';
+    botao.textContent = dados.cacadorRodando
+      ? 'Buscando ' + (dados.cacadorCategoria || '') + '… (alguns minutos)'
+      : 'Buscar fontes de ' + nomeCategoria;
     botao.onclick = async () => {
       botao.disabled = true;
-      botao.textContent = 'Caçando… (alguns minutos)';
-      await fetch('/api/cacar', { method: 'POST' }).catch(() => {});
+      botao.textContent = 'Buscando… (alguns minutos)';
+      await fetch('/api/cacar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ categoria: categoriaAtual }) }).catch(() => {});
     };
+
+    const ranking = (cacadas && cacadas.ranking) || [];
+    el('linha-fontes-cacadas').innerHTML = ranking.length ? ranking.map(f => {
+      const d = f.detalhes || {};
+      const classe = f.nota >= 7 ? 'alta' : f.nota >= 4 ? 'media' : 'baixa';
+      const extra = aoVivo ? (d.canais || 0) + ' canais' : (d.dublados || 0) + '/' + (d.testes || 0);
+      return `<tr>
+        <td class="nome">${escapar(f.nome)}<br><span class="fraco" style="font-size:11px">${escapar(f.papel || '')}</span></td>
+        <td><span class="nota ${classe}">${String(f.nota).replace('.', ',')}</span></td>
+        <td class="fraco">${escapar(String(extra))}</td>
+        <td class="fraco">${escapar(d.melhorQualidade || '—')}</td>
+        <td style="width:120px"><div class="barra"><i style="width:${d.taxaSucesso || 0}%"></i></div><span class="fraco" style="font-size:11px">${d.taxaSucesso || 0}% · ${((d.latenciaMedia || 0) / 1000).toFixed(1).replace('.', ',')}s</span></td>
+      </tr>`;
+    }).join('') : `<tr><td colspan="5" class="vazio">Nada medido em ${escapar(nomeCategoria)} ainda. Toque no botão acima para buscar.</td></tr>`;
+
+    const candidatas = (cacadas && cacadas.candidatas) || [];
+    el('fontes-candidatas').innerHTML = candidatas.length
+      ? '<b style="color:#cfd6e3">Fontes conferidas:</b><br>' + candidatas.map(c => `${escapar(c.nome)} — ${escapar(c.motivo)}`).join('<br>')
+      : '';
   }
-  const ranking = cacadas && cacadas.ranking ? cacadas.ranking : [];
-  el('linha-fontes-cacadas').innerHTML = ranking.length ? ranking.map(f => {
-    const d = f.detalhes || {};
-    const classe = f.nota >= 7 ? 'alta' : f.nota >= 4 ? 'media' : 'baixa';
-    return `<tr>
-      <td class="nome">${escapar(f.nome)}<br><span class="fraco" style="font-size:11px">${escapar(f.papel)}</span></td>
-      <td><span class="nota ${classe}">${String(f.nota).replace('.', ',')}</span></td>
-      <td class="fraco">${d.dublados || 0}/${d.testes || 0}</td>
-      <td class="fraco">${escapar(d.melhorQualidade || '—')}</td>
-      <td style="width:110px"><div class="barra"><i style="width:${d.taxaSucesso || 0}%"></i></div><span class="fraco" style="font-size:11px">${d.taxaSucesso || 0}% · ${((d.latenciaMedia || 0) / 1000).toFixed(1).replace('.', ',')}s</span></td>
-    </tr>`;
-  }).join('') : '<tr><td colspan="5" class="vazio">Ainda não há nota. Clique em “Rodar o caçador de fontes”.</td></tr>';
-  const candidatas = (cacadas && cacadas.candidatas) || [];
-  el('fontes-candidatas').innerHTML = candidatas.length
-    ? '<b style="color:#cfd6e3">Fontes conferidas e descartadas:</b><br>' + candidatas.map(c => `${escapar(c.nome)} — ${escapar(c.motivo)}`).join('<br>')
-    : '';
+  pintarCategoria();
 
   // -------------------------------------------------- agente de investigação
   const ag = dados.investigacoes || { lista: [] };
