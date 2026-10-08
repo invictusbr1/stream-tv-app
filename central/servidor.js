@@ -18,6 +18,7 @@ const { criarAgente } = require('./agente.js');
 const { criarCacador } = require('./cacador.js');
 const { criarRegistro } = require('./titulos.js');
 const { criarRevisor } = require('./revisor.js');
+const { criarClienteApp } = require('./app-client.js');
 
 const app = express();
 const PORTA = Number(process.env.PORT || process.env.CENTRAL_PORT || 4100);
@@ -76,6 +77,8 @@ agente.iniciar();
 // fontes de novo, guardando a solução encontrada.
 const revisor = criarRevisor({ titulos, agente });
 revisor.iniciar();
+// Ponte com o aplicativo: lista e bloqueia aparelhos autorizados.
+const clienteApp = criarClienteApp({ appUrl: APP_URL, codigo: APP_CODIGO });
 
 // ---------------------------------------------------------------- armazenamento
 function lerJson(arquivo, padrao) {
@@ -254,6 +257,21 @@ app.get('/api/titulos', exigirChave, (req, res) => {
     res.json({ total: titulos.total(), titulos: titulos.listar(limite), problemas: titulos.comProblema(20) });
 });
 
+// Aparelhos autorizados no aplicativo (a central pergunta para o próprio app).
+app.get('/api/aparelhos', exigirChave, async (req, res) => {
+    const dados = await clienteApp.listarAparelhos();
+    res.json(dados);
+});
+
+// Bloqueia um aparelho: ele é removido do aplicativo e não consegue entrar de
+// novo nem com o código.
+app.post('/api/aparelhos/bloquear', exigirChave, async (req, res) => {
+    const token = String((req.body && req.body.token) || '');
+    if (!token) return res.status(400).json({ error: 'informe o aparelho' });
+    const resultado = await clienteApp.bloquear(token);
+    res.status(resultado.ok ? 200 : 502).json(resultado);
+});
+
 // Revisão automática sob demanda: testa de novo os títulos com problema e
 // guarda a solução encontrada (o agente usa as rotas do próprio aplicativo).
 app.post('/api/revisar-titulos', exigirChave, (req, res) => {
@@ -387,6 +405,8 @@ async function gerarStatus() {
             fontes: fontes.length
         },
         aparelhos,
+        // Quem está autorizado dentro do aplicativo (com opção de bloquear).
+        aparelhosApp: await clienteApp.listarAparelhos().catch(() => ({ ok: false, aparelhos: [], erro: 'não consegui falar com o aplicativo' })),
         fontes,
         versoes,
         horas,

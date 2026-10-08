@@ -134,6 +134,27 @@ function criarPortao(opcoes = {}) {
     const pagina = opcoes.pagina || 'entrar';
     let cache = { em: 0, dados: {} };
     let tentativas = new Map();
+    // Lista de bloqueio: aparelho que o dono mandou sair não entra de novo,
+    // mesmo que alguém saiba o código.
+    const arquivoBloqueados = path.join(path.dirname(arquivo), 'bloqueados.json');
+    let cacheBloqueados = { em: 0, lista: [] };
+
+    function bloqueados() {
+        try {
+            const info = fs.statSync(arquivoBloqueados);
+            if (info.mtimeMs !== cacheBloqueados.em) {
+                cacheBloqueados = { em: info.mtimeMs, lista: JSON.parse(fs.readFileSync(arquivoBloqueados, 'utf8')) || [] };
+            }
+        } catch { cacheBloqueados = { em: 0, lista: [] }; }
+        return cacheBloqueados.lista;
+    }
+    function gravarBloqueados(lista) {
+        try {
+            fs.mkdirSync(path.dirname(arquivoBloqueados), { recursive: true });
+            fs.writeFileSync(arquivoBloqueados, JSON.stringify(lista, null, 1));
+            cacheBloqueados = { em: 0, lista };
+        } catch { /* sem permissão de escrita */ }
+    }
 
     function autorizados() {
         try {
@@ -170,13 +191,27 @@ function criarPortao(opcoes = {}) {
     }
 
     const isento = caminho => caminho === '/entrar' || caminho === '/api/entrar' || caminho === '/api/health'
+        // Relatos de quem está assistindo: o celular e a TV contam para a
+        // central por aqui — eles não têm crachá no servidor público, e o
+        // relato é só de status (o limite de uso protege contra abuso).
+        || caminho === '/api/evento'
+        // Cadastro do aparelho (nome/aparelho) feito na primeira abertura.
+        || caminho === '/api/acesso'
         || caminho === '/manifest.webmanifest' || caminho.startsWith('/pwa/') || caminho === '/favicon.ico';
 
     function middleware(req, res, next) {
         if (!codigo) return next();
         const token = tokenDoPedido(req);
         const dados = autorizados();
-        if (token && dados[token]) { marcarUso(req, token); req.dispositivoAutorizado = dados[token]; return next(); }
+        if (token && dados[token]) {
+            const aparelho = dados[token];
+            if (aparelho.dispositivo && bloqueados().includes(aparelho.dispositivo)) {
+                return res.status(403).json({ error: 'Este aparelho foi removido pelo dono do aplicativo.' });
+            }
+            marcarUso(req, token);
+            req.dispositivoAutorizado = aparelho;
+            return next();
+        }
         if (isento(req.path)) return next();
         const aceitaHtml = String(req.headers.accept || '').includes('text/html');
         if (aceitaHtml && !req.path.startsWith('/api/')) return res.status(401).type('html').send(paginaDeEntrada({ erro: '' }));
@@ -200,11 +235,16 @@ function criarPortao(opcoes = {}) {
         marca.erros = 0;
         tentativas.set(ip, marca);
         const token = crypto.randomBytes(24).toString('hex');
+        const dispositivo = String(req.body?.dispositivo || '').slice(0, 40);
+        if (dispositivo && bloqueados().includes(dispositivo)) {
+            return res.status(403).json({ error: 'Este aparelho foi removido pelo dono do aplicativo.' });
+        }
         const dados = autorizados();
         dados[token] = {
             token,
             nome: String(req.body?.nome || '').slice(0, 60) || 'Aparelho autorizado',
-            dispositivo: String(req.body?.dispositivo || '').slice(0, 40),
+            dispositivo,
+            aparelho: String(req.body?.aparelho || '').slice(0, 40),
             criadoEm: new Date().toISOString(),
             ultimoEm: new Date().toISOString(),
             ip
@@ -215,7 +255,44 @@ function criarPortao(opcoes = {}) {
         res.json({ ok: true, token });
     }
 
-    return { middleware, rotaEntrada, autorizados, limparCache: () => { cache = { em: 0, dados: {} }; } };
+    // Lista de aparelhos autorizados (para o dono conferir quem entrou).
+    function listarDispositivos() {
+        return Object.values(autorizados()).map(item => ({
+            token: item.token,
+            nome: item.nome,
+            dispositivo: item.dispositivo || '',
+            criadoEm: item.criadoEm || '',
+            ultimoEm: item.ultimoEm || item.criadoEm || '',
+            ip: item.ip || '',
+            bloqueado: Boolean(item.dispositivo && bloqueados().includes(item.dispositivo)),
+        })).sort((a, b) => String(b.ultimoEm).localeCompare(String(a.ultimoEm)));
+    }
+
+    // Remove o crachá do aparelho e o coloca na lista de bloqueio.
+    function bloquearDispositivo(token) {
+        const dados = autorizados();
+        const alvo = dados[String(token || '')];
+        if (!alvo) return null;
+        delete dados[alvo.token];
+        gravar(dados);
+        const lista = bloqueados();
+        if (alvo.dispositivo && !lista.includes(alvo.dispositivo)) gravarBloqueados([...lista, alvo.dispositivo]);
+        return { nome: alvo.nome, dispositivo: alvo.dispositivo || '' };
+    }
+
+    function liberarDispositivo(dispositivo) {
+        const id = String(dispositivo || '').trim();
+        if (!id) return false;
+        const lista = bloqueados();
+        if (!lista.includes(id)) return false;
+        gravarBloqueados(lista.filter(item => item !== id));
+        return true;
+    }
+
+    return {
+        middleware, rotaEntrada, autorizados, listarDispositivos, bloquearDispositivo, liberarDispositivo, bloqueados,
+        limparCache: () => { cache = { em: 0, dados: {} }; cacheBloqueados = { em: 0, lista: [] }; },
+    };
 }
 
 // Tela de entrada (mostrada só quando o aplicativo está hospedado).

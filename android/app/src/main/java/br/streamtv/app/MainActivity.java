@@ -182,6 +182,37 @@ public final class MainActivity extends Activity {
         } catch (Exception e) { return error(502); }
     }
 
+    // MGEB (mgeb.top): entrega as opções de vídeo no próprio HTML. O arquivo
+    // MP4 toca direto (sem anúncio) e a lista HLS serve para o resto; medido em
+    // 08/10/2026 — áudio em português e CORS liberado para o player.
+    private WebResourceResponse mgebFilme(String id) {
+        return mgeb("https://mgeb.top/embed/" + id);
+    }
+    private WebResourceResponse mgebEpisodio(String id, String temporada, String episodio) {
+        return mgeb("https://mgeb.top/embed/" + id + "/" + temporada + "/" + episodio);
+    }
+    private WebResourceResponse mgeb(String endereco) {
+        try {
+            String html = lerPagina(endereco, "https://mgeb.top/");
+            if (html == null) return error(502);
+            Matcher bloco = Pattern.compile("var\\s+sources\\s*=\\s*(\\[[\\s\\S]*?\\]);").matcher(html);
+            if (!bloco.find()) return error(502);
+            JSONArray lista = new JSONArray(bloco.group(1));
+            String arquivo = "", playlist = "";
+            for (int i = 0; i < lista.length(); i++) {
+                JSONObject item = lista.optJSONObject(i);
+                if (item == null) continue;
+                String url = item.optString("file", "");
+                if (url.isEmpty()) continue;
+                if (url.startsWith("http://")) url = url.replaceFirst("http://", "https://").replace(":80/", "/");
+                if (url.contains(".mp4")) { if (arquivo.isEmpty()) arquivo = url; }
+                else if (url.contains(".m3u8")) { if (playlist.isEmpty()) playlist = url; }
+            }
+            if (!arquivo.isEmpty()) return jsonMidia(arquivo, "file", "MGEB · dublado");
+            if (!playlist.isEmpty()) return jsonMidia(playlist, "hls", "MGEB · dublado");
+            return error(502);
+        } catch (Exception e) { return error(502); }
+    }
     private WebResourceResponse pipocaEpisodio(String id, String temporada, String episodio) {
         try {
             String html = lerPagina("https://pipocacine.lat/media/tv?id=" + id + "&s=" + temporada + "&e=" + episodio, "https://pipocacine.lat/");
@@ -208,6 +239,8 @@ public final class MainActivity extends Activity {
     private WebResourceResponse directEpisode(String id, String temporada, String episodio) {
         WebResourceResponse principal = directPlayback("https://v2.watchplay.shop/tvshow/" + id + "/" + temporada + "/" + episodio);
         if (principal != null && principal.getStatusCode() == 200) return principal;
+        WebResourceResponse mgeb = mgebEpisodio(id, temporada, episodio);
+        if (mgeb != null && mgeb.getStatusCode() == 200) return mgeb;
         return pipocaEpisodio(id, temporada, episodio);
     }
 
@@ -368,6 +401,8 @@ public final class MainActivity extends Activity {
                     // 08/10/2026 por transcrição do áudio) — por isso vem depois.
                     WebResourceResponse dublado = pipocaFilme(id);
                     if (dublado != null && dublado.getStatusCode() == 200) return dublado;
+                    WebResourceResponse mgeb = mgebFilme(id);
+                    if (mgeb != null && mgeb.getStatusCode() == 200) return mgeb;
                     return directPlayback("https://v2.watchplay.shop/movie/" + id);
                 }
                 if (path != null && path.matches("/api/playback/serie/[0-9]{1,10}/[0-9]{1,3}/[1-9][0-9]{0,3}")) {

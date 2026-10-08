@@ -61,6 +61,29 @@ app.use(seguranca.criarLimitador({
 const portao = seguranca.criarPortao({ codigo: ACESSO_CODIGO, arquivo: path.join(DADOS_DIR, 'autorizados.json') });
 app.post('/api/entrar', (req, res) => portao.rotaEntrada(req, res));
 app.use((req, res, next) => portao.middleware(req, res, next));
+
+// ============================================================
+// APARELHOS — quem entrou no aplicativo, com controle para o dono.
+// ============================================================
+app.get('/api/dispositivos', (req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    res.json({ dispositivos: portao.listarDispositivos() });
+});
+
+app.post('/api/dispositivos/bloquear', (req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    const alvo = String(req.body?.token || req.body?.dispositivo || '');
+    if (!alvo) return res.status(400).json({ error: 'informe o aparelho' });
+    const removido = portao.bloquearDispositivo(alvo);
+    if (!removido) return res.status(404).json({ error: 'aparelho não encontrado' });
+    res.json({ ok: true, removido });
+});
+
+app.post('/api/dispositivos/liberar', (req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    const liberado = portao.liberarDispositivo(String(req.body?.dispositivo || ''));
+    res.json({ ok: liberado });
+});
 const JARVIS_PROVIDER = String(process.env.JARVIS_PROVIDER || 'groq').toLowerCase();
 const JARVIS_SISTEMA = 'Você é o Jarvis do Conecta TV. Responda em português e nunca prometa que uma fonte funciona.';
 // Se o provedor aposentar um modelo, o Jarvis tenta o próximo da lista antes de responder erro.
@@ -407,6 +430,13 @@ app.get('/api/playback/:id', async (req, res) => {
                     require('./central-reporter').reportar({
                         tipo: 'avaliacao', id: String(req.params.id), titulo: '',
                         fonte: escolhido.fonte || '', fonteId: escolhido.fonteId || '',
+                        // Quem pediu: o crachá do aparelho identifica o relato
+                        // (antes chegava como "Anônimo" na central).
+                        ...(req.dispositivoAutorizado ? {
+                            nome: req.dispositivoAutorizado.nome || 'Anônimo',
+                            aparelho: req.dispositivoAutorizado.aparelho || '',
+                            dispositivo: req.dispositivoAutorizado.dispositivo || '',
+                        } : {}),
                         avaliacao: avaliacao.map(a => ({ fonte: a.fonteId, nota: a.nota, idioma: a.detalhes && a.detalhes.idioma, qualidade: a.detalhes && a.detalhes.qualidade, taxa: a.detalhes && a.detalhes.taxa })),
                     }).catch(() => {});
                 } catch { /* central é opcional */ }

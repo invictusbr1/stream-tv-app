@@ -84,6 +84,12 @@ code{background:#ffffff10;padding:2px 6px;border-radius:6px;font-size:12.5px}
         <tbody id="linha-aparelhos"></tbody></table>
       </section>
       <section class="bloco">
+        <h2>Aparelhos autorizados no aplicativo <small id="aparelhos-app-nota"></small></h2>
+        <p class="mini" style="padding:0 14px 6px">Quem entrou com o código. Bloquear remove o crachá do aparelho e impede uma nova entrada, mesmo com o código certo.</p>
+        <table><thead><tr><th>Nome</th><th>Aparelho</th><th>Último uso</th><th>IP</th><th>Ação</th></tr></thead>
+        <tbody id="linha-aparelhos-app"></tbody></table>
+      </section>
+      <section class="bloco">
         <h2>Últimas sessões <small>o que abriu, por qual fonte e se deu certo</small></h2>
         <table><thead><tr><th>Quando</th><th>Quem</th><th>Título</th><th>Fonte</th><th>Áudio</th><th>Qualidade</th><th>Resultado</th></tr></thead>
         <tbody id="linha-eventos"></tbody></table>
@@ -170,6 +176,32 @@ function pintar(dados) {
   ].map(([titulo, valor, legenda]) => '<div class="cartao"><b>' + valor + '</b><span>' + titulo + ' · ' + legenda + '</span></div>').join('');
 
   el('total-aparelhos').textContent = dados.aparelhos.length + ' no total';
+
+  // Aparelhos autorizados DENTRO do aplicativo (com bloqueio pelo dono).
+  const app = dados.aparelhosApp || {};
+  const listaApp = app.aparelhos || [];
+  const alvoAparelhos = el('linha-aparelhos-app');
+  if (alvoAparelhos) {
+    el('aparelhos-app-nota').textContent = app.ok
+      ? listaApp.length + ' autorizado(s) no aplicativo'
+      : (app.erro || 'sem resposta do aplicativo agora');
+    alvoAparelhos.innerHTML = listaApp.length ? listaApp.map(item => `<tr>
+      <td class="nome">${escapar(item.nome || 'Sem nome')}${item.bloqueado ? ' ' + selo('bloqueado', 'ruim') : ''}</td>
+      <td class="fraco">${escapar(item.aparelho || item.dispositivo || '—')}</td>
+      <td class="fraco">${escapar((item.ultimoEm || '').slice(11, 19) || '—')}</td>
+      <td class="fraco">${escapar(item.ip || '—')}</td>
+      <td><button class="botao pequeno" data-token="${escapar(item.token)}" data-nome="${escapar(item.nome || '')}">Bloquear</button></td>
+    </tr>`).join('') : '<tr><td colspan="5" class="vazio">Nenhum aparelho autorizado ainda — abra o aplicativo e entre com o código.</td></tr>';
+    for (const botao of alvoAparelhos.querySelectorAll('button[data-token]')) {
+      botao.onclick = async () => {
+        const nome = botao.dataset.nome || 'este aparelho';
+        if (!confirm('Bloquear ' + nome + '? Ele sai do aplicativo e não entra mais com o código.')) return;
+        botao.disabled = true;
+        await fetch('/api/aparelhos/bloquear', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: botao.dataset.token }) }).catch(() => {});
+        setTimeout(() => carregar(), 1500);
+      };
+    }
+  }
 
   // Qualidade por título (histórico medido pelo aplicativo).
   const titulos = (dados.titulos && dados.titulos.lista) || [];

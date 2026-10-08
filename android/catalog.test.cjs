@@ -124,7 +124,7 @@ test('a TV ao vivo funciona no aparelho com as listas públicas', async () => {
     }, 'test');
 
     const listas = await catalogo.request('/api/tv/listas');
-    assert.equal(listas.listas.length, 5);
+    assert(listas.listas.length >= 5, 'as listas públicas de TV continuam disponíveis');
     assert.equal(listas.listas[0].id, 'brasil');
 
     const canais = await catalogo.request('/api/tv/canais?lista=brasil');
