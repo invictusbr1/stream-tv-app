@@ -28,6 +28,53 @@ const ARQUIVO_SAUDE = process.pkg
     ? path.join(os.homedir(), '.conecta-tv', 'fontes-saude.json')
     : path.join(__dirname, 'relatorios', 'fontes-saude.json');
 
+// ---------------------------------------------------------------
+// Memória de idiomas confirmados pela central.
+//
+// A central ouve o áudio de cada fonte (ffmpeg + transcrição) e grava o
+// resultado em "dados/idiomas.json". O aplicativo lê esse arquivo — quando a
+// central está no mesmo computador — e já começa pela fonte que entrega
+// português de verdade, deixando as que entregam outro idioma para o fim.
+// ---------------------------------------------------------------
+function caminhosDeIdiomas() {
+    const caminhos = [];
+    if (process.env.CENTRAL_IDIOMAS) caminhos.push(process.env.CENTRAL_IDIOMAS);
+    if (process.pkg) {
+        const pastaApp = path.dirname(process.execPath);
+        caminhos.push(path.join(pastaApp, '..', 'Conecta TV Central', 'dados', 'idiomas.json'));
+        caminhos.push(path.join(os.homedir(), 'Conecta TV Central', 'dados', 'idiomas.json'));
+    } else {
+        caminhos.push(path.join(__dirname, 'central', 'dados', 'idiomas.json'));
+    }
+    return caminhos;
+}
+
+let idiomasVerificados = { lidoEm: 0, mapa: {} };
+
+function lerIdiomasVerificados() {
+    if (Date.now() - idiomasVerificados.lidoEm < 60000) return idiomasVerificados.mapa;
+    const mapa = {};
+    for (const arquivo of caminhosDeIdiomas()) {
+        try {
+            const dados = JSON.parse(fs.readFileSync(arquivo, 'utf8')) || {};
+            for (const [chave, valor] of Object.entries(dados)) {
+                const partes = String(chave).split('|');
+                if (partes.length < 2) continue;
+                const fonteId = partes.shift();
+                const titulo = partes.join('|');
+                if (!mapa[titulo]) mapa[titulo] = {};
+                const idioma = valor && valor.idioma;
+                if (idioma === 'pt' || idioma === 'outro') mapa[titulo][fonteId] = idioma;
+            }
+            break;
+        } catch { /* tenta o próximo caminho */ }
+    }
+    idiomasVerificados = { lidoEm: Date.now(), mapa };
+    return mapa;
+}
+
+function esquecerIdiomas() { idiomasVerificados = { lidoEm: 0, mapa: {} }; }
+
 const acertos = new Map();   // chave do título -> { fonte, expira, dados }
 const semTitulo = new Map(); // `chave do título|fonte` -> expira
 const saude = new Map();     // fonte -> { acertos, falhas, castigoAte, ultimoMotivo }
@@ -260,6 +307,13 @@ async function escolher(papel, alvo, opcoes = {}) {
 
     const agora = Date.now();
     const lista = ordem(papel, alvo).filter(fonte => !exceto.has(String(fonte.id)));
+    // O que a central já confirmou manda: fonte com português confirmado vai
+    // na frente; fonte que entregou outro idioma vai para o fim da fila.
+    const idiomasDoTitulo = lerIdiomasVerificados()[chaveDoTitulo(alvo)] || {};
+    if (Object.keys(idiomasDoTitulo).length) {
+        const pesoDoIdioma = fonte => (idiomasDoTitulo[fonte.id] === 'pt' ? -1 : idiomasDoTitulo[fonte.id] === 'outro' ? 1 : 0);
+        lista.sort((a, b) => pesoDoIdioma(a) - pesoDoIdioma(b));
+    }
     const semEsteTitulo = fonte => (semTitulo.get(`${chave}|${fonte.id}`) || 0) > agora;
     // Quem já disse que não tem o título só é tentado se ninguém mais responder.
     const tentar = [...lista.filter(f => !semEsteTitulo(f)), ...lista.filter(semEsteTitulo)];
@@ -360,4 +414,4 @@ function alvoDoEvento(tipo, tmdbId, temporada, episodio) {
         : { tipo: 'movie', tmdbId: id };
 }
 
-module.exports = { escolher, prepararParaPlayer, estado, FONTES, enderecoWatchPlay, reiniciarParaTeste, esquecerAcertos, registrarFalha, chaveDoTitulo, alvoDoEvento };
+module.exports = { escolher, prepararParaPlayer, estado, FONTES, enderecoWatchPlay, reiniciarParaTeste, esquecerAcertos, registrarFalha, chaveDoTitulo, alvoDoEvento, lerIdiomasVerificados, esquecerIdiomas };

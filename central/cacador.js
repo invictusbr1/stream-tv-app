@@ -13,7 +13,30 @@
 
 const fs = require('fs');
 const path = require('path');
+const axios = require('axios');
 const motor = require('../fontes-motor');
+const midia = require('../midia-proxy');
+const { verificarIdioma } = require('./verificar-midia');
+const { tocarNoNavegador } = require('./verificar-navegador');
+const varredor = require('./varredor');
+
+// A chave da IA (Whisper) vem do ambiente, da configuração da central ou do
+// arquivo que o aplicativo já usa — tudo local, nada de serviço novo.
+function chaveDaIA() {
+    if (process.env.GROQ_API_KEY) return process.env.GROQ_API_KEY.trim();
+    const tentativas = [
+        path.join(__dirname, 'config.local.json'),
+        path.join(require('os').homedir(), 'OneDrive', 'Área de Trabalho', 'api.txt'),
+        path.join(require('os').homedir(), 'Desktop', 'api.txt'),
+    ];
+    for (const arquivo of tentativas) {
+        try {
+            const achado = fs.readFileSync(arquivo, 'utf8').match(/gsk_[A-Za-z0-9_-]{20,}/);
+            if (achado) return achado[0];
+        } catch { /* tenta o próximo */ }
+    }
+    return '';
+}
 
 // ---------------------------------------------------------------- categorias
 const CATEGORIAS = [
@@ -223,6 +246,12 @@ async function testarFonte(fonte, amostra, tipo) {
     if (!dados || dados.__tempo || !dados.url) return { ok: false, ms, amostra: amostra.titulo };
     return {
         ok: true, ms, amostra: amostra.titulo,
+        // Guardamos o endereço e o referenciador para poder medir o idioma e
+        // a reprodução logo em seguida (a verificação acontece sobre o que a
+        // fonte realmente entrega).
+        url: dados.url,
+        referer: (() => { try { return midia.refererPadrao(new URL(dados.url).hostname); } catch { return ''; } })(),
+        amostraChave: { id: amostra.id, temporada: amostra.temporada, episodio: amostra.episodio },
         audio: dados.audio || '',
         dublado: ehDublado(dados.audio) || ehDublado(dados.fonte),
         resolucao: dados.resolucao || '',
@@ -236,22 +265,37 @@ function notaDoFornecedor(medidas) {
     if (!validas.length) return { nota: 0, detalhes: { testes: 0, sucessos: 0, taxaSucesso: 0, dublados: 0, melhorQualidade: '—', latenciaMedia: 0 } };
     const sucesso = validas.filter(m => m.ok);
     const taxa = sucesso.length / validas.length;
-    const dubladas = sucesso.filter(m => m.dublado).length;
+    // Dublado com prova: quando o verificador ouviu o áudio, a resposta dele
+    // manda. Sem prova, vale o rótulo da fonte.
+    const comProva = sucesso.filter(m => m.idioma === 'pt' || m.idioma === 'outro');
+    const dubladas = sucesso.filter(m => m.idioma === 'pt' || (m.idioma !== 'outro' && m.dublado)).length;
+    const contrariadas = sucesso.filter(m => m.idioma === 'outro' && m.dublado).length;
     const taxaDublado = sucesso.length ? dubladas / sucesso.length : 0;
     const melhorAltura = Math.max(0, ...sucesso.map(m => m.altura || 0));
     const latencia = sucesso.length ? Math.round(sucesso.reduce((soma, m) => soma + m.ms, 0) / sucesso.length) : 0;
 
     const pSucesso = taxa * 2;
-    const pDublado = taxaDublado * 3;
+    // Dizer "dublado" e entregar outro idioma é o pior caso: zera o ponto de
+    // dublagem (a regra número 1 do projeto).
+    const pDublado = contrariadas > 0 && !sucesso.some(m => m.idioma === 'pt') ? 0 : taxaDublado * 3;
     const pSemAnuncio = 2;
     const pQualidade = melhorAltura >= 1080 ? 2 : melhorAltura >= 720 ? 1.4 : melhorAltura > 0 ? 0.6 : 0;
     const pVelocidade = latencia && latencia <= 3000 ? 1 : latencia <= 8000 ? 0.6 : 0.3;
-    const nota = Math.max(0, Math.min(10, pSucesso + pDublado + pSemAnuncio + pQualidade + pVelocidade));
+    // Medição que revelou áudio mudo no navegador desconta da nota: o usuário
+    // receberia vídeo sem som.
+    const comAvisoDeAudio = sucesso.filter(m => m.avisoAudio).length;
+    const desconto = comAvisoDeAudio ? Math.min(1.5, comAvisoDeAudio * 0.75) : 0;
+    const nota = Math.max(0, Math.min(10, pSucesso + pDublado + pSemAnuncio + pQualidade + pVelocidade - desconto));
     return {
         nota: Math.round(nota * 10) / 10,
         detalhes: {
             testes: validas.length, sucessos: sucesso.length,
             taxaSucesso: Math.round(taxa * 100), dublados: dubladas,
+            comProva: comProva.length,
+            confirmadosEmPortugues: sucesso.filter(m => m.idioma === 'pt').length,
+            contrariados: contrariadas,
+            avisosDeAudio: comAvisoDeAudio,
+            evidencias: sucesso.filter(m => m.idiomaEvidencia).map(m => ({ amostra: m.amostra, idioma: m.idioma, evidencia: m.idiomaEvidencia })).slice(0, 3),
             melhorQualidade: melhorAltura ? melhorAltura + 'p' : '—',
             latenciaMedia: latencia,
             pontos: {
@@ -264,7 +308,98 @@ function notaDoFornecedor(medidas) {
 }
 
 // ---------------------------------------------------------------- candidatas de fora
+// Mede um endereço de vídeo direto: reproduz no navegador de verdade, ouve o
+// áudio para confirmar o idioma e avisa quando o som sai mudo no navegador.
+async function conferirMidiaDireta(candidata) {
+    const tipo = /\.m3u8(\?|$)/i.test(candidata.url) ? 'hls' : 'file';
+    const titulo = candidata.tituloTeste || 'título de teste';
+    try {
+        const reproducao = await tocarNoNavegador(candidata.url, { tipo, segundos: 20 }).catch(() => null);
+        const prova = await verificarIdioma({
+            url: candidata.url, tipo: 'movie',
+            fonteId: 'candidata-' + String(candidata.nome).replace(/\W+/g, '-').slice(0, 24),
+            amostra: { id: 'tt-' + String(candidata.nome).replace(/\W+/g, '').slice(0, 12), titulo },
+            chaveIa: chaveDaIA(), registrar: () => {},
+        }).catch(() => null);
+        const detalhes = {
+            tocou: Boolean(reproducao && reproducao.tocou),
+            qualidade: reproducao && reproducao.altura ? reproducao.altura + 'p' : '—',
+            ms: reproducao ? reproducao.ms : 0,
+            popups: reproducao ? reproducao.popups.length : 0,
+            anuncios: reproducao ? reproducao.anuncios : [],
+            idioma: prova ? prova.idioma : 'indefinido',
+            idiomaEvidencia: prova ? prova.evidencia : '',
+            avisoAudio: prova && prova.avisoAudio ? prova.avisoAudio : '',
+            amostra: titulo,
+        };
+        const anunciado = (detalhes.anuncios || []).length > 0 || detalhes.popups > 0;
+        let situacao = 'em análise';
+        let motivo = 'medida parcial';
+        if (!detalhes.tocou) { situacao = 'descartada'; motivo = 'o vídeo não abriu no navegador' + (reproducao && reproducao.erro ? ' (' + reproducao.erro + ')' : ''); }
+        else if (detalhes.avisoAudio) { situacao = 'descartada'; motivo = detalhes.avisoAudio; }
+        else if (anunciado) { situacao = 'descartada'; motivo = `abriu, mas chamou rede de anúncio (${detalhes.anuncios.join(', ') || 'pop-up'})`; }
+        else if (detalhes.idioma === 'pt') { situacao = 'promover'; motivo = `tocou em ${detalhes.qualidade} com áudio em português confirmado · ${titulo}`; }
+        else if (detalhes.idioma === 'outro') { situacao = 'em análise'; motivo = `tocou em ${detalhes.qualidade}, mas o áudio NÃO é português · ${titulo}`; }
+        else { situacao = 'em análise'; motivo = `tocou em ${detalhes.qualidade}; idioma não confirmado · ${titulo}`; }
+        return { nome: candidata.nome, url: candidata.url, status: 200, situacao, motivo, origem: candidata.origem, esperado: candidata.motivoEsperado, detalhes, nota: situacao === 'promover' ? 8 : situacao === 'em análise' ? 5 : 0 };
+    } catch (erro) {
+        return { nome: candidata.nome, url: candidata.url, status: 0, situacao: 'descartada', motivo: 'sem resposta (' + String(erro.message).slice(0, 50) + ')', origem: candidata.origem };
+    }
+}
+
+// Confere um endereço que devolve o vídeo em JSON (addons do Stremio):
+// reproduz no navegador de verdade e ouve o áudio para confirmar o idioma.
+async function conferirFonteDeStream(candidata) {
+    try {
+        const resposta = await comPrazo(axios.get(candidata.url, { headers: { 'User-Agent': UA }, timeout: 15000, validateStatus: s => s < 500 }), 16000);
+        const streams = resposta && resposta.data && Array.isArray(resposta.data.streams) ? resposta.data.streams : [];
+        const primeiro = streams.find(s => s && s.url);
+        if (!primeiro) return { nome: candidata.nome, url: candidata.url, status: 200, situacao: 'descartada', motivo: 'não devolveu nenhum vídeo para o título de teste', origem: candidata.origem };
+        const tipo = /\.m3u8(\?|$)/i.test(primeiro.url) ? 'hls' : 'file';
+        const reproducao = await tocarNoNavegador(primeiro.url, { referer: candidata.url, tipo, segundos: 20 }).catch(() => null);
+        const titulo = candidata.tituloTeste || 'título de teste';
+        const prova = await verificarIdioma({
+            url: primeiro.url, tipo: 'movie', fonteId: 'candidata-' + String(candidata.nome).replace(/\W+/g, '-').slice(0, 24),
+            amostra: { id: 'tt-' + String(candidata.nome).replace(/\W+/g, '').slice(0, 12), titulo },
+            chaveIa: chaveDaIA(), registrar: () => {},
+        }).catch(() => null);
+        const detalhes = {
+            tocou: Boolean(reproducao && reproducao.tocou),
+            qualidade: reproducao && reproducao.altura ? reproducao.altura + 'p' : '—',
+            ms: reproducao ? reproducao.ms : 0,
+            popups: reproducao ? reproducao.popups.length : 0,
+            anuncios: reproducao ? reproducao.anuncios : [],
+            idioma: prova ? prova.idioma : 'indefinido',
+            idiomaEvidencia: prova ? prova.evidencia : '',
+            amostra: titulo,
+        };
+        const anunciado = (detalhes.anuncios || []).length > 0 || detalhes.popups > 0;
+        detalhes.avisoAudio = prova && prova.avisoAudio ? prova.avisoAudio : '';
+        let situacao = 'em análise';
+        let motivo = 'medida parcial';
+        if (!detalhes.tocou) { situacao = 'descartada'; motivo = 'o vídeo não abriu no navegador' + (reproducao && reproducao.erro ? ' (' + reproducao.erro + ')' : ''); }
+        else if (detalhes.avisoAudio) { situacao = 'descartada'; motivo = detalhes.avisoAudio; }
+        else if (anunciado) { situacao = 'descartada'; motivo = `abriu, mas chamou rede de anúncio (${detalhes.anuncios.join(', ') || 'pop-up'})`; }
+        else if (detalhes.idioma === 'pt') { situacao = 'promover'; motivo = `tocou em ${detalhes.qualidade} com áudio em português confirmado (${detalhes.idiomaEvidencia.slice(0, 60)})`; }
+        else if (detalhes.idioma === 'outro') { situacao = 'em análise'; motivo = `tocou em ${detalhes.qualidade}, mas o áudio NÃO é português (${detalhes.idiomaEvidencia.slice(0, 60)})`; }
+        else { situacao = 'em análise'; motivo = `tocou em ${detalhes.qualidade}; não consegui confirmar o idioma`; }
+        return { nome: candidata.nome, url: candidata.url, status: 200, situacao, motivo, origem: candidata.origem, esperado: candidata.motivoEsperado, detalhes, nota: situacao === 'promover' ? 8 : situacao === 'em análise' ? 5 : 0 };
+    } catch (erro) {
+        return { nome: candidata.nome, url: candidata.url, status: 0, situacao: 'descartada', motivo: 'sem resposta (' + String(erro.message).slice(0, 50) + ')', origem: candidata.origem };
+    }
+}
+
 async function conferirCandidata(candidata) {
+    // Endereço de vídeo direto (link de addon, CDN, .m3u8/.mp4/.mkv):
+    // reproduz no navegador e ouve o áudio.
+    if (/\.(m3u8|mp4|mkv|webm)(\?|$)/i.test(candidata.url) || /\/stream\/\d+/i.test(candidata.url)) {
+        return conferirMidiaDireta(candidata);
+    }
+    // Endereço que já entrega o vídeo em JSON (addons do Stremio): dá para
+    // medir reprodução e idioma de verdade — é a verificação mais completa.
+    if (/\.json(\?|$)/i.test(candidata.url) || /\/stream\//i.test(candidata.url)) {
+        return conferirFonteDeStream(candidata);
+    }
     const jaExiste = fonteJaImplementada(candidata.nome, candidata.url);
     if (jaExiste) {
         return {
@@ -381,10 +516,26 @@ async function medirListaDeCanais(lista) {
 // ---------------------------------------------------------------- execução
 function criarCacador(opcoes = {}) {
     const pastaDados = opcoes.pastaDados;
+    const registrar = typeof opcoes.registrar === 'function' ? opcoes.registrar : () => {};
     const arquivo = path.join(pastaDados, 'fontes.json');
     const arquivoHistorico = path.join(pastaDados, 'fontes-historico.json');
     let rodando = false;
     let categoriaAtual = '';
+    // O varredor é caro (rede + GitHub): roda no máximo a cada 6 horas.
+    let varredura = { em: 0, itens: [] };
+    async function candidatosVarridos() {
+        if (Date.now() - varredura.em < 6 * 60 * 60 * 1000 && varredura.itens.length) return varredura.itens;
+        try {
+            const token = (() => { try { return fs.readFileSync(path.join(require('os').homedir(), '.streamtv', 'github-token.txt'), 'utf8').trim(); } catch { return ''; } })();
+            const itens = await varredor.varrerTudo({ token, registrar });
+            varredura = { em: Date.now(), itens };
+            registrar(`varredor: ${itens.length} candidato(s) encontrados`);
+            return itens;
+        } catch (erro) {
+            registrar('varredor falhou: ' + String(erro.message).slice(0, 60));
+            return varredura.itens;
+        }
+    }
 
     // ---------------------------------------------------------- evolução
     // Cada medição é guardada: assim o caçador tem memória, mostra a tendência
@@ -444,6 +595,15 @@ function criarCacador(opcoes = {}) {
     async function cacarCategoria(categoria) {
         const candidatas = [];
         for (const c of categoria.candidatas || []) candidatas.push(await conferirCandidata(c));
+        // Candidatos achados pelo varredor (addons do Stremio, GitHub e o
+        // código dos sites) — entram na mesma avaliação das outras fontes.
+        try {
+            const achados = await candidatosVarridos();
+            for (const nova of achados.slice(0, 10)) {
+                if (candidatas.some(c => c.url === nova.url)) continue;
+                candidatas.push(await conferirCandidata(nova));
+            }
+        } catch { /* sem varredura nesta rodada */ }
 
         // TV ao vivo tem régua e teste próprios.
         if (categoria.id === 'tv-online') {
@@ -475,6 +635,24 @@ function criarCacador(opcoes = {}) {
             for (const amostra of categoria.amostras) {
                 const medida = await testarFonte(fonte, amostra, categoria.tipo).catch(() => null);
                 if (medida) medidas.push(medida);
+            }
+            // Prova de idioma: ouve até dois títulos que abriram e confere se a
+            // voz está mesmo em português (a fonte pode mentir no rótulo).
+            const chaveDeIa = chaveDaIA();
+            if (chaveDeIa) {
+                for (const medida of medidas.filter(m => m.ok && m.url && m.amostraChave).slice(0, 2)) {
+                    const ouvido = await verificarIdioma({
+                        url: medida.url, referer: medida.referer, tipo: categoria.tipo,
+                        amostra: medida.amostraChave, fonteId: fonte.id, chaveIa: chaveDeIa,
+                        central: { pastaDados }, registrar,
+                    }).catch(() => null);
+                    if (ouvido) {
+                        medida.idioma = ouvido.idioma;
+                        medida.idiomaEvidencia = ouvido.evidencia;
+                        medida.avisoAudio = ouvido.avisoAudio || '';
+                        registrar(`${fonte.nome}: ${medida.amostra} → ${ouvido.idioma === 'pt' ? 'português confirmado' : ouvido.idioma === 'outro' ? 'NÃO está em português' : 'sem medição'}`);
+                    }
+                }
             }
             const { nota, detalhes } = notaDoFornecedor(medidas);
             // Toda fonte do motor já está dentro do aplicativo.

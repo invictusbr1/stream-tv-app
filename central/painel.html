@@ -213,7 +213,9 @@ function pintar(dados) {
     el('linha-fontes-cacadas').innerHTML = ranking.length ? ranking.map(f => {
       const d = f.detalhes || {};
       const classe = f.nota >= 7 ? 'alta' : f.nota >= 4 ? 'media' : 'baixa';
-      const extra = aoVivo ? (d.canais || 0) + ' canais' : (d.dublados || 0) + '/' + (d.testes || 0);
+      const prova = (d.confirmadosEmPortugues || 0);
+      const extra = aoVivo ? (d.canais || 0) + ' canais'
+        : (d.dublados || 0) + '/' + (d.testes || 0) + (prova ? ' · ' + prova + ' confirmado(s)' : '') + (d.contrariados ? ' · ' + d.contrariados + ' em outro idioma' : '');
       const av = f.avaliacao || {};const ev = f.evolucao || {};
       const seta = ev.tendencia === 'subindo' ? '▲' : ev.tendencia === 'caindo' ? '▼' : ev.tendencia === 'estável' ? '▬' : '•';
       const cor = ev.tendencia === 'subindo' ? '#2fd07a' : ev.tendencia === 'caindo' ? '#ff6b6b' : '#8d97a8';
@@ -226,7 +228,7 @@ function pintar(dados) {
         <td class="nome">${escapar(f.nome)} ${f.noApp ? selo('já no app', 'bom') : ''}<br><span style="font-size:11px;color:${cor}">${seta} ${escapar(ev.tendencia || 'nova')} (${ev.medicoes || 1} medição${(ev.medicoes || 1) > 1 ? 'ões' : ''})</span><br><span class="fraco" style="font-size:10.5px">notas: ${escapar(linha || '—')}</span></td>
         <td><span class="nota ${classe}">${String(f.nota).replace('.', ',')}</span></td>
         <td title="${escapar(av.motivo || '')}">${seloDestino}<br><span class="fraco" style="font-size:10.5px">${escapar((av.motivo || '').slice(0, 60))}</span></td>
-        <td class="fraco">${escapar(String(extra))}</td>
+        <td class="fraco" title="${escapar((d.evidencias || []).map(e => e.amostra + ': ' + e.evidencia).join(' | '))}">${escapar(String(extra))}</td>
         <td class="fraco">${escapar(d.melhorQualidade || '—')}</td>
         <td style="width:120px"><div class="barra"><i style="width:${d.taxaSucesso || 0}%"></i></div><span class="fraco" style="font-size:11px">${d.taxaSucesso || 0}% · ${((d.latenciaMedia || 0) / 1000).toFixed(1).replace('.', ',')}s</span></td>
       </tr>`;
@@ -239,7 +241,11 @@ function pintar(dados) {
         mantidas.map(m => `${escapar(m.nome)} — nota ${String(m.nota).replace('.', ',')} · ${escapar(m.decisao || '')}${m.motivo ? ' · ' + escapar(m.motivo) : ''}`).join('<br>') + '<br>'
       : '';
     el('fontes-candidatas').innerHTML = candidatas.length
-      ? resumoMantidas + '<b style="color:#cfd6e3">Fontes novas conferidas:</b><br>' + candidatas.map(c => `${escapar(c.nome)} — ${escapar(c.motivo)}`).join('<br>')
+      ? resumoMantidas + '<b style="color:#cfd6e3">Fontes novas conferidas:</b><br>' + candidatas.map(c => {
+          const cor = c.situacao === 'promover' ? '#2fd07a' : c.situacao === 'descartada' ? '#ff6b6b' : c.situacao === 'já implementada' ? '#8d97a8' : '#e0b64d';
+          const nota = c.nota ? ' (nota ' + String(c.nota).replace('.', ',') + ')' : '';
+          return `<span style="color:${cor}">●</span> ${escapar(c.nome)} — ${escapar(c.motivo)}${nota}`;
+        }).join('<br>')
       : resumoMantidas;
   }
   pintarCategoria();

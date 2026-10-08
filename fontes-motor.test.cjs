@@ -162,3 +162,32 @@ test('fonte de filme não é tentada em série (e vice-versa)', async () => {
     assert.deepEqual(tentadas, ['so-serie'], 'a fonte de filme nem foi consultada');
     motor.FONTES.splice(0, motor.FONTES.length, ...guardadas);
 });
+
+// A central ouve o áudio das fontes (ffmpeg + transcrição) e grava o resultado
+// em "idiomas.json". O motor usa essa memória para não cair de novo numa fonte
+// que entrega outro idioma — mesmo que ela tenha prioridade maior.
+test('a fonte confirmada em português pela central vem na frente', async () => {
+    const os = require('node:os');
+    const fs = require('node:fs');
+    const path = require('node:path');
+    const guardadas = motor.FONTES.slice();
+    const arquivo = path.join(os.tmpdir(), `idiomas-teste-${Date.now()}.json`);
+    fs.writeFileSync(arquivo, JSON.stringify({
+        'fonte-alta|movie:7777': { idioma: 'outro' },
+        'fonte-baixa|movie:7777': { idioma: 'pt' },
+    }));
+    process.env.CENTRAL_IDIOMAS = arquivo;
+    motor.esquecerIdiomas();
+    const tentadas = [];
+    comFontesDeTeste([
+        { id: 'fonte-alta', nome: 'Prioridade alta', papel: 'dublado', peso: 100, resolver: async () => { tentadas.push('alta'); return { url: 'https://exemplo/pl/a/master.m3u8', audio: 'pt-BR', fonte: 'Alta' }; } },
+        { id: 'fonte-baixa', nome: 'Prioridade baixa', papel: 'dublado', peso: 10, resolver: async () => { tentadas.push('baixa'); return { url: 'https://exemplo/pl/b/master.m3u8', audio: 'pt-BR', fonte: 'Baixa' }; } },
+    ]);
+    const escolhido = await motor.escolher('dublado', { tipo: 'movie', tmdbId: '7777' });
+    assert.equal(escolhido.fonteId, 'fonte-baixa', 'a fonte com português confirmado foi escolhida primeiro');
+    assert.deepEqual(tentadas, ['baixa']);
+    motor.FONTES.splice(0, motor.FONTES.length, ...guardadas);
+    delete process.env.CENTRAL_IDIOMAS;
+    motor.esquecerIdiomas();
+    fs.unlinkSync(arquivo);
+});
