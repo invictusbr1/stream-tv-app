@@ -94,7 +94,7 @@ code{background:#ffffff10;padding:2px 6px;border-radius:6px;font-size:12.5px}
         <h2>Fornecedores (nota 0 a 10) <small id="fontes-quando"></small></h2>
         <div class="categorias" id="categorias"></div>
         <div style="padding:10px 14px 0"><button class="botao" id="botao-cacar">Rodar o caçador nesta categoria</button></div>
-        <table><thead><tr><th>Fonte</th><th>Nota</th><th id="coluna-extra">Dublado</th><th>Qualidade</th><th>Resposta</th></tr></thead>
+        <table><thead><tr><th>Fonte</th><th>Nota</th><th>Destino</th><th id="coluna-extra">Dublado</th><th>Qualidade</th><th>Resposta</th></tr></thead>
         <tbody id="linha-fontes-cacadas"></tbody></table>
         <div id="fontes-candidatas" class="mini"></div>
       </section>
@@ -213,14 +213,20 @@ function pintar(dados) {
       const d = f.detalhes || {};
       const classe = f.nota >= 7 ? 'alta' : f.nota >= 4 ? 'media' : 'baixa';
       const extra = aoVivo ? (d.canais || 0) + ' canais' : (d.dublados || 0) + '/' + (d.testes || 0);
+      const av = f.avaliacao || {};
+      const seloDestino = av.decisao === 'manter' ? selo('manter no app', 'on')
+        : av.decisao === 'promover' ? selo('promover', 'bom')
+        : av.decisao === 'segunda opcao' ? selo('2ª opção', 'medio')
+        : selo('descartar', 'ruim');
       return `<tr>
         <td class="nome">${escapar(f.nome)} ${f.noApp ? selo('já no app', 'bom') : ''}<br><span class="fraco" style="font-size:11px">${escapar(f.papel || '')}</span></td>
         <td><span class="nota ${classe}">${String(f.nota).replace('.', ',')}</span></td>
+        <td title="${escapar(av.motivo || '')}">${seloDestino}<br><span class="fraco" style="font-size:10.5px">${escapar((av.motivo || '').slice(0, 60))}</span></td>
         <td class="fraco">${escapar(String(extra))}</td>
         <td class="fraco">${escapar(d.melhorQualidade || '—')}</td>
         <td style="width:120px"><div class="barra"><i style="width:${d.taxaSucesso || 0}%"></i></div><span class="fraco" style="font-size:11px">${d.taxaSucesso || 0}% · ${((d.latenciaMedia || 0) / 1000).toFixed(1).replace('.', ',')}s</span></td>
       </tr>`;
-    }).join('') : `<tr><td colspan="5" class="vazio">Nada medido em ${escapar(nomeCategoria)} ainda. Toque no botão acima para buscar.</td></tr>`;
+    }).join('') : `<tr><td colspan="6" class="vazio">Nada medido em ${escapar(nomeCategoria)} ainda. Toque no botão acima para buscar.</td></tr>`;
 
     const candidatas = (cacadas && cacadas.candidatas) || [];
     el('fontes-candidatas').innerHTML = candidatas.length

@@ -2,7 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const identidade = require('./identidade');
 const { notaDoFornecedor } = require('./cacador');
-const { CATEGORIAS } = require('./cacador');
+const { CATEGORIAS, avaliarPromocao, PADRAO_APP } = require('./cacador');
 
 test('a central reconhece o aplicativo Android e o iPhone', () => {
     assert.equal(identidade.tipoDeAparelho({ app: 'android', aparelho: 'Celular Android' }), 'Aplicativo Android');
@@ -57,6 +57,51 @@ test('o caçador cobre as cinco categorias, com amostras e candidatas', () => {
     ]);
     assert.equal(comPuladas.detalhes.testes, 1);
     assert.equal(comPuladas.nota > 8, true);
+});
+
+test('a régua de promoção mantém, promove, rebaixa ou descarta cada fonte', () => {
+    // Padrão do app: dublado, sem anúncio, 720p+, metade dos testes abrindo, nota 7+.
+    const aprovada = avaliarPromocao({
+        nome: 'Fonte boa', nota: 9.1, papel: 'dublado',
+        detalhes: { testes: 6, sucessos: 6, dublados: 6, melhorQualidade: '1080p', taxaSucesso: 100 }, noApp: false
+    });
+    assert.equal(aprovada.decisao, 'promover');
+
+    const jaNoApp = avaliarPromocao({
+        nome: 'Fonte atual', nota: 9.1, papel: 'dublado', noApp: true,
+        detalhes: { testes: 6, sucessos: 5, dublados: 5, melhorQualidade: '720p', taxaSucesso: 83 }
+    });
+    assert.equal(jaNoApp.decisao, 'manter');
+
+    const semDublado = avaliarPromocao({
+        nome: 'Só original', nota: 8, papel: 'hd',
+        detalhes: { testes: 6, sucessos: 6, dublados: 0, melhorQualidade: '1080p', taxaSucesso: 100 }, noApp: false
+    });
+    assert.equal(semDublado.decisao, 'descartar');
+    assert.match(semDublado.motivo, /português/);
+
+    const qualidadeBaixa = avaliarPromocao({
+        nome: 'Qualidade baixa', nota: 7.5, papel: 'dublado',
+        detalhes: { testes: 6, sucessos: 6, dublados: 6, melhorQualidade: '480p', taxaSucesso: 100 }, noApp: false
+    });
+    assert.equal(qualidadeBaixa.decisao, 'descartar');
+    assert.match(qualidadeBaixa.motivo, /abaixo do padrão/);
+
+    const segunda = avaliarPromocao({
+        nome: 'Fonte fraca mas do app', nota: 2.6, papel: 'dublado', noApp: true,
+        detalhes: { testes: 6, sucessos: 2, dublados: 2, melhorQualidade: '—', taxaSucesso: 33 }
+    });
+    assert.equal(segunda.decisao, 'segunda opcao', 'fonte que já está no app vira segunda opção, não descarte');
+
+    const novaFraca = avaliarPromocao({
+        nome: 'Candidata fraca', nota: 2.6, papel: 'dublado', noApp: false,
+        detalhes: { testes: 6, sucessos: 0, dublados: 0, melhorQualidade: '—', taxaSucesso: 0 }
+    });
+    assert.equal(novaFraca.decisao, 'descartar', 'candidata nova que não abre é descartada');
+
+    const anuncio = avaliarPromocao({ nome: 'Com anúncio', nota: 0, situacao: 'descartada', motivo: 'página com anúncio' });
+    assert.equal(anuncio.decisao, 'descartar');
+    assert.equal(PADRAO_APP.alturaMinima, 720);
 });
 
 test('o agente só investiga título válido e guarda o caso', async () => {

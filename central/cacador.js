@@ -156,6 +156,58 @@ function categoriaDe(id) {
     return CATEGORIAS.find(c => c.id === id) || CATEGORIAS[0];
 }
 
+// ---------------------------------------------------------------- padrão do app
+// É o mínimo que uma fonte precisa para entrar (ou continuar) no Conecta TV.
+// Tudo que ficar abaixo disso é descartado ou fica como segunda opção.
+const PADRAO_APP = {
+    alturaMinima: 720,      // HD para cima
+    taxaSucesso: 50,        // metade dos títulos de teste precisa abrir
+    taxaDublado: 50,        // metade dos que abriram precisa estar dublado
+    notaMinima: 7,          // nota de aprovação
+    notaSegundaOpcao: 4     // abaixo disso, descarta
+};
+
+// Decide o destino de cada fonte: manter, promover, segunda opção ou descartar.
+function avaliarPromocao(item, padrao = PADRAO_APP) {
+    const d = item.detalhes || {};
+    const testes = Number(d.testes) || 0;
+    const sucessos = Number(d.sucessos) || 0;
+    const dublados = Number(d.dublados) || 0;
+    const altura = alturaDe(d.melhorQualidade);
+    const taxaDublado = sucessos ? Math.round((dublados / sucessos) * 100) : 0;
+    const nota = Number(item.nota) || 0;
+    const aoVivo = item.papel === 'tv ao vivo';
+
+    if (item.situacao === 'descartada') return { decisao: 'descartar', motivo: item.motivo || 'não passou na avaliação', noApp: Boolean(item.noApp) };
+    if (item.situacao === 'já implementada') return { decisao: 'manter', motivo: 'já está no aplicativo', noApp: true };
+
+    // Fonte que já está no app nunca é "descartada" por uma rodada ruim: ela
+    // vira segunda opção, porque continua útil quando a principal falha.
+    if (!testes) return { decisao: item.noApp ? 'segunda opcao' : 'descartar', motivo: 'não deu para medir nesta rodada — fica como segunda opção', noApp: Boolean(item.noApp) };
+    if ((d.taxaSucesso || 0) < padrao.taxaSucesso / 2) {
+        return {
+            decisao: item.noApp ? 'segunda opcao' : 'descartar',
+            motivo: `abriu só ${d.taxaSucesso || 0}% dos títulos nesta rodada` + (item.noApp ? ' — mantida como segunda opção' : ''),
+            noApp: Boolean(item.noApp)
+        };
+    }
+
+    // Na TV ao vivo não existe dublado: a régua é canais + qualidade + resposta.
+    const dubladoOk = aoVivo || taxaDublado >= padrao.taxaDublado;
+    const qualidadeOk = altura >= padrao.alturaMinima;
+    const sucessoOk = (d.taxaSucesso || 0) >= padrao.taxaSucesso;
+
+    if (nota >= padrao.notaMinima && dubladoOk && qualidadeOk && sucessoOk) {
+        return item.noApp
+            ? { decisao: 'manter', motivo: `padrão do app atendido (nota ${nota}, ${d.melhorQualidade}, dublado ${taxaDublado}%)`, noApp: true }
+            : { decisao: 'promover', motivo: `melhor que o padrão atual em avaliação (nota ${nota}, ${d.melhorQualidade}${aoVivo ? '' : ', dublado ' + taxaDublado + '%'})`, noApp: false };
+    }
+    if (!dubladoOk) return { decisao: item.noApp ? 'segunda opcao' : 'descartar', motivo: aoVivo ? 'sem canais suficientes' : `só ${taxaDublado}% em português — fica abaixo do padrão dublado`, noApp: Boolean(item.noApp) };
+    if (!qualidadeOk) return { decisao: item.noApp ? 'segunda opcao' : 'descartar', motivo: `qualidade abaixo do padrão (${d.melhorQualidade || 'sem resolução medida'} contra ${padrao.alturaMinima}p do app)`, noApp: Boolean(item.noApp) };
+    if (nota >= padrao.notaSegundaOpcao) return { decisao: item.noApp ? 'segunda opcao' : 'descartar', motivo: `nota ${nota} abaixo de ${padrao.notaMinima} — serve como segunda opção`, noApp: Boolean(item.noApp) };
+    return { decisao: 'descartar', motivo: `nota ${nota}: abaixo do padrão do aplicativo`, noApp: Boolean(item.noApp) };
+}
+
 // ---------------------------------------------------------------- fontes do aplicativo
 async function testarFonte(fonte, amostra, tipo) {
     const alvo = tipo === 'tv'
@@ -340,8 +392,9 @@ function criarCacador(opcoes = {}) {
                 const medida = await medirListaDeCanais(lista);
                 ranking.push({ ...medida, noApp: false });
             }
+            for (const item of ranking) item.avaliacao = avaliarPromocao(item);
             ranking.sort((a, b) => b.nota - a.nota);
-            return { id: categoria.id, nome: categoria.nome, atualizadoEm: new Date().toISOString(), ranking, candidatas };
+            return { id: categoria.id, nome: categoria.nome, atualizadoEm: new Date().toISOString(), padrao: PADRAO_APP, ranking, candidatas };
         }
 
         const ranking = [];
@@ -355,8 +408,9 @@ function criarCacador(opcoes = {}) {
             // Toda fonte do motor já está dentro do aplicativo.
             ranking.push({ id: fonte.id, nome: fonte.nome, papel: fonte.papel, nota, detalhes, medidas, noApp: true });
         }
+        for (const item of ranking) item.avaliacao = avaliarPromocao(item);
         ranking.sort((a, b) => b.nota - a.nota);
-        return { id: categoria.id, nome: categoria.nome, atualizadoEm: new Date().toISOString(), ranking, candidatas };
+        return { id: categoria.id, nome: categoria.nome, atualizadoEm: new Date().toISOString(), padrao: PADRAO_APP, ranking, candidatas };
     }
 
     async function cacar(qual = 'filme') {
@@ -386,4 +440,4 @@ function criarCacador(opcoes = {}) {
     return { cacar, ultimo, rodando: () => rodando, categoriaAtual: () => categoriaAtual, CATEGORIAS };
 }
 
-module.exports = { criarCacador, notaDoFornecedor, CATEGORIAS, medirListaDeCanais };
+module.exports = { criarCacador, notaDoFornecedor, avaliarPromocao, CATEGORIAS, PADRAO_APP, medirListaDeCanais };
