@@ -41,16 +41,21 @@ window.StreamPlayback = (() => {
     // Quando o áudio é o original, a legenda em português entra ligada sozinha.
     function nomeDaTrilhaDeLegenda(t){return String(t?.name||t?.label||t?.lang||t?.language||'');}
     function indiceLegendaPortugues(){
-        const trilhas=hls?.subtitleTracks||[];
-        const brasileira=trilhas.findIndex(t=>/portugu[eê]s\s*\(?brazil|brazil.*portugu/i.test(nomeDaTrilhaDeLegenda(t)));
+        // Procura em todas as faixas na mesma ordem do menu: primeiro as que
+        // vêm da fonte e depois as do próprio aplicativo (arquivo local ou
+        // legenda baixada na hora).
+        const {tracks}=listaDeLegendas();
+        const brasileira=tracks.findIndex(t=>/portugu[eê]s\s*\(?brazil|brazil.*portugu|brazillian/i.test(nomeDaTrilhaDeLegenda(t)));
         if(brasileira>=0)return brasileira;
-        return trilhas.findIndex(t=>/portugu|brazil|brasil|^pt([-_]|$)/i.test(nomeDaTrilhaDeLegenda(t)));
+        return tracks.findIndex(t=>{const nome=nomeDaTrilhaDeLegenda(t);const idioma=String(t?.srclang||t?.language||'');return /portugu|brazil|brasil|^pt([-_]|$)/i.test(nome)||/^pt([-_]|$)/i.test(idioma);});
     }
     function escolherLegendaAutomatica(){
         if(subtitleChoice>=0||rotuloAudio==='Dublado')return false;
         const indice=indiceLegendaPortugues();
         if(indice<0)return false;
         setSubtitle(indice);
+        // Deixa claro para quem está assistindo por que a legenda entrou sozinha.
+        try{window.mostrarStatus?.('Som original · legenda em português');}catch{}
         return true;
     }
     function subtitleMenu(){
@@ -131,11 +136,11 @@ window.StreamPlayback = (() => {
             if(signal)signal.addEventListener('abort',()=>{if(current())failure();},{once:true});
             video.addEventListener('playing',()=>{if(!current())return;el('direct-resume').hidden=true;awaitPicture();clearTimeout(relogioConfirmacao);relogioConfirmacao=setTimeout(()=>{if(!current()||!video||relatoConfirmado)return;if(video.currentTime<15)return;relatoConfirmado=true;relatar({tipo:'confirmacao',ok:true,fonte:fonteUsada,audio:rotuloAudio,resolucao:alturaAtual?alturaAtual+'p':''});},20000);el('direct-toggle').textContent='⏸';el('direct-toggle').setAttribute('aria-label','Pausar');showControls(!initialFocus);initialFocus=true;});
             video.addEventListener('canplay',()=>{if(!current())return;play();},{once:true});
-            video.addEventListener('loadedmetadata',()=>{if(current()){qualityInfo();subtitleMenu();buscaLivre();atualizarVolume();resume();window.StreamLegendas?.anexar?.(video,progressFilm).then?.(()=>{if(current())subtitleMenu();}).catch?.(()=>{});}});
+            video.addEventListener('loadedmetadata',()=>{if(current()){qualityInfo();subtitleMenu();buscaLivre();atualizarVolume();resume();window.StreamLegendas?.anexar?.(video,progressFilm).then?.(()=>{if(!current())return;subtitleMenu();if(!escolherLegendaAutomatica())setSubtitle(subtitleChoice);}).catch?.(()=>{});}});
             video.addEventListener('pause',()=>{if(current()){saveProgress();el('direct-toggle').textContent='▶';el('direct-toggle').setAttribute('aria-label','Reproduzir');showControls();}});
             video.addEventListener('timeupdate',()=>{if(current()){resume();if(resumeApplied&&Date.now()-lastSaved>2000){saveProgress();lastSaved=Date.now();}if(settle)awaitPicture();el('direct-time').textContent=clock(video.currentTime)+' / '+clock(video.duration);const barra=el('direct-progress');if(barra&&!arrastando)barra.value=Number.isFinite(video.duration)&&video.duration>0?Math.round(video.currentTime/video.duration*1000):0;}});
             video.addEventListener('click',()=>showControls(true));
-            video.textTracks?.addEventListener?.('addtrack',()=>{if(current()){subtitleMenu();setSubtitle(subtitleChoice);}});
+            video.textTracks?.addEventListener?.('addtrack',()=>{if(!current())return;subtitleMenu();if(!escolherLegendaAutomatica())setSubtitle(subtitleChoice);});
             video.addEventListener('error',()=>{if(current())failure();});
             // Arquivo direto (MP4 progressivo): toca no próprio player, sem
             // hls.js. É o caso da fonte dublada alternativa.

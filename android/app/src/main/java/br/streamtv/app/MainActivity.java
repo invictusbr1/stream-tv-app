@@ -29,6 +29,8 @@ import javax.net.ssl.HttpsURLConnection;
 import java.nio.charset.StandardCharsets;
 import java.util.regex.Pattern;
 import java.util.regex.Matcher;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipInputStream;
 import org.json.JSONObject;
 import org.json.JSONArray;
 
@@ -207,6 +209,100 @@ public final class MainActivity extends Activity {
         return pipocaEpisodio(id, temporada, episodio);
     }
 
+    // ---------------------------------------------------------------
+    // Legendas no aparelho (não existe servidor no celular)
+    // ---------------------------------------------------------------
+    private WebResourceResponse respostaTexto(String tipo, String corpo) {
+        return new WebResourceResponse(tipo, "UTF-8", 200, "OK",
+            Collections.singletonMap("Cache-Control", "no-store"),
+            new ByteArrayInputStream(corpo.getBytes(StandardCharsets.UTF_8)));
+    }
+
+    private String chaveTmdb() {
+        try (InputStream entrada = getAssets().open("config.json"); ByteArrayOutputStream saida = new ByteArrayOutputStream()) {
+            byte[] bloco = new byte[4096]; int lidos;
+            while ((lidos = entrada.read(bloco)) != -1) saida.write(bloco, 0, lidos);
+            Matcher achado = Pattern.compile("\"tmdbKey\"\\s*:\\s*\"([^\"]+)\"").matcher(new String(saida.toByteArray(), StandardCharsets.UTF_8));
+            return achado.find() ? achado.group(1) : "";
+        } catch (Exception e) { return ""; }
+    }
+
+    // Lista as legendas em português do filme (código IMDb, buscado no TMDB).
+    private WebResourceResponse legendasOnline(Uri uri) {
+        try {
+            String imdb = uri.getQueryParameter("imdb") == null ? "" : uri.getQueryParameter("imdb");
+            if (!imdb.matches("tt\\d{5,10}")) {
+                String id = uri.getQueryParameter("id") == null ? "" : uri.getQueryParameter("id");
+                if (id.matches("\\d{1,10}")) {
+                    String externo = lerPagina("https://api.themoviedb.org/3/movie/" + id + "/external_ids?api_key=" + chaveTmdb(), null);
+                    if (externo != null) {
+                        Matcher achado = Pattern.compile("\"imdb_id\"\\s*:\\s*\"(tt\\d{5,10})\"").matcher(externo);
+                        if (achado.find()) imdb = achado.group(1);
+                    }
+                }
+            }
+            JSONArray lista = new JSONArray();
+            if (imdb.matches("tt\\d{5,10}")) {
+                String html = lerPagina("https://yifysubtitles.ch/movie-imdb/" + imdb, "https://yifysubtitles.ch/");
+                if (html != null) {
+                    Matcher linhas = Pattern.compile("<tr[\\s\\S]*?</tr>").matcher(html);
+                    while (linhas.find()) {
+                        String linha = linhas.group();
+                        boolean portugues = Pattern.compile("flag-(br|pt)\\b").matcher(linha).find()
+                            || Pattern.compile("portugu", Pattern.CASE_INSENSITIVE).matcher(linha).find();
+                        if (!portugues) continue;
+                        Matcher caminho = Pattern.compile("href=\"(/subtitles/[^\"]+)\"").matcher(linha);
+                        if (!caminho.find()) continue;
+                        Matcher idioma = Pattern.compile("sub-lang\">([^<]+)<").matcher(linha);
+                        Matcher nota = Pattern.compile("label-success\">\\s*(\\d+)").matcher(linha);
+                        JSONObject item = new JSONObject();
+                        item.put("nome", "Legenda em português");
+                        item.put("idioma", idioma.find() ? idioma.group(1) : "Português");
+                        item.put("nota", nota.find() ? Integer.parseInt(nota.group(1)) : 0);
+                        item.put("pagina", "https://yifysubtitles.ch" + caminho.group(1));
+                        item.put("baixar", "https://yifysubtitles.ch" + caminho.group(1).replace("/subtitles/", "/subtitle/") + ".zip");
+                        lista.put(item);
+                    }
+                }
+            }
+            JSONObject resposta = new JSONObject();
+            resposta.put("fonte", "YIFY");
+            resposta.put("imdb", imdb);
+            resposta.put("encontradas", lista);
+            return respostaTexto("application/json", resposta.toString());
+        } catch (Exception e) {
+            return respostaTexto("application/json", "{\"fonte\":\"YIFY\",\"encontradas\":[]}");
+        }
+    }
+
+    // Baixa o arquivo .zip da legenda e entrega o texto pronto para o player.
+    private WebResourceResponse legendaOnline(Uri uri) {
+        String arquivo = uri.getQueryParameter("arquivo") == null ? "" : uri.getQueryParameter("arquivo");
+        if (!arquivo.matches("https://(www\\.)?yifysubtitles\\.ch/subtitle/[A-Za-z0-9._\\-/%]+\\.zip")) return error(400);
+        HttpsURLConnection conexao = null;
+        try {
+            conexao = (HttpsURLConnection) new URL(arquivo).openConnection();
+            conexao.setConnectTimeout(10000); conexao.setReadTimeout(15000);
+            conexao.setInstanceFollowRedirects(true);
+            conexao.setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Mobile Safari/537.36");
+            conexao.setRequestProperty("Referer", arquivo.replace("/subtitle/", "/subtitles/").replaceAll("\\.zip$", ""));
+            if (conexao.getResponseCode() != 200) return error(404);
+            try (InputStream entrada = conexao.getInputStream(); ZipInputStream zip = new ZipInputStream(entrada)) {
+                ZipEntry item;
+                while ((item = zip.getNextEntry()) != null) {
+                    if (item.isDirectory() || !item.getName().matches("(?i).*\\.(srt|vtt)$")) continue;
+                    ByteArrayOutputStream saida = new ByteArrayOutputStream();
+                    byte[] bloco = new byte[8192]; int lidos;
+                    while ((lidos = zip.read(bloco)) != -1) { saida.write(bloco, 0, lidos); if (saida.size() > 3000000) break; }
+                    String texto = new String(saida.toByteArray(), StandardCharsets.UTF_8);
+                    if (!texto.trim().isEmpty()) return respostaTexto("text/plain", texto);
+                }
+            }
+        } catch (Exception e) { /* cai no erro abaixo */ }
+        finally { if (conexao != null) conexao.disconnect(); }
+        return error(404);
+    }
+
     @SuppressLint("SetJavaScriptEnabled")
     private WebView createWebView(boolean trusted) {
         WebView web = new WebView(this);
@@ -270,6 +366,13 @@ public final class MainActivity extends Activity {
                 if (path != null && path.matches("/api/playback/serie/[0-9]{1,10}/[0-9]{1,3}/[1-9][0-9]{0,3}")) {
                     String[] partes = path.split("/");
                     return directEpisode(partes[4], partes[5], partes[6]);
+                }
+                // Legendas no aparelho: quando o filme toca com o áudio original,
+                // o telefone busca sozinho a legenda em português (sem cadastro).
+                if (path != null && "/api/legendas/online".equals(path)) return legendasOnline(uri);
+                if (path != null && "/api/legenda-online".equals(path)) return legendaOnline(uri);
+                if (path != null && "/api/legendas".equals(path)) {
+                    return respostaTexto("application/json", "{\"encontradas\":[]}");
                 }
                 String name = "/".equals(path) ? "index.html" : path.substring(1);
                 // Only the bundled public assets can be served; no arbitrary file paths.

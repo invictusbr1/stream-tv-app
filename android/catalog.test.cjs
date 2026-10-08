@@ -105,3 +105,34 @@ test('anime and short dramas use independent constraints and never mix cartoons 
 test('anime search keeps Japanese animation and rejects live action and western cartoons',async()=>{
  const c=createCatalog(async()=>good({results:[{id:1,name:'Anime',genre_ids:[16],origin_country:['JP']},{id:2,name:'Drama',genre_ids:[18],origin_country:['JP']},{id:3,name:'Cartoon',genre_ids:[16],origin_country:['US']}]}),'test');const d=await c.request('/api/explore?tipo=anime&nome=Teste');assert.deepEqual(d.items.map(x=>x.id),[1]);
 });
+
+// No aparelho não existe servidor: a TV ao vivo precisa buscar as listas
+// públicas direto (o endereço libera acesso entre sites).
+test('a TV ao vivo funciona no aparelho com as listas públicas', async () => {
+    const lista = [
+        '#EXTM3U',
+        '#EXTINF:-1 tvg-logo="https://exemplo.com/espn.png" group-title="Sports",ESPN Brasil',
+        'https://exemplo.com/espn.m3u8',
+        '#EXTINF:-1 group-title="News",CNN Brasil',
+        'https://exemplo.com/cnn.m3u8',
+        '#EXTINF:-1 group-title="News",Endereço inseguro',
+        'http://exemplo.com/inseguro.m3u8',
+    ].join('\n');
+    const catalogo = createCatalog(async (url) => {
+        if (String(url).includes('iptv-org')) return { ok: true, text: async () => lista };
+        throw Error('endereço inesperado: ' + url);
+    }, 'test');
+
+    const listas = await catalogo.request('/api/tv/listas');
+    assert.equal(listas.listas.length, 5);
+    assert.equal(listas.listas[0].id, 'brasil');
+
+    const canais = await catalogo.request('/api/tv/canais?lista=brasil');
+    assert.equal(canais.canais.length, 2, 'só canais com endereço seguro entram');
+    assert.equal(canais.canais[0].nome, 'ESPN Brasil');
+    assert.equal(canais.canais[0].grupo, 'Sports');
+
+    const categorias = await catalogo.request('/api/tv/categorias?lista=brasil');
+    assert.deepEqual(categorias.categorias.map((c) => c.nome).sort(), ['News', 'Sports']);
+    assert.equal(categorias.categorias.find((c) => c.nome === 'News').total, 1);
+});

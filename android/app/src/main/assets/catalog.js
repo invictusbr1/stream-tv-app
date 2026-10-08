@@ -43,6 +43,35 @@
             // em 07/10/2026: pediam verificação no navegador e exibiam anúncio.
             return [];
         }
+        // ---- TV ao vivo no aparelho (mesmas listas públicas do servidor) ----
+        const LISTAS_TV = [
+            { id: 'brasil', nome: 'Canais do Brasil', url: 'https://iptv-org.github.io/iptv/countries/br.m3u', nota: 9.0 },
+            { id: 'portugues', nome: 'Canais em português', url: 'https://iptv-org.github.io/iptv/languages/por.m3u', nota: 8.5 },
+            { id: 'esportes', nome: 'Esportes', url: 'https://iptv-org.github.io/iptv/categories/sports.m3u', nota: 9.8 },
+            { id: 'noticias', nome: 'Notícias', url: 'https://iptv-org.github.io/iptv/categories/news.m3u', nota: 10 },
+            { id: 'latam', nome: 'América Latina', url: 'https://iptv-org.github.io/iptv/regions/latam.m3u', nota: 9.5 }
+        ];
+        const canaisTvCache = new Map();
+        async function canaisTv(idLista, signal) {
+            const lista = LISTAS_TV.find(l => l.id === idLista) || LISTAS_TV[0];
+            const salvo = canaisTvCache.get(lista.id);
+            if (salvo && salvo.ate > Date.now()) return salvo.canais;
+            const resposta = await fetcher(lista.url, { signal });
+            if (!resposta.ok) throw new Error('Lista de canais indisponível');
+            const linhas = String(await resposta.text()).split('\n').map(l => l.trim());
+            const canais = [];
+            for (let i = 0; i < linhas.length; i++) {
+                if (!/^#EXTINF/i.test(linhas[i])) continue;
+                const endereco = linhas[i + 1];
+                if (!endereco || endereco.startsWith('#') || !/^https:\/\//i.test(endereco)) continue;
+                const nome = ((linhas[i].match(/,(.*)$/) || [])[1] || 'Canal').replace(/\s*\[[^\]]*\]/g, '').trim().slice(0, 70);
+                const logo = (linhas[i].match(/tvg-logo="([^"]*)"/i) || [])[1] || '';
+                const grupo = (linhas[i].match(/group-title="([^"]*)"/i) || [])[1] || '';
+                canais.push({ nome, logo: /^https:\/\//i.test(logo) ? logo : '', grupo: grupo.slice(0, 40), url: endereco, lista: lista.id });
+            }
+            canaisTvCache.set(lista.id, { canais, ate: Date.now() + 30 * 60 * 1000 });
+            return canais;
+        }
         async function request(input, signal) {
             const url = new URL(input, 'https://appassets.androidplatform.net');
             const type=url.searchParams.get('tipo')||'movie';
@@ -79,6 +108,15 @@
                 }}
                 else data=await tmdb(`discover/${kind}`,params,signal);
                 return {items:(data.results||[]).filter(x=>!x.media_type||['movie','tv'].includes(x.media_type)).map(x=>movie({...x,media_type:x.media_type||kind})),page:data.page||page,pages:Math.min(data.total_pages||1,500)};
+            }
+            if(url.pathname==='/api/tv/listas'){return {listas:LISTAS_TV.map(l=>({id:l.id,nome:l.nome,nota:l.nota,url:l.url}))};}
+            if(url.pathname==='/api/tv/canais'){return {canais:await canaisTv(url.searchParams.get('lista')||'brasil', signal)};}
+            if(url.pathname==='/api/tv/categorias'){
+                const canais=await canaisTv(url.searchParams.get('lista')||'brasil', signal);
+                const contagem=new Map();
+                for(const canal of canais){const grupo=canal.grupo||'undefined';contagem.set(grupo,(contagem.get(grupo)||0)+1);}
+                const categorias=[...contagem.entries()].map(([nome,total])=>({nome,total})).sort((a,b)=>b.total-a.total);
+                return {categorias};
             }
             if(url.pathname==='/api/top-br'){
                 const d=await tmdb('discover/movie',{watch_region:'BR',with_watch_monetization_types:'flatrate|free|ads',sort_by:'popularity.desc',include_adult:'false','vote_count.gte':'50'},signal);

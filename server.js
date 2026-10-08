@@ -249,26 +249,41 @@ app.get('/api/legenda', (req, res) => {
     res.type('text/plain; charset=utf-8').sendFile(caminho, erro => { if (erro && !res.headersSent) res.status(404).send('Legenda não encontrada'); });
 });
 
+// Busca de legenda na internet, sem cadastro: YIFY Subtitles em português.
+// Usada quando o filme toca com o áudio original — a legenda entra sozinha.
 app.get('/api/legendas/online', async (req, res) => {
-    const chave = process.env.OPENSUBTITLES_API_KEY || LOCAL_CONFIG.openSubtitlesKey || '';
-    if (!chave) return res.status(503).json({ error: 'Busca online de legendas não configurada.', pasta: ARQ_LEGENDAS });
+    res.setHeader('Cache-Control', 'no-store');
     try {
-        const imdb = String(req.query.imdb || '');
-        const idioma = String(req.query.idioma || 'pt-br');
-        const consulta = imdb ? `imdb_id=${imdb.replace('tt', '')}` : `query=${encodeURIComponent(String(req.query.filme || ''))}`;
-        const r = await axios.get(`https://api.opensubtitles.com/api/v1/subtitles?${consulta}&languages=${idioma}`, {
-            timeout: 12000,
-            headers: { 'Api-Key': chave, 'User-Agent': 'ConectaTV v1.0', 'Content-Type': 'application/json' }
-        });
-        const achados = (r.data?.data || []).slice(0, 4).map(item => ({
-            id: item.attributes?.files?.[0]?.file_id,
-            nome: item.attributes?.release || item.attributes?.feature_details?.title || 'Legenda',
-            idioma: item.attributes?.language || idioma,
-            downloads: item.attributes?.download_count || 0
-        })).filter(item => item.id);
-        res.json({ encontradas: achados });
+        const legendasOnline = require('./legendas-online');
+        let imdb = String(req.query.imdb || '').trim();
+        if (!/^tt\d{5,10}$/i.test(imdb) && /^\d{1,10}$/.test(String(req.query.id || ''))) {
+            imdb = String(await getImdbId(String(req.query.id)).catch(() => '') || '');
+        }
+        const encontradas = imdb ? await legendasOnline.listar(imdb) : [];
+        res.json({ fonte: 'YIFY', imdb, encontradas });
     } catch (erro) {
-        res.status(502).json({ error: 'Não foi possível consultar as legendas agora.' });
+        res.status(502).json({ error: 'Não foi possível buscar as legendas agora.', encontradas: [] });
+    }
+});
+
+// Baixa a legenda escolhida e guarda uma cópia na pasta do aplicativo — na
+// próxima vez ela já entra como legenda local, mesmo sem internet.
+app.get('/api/legenda-online', async (req, res) => {
+    try {
+        const legendasOnline = require('./legendas-online');
+        const achada = await legendasOnline.baixar(String(req.query.arquivo || ''));
+        if (!achada || !String(achada.texto || '').trim()) return res.status(404).send('Legenda não encontrada.');
+        try {
+            fs.mkdirSync(ARQ_LEGENDAS, { recursive: true });
+            const titulo = String(req.query.filme || achada.nome || 'legenda')
+                .replace(/\.(srt|vtt)$/i, '').replace(/[\\/:*?"<>|]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 80) || 'legenda';
+            const destino = path.join(ARQ_LEGENDAS, `${titulo}.srt`);
+            if (!fs.existsSync(destino)) fs.writeFileSync(destino, achada.texto, 'utf8');
+        } catch { /* sem permissão para guardar: a legenda vale só agora */ }
+        res.setHeader('Cache-Control', 'no-store');
+        res.type('text/plain; charset=utf-8').send(achada.texto);
+    } catch {
+        res.status(502).send('Não foi possível baixar a legenda agora.');
     }
 });
 

@@ -24,6 +24,9 @@ replace("url.origin!==location.origin||!/^\\/assistir\\/\\d{1,10}\\/[0-7]$/.test
 // ficava no cabeçalho do catálogo saiu de vez.
 fs.writeFileSync(path.join(assets,'index.html'),html);
 fs.copyFileSync(path.join(root,'playback.js'),path.join(assets,'playback.js'));
+// As legendas do aplicativo (arquivo local e busca na internet) seguem junto
+// com o player — sem isso o celular ficava com uma versão antiga do arquivo.
+fs.copyFileSync(path.join(root,'legendas.js'),path.join(assets,'legendas.js'));
 fs.copyFileSync(path.join(root,'node_modules/hls.js/dist/hls.min.js'),path.join(assets,'hls.min.js'));
 fs.copyFileSync(path.join(root,'node_modules/hls.js/LICENSE'),path.join(assets,'hls-LICENSE.txt'));
 const key=fs.readFileSync(path.join(root,'server.js'),'utf8').match(/const TMDB_KEY = '([^']+)'/);
