@@ -166,3 +166,48 @@ test('aceita a lista de reproducao da fonte nova e recusa endereco estranho',asy
  arquivoOk=s3.controller.estaAtivo?.() ?? true;
  assert.equal(arquivoOk,true,'o episodio dublado em arquivo direto precisa abrir');
 });
+
+// O filme pode tocar com o áudio original (a fonte dublada não tinha o
+// título). Nesse caso a legenda em português precisa entrar ligada sozinha —
+// vale tanto para a legenda que vem da fonte quanto para a que o aplicativo
+// busca e anexa (arquivo local ou baixado na hora).
+test('a legenda em português entra sozinha quando o áudio é o original', async () => {
+    const s = harness();
+    s.window.StreamLegendas = {
+        anexar: async (video) => {
+            video.textTracks = [{ label: 'Filme (português)', language: 'pt', mode: 'disabled' }];
+            return 1;
+        }
+    };
+    const p = s.controller.start(238, 1, null, null, 'https://exemplo.com/filme.m3u8', true);
+    await new Promise(setImmediate);
+    s.el('direct-video').fire('loadedmetadata');
+    await new Promise(setImmediate);
+    await new Promise(setImmediate);
+    const trilha = s.el('direct-video').textTracks[0];
+    assert.equal(trilha.mode, 'showing', 'a legenda em português precisa ligar sozinha');
+    s.controller.stop();
+    await p;
+});
+
+test('com o áudio dublado a legenda segue desligada', async () => {
+    const s = harness();
+    s.window.StreamLegendas = {
+        anexar: async (video) => {
+            video.textTracks = [{ label: 'Filme (português)', language: 'pt', mode: 'disabled' }];
+            return 1;
+        }
+    };
+    s.fetch(() => ({ url, audio: 'pt-BR' }));
+    const p = s.controller.start(238, 1, new AbortController().signal);
+    await new Promise(setImmediate);
+    s.Hls.instance.emit('manifest');
+    await new Promise(setImmediate);
+    s.el('direct-video').fire('loadedmetadata');
+    await new Promise(setImmediate);
+    await new Promise(setImmediate);
+    const trilha = s.el('direct-video').textTracks[0];
+    assert.equal(trilha.mode, 'disabled', 'no dublado a legenda continua desligada');
+    s.controller.stop();
+    await p;
+});
