@@ -138,6 +138,22 @@ const FONTES = [
         }
     },
     {
+        // MGEB (mgeb.top): provedor por trás do BRFlix. Entrega o m3u8 no HTML,
+        // com faixa em português nos animes (720p). Nas séries a qualidade é
+        // menor, então entra DEPOIS das fontes dubladas principais.
+        id: 'mgeb',
+        nome: 'Dublado · MGEB (animes)',
+        papel: 'dublado',
+        peso: 82,
+        seAplica: alvo => alvo.tipo === 'tv',
+        resolver: async id => {
+            if (typeof id !== 'object') return null;
+            const dados = await require('./mgeb-source').resolverEpisodio(id.tmdbId, id.temporada, id.episodio);
+            if (!dados) return null;
+            return dados;
+        }
+    },
+    {
         id: 'pipoca',
         nome: 'PipocaCine · dublado',
         papel: 'dublado',
