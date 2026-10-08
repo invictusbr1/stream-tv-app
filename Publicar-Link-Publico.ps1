@@ -37,16 +37,35 @@ if (-not $noAr) {
 }
 if ($noAr) { Ok 'Aplicativo no ar' } else { Aviso 'O aplicativo não respondeu — abra o atalho Conecta TV e tente de novo'; exit 1 }
 
-Titulo 'Abrindo o endereço público (leva uns 20 segundos)'
-if (Test-Path -LiteralPath $log) { Remove-Item -LiteralPath $log -Force }
-$tunel = Start-Process -FilePath $nuvem -ArgumentList 'tunnel', '--url', "http://localhost:$Porta", '--no-autoupdate' -PassThru -WindowStyle Hidden -RedirectStandardError $log
-
+# Se já existe um túnel deste aplicativo rodando, aproveitamos o MESMO endereço
+# (assim o link divulgado não muda sem necessidade).
 $endereco = ''
-for ($i = 0; $i -lt 45 -and -not $endereco; $i++) {
-    Start-Sleep -Seconds 1
-    if (Test-Path -LiteralPath $log) {
-        $achado = [regex]::Match((Get-Content -LiteralPath $log -Raw), 'https://[a-z0-9-]+\.trycloudflare\.com')
-        if ($achado.Success) { $endereco = $achado.Value }
+$logAntigo = Join-Path $env:TEMP 'conecta-link-publico.log'
+if (Test-Path -LiteralPath $logAntigo) {
+    $achado = [regex]::Match((Get-Content -LiteralPath $logAntigo -Raw), 'https://[a-z0-9-]+\.trycloudflare\.com')
+    if ($achado.Success) {
+        $candidato = $achado.Value
+        try {
+            $teste = curl.exe -s -o NUL -w "%{http_code}" "$candidato/api/health" --max-time 15
+            if ($teste -eq '200') {
+                $endereco = $candidato
+                Titulo 'Reaproveitando o túnel que já está aberto'
+                Ok "Endereço atual: $endereco"
+            }
+        } catch { /* o túnel antigo morreu: cria outro abaixo */ }
+    }
+}
+
+if (-not $endereco) {
+    Titulo 'Abrindo o endereço público (leva uns 20 segundos)'
+    if (Test-Path -LiteralPath $log) { Remove-Item -LiteralPath $log -Force }
+    $tunel = Start-Process -FilePath $nuvem -ArgumentList 'tunnel', '--url', "http://localhost:$Porta", '--no-autoupdate' -PassThru -WindowStyle Hidden -RedirectStandardError $log
+    for ($i = 0; $i -lt 45 -and -not $endereco; $i++) {
+        Start-Sleep -Seconds 1
+        if (Test-Path -LiteralPath $log) {
+            $achado = [regex]::Match((Get-Content -LiteralPath $log -Raw), 'https://[a-z0-9-]+\.trycloudflare\.com')
+            if ($achado.Success) { $endereco = $achado.Value }
+        }
     }
 }
 if (-not $endereco) { Aviso 'Não consegui obter o endereço. Veja o arquivo ' + $log; exit 1 }
@@ -65,6 +84,30 @@ Detalhe 'Mande o link para quem vai assistir. No iPhone: abre no Safari, digita 
 Detalhe 'uma vez e pronto (pode usar "Adicionar à Tela de Início").'
 
 try { Set-Clipboard -Value $endereco; Ok 'O link já está copiado — é só colar no WhatsApp.' } catch { }
+
+# --------------------------------------------------------------- link fixo
+# Publica o endereço atual na página fixa do GitHub (o link que você divulga
+# nunca muda: ele sempre aponta para o servidor de agora).
+$arquivoToken = Join-Path $env:USERPROFILE '.streamtv\github-token.txt'
+if (Test-Path -LiteralPath $arquivoToken) {
+    try {
+        $token = (Get-Content -LiteralPath $arquivoToken -Raw).Trim()
+        $repo = 'invictusbr1/stream-tv-app'
+        $cabecalhos = @{ Authorization = "Bearer $token"; Accept = 'application/vnd.github+json'; 'User-Agent' = 'conecta-tv' }
+        $conteudo = @{ endereco = $endereco; codigo = $codigo; atualizadoEm = (Get-Date).ToUniversalTime().ToString('o') } | ConvertTo-Json
+        $atual = $null
+        try { $atual = Invoke-RestMethod -Uri "https://api.github.com/repos/$repo/contents/docs/endereco.json" -Headers $cabecalhos -Method Get -TimeoutSec 20 } catch { $atual = $null }
+        $corpo = @{
+            message = 'Atualiza o endereco publico do Conecta TV'
+            content = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($conteudo))
+            sha     = $atual.sha
+        } | ConvertTo-Json
+        Invoke-RestMethod -Uri "https://api.github.com/repos/$repo/contents/docs/endereco.json" -Headers $cabecalhos -Method Put -Body $corpo -ContentType 'application/json' -TimeoutSec 30 | Out-Null
+        Ok 'Link fixo atualizado: https://invictusbr1.github.io/stream-tv-app/'
+    } catch {
+        Detalhe "Não consegui atualizar o link fixo agora ($($_.Exception.Message))."
+    }
+}
 
 # Testa por fora (pela borda da Cloudflare) para confirmar que o mundo enxerga.
 try {

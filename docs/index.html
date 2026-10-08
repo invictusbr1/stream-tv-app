@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Conecta TV</title>
+<meta name="robots" content="noindex">
+<style>
+  :root { --fundo:#0b0e15; --painel:#141924; --borda:#ffffff18; --texto:#e8ecf3; --fraco:#8d97a8; --verde:#2fd07a; --vermelho:#ff6b6b; }
+  * { box-sizing:border-box }
+  body { margin:0; background:radial-gradient(900px 500px at 70% -10%, #1b2436 0%, var(--fundo) 60%); color:var(--texto);
+         font:16px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif; display:grid; place-items:center; min-height:100vh; padding:24px }
+  .caixa { background:linear-gradient(180deg,#171d29,#141924); border:1px solid var(--borda); border-radius:20px;
+           padding:30px; width:min(430px,100%); box-shadow:0 24px 60px #0008 }
+  h1 { margin:0 0 6px; font-size:24px; letter-spacing:-.4px }
+  p { margin:0 0 14px; color:var(--fraco); font-size:14px }
+  .estado { display:flex; align-items:center; gap:9px; font-size:14px; color:var(--texto); margin:16px 0 6px }
+  .ponto { width:9px; height:9px; border-radius:50%; background:var(--fraco) }
+  .ponto.on { background:var(--verde); box-shadow:0 0 0 0 #2fd07a88; animation:pulsa 2s infinite }
+  .ponto.off { background:var(--vermelho) }
+  @keyframes pulsa { 70% { box-shadow:0 0 0 9px #2fd07a00 } 100% { box-shadow:0 0 0 0 #2fd07a00 } }
+  .botao { display:block; text-align:center; text-decoration:none; background:#e50914; color:#fff; border-radius:12px;
+           padding:14px; font-weight:600; margin:18px 0 10px }
+  .botao[hidden] { display:none }
+  .codigo { background:#1d2431; border:1px solid var(--borda); border-radius:12px; padding:12px 14px; font-size:14px }
+  .codigo b { font-size:17px; letter-spacing:.5px }
+  .nota { font-size:12px; color:#6b7486; margin:14px 0 0 }
+</style>
+</head>
+<body>
+  <main class="caixa">
+    <h1>Conecta TV</h1>
+    <p>Filmes e séries dublados, sem anúncio, no seu aparelho.</p>
+    <div class="estado"><span class="ponto" id="ponto"></span><span id="estado">Verificando o servidor…</span></div>
+    <a class="botao" id="abrir" hidden>Abrir o app</a>
+    <div class="codigo" id="bloco-codigo" hidden>Código de acesso: <b id="codigo">—</b></div>
+    <p class="nota" id="nota"></p>
+  </main>
+<script>
+  const el = id => document.getElementById(id);
+  function quando(iso) {
+    const segundos = Math.round((Date.now() - new Date(iso).getTime()) / 1000);
+    if (segundos < 90) return 'agora mesmo';
+    if (segundos < 3600) return 'há ' + Math.round(segundos / 60) + ' min';
+    return 'há ' + Math.round(segundos / 3600) + ' h';
+  }
+  fetch('endereco.json?t=' + Date.now(), { cache: 'no-store' })
+    .then(r => r.json())
+    .then(dados => {
+      const endereco = String(dados.endereco || '').trim();
+      const idade = dados.atualizadoEm ? (Date.now() - new Date(dados.atualizadoEm).getTime()) : Infinity;
+      const noAr = Boolean(endereco) && idade < 10 * 60 * 1000;
+      if (noAr) {
+        el('ponto').className = 'ponto on';
+        el('estado').textContent = 'Servidor no ar (atualizado ' + quando(dados.atualizadoEm) + ')';
+        el('abrir').href = endereco;
+        el('abrir').hidden = false;
+        if (dados.codigo) { el('bloco-codigo').hidden = false; el('codigo').textContent = dados.codigo; }
+        el('nota').textContent = 'Abrindo o aplicativo… se não abrir sozinho, toque no botão acima.';
+        setTimeout(() => { location.href = endereco; }, 1500);
+      } else {
+        el('ponto').className = 'ponto off';
+        el('estado').textContent = 'Servidor desligado no momento';
+        if (endereco) {
+          el('abrir').href = endereco;
+          el('abrir').hidden = false;
+          el('abrir').textContent = 'Tentar o último endereço';
+        }
+        if (dados.codigo) { el('bloco-codigo').hidden = false; el('codigo').textContent = dados.codigo; }
+        el('nota').textContent = 'O computador que serve o app está desligado (último aviso ' + (dados.atualizadoEm ? quando(dados.atualizadoEm) : 'desconhecido') + '). Ligue-o e abra esta página de novo.';
+      }
+    })
+    .catch(() => {
+      el('ponto').className = 'ponto off';
+      el('estado').textContent = 'Não consegui falar com o servidor de links';
+      el('nota').textContent = 'Verifique sua internet e recarregue a página.';
+    });
+</script>
+</body>
+</html>
