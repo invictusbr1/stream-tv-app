@@ -60,6 +60,9 @@ function cabecalhos(opcoes = {}) {
             "connect-src 'self' https:",
             "script-src 'self' 'unsafe-inline'",
             "style-src 'self' 'unsafe-inline'",
+            // O player usa um "worker" interno para preparar o vídeo; sem esta
+            // linha o navegador recusa o worker e o vídeo engasga mais.
+            "worker-src 'self' blob:",
             "frame-src https:",
             "font-src 'self' data:",
             "base-uri 'none'",
