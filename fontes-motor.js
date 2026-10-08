@@ -166,8 +166,13 @@ const FONTES = [
         // Esta entrada é só de filme; série é tratada logo acima.
         seAplica: alvo => alvo.tipo !== 'tv',
         resolver: async id => {
-            if (typeof id === 'object') return null; // somente filmes
-            const dados = await require('./pipoca-source').resolverFilme(id);
+            // O motor entrega o alvo como objeto { tipo, tmdbId }. Antes esta
+            // fonte só aceitava um número solto e por isso NUNCA era usada —
+            // era o motivo de o filme cair para o áudio original (sem dublado)
+            // quando a fonte principal abria mas não tocava.
+            const alvo = typeof id === 'object' ? id : { tipo: 'movie', tmdbId: id };
+            if (alvo.tipo === 'tv') return null; // somente filmes
+            const dados = await require('./pipoca-source').resolverFilme(alvo.tmdbId);
             if (!dados) return null;
             return { ...dados, final: true };
         }
@@ -234,15 +239,22 @@ function chaveDoTitulo(alvo) {
 // Escolhe a primeira fonte que responde. Erro de rede ganha uma segunda
 // tentativa; "não tenho este título" não se repete — a fonte vai para o fim da
 // fila só naquele título, e o resultado bom fica lembrado para a próxima vez.
-async function escolher(papel, alvo) {
+async function escolher(papel, alvo, opcoes = {}) {
+    // O aplicativo pode pedir para pular fontes que acabaram de não tocar
+    // (rodízio de fontes dubladas antes de cair para o áudio original).
+    const exceto = new Set((opcoes.exceto || []).map(item => String(item)));
     // A memória é por título E por papel: um filme que abriu dublado não pode
     // ser devolvido quando o aplicativo pede a versão de alta definição.
     const chave = `${papel}:${chaveDoTitulo(alvo)}`;
     const lembrado = acertos.get(chave);
-    if (lembrado && lembrado.expira > Date.now() && lembrado.dados) return lembrado.dados;
+    // Um acerto lembrado não vale quando a fonte acabou de não tocar neste
+    // título (aviso do player) nem quando o aplicativo pediu para pulá-la.
+    const lembradoBloqueado = lembrado && lembrado.dados
+        && (semTitulo.get(`${chave}|${lembrado.dados.fonteId}`) || 0) > Date.now();
+    if (lembrado && lembrado.expira > Date.now() && lembrado.dados && !lembradoBloqueado && !exceto.has(String(lembrado.dados.fonteId))) return lembrado.dados;
 
     const agora = Date.now();
-    const lista = ordem(papel, alvo);
+    const lista = ordem(papel, alvo).filter(fonte => !exceto.has(String(fonte.id)));
     const semEsteTitulo = fonte => (semTitulo.get(`${chave}|${fonte.id}`) || 0) > agora;
     // Quem já disse que não tem o título só é tentado se ninguém mais responder.
     const tentar = [...lista.filter(f => !semEsteTitulo(f)), ...lista.filter(semEsteTitulo)];
@@ -319,4 +331,24 @@ function esquecerAcertos() {
     acertos.clear();
 }
 
-module.exports = { escolher, prepararParaPlayer, estado, FONTES, enderecoWatchPlay, reiniciarParaTeste, esquecerAcertos };
+// O player avisou que a fonte abriu mas não tocou: ela perde prioridade no
+// geral e, quando o título é informado, também naquele título — assim a
+// próxima abertura já começa pela fonte seguinte.
+function registrarFalha(fonteId, motivo, chaveTitulo) {
+    const id = String(fonteId || '').trim();
+    if (!id) return false;
+    if (!FONTES.some(fonte => fonte.id === id)) return false;
+    anotarFalha(id, motivo || 'a reprodução não abriu');
+    if (chaveTitulo) semTitulo.set(`${chaveTitulo}|${id}`, Date.now() + VALIDADE_SEM_TITULO);
+    return true;
+}
+
+function alvoDoEvento(tipo, tmdbId, temporada, episodio) {
+    const id = String(tmdbId || '').trim();
+    if (!/^\d{1,10}$/.test(id)) return null;
+    return String(tipo) === 'tv'
+        ? { tipo: 'tv', tmdbId: id, temporada: String(temporada || 1), episodio: String(episodio || 1) }
+        : { tipo: 'movie', tmdbId: id };
+}
+
+module.exports = { escolher, prepararParaPlayer, estado, FONTES, enderecoWatchPlay, reiniciarParaTeste, esquecerAcertos, registrarFalha, chaveDoTitulo, alvoDoEvento };

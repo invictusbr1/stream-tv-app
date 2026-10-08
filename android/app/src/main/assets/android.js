@@ -8,6 +8,7 @@ window.streamBack = function () {
     if(document.getElementById('series-dialog')?.open){StreamLibrary.closeSeries();return true;}
     if (!document.getElementById('opcoes').hidden) { fecharOpcoes(); return true; }
     if (document.getElementById('player').classList.contains('ativo')) { fechar(); return true; }
+    if (!document.getElementById('tv').hidden) { irParaCategoria('inicio'); return true; }
     if (!document.getElementById('resultados').classList.contains('oculto')) {
         document.getElementById('q').value = ''; emAlta(); return true;
     }

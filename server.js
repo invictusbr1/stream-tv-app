@@ -135,6 +135,17 @@ app.get('/api/health', (req, res) => res.json({ status: 'ok', app: 'stream-tv' }
 const central = require('./central-reporter');
 app.post('/api/evento', async (req, res) => {
     res.setHeader('Cache-Control', 'no-store');
+    // O player avisou que a fonte abriu mas não tocou: o motor aprende com
+    // isso (a fonte sai da frente neste título e perde prioridade no geral).
+    try {
+        const corpo = req.body || {};
+        if (corpo.tipo === 'falha' && corpo.fonteId) {
+            const motor = require('./fontes-motor');
+            const ehEpisodio = Boolean(corpo.temporada && corpo.numero);
+            const alvo = motor.alvoDoEvento(ehEpisodio ? 'tv' : 'movie', corpo.id, corpo.temporada, corpo.numero);
+            motor.registrarFalha(corpo.fonteId, corpo.motivo, alvo ? `dublado:${motor.chaveDoTitulo(alvo)}` : '');
+        }
+    } catch { /* o aviso para a central segue normalmente */ }
     if (!central.configurada()) return res.json({ ok: true, central: false });
     const enviado = await central.reportar(req.body || {}).catch(() => false);
     res.json({ ok: true, central: enviado });
@@ -365,13 +376,15 @@ app.get('/api/playback/:id', async (req, res) => {
     // O motor escolhe a fonte dublada limpa (e lembra qual deu certo).
     try {
         const motor = require('./fontes-motor');
-        const escolhido = await motor.escolher('dublado', { tipo: 'movie', tmdbId: req.params.id });
+        const exceto = String(req.query.exceto || '').split(',').map(item => item.trim()).filter(Boolean);
+        const escolhido = await motor.escolher('dublado', { tipo: 'movie', tmdbId: req.params.id }, { exceto });
         if (escolhido) {
             const pronto = motor.prepararParaPlayer(escolhido);
             return res.json({
                 url: pronto.final ? pronto.url : pronto.urlAplicativo,
                 audio: pronto.audio || 'pt-BR',
                 source: pronto.fonte || 'Dublado limpo',
+                fonteId: pronto.fonteId || '',
                 type: pronto.type || 'hls',
                 resolucao: pronto.resolucao || ''
             });
@@ -394,13 +407,15 @@ app.get('/api/playback/serie/:id/:season/:episode', async (req, res) => {
     res.setHeader('Cache-Control', 'no-store');
     const cookie = process.env.WATCHPLAY_COOKIE || LOCAL_CONFIG.watchplayCookie || '';
     try {
-        const escolhido = await require('./series-source').resolverEpisodio({ tmdbId: id, temporada: season, episodio: episode, cookie });
+        const exceto = String(req.query.exceto || '').split(',').map(item => item.trim()).filter(Boolean);
+        const escolhido = await require('./series-source').resolverEpisodio({ tmdbId: id, temporada: season, episodio: episode, cookie, exceto });
         if (!escolhido) throw new Error('sem fonte');
         res.json({
             // Fonte de arquivo direto (dublada) não passa pelo encaminhamento.
             url: escolhido.final ? escolhido.url : escolhido.urlAplicativo,
             audio: escolhido.audio,
             source: escolhido.fonte,
+            fonteId: escolhido.fonteId || '',
             type: escolhido.type || 'hls',
             resolucao: escolhido.resolucao,
             legendas: escolhido.legendas || [],
