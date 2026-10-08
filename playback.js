@@ -10,7 +10,7 @@ window.StreamPlayback = (() => {
     preference.append(checkbox,document.createTextNode('Abrir filmes em tela cheia'));el('fontes').before(preference);
     el('quality-select').onchange=e=>quality(e.target.value);
     el('subtitle-select').onchange=e=>setSubtitle(Number(e.target.value));
-    let subtitleChoice=-1,progressFilm=null,lastSaved=0,resumeApplied=false,audioChoice=-1,speed=1,volume=1,mudo=false,arrastando=false,rotuloAudio='Dublado',fonteUsada='',alturaAtual=0;
+    let relogioConfirmacao=null,relatoFeito=false,relatoConfirmado=false;let subtitleChoice=-1,progressFilm=null,lastSaved=0,resumeApplied=false,audioChoice=-1,speed=1,volume=1,mudo=false,arrastando=false,rotuloAudio='Dublado',fonteUsada='',alturaAtual=0;
     try{const guardado=localStorage.getItem('streamtv-volume');if(guardado!==null)volume=Math.min(1,Math.max(0,Number(guardado)));mudo=localStorage.getItem('streamtv-mudo')==='true';}catch{}
     try{speed=Number(localStorage.getItem('streamtv-speed'))||1;}catch{}
     if(![0.75,1,1.25,1.5,2].includes(speed))speed=1;
@@ -72,7 +72,7 @@ window.StreamPlayback = (() => {
     const android=/StreamTVAndroid/.test(navigator.userAgent);
     let initialFocus=false, frameCallback=null;
     let hls=null, video=null, generation=0, settle=null, startupTimer=null, controlsTimer=null, direct=false;
-    function stop(){saveProgress();subtitleChoice=-1;if(video&&frameCallback!==null&&video.cancelVideoFrameCallback)video.cancelVideoFrameCallback(frameCallback);frameCallback=null;initialFocus=false;clearTimeout(controlsTimer);el('direct-controls').hidden=true;++generation;clearTimeout(startupTimer);if(settle){settle(false);settle=null;}if(hls){hls.destroy();hls=null;}if(video){video.pause();video.removeAttribute('src');video.load();video.remove();video=null;}direct=false;el('frame').hidden=false;el('direct-resume').hidden=true;el('direct-quality').hidden=true;el('quality-limit').textContent='';subtitleMenu();}
+    function stop(){saveProgress();subtitleChoice=-1;clearTimeout(relogioConfirmacao);if(video&&frameCallback!==null&&video.cancelVideoFrameCallback)video.cancelVideoFrameCallback(frameCallback);frameCallback=null;initialFocus=false;clearTimeout(controlsTimer);el('direct-controls').hidden=true;++generation;clearTimeout(startupTimer);if(settle){settle(false);settle=null;}if(hls){hls.destroy();hls=null;}if(video){video.pause();video.removeAttribute('src');video.load();video.remove();video=null;}direct=false;el('frame').hidden=false;el('direct-resume').hidden=true;el('direct-quality').hidden=true;el('quality-limit').textContent='';subtitleMenu();}
     function bestLevel(){
         if(!hls?.levels.length)return -1;
         let candidates=hls.levels.map((level,index)=>({level,index}));
@@ -102,14 +102,14 @@ window.StreamPlayback = (() => {
     function quality(value){if(hls)hls.currentLevel=value==='best'?bestLevel():Number(value);}
     function qualityMenu(){const select=el('quality-select');select.hidden=false;select.replaceChildren();const values=[['best','Melhor disponível'],['-1','Automática (conexão)']];if(hls)hls.levels.forEach((l,i)=>{if(l.height)values.push([String(i),`${l.height}p`]);});for(const [value,label] of values){const o=document.createElement('option');o.value=value;o.textContent=label;select.append(o);}select.value='best';el('direct-quality').hidden=false;}
     function play(){if(!video)return;const target=video,token=generation;target.play().catch(e=>{if(token!==generation||target!==video)return;if(e.name==='NotAllowedError'){el('loading').classList.remove('vis');el('direct-resume').hidden=false;}else failure();});}
-    function failure(){const pending=settle;settle=null;if(pending){stop();pending(false);}else if(direct){stop();mostrarErro('A reprodução foi interrompida.','Tente novamente ou escolha outra fonte em Opções.');}}
+    function failure(){if(!relatoFeito){relatoFeito=true;relatar({tipo:'falha',ok:false,fonte:fonteUsada,audio:rotuloAudio,resolucao:'',motivo:'a reprodução não abriu'});}const pending=settle;settle=null;if(pending){stop();pending(false);}else if(direct){stop();mostrarErro('A reprodução foi interrompida.','Tente novamente ou escolha outra fonte em Opções.');}}
         // Endereços aceitos: o encaminhamento do próprio aplicativo, as fontes
         // conhecidas e listas de reprodução (inclusive as de caminho protegido,
         // que são liberadas na hora pelo resolvedor).
         // nixplay.lat entrega o episódio dublado em MP4 (arquivo direto).
         const enderecoDeMidia=url=>/^(\/api\/hls\?|https:\/\/[a-z0-9-]+\.hclod\.qzz\.io\/|https:\/\/pipocacine\.lat\/|https:\/\/vixsrc\.to\/|https:\/\/nixplay\.lat\/)/i.test(url)||/^https:\/\/[a-z0-9.-]+\/(?:pl\/|[^\s]*\.m3u8)/i.test(url);
         async function start(id,version,signal,caminho,urlDireta,originalPermitido){stop();const token=generation;let data;if(urlDireta){data={url:urlDireta,audio:'fonte',source:'Full HD',type:'hls'};}else{try{data=await lerJson(caminho||`/api/playback/${id}`,signal);}catch{return false;}}if(token!==generation||(signal&&signal.aborted)||version!==playerVersion)return false;const enderecoAceito=enderecoDeMidia(data.url);if(urlDireta){if(!enderecoAceito)return false;}else if(!enderecoAceito||(data.audio!=='pt-BR'&&!originalPermitido))return false;
-        rotuloAudio=data.audio==='pt-BR'?'Dublado':'som original';fonteUsada=data.source||'';alturaAtual=0;progressFilm=typeof filmeAtual!=='undefined'?{...filmeAtual}:null;resumeApplied=false;lastSaved=0;video=document.createElement('video');video.id='direct-video';video.controls=false;video.autoplay=true;video.playsInline=true;video.preload='auto';video.tabIndex=0;video.setAttribute('aria-label',rotuloAudio==='Dublado'?'Filme dublado':'Filme em alta definição');video.setAttribute('webkit-playsinline','');video.setAttribute('x-webkit-airplay','allow');video.style.cssText='width:100%;height:100%;object-fit:contain;background:#000';video.playbackRate=speed;try{video.volume=volume;video.muted=mudo;}catch{}atualizarVolume();el('frame').hidden=true;document.querySelector('.area-player').prepend(video);const speedSelect=el('speed-select');if(speedSelect)speedSelect.value=String(speed);audioMenu();direct=true;showControls();
+        rotuloAudio=data.audio==='pt-BR'?'Dublado':'som original';fonteUsada=data.source||'';alturaAtual=0;relatoFeito=false;relatoConfirmado=false;progressFilm=typeof filmeAtual!=='undefined'?{...filmeAtual}:null;resumeApplied=false;lastSaved=0;video=document.createElement('video');video.id='direct-video';video.controls=false;video.autoplay=true;video.playsInline=true;video.preload='auto';video.tabIndex=0;video.setAttribute('aria-label',rotuloAudio==='Dublado'?'Filme dublado':'Filme em alta definição');video.setAttribute('webkit-playsinline','');video.setAttribute('x-webkit-airplay','allow');video.style.cssText='width:100%;height:100%;object-fit:contain;background:#000';video.playbackRate=speed;try{video.volume=volume;video.muted=mudo;}catch{}atualizarVolume();el('frame').hidden=true;document.querySelector('.area-player').prepend(video);const speedSelect=el('speed-select');if(speedSelect)speedSelect.value=String(speed);audioMenu();direct=true;showControls();
         return new Promise(resolve=>{settle=resolve;const current=()=>token===generation&&version===playerVersion;const ready=()=>{if(!current()||!video.videoWidth||!video.videoHeight)return;clearTimeout(startupTimer);el('loading').classList.remove('vis');const done=settle;settle=null;if(done)done(true);};
             let recovered=false, nativeFallback=false;
             const awaitPicture=()=>{
@@ -129,7 +129,7 @@ window.StreamPlayback = (() => {
             };
             startupTimer=setTimeout(pictureTimeout,12000);
             if(signal)signal.addEventListener('abort',()=>{if(current())failure();},{once:true});
-            video.addEventListener('playing',()=>{if(!current())return;el('direct-resume').hidden=true;awaitPicture();el('direct-toggle').textContent='⏸';el('direct-toggle').setAttribute('aria-label','Pausar');showControls(!initialFocus);initialFocus=true;});
+            video.addEventListener('playing',()=>{if(!current())return;el('direct-resume').hidden=true;awaitPicture();clearTimeout(relogioConfirmacao);relogioConfirmacao=setTimeout(()=>{if(!current()||!video||relatoConfirmado)return;if(video.currentTime<15)return;relatoConfirmado=true;relatar({tipo:'confirmacao',ok:true,fonte:fonteUsada,audio:rotuloAudio,resolucao:alturaAtual?alturaAtual+'p':''});},20000);el('direct-toggle').textContent='⏸';el('direct-toggle').setAttribute('aria-label','Pausar');showControls(!initialFocus);initialFocus=true;});
             video.addEventListener('canplay',()=>{if(!current())return;play();},{once:true});
             video.addEventListener('loadedmetadata',()=>{if(current()){qualityInfo();subtitleMenu();buscaLivre();atualizarVolume();resume();window.StreamLegendas?.anexar?.(video,progressFilm).then?.(()=>{if(current())subtitleMenu();}).catch?.(()=>{});}});
             video.addEventListener('pause',()=>{if(current()){saveProgress();el('direct-toggle').textContent='▶';el('direct-toggle').setAttribute('aria-label','Reproduzir');showControls();}});
@@ -154,6 +154,20 @@ window.StreamPlayback = (() => {
     }
     function marcarAtivo(botao,ativo){if(!botao)return;if(ativo)botao.setAttribute('data-ativo','');else botao.removeAttribute('data-ativo');}
     function atualizarBotoesAjuste(){const botaoQualidade=el('menu-quality-btn');if(botaoQualidade){const altura=hls?.levels?.[bestLevel()]?.height||video?.videoHeight||0;botaoQualidade.textContent=altura?altura+'p':'HD';}const botaoVelocidade=el('menu-speed-btn');if(botaoVelocidade)botaoVelocidade.textContent=String(speed).replace('.',',')+'×';marcarAtivo(el('menu-subs-btn'),subtitleChoice>=0);marcarAtivo(el('menu-audio-btn'),audioChoice>=0);}
+    // Conta para a central o que realmente aconteceu com a reprodução.
+    function relatar(dados){
+        try {
+            const alvo = typeof filmeAtual !== 'undefined' ? filmeAtual : null;
+            if (!alvo || !alvo.id) return;
+            window.StreamAcesso?.reportar?.({
+                id: String(alvo.id),
+                titulo: alvo.titulo,
+                temporada: alvo.episode ? String(alvo.episode.season) : '',
+                numero: alvo.episode ? String(alvo.episode.number) : '',
+                ...dados
+            });
+        } catch { /* a central é opcional */ }
+    }
     function clock(seconds){if(!Number.isFinite(seconds))return '--:--';const n=Math.floor(seconds);return Math.floor(n/60)+':'+String(n%60).padStart(2,'0');}
     function showControls(focus=false){if(!direct)return;window.StreamChrome?.wake();clearTimeout(controlsTimer);el('direct-controls').hidden=false;if(focus)el('direct-toggle').focus();controlsTimer=setTimeout(()=>{if(video&&!video.paused&&el('opcoes').hidden){if(el('direct-controls').contains(document.activeElement))video.focus();el('direct-controls').hidden=true;}},6000);}
     function toggle(){if(video)video.paused?play():video.pause();showControls();}

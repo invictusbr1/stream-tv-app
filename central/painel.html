@@ -136,6 +136,14 @@ function quando(minutos) {
   if (minutos < 1440) return 'há ' + Math.round(minutos / 60) + ' h';
   return 'há ' + Math.round(minutos / 1440) + ' dia(s)';
 }
+// O resultado na tela é honesto: só diz "abriu" quando há fonte registrada,
+// e diz "não abriu" para qualquer relato de falha.
+function resultado(e) {
+  if (e.ok === false || e.tipo === 'falha') return selo('não abriu', 'ruim');
+  if (e.tipo === 'confirmacao') return selo('tocou de verdade', 'on');
+  if (!e.fonte) return selo('sem confirmação', 'medio');
+  return selo('abriu', 'on');
+}
 function pintar(dados) {
   const r = dados.resumo;
   el('cartoes').innerHTML = [
@@ -206,7 +214,7 @@ function pintar(dados) {
       const classe = f.nota >= 7 ? 'alta' : f.nota >= 4 ? 'media' : 'baixa';
       const extra = aoVivo ? (d.canais || 0) + ' canais' : (d.dublados || 0) + '/' + (d.testes || 0);
       return `<tr>
-        <td class="nome">${escapar(f.nome)}<br><span class="fraco" style="font-size:11px">${escapar(f.papel || '')}</span></td>
+        <td class="nome">${escapar(f.nome)} ${f.noApp ? selo('já no app', 'bom') : ''}<br><span class="fraco" style="font-size:11px">${escapar(f.papel || '')}</span></td>
         <td><span class="nota ${classe}">${String(f.nota).replace('.', ',')}</span></td>
         <td class="fraco">${escapar(String(extra))}</td>
         <td class="fraco">${escapar(d.melhorQualidade || '—')}</td>
@@ -233,11 +241,11 @@ function pintar(dados) {
   el('linha-eventos').innerHTML = dados.eventos.length ? dados.eventos.map(e => `<tr>
     <td class="fraco">${escapar(String(e.emCurto).slice(11) || '')}</td>
     <td>${escapar(e.nome)}</td>
-    <td>${escapar(e.titulo || '—')}</td>
+    <td>${escapar(e.titulo || '—')}${e.id ? '<br><span class="fraco" style="font-size:10.5px">id ' + escapar(e.id) + (e.episodio ? ' · ' + escapar(e.episodio) : '') + '</span>' : ''}</td>
     <td class="fraco">${escapar(e.fonte || '—')}</td>
     <td>${e.audio === 'pt-BR' ? selo('dublado', 'bom') : escapar(e.audio || '—')}</td>
     <td class="fraco">${escapar(e.resolucao || '—')}</td>
-    <td>${e.ok === false ? selo('não abriu', 'ruim') : selo('abriu', 'on')}</td></tr>`).join('') : '<tr><td colspan="7" class="vazio">Sem sessões registradas.</td></tr>';
+    <td>${resultado(e)}</td></tr>`).join('') : '<tr><td colspan="7" class="vazio">Sem sessões registradas.</td></tr>';
 
   el('alertas').innerHTML = dados.alertas.map(a => '<div class="alerta"><b>•</b><span>' + escapar(a) + '</span></div>').join('');
 

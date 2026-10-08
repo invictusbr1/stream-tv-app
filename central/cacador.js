@@ -28,6 +28,10 @@ const CATEGORIAS = [
             { id: '533535', titulo: 'Deadpool & Wolverine' }
         ],
         candidatas: [
+            { nome: 'WatchPlay', url: 'https://v2.watchplay.shop/movie/27205', motivoEsperado: 'fonte dublada principal' },
+            { nome: 'PipocaCine', url: 'https://pipocacine.lat/embed/27205', motivoEsperado: 'arquivo dublado de filme' },
+            { nome: 'Vixsrc', url: 'https://vixsrc.to/movie/27205', motivoEsperado: 'alta definição com legenda' },
+            { nome: 'VidSrc', url: 'https://vidsrc.to/embed/movie/27205', motivoEsperado: 'Full HD de lançamento' },
             { nome: 'VidLink', url: 'https://vidlink.pro/movie/27205', motivoEsperado: 'só áudio original' },
             { nome: 'SuperFlix', url: 'https://superflixapi.monster/filme/27205', motivoEsperado: 'verificação e anúncio' },
             { nome: 'StreamBetter', url: 'https://streambetter.shop/filme/27205', motivoEsperado: 'verificação e anúncio' },
@@ -49,6 +53,10 @@ const CATEGORIAS = [
             { id: '1396', temporada: '1', episodio: '1', titulo: 'Breaking Bad 1x1' }
         ],
         candidatas: [
+            { nome: 'WatchPlay', url: 'https://v2.watchplay.shop/tvshow/1399/1/1', motivoEsperado: 'fonte dublada principal' },
+            { nome: 'PipocaCine', url: 'https://pipocacine.lat/media/tv?id=1399&s=1&e=1', motivoEsperado: 'episódio dublado em arquivo' },
+            { nome: 'Vixsrc', url: 'https://vixsrc.to/tv/1399/1/1', motivoEsperado: 'alta definição com legenda' },
+            { nome: 'VidSrc', url: 'https://vidsrc.to/embed/tv/1399/1/1', motivoEsperado: 'Full HD de lançamento' },
             { nome: 'StreamBetter', url: 'https://streambetter.shop/serie/1399/1/1', motivoEsperado: 'verificação e anúncio' },
             { nome: 'SuperFlix', url: 'https://superflixapi.monster/serie/1399/1/1', motivoEsperado: 'verificação e anúncio' },
             { nome: 'RedeCanais', url: 'https://redecanais20.lat/', motivoEsperado: 'player só abre com navegador' },
@@ -66,6 +74,8 @@ const CATEGORIAS = [
             { id: '62715', temporada: '1', episodio: '1', titulo: 'Dragon Ball Super 1x1' }
         ],
         candidatas: [
+            { nome: 'WatchPlay', url: 'https://v2.watchplay.shop/tvshow/95479/1/1', motivoEsperado: 'fonte dublada principal' },
+            { nome: 'PipocaCine', url: 'https://pipocacine.lat/media/tv?id=95479&s=1&e=1', motivoEsperado: 'anime dublado em arquivo' },
             { nome: 'AnimesOnlineCC', url: 'https://animesonlinecc.to/', motivoEsperado: 'anúncios na página' },
             { nome: 'AnimesDigital', url: 'https://animesdigital.org/', motivoEsperado: 'anúncios na página' },
             { nome: 'Dattebayo BR', url: 'https://www.dattebayo-br.com/anime-dublado', motivoEsperado: 'catálogo de busca; episódio só no site' },
@@ -84,6 +94,8 @@ const CATEGORIAS = [
             { id: '71446', temporada: '1', episodio: '1', titulo: 'La Casa de Papel 1x1' }
         ],
         candidatas: [
+            { nome: 'WatchPlay', url: 'https://v2.watchplay.shop/tvshow/93405/1/1', motivoEsperado: 'fonte dublada principal' },
+            { nome: 'PipocaCine', url: 'https://pipocacine.lat/media/tv?id=93405&s=1&e=1', motivoEsperado: 'episódio dublado em arquivo' },
             { nome: 'Doramogo', url: 'https://www.doramogo.net/', motivoEsperado: 'catálogo de busca; episódio só no site' },
             { nome: 'YouCine', url: 'https://youcinehd.lat/', motivoEsperado: 'catálogo com anúncio' },
             { nome: 'PobreFlix', url: 'https://pobreflixhd.sbs/', motivoEsperado: 'player só abre com navegador' },
@@ -103,6 +115,7 @@ const CATEGORIAS = [
             { nome: 'IPTV-org · mundo (todas as listas)', url: 'https://iptv-org.github.io/iptv/index.m3u', semAnuncio: true }
         ],
         candidatas: [
+            { nome: 'IPTV-org (listas de canais)', url: 'https://iptv-org.github.io/iptv/index.m3u', motivoEsperado: 'listas públicas de canais, sem anúncio' },
             { nome: 'Pluto TV Brasil', url: 'https://pluto.tv/br/', motivoEsperado: 'precisa de aplicativo para assistir' },
             { nome: 'Samsung TV Plus', url: 'https://www.samsung.com/br/tvplus/', motivoEsperado: 'precisa de aparelho Samsung' },
             { nome: 'Canais de IPTV pagos', url: 'https://duckduckgo.com/?q=iptv+brasil+lista', motivoEsperado: 'cobrança e risco de anúncio/vírus' }
@@ -112,6 +125,22 @@ const CATEGORIAS = [
 
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36';
 const TEMPO = 20000;
+
+// Fontes que JÁ estão dentro do aplicativo (e as que já foram descartadas pela
+// avaliação). Serve para o caçador sinalizar e ninguém acabar cadastrando de
+// novo o que já existe.
+const JA_NO_APP = [
+    { nome: 'WatchPlay', dominios: ['watchplay.shop', 'hclod.qzz.io'], papel: 'dublado · filmes e séries' },
+    { nome: 'PipocaCine', dominios: ['pipocacine.lat', 'nixplay.lat'], papel: 'dublado · filme e episódios' },
+    { nome: 'Vixsrc', dominios: ['vixsrc.to', 'mistyreef77.boats'], papel: 'alta definição com legenda' },
+    { nome: 'VidSrc', dominios: ['vidsrc.sh', 'vidsrc.xyz', 'vidsrc.net', 'vidsrc.to', 'vidsrc.me'], papel: 'Full HD de lançamento' }
+];
+
+function fonteJaImplementada(nome, url) {
+    const alvo = String(url || '').toLowerCase();
+    const procurado = String(nome || '').toLowerCase();
+    return JA_NO_APP.find(item => item.dominios.some(d => alvo.includes(d)) || procurado.includes(item.nome.toLowerCase())) || null;
+}
 
 function comPrazo(promessa, ms) {
     return Promise.race([promessa, new Promise(resolve => setTimeout(() => resolve({ __tempo: true }), ms))]);
@@ -182,6 +211,14 @@ function notaDoFornecedor(medidas) {
 
 // ---------------------------------------------------------------- candidatas de fora
 async function conferirCandidata(candidata) {
+    const jaExiste = fonteJaImplementada(candidata.nome, candidata.url);
+    if (jaExiste) {
+        return {
+            nome: candidata.nome, url: candidata.url, status: 0, situacao: 'já implementada',
+            motivo: `já está dentro do aplicativo (${jaExiste.papel}) — não precisa cadastrar de novo`,
+            esperado: candidata.motivoEsperado, noApp: true
+        };
+    }
     try {
         const resposta = await fetch(candidata.url, {
             headers: { 'User-Agent': UA, 'Accept-Language': 'pt-BR,pt;q=0.9' },
@@ -297,7 +334,12 @@ function criarCacador(opcoes = {}) {
         // TV ao vivo tem régua e teste próprios.
         if (categoria.id === 'tv-online') {
             const ranking = [];
-            for (const lista of categoria.listas || []) ranking.push(await medirListaDeCanais(lista));
+            // As listas do iptv-org ainda NÃO estão dentro do aplicativo: entram
+            // como candidatas fortes, com a nota medida.
+            for (const lista of categoria.listas || []) {
+                const medida = await medirListaDeCanais(lista);
+                ranking.push({ ...medida, noApp: false });
+            }
             ranking.sort((a, b) => b.nota - a.nota);
             return { id: categoria.id, nome: categoria.nome, atualizadoEm: new Date().toISOString(), ranking, candidatas };
         }
@@ -310,7 +352,8 @@ function criarCacador(opcoes = {}) {
                 if (medida) medidas.push(medida);
             }
             const { nota, detalhes } = notaDoFornecedor(medidas);
-            ranking.push({ id: fonte.id, nome: fonte.nome, papel: fonte.papel, nota, detalhes, medidas });
+            // Toda fonte do motor já está dentro do aplicativo.
+            ranking.push({ id: fonte.id, nome: fonte.nome, papel: fonte.papel, nota, detalhes, medidas, noApp: true });
         }
         ranking.sort((a, b) => b.nota - a.nota);
         return { id: categoria.id, nome: categoria.nome, atualizadoEm: new Date().toISOString(), ranking, candidatas };

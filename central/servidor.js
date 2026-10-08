@@ -156,7 +156,9 @@ app.post('/api/evento', (req, res) => {
         audio: texto(corpo.audio, 20),
         resolucao: texto(corpo.resolucao, 20),
         ms: Number(corpo.ms) || 0,
-        ok: corpo.ok !== false,
+        // Um relato do tipo "falha" nunca pode aparecer como "abriu", mesmo que
+        // o aplicativo antigo não mande o campo ok.
+        ok: texto(corpo.tipo, 24) === 'falha' ? false : corpo.ok !== false,
         motivo: texto(corpo.motivo, 120)
     };
     anotarEvento(evento);
