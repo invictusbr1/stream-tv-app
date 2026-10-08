@@ -162,7 +162,12 @@ const FONTES = [
         id: 'pipoca',
         nome: 'PipocaCine · dublado',
         papel: 'dublado',
-        peso: 90,
+        // Filmes: esta é a fonte com dublado CONFERIDO (o provedor rotula o
+        // arquivo como "HD DUB" e a faixa em português vem marcada como padrão
+        // — medido com ffprobe). A fonte principal apenas "avisa" que é
+        // dublada e em alguns títulos entrega o áudio original (caso do
+        // "A Luta pela Esperança"), por isso ela passa a ser a segunda opção.
+        peso: 105,
         // Esta entrada é só de filme; série é tratada logo acima.
         seAplica: alvo => alvo.tipo !== 'tv',
         resolver: async id => {
@@ -274,7 +279,11 @@ async function escolher(papel, alvo, opcoes = {}) {
             if (dados && dados.url) {
                 anotarAcerto(fonte.id);
                 const pronto = { ...dados, fonteId: fonte.id };
-                acertos.set(chave, { dados: pronto, expira: Date.now() + VALIDADE_ACERTO });
+                // Fontes com endereço assinado informam por quanto tempo o
+                // resultado vale (ex.: PipocaCine responde 410 depois de um
+                // tempo) — nunca guardamos mais do que isso.
+                const validade = Number(dados.validadeMs) > 0 ? Math.min(Number(dados.validadeMs), VALIDADE_ACERTO) : VALIDADE_ACERTO;
+                acertos.set(chave, { dados: pronto, expira: Date.now() + validade });
                 return pronto;
             }
             if (!dados) {

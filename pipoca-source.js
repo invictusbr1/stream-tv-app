@@ -15,7 +15,9 @@ const axios = require('axios');
 
 const BASE = 'https://pipocacine.lat';
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36';
-const VALIDADE = 6 * 60 * 60 * 1000; // o endereço do arquivo vale por horas
+// O endereço do arquivo é assinado e expira: medido em 08/10/2026 — depois de
+// algum tempo o servidor responde 410 (expirado). Por isso a memória é curta.
+const VALIDADE = 15 * 60 * 1000;
 const cache = new Map();
 
 const CABECALHOS = {
@@ -50,7 +52,9 @@ async function resolverFilme(tmdbId) {
         audio: 'pt-BR',
         fonte: 'PipocaCine',
         resolucao: '720p',
-        type: 'file'
+        type: 'file',
+        // O motor usa este número para não guardar um endereço vencido.
+        validadeMs: VALIDADE
     };
     cache.set(chave, { valor: dados, expira: Date.now() + VALIDADE });
     return dados;
@@ -114,7 +118,12 @@ function escolherFonte(blocoJson, base = BASE) {
         return null;
     }
     if (!Array.isArray(fontes) || !fontes.length) return null;
-    const escolhida = fontes.find(f => /dub/i.test(String(f && f.label || ''))) || fontes[0];
+    // Só aceita a opção que o próprio provedor rotula como dublada ("HD DUB").
+    // O arquivo dessa opção tem a faixa em português marcada como padrão —
+    // conferido com medição (faixa "por" com DISPOSITION:default=1). Sem o
+    // rótulo, é preferível deixar o motor seguir para outra fonte a entregar
+    // um arquivo que pode estar no idioma original.
+    const escolhida = fontes.find(f => /dub/i.test(String(f && f.label || '')));
     if (!escolhida || !escolhida.src) return null;
     try {
         return new URL(escolhida.src, base).href;

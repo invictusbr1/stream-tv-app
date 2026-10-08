@@ -8,9 +8,13 @@ test('a fonte escolhida é a dublada quando existe', () => {
     assert.equal(escolherFonte(BLOCO), `${BASE}/stream.php?t=AAA`);
 });
 
-test('sem rótulo de dublado, usa a primeira fonte disponível', () => {
+// Sem o rótulo "HD DUB" não dá para garantir que o arquivo está dublado
+// (o provedor publica também a versão no idioma original). Nesse caso a
+// fonte é recusada e o motor segue para a próxima — a regra do projeto é
+// dublado em primeiro lugar.
+test('sem rótulo de dublado, a fonte é recusada e o motor segue adiante', () => {
     const semDub = '[{"src":"\\/stream.php?t=CCC","label":"HD"}]';
-    assert.equal(escolherFonte(semDub), `${BASE}/stream.php?t=CCC`);
+    assert.equal(escolherFonte(semDub), null);
 });
 
 test('bloco inválido ou vazio devolve nulo (o aplicativo segue para a próxima fonte)', () => {
