@@ -277,14 +277,24 @@ async function verificarIdioma({ url, referer = '', tipo = 'movie', amostra, fon
             // arquivo direto o avanço é instantâneo e vale a pena pular a
             // abertura (que costuma ser só música).
             const ehLista = /\.m3u8(\?|$)/i.test(url);
-            const ouvido = await ouvirIdioma(url, { referer, chave: chaveIa, inicio: ehLista ? 45 : 240, segundos: ehLista ? 25 : 20 });
-            if (ouvido) {
+            // Até três janelas: se a primeira cair num trecho sem fala (só
+            // música) a transcrição vem curtíssima e não prova nada — aí a
+            // verificação insiste num ponto mais adiante do filme.
+            const janelas = ehLista ? [45, 150, 300] : [240, 600, 1200];
+            for (const inicio of janelas) {
+                const ouvido = await ouvirIdioma(url, { referer, chave: chaveIa, inicio, segundos: ehLista ? 25 : 20 });
+                if (!ouvido) continue;
+                const confiavel = String(ouvido.texto || '').trim().length >= 15;
                 const apelido = ouvido.idiomaBruto && ouvido.idiomaBruto !== 'desconhecido' ? ` (${ouvido.idiomaBruto})` : '';
-                resultado = {
-                    idioma: ouvido.idioma,
-                    evidencia: `transcrição${apelido}: "${ouvido.texto.slice(0, 90)}${ouvido.texto.length > 90 ? '…' : ''}"`,
-                    origem: 'transcricao',
-                };
+                if (confiavel) {
+                    resultado = {
+                        idioma: ouvido.idioma,
+                        evidencia: `transcrição${apelido} aos ${inicio}s: "${ouvido.texto.slice(0, 90)}${ouvido.texto.length > 90 ? '…' : ''}"`,
+                        origem: 'transcricao',
+                    };
+                    break;
+                }
+                resultado = { idioma: 'indefinido', evidencia: `trecho com pouca fala aos ${inicio}s — não dá para confirmar o idioma`, origem: 'transcricao' };
             }
         }
     } catch (erro) {

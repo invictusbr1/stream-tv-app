@@ -239,9 +239,9 @@ public final class MainActivity extends Activity {
     private WebResourceResponse directEpisode(String id, String temporada, String episodio) {
         WebResourceResponse principal = directPlayback("https://v2.watchplay.shop/tvshow/" + id + "/" + temporada + "/" + episodio);
         if (principal != null && principal.getStatusCode() == 200) return principal;
-        WebResourceResponse mgeb = mgebEpisodio(id, temporada, episodio);
-        if (mgeb != null && mgeb.getStatusCode() == 200) return mgeb;
-        return pipocaEpisodio(id, temporada, episodio);
+        WebResourceResponse dublado = pipocaEpisodio(id, temporada, episodio);
+        if (dublado != null && dublado.getStatusCode() == 200) return dublado;
+        return mgebEpisodio(id, temporada, episodio);
     }
 
     // ---------------------------------------------------------------
@@ -401,9 +401,11 @@ public final class MainActivity extends Activity {
                     // 08/10/2026 por transcrição do áudio) — por isso vem depois.
                     WebResourceResponse dublado = pipocaFilme(id);
                     if (dublado != null && dublado.getStatusCode() == 200) return dublado;
-                    WebResourceResponse mgeb = mgebFilme(id);
-                    if (mgeb != null && mgeb.getStatusCode() == 200) return mgeb;
-                    return directPlayback("https://v2.watchplay.shop/movie/" + id);
+                    WebResourceResponse principal = directPlayback("https://v2.watchplay.shop/movie/" + id);
+                    if (principal != null && principal.getStatusCode() == 200) return principal;
+                    // A MGEB fica por último entre as dubladas: o catálogo dela é
+                    // "latino" e em alguns títulos entrega outro idioma.
+                    return mgebFilme(id);
                 }
                 if (path != null && path.matches("/api/playback/serie/[0-9]{1,10}/[0-9]{1,3}/[1-9][0-9]{0,3}")) {
                     String[] partes = path.split("/");

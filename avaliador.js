@@ -167,8 +167,12 @@ async function escolherMelhor(papel, alvo, opcoes = {}) {
         const { nota, detalhes } = notaDaFonte({
             dados: item.dados, sonda: lista[i], idiomaVerificado: idiomas[item.fonte.id] || '', ms: item.ms,
         });
-        return { fonteId: item.fonte.id, fonte: item.dados.fonte || item.fonte.nome, nota, detalhes, dados: item.dados, ms: item.ms };
-    }).sort((a, b) => b.nota - a.nota || a.ms - b.ms);
+        // Empate vai para quem o motor já prefere: a ordem da fila representa a
+        // regra do projeto (dublado conferido, depois as demais). Sem isso, uma
+        // fonte rápida mas "latina" (MGEB) passava na frente da principal.
+        const bonusDaFila = Math.max(0, 0.15 - i * 0.05);
+        return { fonteId: item.fonte.id, fonte: item.dados.fonte || item.fonte.nome, nota: Math.round((nota + bonusDaFila) * 100) / 100, detalhes: { ...detalhes, ordemNoMotor: i + 1 }, dados: item.dados, ms: item.ms };
+    }).sort((a, b) => b.nota - a.nota);
 
     const melhor = avaliacoes[0];
     const escolhido = { ...melhor.dados, fonteId: melhor.fonteId };
