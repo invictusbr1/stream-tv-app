@@ -10,6 +10,16 @@ NO CELULAR OU NA TV BOX
 Mesma rede Wi-Fi, em casa: no celular, abra o endereço que aparece na janela do
 aplicativo (algo como http://192.168.1.6:3000).
 
+ENDEREÇO FIXO PARA DIVULGAR (nunca muda)
+Sempre use este link, no lugar de mandar o endereço do dia:
+
+  https://invictusbr1.github.io/stream-tv-app/
+
+Ele mostra se o servidor está no ar, o código de acesso e abre o aplicativo
+sozinho. Por trás, ele aponta para o servidor de agora — quando você liga o
+servidor pelo atalho "Link publico (temporario)", o link fixo é atualizado
+sozinho.
+
 Fora de casa (endereço fixo): dê dois cliques em "Endereco fixo (Tailscale)" na
 Área de Trabalho uma única vez. Depois disso, o celular acessa sempre o mesmo
 endereço, de qualquer rede. O passo a passo está em ENDERECO-FIXO.md.
