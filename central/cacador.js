@@ -44,6 +44,9 @@ const CATEGORIAS = [
         id: 'filme', nome: 'Filmes', tipo: 'movie',
         amostras: [
             { id: '27205', titulo: 'A Origem' },
+            // O título que revelou a fonte que dizia "dublado" e entregava o
+            // idioma original — fica na amostra fixa para nunca mais passar.
+            { id: '921', titulo: 'A Luta pela Esperança' },
             { id: '1523145', titulo: 'Coração Partido' },
             { id: '693134', titulo: 'Duna: Parte 2' },
             { id: '1022789', titulo: 'Divertida Mente 2' },
@@ -323,10 +326,11 @@ async function conferirMidiaDireta(candidata) {
         }).catch(() => null);
         const detalhes = {
             tocou: Boolean(reproducao && reproducao.tocou),
+            semRobo: Boolean(reproducao && reproducao.semRobo),
             qualidade: reproducao && reproducao.altura ? reproducao.altura + 'p' : '—',
             ms: reproducao ? reproducao.ms : 0,
-            popups: reproducao ? reproducao.popups.length : 0,
-            anuncios: reproducao ? reproducao.anuncios : [],
+            popups: reproducao && reproducao.popups ? reproducao.popups.length : 0,
+            anuncios: reproducao && reproducao.anuncios ? reproducao.anuncios : [],
             idioma: prova ? prova.idioma : 'indefinido',
             idiomaEvidencia: prova ? prova.evidencia : '',
             avisoAudio: prova && prova.avisoAudio ? prova.avisoAudio : '',
@@ -335,7 +339,11 @@ async function conferirMidiaDireta(candidata) {
         const anunciado = (detalhes.anuncios || []).length > 0 || detalhes.popups > 0;
         let situacao = 'em análise';
         let motivo = 'medida parcial';
-        if (!detalhes.tocou) { situacao = 'descartada'; motivo = 'o vídeo não abriu no navegador' + (reproducao && reproducao.erro ? ' (' + reproducao.erro + ')' : ''); }
+        if (!detalhes.tocou && detalhes.semRobo) {
+            situacao = detalhes.idioma === 'pt' ? 'promover' : 'em análise';
+            motivo = `sem robô de navegador neste modo; áudio: ${detalhes.idioma}${detalhes.avisoAudio ? ' — ' + detalhes.avisoAudio : ''} · ${titulo}`;
+        }
+        else if (!detalhes.tocou) { situacao = 'descartada'; motivo = 'o vídeo não abriu no navegador' + (reproducao && reproducao.erro ? ' (' + reproducao.erro + ')' : ''); }
         else if (detalhes.avisoAudio) { situacao = 'descartada'; motivo = detalhes.avisoAudio; }
         else if (anunciado) { situacao = 'descartada'; motivo = `abriu, mas chamou rede de anúncio (${detalhes.anuncios.join(', ') || 'pop-up'})`; }
         else if (detalhes.idioma === 'pt') { situacao = 'promover'; motivo = `tocou em ${detalhes.qualidade} com áudio em português confirmado · ${titulo}`; }
@@ -365,10 +373,11 @@ async function conferirFonteDeStream(candidata) {
         }).catch(() => null);
         const detalhes = {
             tocou: Boolean(reproducao && reproducao.tocou),
+            semRobo: Boolean(reproducao && reproducao.semRobo),
             qualidade: reproducao && reproducao.altura ? reproducao.altura + 'p' : '—',
             ms: reproducao ? reproducao.ms : 0,
-            popups: reproducao ? reproducao.popups.length : 0,
-            anuncios: reproducao ? reproducao.anuncios : [],
+            popups: reproducao && reproducao.popups ? reproducao.popups.length : 0,
+            anuncios: reproducao && reproducao.anuncios ? reproducao.anuncios : [],
             idioma: prova ? prova.idioma : 'indefinido',
             idiomaEvidencia: prova ? prova.evidencia : '',
             amostra: titulo,
@@ -377,7 +386,11 @@ async function conferirFonteDeStream(candidata) {
         detalhes.avisoAudio = prova && prova.avisoAudio ? prova.avisoAudio : '';
         let situacao = 'em análise';
         let motivo = 'medida parcial';
-        if (!detalhes.tocou) { situacao = 'descartada'; motivo = 'o vídeo não abriu no navegador' + (reproducao && reproducao.erro ? ' (' + reproducao.erro + ')' : ''); }
+        if (!detalhes.tocou && detalhes.semRobo) {
+            situacao = detalhes.idioma === 'pt' ? 'promover' : 'em análise';
+            motivo = `sem robô de navegador neste modo; áudio: ${detalhes.idioma}${detalhes.avisoAudio ? ' — ' + detalhes.avisoAudio : ''} · ${titulo}`;
+        }
+        else if (!detalhes.tocou) { situacao = 'descartada'; motivo = 'o vídeo não abriu no navegador' + (reproducao && reproducao.erro ? ' (' + reproducao.erro + ')' : ''); }
         else if (detalhes.avisoAudio) { situacao = 'descartada'; motivo = detalhes.avisoAudio; }
         else if (anunciado) { situacao = 'descartada'; motivo = `abriu, mas chamou rede de anúncio (${detalhes.anuncios.join(', ') || 'pop-up'})`; }
         else if (detalhes.idioma === 'pt') { situacao = 'promover'; motivo = `tocou em ${detalhes.qualidade} com áudio em português confirmado (${detalhes.idiomaEvidencia.slice(0, 60)})`; }
@@ -706,4 +719,4 @@ function criarCacador(opcoes = {}) {
     return { cacar, ultimo, rodando: () => rodando, categoriaAtual: () => categoriaAtual, CATEGORIAS, historico: historicoCompleto };
 }
 
-module.exports = { criarCacador, notaDoFornecedor, avaliarPromocao, CATEGORIAS, PADRAO_APP, medirListaDeCanais };
+module.exports = { criarCacador, notaDoFornecedor, avaliarPromocao, CATEGORIAS, PADRAO_APP, medirListaDeCanais, chaveDaIA };

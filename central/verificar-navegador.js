@@ -33,6 +33,12 @@ function carregarPuppeteer() {
     try { return require('puppeteer-core'); } catch { return null; }
 }
 
+// Fica registrado o motivo quando o robô não está disponível (por exemplo, no
+// programa compilado que não trouxe a biblioteca) — a central mostra isso no
+// lugar de simplesmente falhar.
+let ultimoErroDoRobo = '';
+function erroDoRobo() { return ultimoErroDoRobo; }
+
 // Servidor local que repassa o vídeo COM o referenciador certo e reescreve a
 // lista de reprodução — igual ao que o aplicativo faz para o usuário.
 function criarEncaminhador() {
@@ -88,8 +94,14 @@ function criarEncaminhador() {
 async function tocarNoNavegador(url, { referer = '', tipo = 'hls', segundos = 25, registrar = () => {} } = {}) {
     const puppeteer = carregarPuppeteer();
     const navegador = acharNavegador();
-    if (!puppeteer) return { tocou: false, erro: 'robô de navegador não instalado' };
-    if (!navegador) return { tocou: false, erro: 'nenhum navegador encontrado no computador' };
+    if (!puppeteer) {
+        ultimoErroDoRobo = 'robô indisponível neste modo (biblioteca do navegador não carregou)';
+        return { tocou: false, erro: ultimoErroDoRobo, popups: [], anuncios: [], semRobo: true };
+    }
+    if (!navegador) {
+        ultimoErroDoRobo = 'nenhum navegador (Chrome/Edge) encontrado no computador';
+        return { tocou: false, erro: ultimoErroDoRobo, popups: [], anuncios: [], semRobo: true };
+    }
 
     const { servidor, porta } = await criarEncaminhador();
     const destino = tipo === 'file'
@@ -127,14 +139,18 @@ async function tocarNoNavegador(url, { referer = '', tipo = 'hls', segundos = 25
 
         registrar('abrindo o vídeo no navegador escondido…');
         const inicio = Date.now();
-        const medido = await pag.evaluate(async (endereco, espera) => {
+        // O script vai como TEXTO: dentro do programa compilado as funções
+        // passadas direto para o navegador não podem ser serializadas.
+        const script = `(async () => {
+            const endereco = ${JSON.stringify(destino)};
+            const espera = ${JSON.stringify(segundos)};
             const video = document.createElement('video');
             video.muted = true; video.playsInline = true; video.preload = 'auto';
             video.style.cssText = 'width:100%;height:100%';
             document.body.append(video);
             const eventos = [];
             let hls = null;
-            const ehLista = /\/api\/hls/.test(endereco);
+            const ehLista = /\\/api\\/hls/.test(endereco);
             try {
                 if (ehLista && window.Hls && window.Hls.isSupported()) {
                     hls = new window.Hls({ enableWorker: false });
@@ -145,26 +161,23 @@ async function tocarNoNavegador(url, { referer = '', tipo = 'hls', segundos = 25
                     video.src = endereco;
                 }
             } catch (erro) { eventos.push('preparo: ' + erro.message); }
-            // Não esperamos o "play" terminar: em arquivos grandes ele pode
-            // demorar minutos para resolver. O laço abaixo já confere se o
-            // vídeo andou de verdade.
             video.play().catch((erro) => eventos.push('play: ' + erro.message));
             const limite = Date.now() + espera * 1000;
             while (Date.now() < limite) {
                 if (video.videoWidth && video.currentTime > 1) break;
                 await new Promise(r => setTimeout(r, 500));
             }
-            const travou = () => video.readyState < 3;
             return {
                 tocou: Boolean(video.videoWidth && video.currentTime > 1),
                 largura: video.videoWidth || 0,
                 altura: video.videoHeight || 0,
                 tempo: Math.round((video.currentTime || 0) * 10) / 10,
                 pronto: video.readyState,
-                travouEmAlgumMomento: !video.videoWidth ? travou() : false,
+                travouEmAlgumMomento: !video.videoWidth ? (video.readyState < 3) : false,
                 eventos,
             };
-        }, destino, segundos);
+        })()`;
+        const medido = await pag.evaluate(script);
         const ms = Date.now() - inicio;
         return { ...medido, ms, popups, anuncios: [...anuncios].slice(0, 6) };
     } catch (erro) {
@@ -175,4 +188,4 @@ async function tocarNoNavegador(url, { referer = '', tipo = 'hls', segundos = 25
     }
 }
 
-module.exports = { tocarNoNavegador, acharNavegador, REDES_DE_ANUNCIO };
+module.exports = { tocarNoNavegador, acharNavegador, REDES_DE_ANUNCIO, erroDoRobo };

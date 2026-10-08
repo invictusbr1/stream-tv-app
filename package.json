@@ -19,7 +19,7 @@
     "axios": "1.18.1",
     "express": "5.2.1",
     "hls.js": "1.7.3",
-    "puppeteer-core": "^25.13.0"
+    "puppeteer-core": "^23.11.1"
   },
   "pkg": {
     "scripts": [

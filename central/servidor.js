@@ -226,6 +226,27 @@ app.post('/api/cacar', exigirChave, (req, res) => {
 
 app.get('/api/fontes', exigirChave, (req, res) => res.json(cacador.ultimo() || { ranking: [], candidatas: [], atualizadoEm: null }));
 
+// Conferência sob demanda de um endereço de vídeo: reproduz no navegador e
+// ouve o áudio (idioma confirmado). Usado nos testes e pelo painel.
+app.get('/api/conferir-midia', exigirChave, async (req, res) => {
+    const endereco = String(req.query.url || '');
+    if (!/^https:\/\//i.test(endereco)) return res.status(400).json({ erro: 'endereço inválido' });
+    try {
+        const robo = require('./verificar-navegador');
+        const midia = require('./verificar-midia');
+        const tipo = /\.m3u8(\?|$)/i.test(endereco) ? 'hls' : 'file';
+        const reproducao = await robo.tocarNoNavegador(endereco, { tipo, segundos: 20 });
+        const idioma = await midia.verificarIdioma({
+            url: endereco, tipo: 'movie', fonteId: 'conferencia',
+            amostra: { id: 'sob-demanda-' + Date.now().toString().slice(-6) },
+            chaveIa: (() => { try { return require('./cacador').chaveDaIA(); } catch { return ''; } })(),
+        });
+        res.json({ ok: true, reproducao, idioma, roboDisponivel: Boolean(robo.acharNavegador()) });
+    } catch (erro) {
+        res.status(502).json({ erro: String(erro.message).slice(0, 120) });
+    }
+});
+
 // Entrada pela chave no endereço: o atalho do computador abre o painel já
 // dentro, sem digitar nada (a chave vira cookie e sai da barra de endereços).
 app.get('/entrar', (req, res) => {
