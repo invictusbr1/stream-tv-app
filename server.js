@@ -387,9 +387,30 @@ app.get('/api/playback/:id', async (req, res) => {
     // O motor escolhe a fonte dublada limpa (e lembra qual deu certo).
     try {
         const motor = require('./fontes-motor');
+        const avaliador = require('./avaliador');
         const exceto = String(req.query.exceto || '').split(',').map(item => item.trim()).filter(Boolean);
-        const escolhido = await motor.escolher('dublado', { tipo: 'movie', tmdbId: req.params.id }, { exceto });
+        const alvo = { tipo: 'movie', tmdbId: req.params.id };
+        // Avaliador em tempo real: testa as melhores fontes do título em
+        // paralelo e escolhe a que entrega mais qualidade seguindo as regras.
+        let escolhido = null;
+        let avaliacao = null;
+        if (process.env.AVALIADOR !== '0') {
+            const resultado = await avaliador.escolherMelhor('dublado', alvo, { exceto }).catch(() => null);
+            if (resultado) { escolhido = resultado.escolhido; avaliacao = resultado.avaliacao; }
+        }
+        if (!escolhido) escolhido = await motor.escolher('dublado', alvo, { exceto });
         if (escolhido) {
+            // A decisão do avaliador fica registrada na central (alimenta a
+            // evolução das fontes com a escolha real do momento).
+            if (avaliacao) {
+                try {
+                    require('./central-reporter').reportar({
+                        tipo: 'avaliacao', id: String(req.params.id), titulo: '',
+                        fonte: escolhido.fonte || '', fonteId: escolhido.fonteId || '',
+                        avaliacao: avaliacao.map(a => ({ fonte: a.fonteId, nota: a.nota, idioma: a.detalhes && a.detalhes.idioma, qualidade: a.detalhes && a.detalhes.qualidade, taxa: a.detalhes && a.detalhes.taxa })),
+                    }).catch(() => {});
+                } catch { /* central é opcional */ }
+            }
             // Fonte que precisa de conversão (MKV com som que o navegador não
             // toca): o aplicativo converte e só o áudio muda; a imagem é a
             // original, sem perda.
@@ -412,7 +433,8 @@ app.get('/api/playback/:id', async (req, res) => {
                 source: pronto.fonte || 'Dublado limpo',
                 fonteId: pronto.fonteId || '',
                 type: pronto.type || 'hls',
-                resolucao: pronto.resolucao || ''
+                resolucao: pronto.resolucao || '',
+                avaliacao: avaliacao || undefined,
             });
         }
     } catch { /* segue para o aviso */ }
@@ -436,7 +458,17 @@ app.get('/api/playback/serie/:id/:season/:episode', async (req, res) => {
     const cookie = process.env.WATCHPLAY_COOKIE || LOCAL_CONFIG.watchplayCookie || '';
     try {
         const exceto = String(req.query.exceto || '').split(',').map(item => item.trim()).filter(Boolean);
-        const escolhido = await require('./series-source').resolverEpisodio({ tmdbId: id, temporada: season, episodio: episode, cookie, exceto });
+        const alvo = { tipo: 'tv', tmdbId: id, temporada: season, episodio: episode };
+        let escolhido = null;
+        let avaliacao = null;
+        if (process.env.AVALIADOR !== '0') {
+            const resultado = await require('./avaliador').escolherMelhor('dublado', alvo, { exceto }).catch(() => null);
+            if (resultado) {
+                escolhido = require('./fontes-motor').prepararParaPlayer(resultado.escolhido);
+                avaliacao = resultado.avaliacao;
+            }
+        }
+        if (!escolhido) escolhido = await require('./series-source').resolverEpisodio({ tmdbId: id, temporada: season, episodio: episode, cookie, exceto });
         if (!escolhido) throw new Error('sem fonte');
         if (escolhido.converter) {
             const conversor = require('./conversor');
@@ -459,7 +491,8 @@ app.get('/api/playback/serie/:id/:season/:episode', async (req, res) => {
             type: escolhido.type || 'hls',
             resolucao: escolhido.resolucao,
             legendas: escolhido.legendas || [],
-            legendaPortugues: Boolean(escolhido.legendaPortugues)
+            legendaPortugues: Boolean(escolhido.legendaPortugues),
+            avaliacao: avaliacao || undefined,
         });
     } catch {
         res.status(502).json({ error: 'Nenhuma fonte limpa respondeu para este episódio agora.' });
@@ -495,6 +528,24 @@ app.get('/api/conversao/:id', (req, res) => {
     res.setHeader('Cache-Control', 'no-store');
     const conversor = require('./conversor');
     res.json(conversor.estado(String(req.params.id || '')));
+});
+
+// Conferência do avaliador em tempo real: mostra o que cada fonte entrega
+// para um título (nota, altura, idioma, tempo) sem abrir o player.
+app.get('/api/avaliar/:id', async (req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    if (!/^\d{1,10}$/.test(req.params.id)) return res.sendStatus(400);
+    const tipoEpisodio = String(req.query.temporada || '') !== '' && String(req.query.episodio || '') !== '';
+    const alvo = tipoEpisodio
+        ? { tipo: 'tv', tmdbId: req.params.id, temporada: String(req.query.temporada), episodio: String(req.query.episodio) }
+        : { tipo: 'movie', tmdbId: req.params.id };
+    try {
+        const resultado = await require('./avaliador').escolherMelhor('dublado', alvo, { semCache: true, exceto: String(req.query.exceto || '').split(',').filter(Boolean) });
+        if (!resultado) return res.json({ ok: false, motivo: 'nenhuma fonte respondeu' });
+        res.json({ ok: true, tempoMs: resultado.tempoMs, melhor: resultado.escolhido.fonteId, avaliacao: resultado.avaliacao });
+    } catch (erro) {
+        res.status(502).json({ erro: String(erro.message).slice(0, 120) });
+    }
 });
 
 // Entrega o arquivo em conversão (com suporte a avançar/voltar, quando o

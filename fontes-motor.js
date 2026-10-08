@@ -39,10 +39,12 @@ const ARQUIVO_SAUDE = process.pkg
 function caminhosDeIdiomas() {
     const caminhos = [];
     if (process.env.CENTRAL_IDIOMAS) caminhos.push(process.env.CENTRAL_IDIOMAS);
+    // A central instalada guarda o que confirmou em "Conecta TV Central" —
+    // vale tanto para o aplicativo compilado quanto rodando do projeto.
+    caminhos.push(path.join(os.homedir(), 'Conecta TV Central', 'dados', 'idiomas.json'));
     if (process.pkg) {
         const pastaApp = path.dirname(process.execPath);
         caminhos.push(path.join(pastaApp, '..', 'Conecta TV Central', 'dados', 'idiomas.json'));
-        caminhos.push(path.join(os.homedir(), 'Conecta TV Central', 'dados', 'idiomas.json'));
     } else {
         caminhos.push(path.join(__dirname, 'central', 'dados', 'idiomas.json'));
     }
@@ -311,6 +313,22 @@ function chaveDoTitulo(alvo) {
         : `movie:${alvo.tmdbId}`;
 }
 
+// Fila de fontes pronta para uso (ordem + memórias aplicadas). O avaliador em
+// tempo real usa esta fila para testar as melhores em paralelo.
+function filaDeFontes(papel, alvo, opcoes = {}) {
+    const exceto = new Set((opcoes.exceto || []).map(item => String(item)));
+    const agora = Date.now();
+    const lista = ordem(papel, alvo).filter(fonte => !exceto.has(String(fonte.id)));
+    const idiomasDoTitulo = lerIdiomasVerificados()[chaveDoTitulo(alvo)] || {};
+    if (Object.keys(idiomasDoTitulo).length) {
+        const pesoDoIdioma = fonte => (idiomasDoTitulo[fonte.id] === 'pt' ? -1 : idiomasDoTitulo[fonte.id] === 'outro' ? 1 : 0);
+        lista.sort((a, b) => pesoDoIdioma(a) - pesoDoIdioma(b));
+    }
+    const chave = `${papel}:${chaveDoTitulo(alvo)}`;
+    const semEsteTitulo = fonte => (semTitulo.get(`${chave}|${fonte.id}`) || 0) > agora;
+    return [...lista.filter(f => !semEsteTitulo(f)), ...lista.filter(semEsteTitulo)];
+}
+
 // Escolhe a primeira fonte que responde. Erro de rede ganha uma segunda
 // tentativa; "não tenho este título" não se repete — a fonte vai para o fim da
 // fila só naquele título, e o resultado bom fica lembrado para a próxima vez.
@@ -329,17 +347,9 @@ async function escolher(papel, alvo, opcoes = {}) {
     if (lembrado && lembrado.expira > Date.now() && lembrado.dados && !lembradoBloqueado && !exceto.has(String(lembrado.dados.fonteId))) return lembrado.dados;
 
     const agora = Date.now();
-    const lista = ordem(papel, alvo).filter(fonte => !exceto.has(String(fonte.id)));
-    // O que a central já confirmou manda: fonte com português confirmado vai
-    // na frente; fonte que entregou outro idioma vai para o fim da fila.
-    const idiomasDoTitulo = lerIdiomasVerificados()[chaveDoTitulo(alvo)] || {};
-    if (Object.keys(idiomasDoTitulo).length) {
-        const pesoDoIdioma = fonte => (idiomasDoTitulo[fonte.id] === 'pt' ? -1 : idiomasDoTitulo[fonte.id] === 'outro' ? 1 : 0);
-        lista.sort((a, b) => pesoDoIdioma(a) - pesoDoIdioma(b));
-    }
-    const semEsteTitulo = fonte => (semTitulo.get(`${chave}|${fonte.id}`) || 0) > agora;
-    // Quem já disse que não tem o título só é tentado se ninguém mais responder.
-    const tentar = [...lista.filter(f => !semEsteTitulo(f)), ...lista.filter(semEsteTitulo)];
+    // A fila já traz a ordem final (peso, saúde, idioma confirmado pela central
+    // e o "não tem este título" para o fim).
+    const tentar = filaDeFontes(papel, alvo, { exceto: [...exceto] });
 
     for (const fonte of tentar) {
         let erroDeRede = false;
@@ -437,4 +447,20 @@ function alvoDoEvento(tipo, tmdbId, temporada, episodio) {
         : { tipo: 'movie', tmdbId: id };
 }
 
-module.exports = { escolher, prepararParaPlayer, estado, FONTES, enderecoWatchPlay, reiniciarParaTeste, esquecerAcertos, registrarFalha, chaveDoTitulo, alvoDoEvento, lerIdiomasVerificados, esquecerIdiomas };
+// Usado pelo avaliador em tempo real: marca acerto/fracasso e guarda a
+// escolha do momento para as próximas aberturas do mesmo título.
+function registrarSucesso(fonteId) {
+    const id = String(fonteId || '').trim();
+    if (!id || !FONTES.some(fonte => fonte.id === id)) return false;
+    anotarAcerto(id);
+    return true;
+}
+
+function anotarEscolha(papel, alvo, dados) {
+    if (!dados || !dados.url) return;
+    const chave = `${papel}:${chaveDoTitulo(alvo)}`;
+    const validade = Number(dados.validadeMs) > 0 ? Math.min(Number(dados.validadeMs), VALIDADE_ACERTO) : VALIDADE_ACERTO;
+    acertos.set(chave, { dados: { ...dados }, expira: Date.now() + validade });
+}
+
+module.exports = { escolher, filaDeFontes, prepararParaPlayer, estado, FONTES, enderecoWatchPlay, reiniciarParaTeste, esquecerAcertos, registrarFalha, registrarSucesso, anotarEscolha, chaveDoTitulo, alvoDoEvento, lerIdiomasVerificados, esquecerIdiomas };

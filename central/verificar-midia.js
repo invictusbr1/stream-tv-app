@@ -150,8 +150,11 @@ async function faixasDeAudio(url, referer = '') {
     try { dados = JSON.parse(saida); } catch { return null; }
     const audio = (dados.streams || []).filter(s => s.codec_type === 'audio');
     if (!audio.length) return null;
+    const video = (dados.streams || []).find(s => s.codec_type === 'video') || {};
     return {
         container: dados.format && dados.format.format_name || '',
+        duracao: Number((dados.format && dados.format.duration) || 0) || 0,
+        imagem: { largura: Number(video.width) || 0, altura: Number(video.height) || 0 },
         faixas: audio.map((s, i) => ({
             ordem: i,
             idioma: String((s.tags || {}).language || '').toLowerCase(),
@@ -269,7 +272,12 @@ async function verificarIdioma({ url, referer = '', tipo = 'movie', amostra, fon
         }
         if (!resultado || resultado.idioma === 'indefinido') {
             registrar(`ouvindo um trecho de ${amostra.titulo || 'título'} para confirmar o idioma…`);
-            const ouvido = await ouvirIdioma(url, { referer, chave: chaveIa, inicio: 240, segundos: 20 });
+            // Numa lista de reprodução (HLS) o ffmpeg precisa "correr" até o
+            // ponto escolhido — por isso ali o trecho é mais no começo; em
+            // arquivo direto o avanço é instantâneo e vale a pena pular a
+            // abertura (que costuma ser só música).
+            const ehLista = /\.m3u8(\?|$)/i.test(url);
+            const ouvido = await ouvirIdioma(url, { referer, chave: chaveIa, inicio: ehLista ? 45 : 240, segundos: ehLista ? 25 : 20 });
             if (ouvido) {
                 const apelido = ouvido.idiomaBruto && ouvido.idiomaBruto !== 'desconhecido' ? ` (${ouvido.idiomaBruto})` : '';
                 resultado = {
