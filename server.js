@@ -456,6 +456,27 @@ app.get('/api/tv/canais', async (req, res) => {
     }
 });
 
+// Categorias (grupos) dos canais da lista escolhida — é o que alimenta as
+// abas de categoria na tela de TV ao vivo.
+app.get('/api/tv/categorias', async (req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    try {
+        const lista = String(req.query.lista || 'brasil').slice(0, 20);
+        const canais = await tvAoVivo.canais(lista);
+        const contagem = new Map();
+        for (const canal of canais) {
+            const grupo = (canal.grupo || 'Outros').trim() || 'Outros';
+            contagem.set(grupo, (contagem.get(grupo) || 0) + 1);
+        }
+        const categorias = [...contagem.entries()]
+            .map(([nome, total]) => ({ nome, total }))
+            .sort((a, b) => b.total - a.total);
+        res.json({ lista, total: canais.length, categorias });
+    } catch {
+        res.status(502).json({ error: 'Não foi possível listar as categorias agora.' });
+    }
+});
+
 const libraryCatalog=require('./android/app/src/main/assets/catalog').createCatalog(async (url,options)=>{const r=await axios.get(url,{signal:options?.signal});return {ok:true,json:async()=>r.data};},TMDB_KEY);
 app.get(['/api/explore','/api/genres','/api/top-br','/api/alta',/^\/api\/(tv|season|episode)\//],async(req,res)=>{try{res.json(await libraryCatalog.request(req.originalUrl));}catch{res.status(502).json({error:'Catálogo indisponível'});}});
 app.get('/personal.js',(req,res)=>{res.setHeader('Cache-Control','no-store');res.sendFile(path.join(__dirname,'personal.js'));});
