@@ -1,0 +1,45 @@
+name: Publicar no Hugging Face
+
+# Mantém o Space sempre com a última versão: cada envio para o main publica.
+# Configuração necessária (uma vez):
+#   Secret  HF_TOKEN  -> token de escrita do Hugging Face
+#   Variable HF_SPACE -> usuario/nome-do-space
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  publicar:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Baixar o projeto
+        uses: actions/checkout@v4
+
+      - name: Enviar para o Space
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          HF_SPACE: ${{ vars.HF_SPACE }}
+        run: |
+          if [ -z "$HF_TOKEN" ] || [ -z "$HF_SPACE" ]; then
+            echo "Sem HF_TOKEN/HF_SPACE configurados — nada a publicar."
+            exit 0
+          fi
+          git config --global user.name "Conecta TV"
+          git config --global user.email "conectatv@local"
+          rm -rf /tmp/space
+          git clone --depth 1 "https://user:$HF_TOKEN@huggingface.co/spaces/$HF_SPACE" /tmp/space
+          # Copia o projeto sem segredos, sem dependências e sem os aplicativos
+          # de PC/celular (o Space roda só o servidor).
+          rsync -a --delete \
+            --exclude '.git' --exclude 'node_modules' --exclude 'dist' \
+            --exclude 'android' --exclude 'central/android' --exclude 'work' \
+            --exclude 'Legendas' --exclude 'relatorios' --exclude 'central/dados' \
+            --exclude 'config.local.json' --exclude 'acessos.json' --exclude 'autorizados.json' \
+            --exclude '.github' ./ /tmp/space/
+          cp deploy/huggingface/README.md /tmp/space/README.md
+          cd /tmp/space
+          git add -A
+          git commit -m "Atualiza o Conecta TV (a partir do GitHub)" || echo "nada mudou"
+          git push origin HEAD:main
