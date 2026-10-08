@@ -16,6 +16,7 @@ const seguranca = require('../seguranca.js');
 const identidade = require('./identidade.js');
 const { criarAgente } = require('./agente.js');
 const { criarCacador } = require('./cacador.js');
+const { criarRegistro } = require('./titulos.js');
 
 const app = express();
 const PORTA = Number(process.env.PORT || process.env.CENTRAL_PORT || 4100);
@@ -67,6 +68,8 @@ fs.mkdirSync(DADOS, { recursive: true });
 // caçador de fornecedores (dá nota de 0 a 10 para cada fonte).
 const agente = criarAgente({ pastaDados: DADOS, appUrl: APP_URL, codigoApp: APP_CODIGO });
 const cacador = criarCacador({ pastaDados: DADOS });
+// Histórico de qualidade por título (alimentado pelos eventos do aplicativo).
+const titulos = criarRegistro({ pastaDados: DADOS });
 agente.iniciar();
 
 // ---------------------------------------------------------------- armazenamento
@@ -155,13 +158,27 @@ app.post('/api/evento', (req, res) => {
         fonte: texto(corpo.fonte, 40),
         audio: texto(corpo.audio, 20),
         resolucao: texto(corpo.resolucao, 20),
+        taxa: texto(corpo.taxa, 20),
         ms: Number(corpo.ms) || 0,
         // Um relato do tipo "falha" nunca pode aparecer como "abriu", mesmo que
         // o aplicativo antigo não mande o campo ok.
         ok: texto(corpo.tipo, 24) === 'falha' ? false : corpo.ok !== false,
         motivo: texto(corpo.motivo, 120)
     };
+    // A avaliação em tempo real (disputa das fontes) vem como lista — guarda
+    // o que dá para o painel mostrar por título.
+    if (Array.isArray(corpo.avaliacao)) {
+        evento.avaliacao = corpo.avaliacao.slice(0, 6).map(item => ({
+            fonte: texto(item && item.fonte, 30),
+            nota: Number(item && item.nota) || 0,
+            idioma: texto(item && item.idioma, 60),
+            qualidade: texto(item && item.qualidade, 20),
+            taxa: texto(item && item.taxa, 20),
+        }));
+    }
     anotarEvento(evento);
+    // Histórico por título (qualidade medida, escolha e falhas).
+    try { titulos.registrar(evento); } catch { /* o evento já foi anotado */ }
     // Player que não abriu entra na fila do agente, que vai testar as fontes.
     if (evento.ok === false) agente.registrarFalha(evento);
     if (evento.dispositivo) {
@@ -225,6 +242,12 @@ app.post('/api/cacar', exigirChave, (req, res) => {
 });
 
 app.get('/api/fontes', exigirChave, (req, res) => res.json(cacador.ultimo() || { ranking: [], candidatas: [], atualizadoEm: null }));
+
+// Qualidade por título (histórico medido pelo aplicativo).
+app.get('/api/titulos', exigirChave, (req, res) => {
+    const limite = Math.max(1, Math.min(200, Number(req.query.limite) || 60));
+    res.json({ total: titulos.total(), titulos: titulos.listar(limite) });
+});
 
 // Conferência sob demanda de um endereço de vídeo: reproduz no navegador e
 // ouve o áudio (idioma confirmado). Usado nos testes e pelo painel.
@@ -358,6 +381,9 @@ async function gerarStatus() {
         fontesCacadas: cacador.ultimo(),
         cacadorRodando: cacador.rodando(),
         cacadorCategoria: cacador.categoriaAtual(),
+        // Qualidade por título: o que o avaliador escolheu e o que o player
+        // mediu de verdade (altura, taxa, áudio) — histórico curto por título.
+        titulos: { total: titulos.total(), lista: titulos.resumo(12) },
         eventos: eventos.slice(-40).reverse().map(e => ({ ...e, emCurto: curto(e.em) }))
     };
 }

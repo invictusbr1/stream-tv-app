@@ -88,6 +88,12 @@ code{background:#ffffff10;padding:2px 6px;border-radius:6px;font-size:12.5px}
         <table><thead><tr><th>Quando</th><th>Quem</th><th>Título</th><th>Fonte</th><th>Áudio</th><th>Qualidade</th><th>Resultado</th></tr></thead>
         <tbody id="linha-eventos"></tbody></table>
       </section>
+      <section class="bloco">
+        <h2>Qualidade por título <small id="titulos-total"></small></h2>
+        <p class="mini" style="padding:0 14px 6px">O que o avaliador escolheu e o que o player mediu de verdade em cada título (altura, taxa e áudio). Passar o mouse mostra a disputa das fontes.</p>
+        <table><thead><tr><th>Título</th><th>Fonte escolhida</th><th>Qualidade medida</th><th>Áudio</th><th>Quando</th></tr></thead>
+        <tbody id="linha-titulos"></tbody></table>
+      </section>
     </div>
     <div>
       <section class="bloco">
@@ -157,6 +163,21 @@ function pintar(dados) {
   ].map(([titulo, valor, legenda]) => '<div class="cartao"><b>' + valor + '</b><span>' + titulo + ' · ' + legenda + '</span></div>').join('');
 
   el('total-aparelhos').textContent = dados.aparelhos.length + ' no total';
+
+  // Qualidade por título (histórico medido pelo aplicativo).
+  const titulos = (dados.titulos && dados.titulos.lista) || [];
+  el('titulos-total').textContent = (dados.titulos && dados.titulos.total ? dados.titulos.total + ' título(s) acompanhado(s)' : 'sem medições ainda');
+  el('linha-titulos').innerHTML = titulos.length ? titulos.map(t => {
+    const disputa = (t.disputa || []).map(d => d.fonte + ' ' + String(d.nota).replace('.', ',') + (d.idioma ? ' (' + d.idioma + ')' : '')).join('  ·  ');
+    const saude = t.falhasSeguidas >= 2 ? ' ' + selo(t.falhasSeguidas + ' falhas seguidas', 'ruim') : t.falhas ? ' ' + selo(t.falhas + ' falha(s)', 'medio') : '';
+    return `<tr>
+      <td class="nome" title="${escapar(disputa)}">${escapar(t.titulo)}<br><span class="fraco" style="font-size:11px">${escapar(t.audio || '')} ${saude}</span></td>
+      <td class="fraco">${escapar(t.fonte || '—')}</td>
+      <td class="fraco">${escapar(t.qualidade || '—')}</td>
+      <td class="fraco">${escapar(t.audio || '—')}</td>
+      <td class="fraco">${escapar(new Date(t.atualizadoEm).toLocaleString('pt-BR'))}</td>
+    </tr>`;
+  }).join('') : '<tr><td colspan="5" class="vazio">Assista algo no aplicativo para começar a medir.</td></tr>';
   el('linha-aparelhos').innerHTML = dados.aparelhos.length ? dados.aparelhos.map(a => {
     const id = a.identidade || {};
     const rede = [id.redeRotulo, a.ip].filter(Boolean).join(' · ');
@@ -249,7 +270,6 @@ function pintar(dados) {
       : resumoMantidas;
   }
   pintarCategoria();
-  const descobertas = (dados.fontesCacadas && dados.fontesCacadas.porCategoria && (cacadas === null || true)) ? null : null;
   const historicoGeral = Object.values(porCategoria).flatMap(c => c.historico || []);
   el('fontes-descobertas').innerHTML = historicoGeral.length
     ? '<b style="color:#cfd6e3">Evolução das fontes (origem e histórico):</b><br>' + historicoGeral.slice(0, 12).map(h => `${escapar(h.nome)} <span class="fraco">· ${escapar(h.categoria)} · veio de: ${escapar(h.origem)} · ${h.medicoes} medições · últimas notas ${escapar((h.ultimas || []).map(n => String(n).replace('.', ',')).join(' → '))}</span>`).join('<br>')

@@ -96,6 +96,10 @@ window.StreamPlayback = (() => {
         return true;
     }
     let taxaAtual=0;
+    function taxaReal(){
+        if(taxaAtual>0)return taxaAtual;
+        try{const bytes=video&&video.webkitVideoDecodedByteCount;return (bytes&&video.currentTime>5)?(bytes*8)/video.currentTime:0;}catch(e){return 0;}
+    }
     function qualityInfo(level){
         try{taxaAtual=Number(level&&level.bitrate)||0;}catch{}
         const width=level?.width||video?.videoWidth||0,height=level?.height||video?.videoHeight||0;
@@ -151,7 +155,7 @@ window.StreamPlayback = (() => {
             };
             startupTimer=setTimeout(pictureTimeout,12000);
             if(signal)signal.addEventListener('abort',()=>{if(current())failure();},{once:true});
-            video.addEventListener('playing',()=>{if(!current())return;el('direct-resume').hidden=true;awaitPicture();clearTimeout(relogioConfirmacao);relogioConfirmacao=setTimeout(()=>{if(!current()||!video||relatoConfirmado)return;if(video.currentTime<15)return;relatoConfirmado=true;relatar({tipo:'confirmacao',ok:true,fonte:fonteUsada,fonteId:fonteIdUsada,audio:rotuloAudio,resolucao:alturaAtual?alturaAtual+'p':'',taxa:taxaAtual?Math.round(taxaAtual/1000)+' kbps':''});},20000);el('direct-toggle').textContent='⏸';el('direct-toggle').setAttribute('aria-label','Pausar');showControls(!initialFocus);initialFocus=true;});
+            video.addEventListener('playing',()=>{if(!current())return;el('direct-resume').hidden=true;awaitPicture();clearTimeout(relogioConfirmacao);relogioConfirmacao=setTimeout(()=>{if(!current()||!video||relatoConfirmado)return;if(video.currentTime<15)return;relatoConfirmado=true;relatar({tipo:'confirmacao',ok:true,fonte:fonteUsada,fonteId:fonteIdUsada,audio:rotuloAudio,resolucao:alturaAtual?alturaAtual+'p':'',taxa:taxaReal()?Math.round(taxaReal()/1000)+' kbps':''});},20000);el('direct-toggle').textContent='⏸';el('direct-toggle').setAttribute('aria-label','Pausar');showControls(!initialFocus);initialFocus=true;});
             video.addEventListener('canplay',()=>{if(!current())return;play();},{once:true});
             video.addEventListener('loadedmetadata',()=>{if(current()){qualityInfo();subtitleMenu();buscaLivre();atualizarVolume();resume();window.StreamLegendas?.anexar?.(video,progressFilm).then?.(()=>{if(!current())return;subtitleMenu();if(!escolherLegendaAutomatica())setSubtitle(subtitleChoice);}).catch?.(()=>{});}});
             video.addEventListener('pause',()=>{if(current()){saveProgress();el('direct-toggle').textContent='▶';el('direct-toggle').setAttribute('aria-label','Reproduzir');showControls();}});
