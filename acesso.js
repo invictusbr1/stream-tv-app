@@ -39,11 +39,19 @@
         } catch { cacheConfig = {}; }
         return cacheConfig;
     }
-    async function enderecoCentral() {
+    async function enderecosDaCentral() {
         try {
             const config = await lerConfig();
-            return String(config.central || '').replace(/\/$/, '');
-        } catch { return ''; }
+            // Pode haver dois endereços: um da rede de casa e outro da rede
+            // privada (Tailscale). Tentamos na ordem até um responder.
+            return [config.central, config.centralAlt]
+                .map(item => String(item || '').replace(/\/$/, ''))
+                .filter((item, posicao, lista) => item && lista.indexOf(item) === posicao);
+        } catch { return []; }
+    }
+    async function enderecoCentral() {
+        const lista = await enderecosDaCentral();
+        return lista[0] || '';
     }
     // A versão mostrada na central é a do próprio aplicativo (não um número fixo).
     async function versaoDoApp() {
@@ -61,18 +69,22 @@
             aparelho: dados.aparelho || aparelho(),
             dispositivo: identificador(),
             versao: extra?.versao || await versaoDoApp(),
+            app: (await lerConfig()).app || (navigator.userAgent && /StreamTVAndroid/.test(navigator.userAgent) ? 'android' : 'web'),
+            plataforma: (navigator.platform || '').slice(0, 40),
+            navegador: (navigator.userAgent || '').slice(0, 160),
             assistindo: extra?.assistindo || null
         };
         try {
             const resposta = await fetch('/api/acesso', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(corpo) });
             if (resposta.ok) return resposta.json();
         } catch { /* talvez esteja no aplicativo Android, que não tem servidor local */ }
-        try {
-            const central = await enderecoCentral();
-            if (!central) return null;
-            const resposta = await fetch(`${central}/api/acesso`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(corpo) });
-            return resposta.ok ? resposta.json() : null;
-        } catch { return null; }
+        for (const central of await enderecosDaCentral()) {
+            try {
+                const resposta = await fetch(`${central}/api/acesso`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(corpo) });
+                if (resposta.ok) return resposta.json();
+            } catch { /* tenta o próximo endereço */ }
+        }
+        return null;
     }
 
     function liberar() { document.getElementById('portao')?.remove(); }
@@ -85,18 +97,21 @@
             aparelho: dados?.aparelho || aparelho(),
             dispositivo: identificador(),
             versao: evento?.versao || await versaoDoApp(),
+            app: (await lerConfig()).app || (navigator.userAgent && /StreamTVAndroid/.test(navigator.userAgent) ? 'android' : 'web'),
+            navegador: (navigator.userAgent || '').slice(0, 160),
             ...evento
         };
         try {
             const resposta = await fetch('/api/evento', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(corpo) });
             if (resposta.ok) return true;
         } catch { /* no aplicativo Android não existe servidor local */ }
-        try {
-            const central = await enderecoCentral();
-            if (!central) return false;
-            const resposta = await fetch(`${central}/api/evento`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(corpo) });
-            return resposta.ok;
-        } catch { return false; }
+        for (const central of await enderecosDaCentral()) {
+            try {
+                const resposta = await fetch(`${central}/api/evento`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(corpo) });
+                if (resposta.ok) return true;
+            } catch { /* tenta o próximo endereço */ }
+        }
+        return false;
     }
 
     function mostrarPortao() {

@@ -13,6 +13,9 @@ const path = require('path');
 const crypto = require('crypto');
 // require com caminho fixo: é assim que o empacotador (.exe) enxerga o arquivo.
 const seguranca = require('../seguranca.js');
+const identidade = require('./identidade.js');
+const { criarAgente } = require('./agente.js');
+const { criarCacador } = require('./cacador.js');
 
 const app = express();
 const PORTA = Number(process.env.PORT || process.env.CENTRAL_PORT || 4100);
@@ -48,7 +51,23 @@ if (CHAVE.length < 8) {
 const TOKEN_APPS = String(process.env.CENTRAL_TOKEN || ACESSO.centralToken || '').trim();
 const COOKIE_CHAVE = 'central_chave';
 
+// O agente investiga falhas chamando o próprio aplicativo. O endereço e o
+// código podem vir do ambiente ou de um arquivo app.local.json na pasta.
+const CONFIG_APP = (() => {
+    const arquivos = [path.join(__dirname, 'app.local.json'), path.join(process.cwd(), 'central', 'app.local.json')];
+    for (const arquivo of arquivos) { try { return JSON.parse(fs.readFileSync(arquivo, 'utf8')); } catch { /* opcional */ } }
+    return {};
+})();
+const APP_URL = String(process.env.APP_URL || CONFIG_APP.url || 'http://127.0.0.1:3000').replace(/\/$/, '');
+const APP_CODIGO = String(process.env.APP_ACESSO_CODIGO || CONFIG_APP.codigo || '').trim();
+
 fs.mkdirSync(DADOS, { recursive: true });
+
+// Agente de investigação (descobre por qual fonte o título que falhou abre) e
+// caçador de fornecedores (dá nota de 0 a 10 para cada fonte).
+const agente = criarAgente({ pastaDados: DADOS, appUrl: APP_URL, codigoApp: APP_CODIGO });
+const cacador = criarCacador({ pastaDados: DADOS });
+agente.iniciar();
 
 // ---------------------------------------------------------------- armazenamento
 function lerJson(arquivo, padrao) {
@@ -127,6 +146,11 @@ app.post('/api/evento', (req, res) => {
         aparelho: texto(corpo.aparelho, 40),
         app: texto(corpo.app, 20) || 'conecta-tv',
         versao: texto(corpo.versao, 20),
+        // O id do título é o que permite o agente investigar o caso certo.
+        id: texto(corpo.id, 10),
+        episodio: texto(corpo.episodio, 20),
+        temporada: texto(corpo.temporada, 3),
+        numero: texto(corpo.numero, 4),
         titulo: texto(corpo.titulo, 120),
         fonte: texto(corpo.fonte, 40),
         audio: texto(corpo.audio, 20),
@@ -136,6 +160,8 @@ app.post('/api/evento', (req, res) => {
         motivo: texto(corpo.motivo, 120)
     };
     anotarEvento(evento);
+    // Player que não abriu entra na fila do agente, que vai testar as fontes.
+    if (evento.ok === false) agente.registrarFalha(evento);
     if (evento.dispositivo) {
         const lista = lerJson(ARQ_DISPOSITIVOS, {});
         const anterior = lista[evento.dispositivo];
@@ -151,7 +177,10 @@ app.post('/api/evento', (req, res) => {
 // ---------------------------------------------------------------- painel
 function exigirChave(req, res, next) {
     const enviada = chaveDoPedido(req);
-    const aceita = enviada && enviada.length >= 8 && crypto.timingSafeEqual(Buffer.from(enviada.padEnd(64).slice(0, 64)), Buffer.from(CHAVE.padEnd(64).slice(0, 64)));
+    // Comparação por resumo (sha256): sempre do mesmo tamanho, sem depender de
+    // acento, espaço ou tamanho da chave, e sem vazar tempo de resposta.
+    const resumo = valor => crypto.createHash('sha256').update(String(valor), 'utf8').digest();
+    const aceita = enviada.length >= 8 && crypto.timingSafeEqual(resumo(enviada), resumo(CHAVE));
     if (aceita) return next();
     if (String(req.headers.accept || '').includes('text/html')) return res.status(401).type('html').send(paginaDeChave(enviada ? 'Chave incorreta.' : ''));
     return res.status(401).json({ error: 'informe a chave da central' });
@@ -165,8 +194,34 @@ app.post('/api/entrar', (req, res) => {
     res.json({ ok: true });
 });
 
-app.get('/api/status', exigirChave, (req, res) => res.json(gerarStatus()));
+app.get('/api/status', exigirChave, async (req, res) => res.json(await gerarStatus()));
 app.get('/api/health', (req, res) => res.json({ status: 'ok', app: 'central-conecta-tv' }));
+
+// ------------------------------------------------------------------ ações
+// Investiga um título na hora (o mesmo trabalho que o agente faz sozinho).
+app.post('/api/investigar', exigirChave, async (req, res) => {
+    const corpo = req.body || {};
+    const id = String(corpo.id || '').trim();
+    if (!/^\d{1,10}$/.test(id)) return res.status(400).json({ error: 'informe o id do TMDB' });
+    const alvo = {
+        tipo: corpo.tipo === 'tv' ? 'tv' : 'movie',
+        id,
+        titulo: texto(corpo.titulo, 120),
+        temporada: texto(corpo.temporada, 3) || '1',
+        episodio: texto(corpo.episodio, 4) || '1'
+    };
+    const caso = await agente.investigar(alvo, 'investigação pedida no painel').catch(() => null);
+    res.json({ ok: Boolean(caso), caso });
+});
+
+// Roda o caçador de fornecedores em segundo plano (demora alguns minutos).
+app.post('/api/cacar', exigirChave, (req, res) => {
+    if (cacador.rodando()) return res.json({ ok: true, rodando: true });
+    cacador.cacar().catch(() => {});
+    res.json({ ok: true, iniciado: true, aviso: 'a lista leva alguns minutos; o painel se atualiza sozinho' });
+});
+
+app.get('/api/fontes', exigirChave, (req, res) => res.json(cacador.ultimo() || { ranking: [], candidatas: [], atualizadoEm: null }));
 
 // Entrada pela chave no endereço: o atalho do computador abre o painel já
 // dentro, sem digitar nada (a chave vira cookie e sai da barra de endereços).
@@ -184,16 +239,38 @@ app.get('/', exigirChave, (req, res) => {
 });
 
 // ---------------------------------------------------------------- números do painel
-function gerarStatus() {
+// Identidade do aparelho (tipo, rede, localização) é guardada por 10 minutos:
+// consultar o reverso do IP toda hora deixaria o painel lento.
+const cacheIdentidade = new Map();
+async function identidadeDe(dispositivo, eventos) {
+    const chave = `${dispositivo.dispositivo}|${dispositivo.ip}|${dispositivo.app}|${dispositivo.aparelho}`;
+    const guardado = cacheIdentidade.get(chave);
+    if (guardado && guardado.expira > Date.now()) return guardado.dados;
+    const dados = await identidade.descrever(dispositivo, eventos).catch(() => null);
+    if (dados) cacheIdentidade.set(chave, { dados, expira: Date.now() + 10 * 60 * 1000 });
+    return dados;
+}
+
+async function gerarStatus() {
     const dispositivos = Object.values(lerJson(ARQ_DISPOSITIVOS, {}));
     const eventos = lerEventos();
     const agora = Date.now();
     const hoje = new Date().toISOString().slice(0, 10);
 
-    const aparelhos = dispositivos.map(item => {
+    const aparelhos = [];
+    for (const item of dispositivos) {
         const minutos = minutosDesde(item.ultimoEm);
-        return { ...item, online: minutos !== null && minutos < 5, minutos, ultimoCurto: curto(item.ultimoEm), primeiroCurto: curto(item.primeiroEm) };
-    }).sort((a, b) => String(b.ultimoEm).localeCompare(String(a.ultimoEm)));
+        const meusEventos = eventos.filter(e => e.dispositivo === item.dispositivo);
+        aparelhos.push({
+            ...item,
+            online: minutos !== null && minutos < 5,
+            minutos,
+            ultimoCurto: curto(item.ultimoEm),
+            primeiroCurto: curto(item.primeiroEm),
+            identidade: await identidadeDe(item, meusEventos)
+        });
+    }
+    aparelhos.sort((a, b) => String(b.ultimoEm).localeCompare(String(a.ultimoEm)));
 
     const eventosDeHoje = eventos.filter(e => String(e.em).slice(0, 10) === hoje);
     const sessoes = eventosDeHoje.filter(e => e.tipo === 'play' || e.tipo === 'sessao');
@@ -253,6 +330,9 @@ function gerarStatus() {
         versoes,
         horas,
         alertas,
+        investigacoes: agente.resumo(),
+        fontesCacadas: cacador.ultimo(),
+        cacadorRodando: cacador.rodando(),
         eventos: eventos.slice(-40).reverse().map(e => ({ ...e, emCurto: curto(e.em) }))
     };
 }

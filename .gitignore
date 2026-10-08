@@ -20,6 +20,7 @@ relatorios/fontes-saude.json
 # Dados da central de status (dispositivos, sessões e alertas de cada instalação)
 central/dados/
 central/config.local.json
+central/app.local.json
 
 # Crachás dos aparelhos autorizados pelo código de acesso (só do seu servidor)
 autorizados.json
