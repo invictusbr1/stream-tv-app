@@ -39,6 +39,9 @@ fs.writeFileSync(path.join(assets,'config.json'),JSON.stringify({
   // Segundo endereço da central (ex.: a rede privada Tailscale), usado quando o
   // primeiro não responde — assim o celular reporta tanto em casa quanto fora.
   centralAlt:String(process.env.CENTRAL_URL_ALT||localConfig.centralAlt||'').replace(/\/$/,''),
+  // Arquivo de descoberta: diz qual é o endereço público do servidor agora.
+  // É o que faz o celular aparecer na central mesmo fora de casa.
+  descoberta:String(process.env.DESCOBERTA_URL||localConfig.descoberta||'https://invictusbr1.github.io/stream-tv-app/endereco.json'),
   // O selo de atualização na tela compara estes números com o aviso publicado no GitHub.
   app:'android',
   versionCode:Number((fs.readFileSync(path.join(__dirname,'app/build.gradle'),'utf8').match(/versionCode\s+(\d+)/)||[])[1]||0),

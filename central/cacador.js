@@ -394,7 +394,15 @@ function criarCacador(opcoes = {}) {
             }
             for (const item of ranking) item.avaliacao = avaliarPromocao(item);
             ranking.sort((a, b) => b.nota - a.nota);
-            return { id: categoria.id, nome: categoria.nome, atualizadoEm: new Date().toISOString(), padrao: PADRAO_APP, ranking, candidatas };
+            // Fontes do aplicativo saem da lista principal (elas já estão no
+            // sistema) e ficam só no resumo de "mantidas".
+            const doApp = ranking.filter(i => i.noApp);
+            const novos = ranking.filter(i => !i.noApp);
+            return {
+                id: categoria.id, nome: categoria.nome, atualizadoEm: new Date().toISOString(),
+                padrao: PADRAO_APP, ranking: novos, jaNoApp: doApp.map(i => ({ nome: i.nome, nota: i.nota, decisao: (i.avaliacao || {}).decisao, motivo: (i.avaliacao || {}).motivo })),
+                candidatas
+            };
         }
 
         const ranking = [];
@@ -410,7 +418,21 @@ function criarCacador(opcoes = {}) {
         }
         for (const item of ranking) item.avaliacao = avaliarPromocao(item);
         ranking.sort((a, b) => b.nota - a.nota);
-        return { id: categoria.id, nome: categoria.nome, atualizadoEm: new Date().toISOString(), padrao: PADRAO_APP, ranking, candidatas };
+        // Confere que nenhuma medida veio de título de outra categoria.
+        const esperados = new Set(categoria.amostras.map(a => a.titulo));
+        for (const item of ranking) {
+            for (const medida of item.medidas || []) {
+                if (!esperados.has(medida.amostra)) medida.foraDaCategoria = true;
+            }
+        }
+        const doApp = ranking.filter(i => i.noApp);
+        const novos = ranking.filter(i => !i.noApp);
+        return {
+            id: categoria.id, nome: categoria.nome, atualizadoEm: new Date().toISOString(),
+            padrao: PADRAO_APP, amostras: [...esperados],
+            ranking: novos, jaNoApp: doApp.map(i => ({ nome: i.nome, nota: i.nota, decisao: (i.avaliacao || {}).decisao, motivo: (i.avaliacao || {}).motivo })),
+            candidatas
+        };
     }
 
     async function cacar(qual = 'filme') {

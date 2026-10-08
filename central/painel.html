@@ -229,9 +229,14 @@ function pintar(dados) {
     }).join('') : `<tr><td colspan="6" class="vazio">Nada medido em ${escapar(nomeCategoria)} ainda. Toque no botão acima para buscar.</td></tr>`;
 
     const candidatas = (cacadas && cacadas.candidatas) || [];
-    el('fontes-candidatas').innerHTML = candidatas.length
-      ? '<b style="color:#cfd6e3">Fontes conferidas:</b><br>' + candidatas.map(c => `${escapar(c.nome)} — ${escapar(c.motivo)}`).join('<br>')
+    const mantidas = (cacadas && cacadas.jaNoApp) || [];
+    const resumoMantidas = mantidas.length
+      ? '<b style="color:#cfd6e3">Já dentro do aplicativo (não precisam ser adicionadas):</b><br>' +
+        mantidas.map(m => `${escapar(m.nome)} — nota ${String(m.nota).replace('.', ',')} · ${escapar(m.decisao || '')}${m.motivo ? ' · ' + escapar(m.motivo) : ''}`).join('<br>') + '<br>'
       : '';
+    el('fontes-candidatas').innerHTML = candidatas.length
+      ? resumoMantidas + '<b style="color:#cfd6e3">Fontes novas conferidas:</b><br>' + candidatas.map(c => `${escapar(c.nome)} — ${escapar(c.motivo)}`).join('<br>')
+      : resumoMantidas;
   }
   pintarCategoria();
 

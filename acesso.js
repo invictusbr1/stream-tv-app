@@ -44,9 +44,21 @@
             const config = await lerConfig();
             // Pode haver dois endereços: um da rede de casa e outro da rede
             // privada (Tailscale). Tentamos na ordem até um responder.
-            return [config.central, config.centralAlt]
+            const lista = [config.central, config.centralAlt]
                 .map(item => String(item || '').replace(/\/$/, ''))
                 .filter((item, posicao, lista) => item && lista.indexOf(item) === posicao);
+            // No celular, o endereço de casa e o do Tailscale podem não
+            // responder. O arquivo de descoberta (GitHub Pages) diz qual é o
+            // endereço público do servidor AGORA — e o próprio servidor
+            // repassa o relato para a central.
+            if (config.descoberta) {
+                try {
+                    const atual = await fetch(config.descoberta + '?t=' + Date.now(), { cache: 'no-store' }).then(r => r.ok ? r.json() : null);
+                    const publico = String((atual && atual.endereco) || '').replace(/\/$/, '');
+                    if (publico && !lista.includes(publico)) lista.push(publico);
+                } catch { /* sem internet ou arquivo fora do ar */ }
+            }
+            return lista;
         } catch { return []; }
     }
     async function enderecoCentral() {

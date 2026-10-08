@@ -434,6 +434,28 @@ const TMDB_KEY = 'b803dfcad0baeafbb66a673ffe98a5ef';
 // Diagnóstico do motor de fontes: quais estão saudáveis agora.
 app.get('/api/motor/estado', (req, res) => res.json({ fontes: require('./fontes-motor').estado() }));
 
+// ============================================================
+// TV AO VIVO — canais das listas públicas (iptv-org) que o caçador
+// da central aprovou com nota acima de 8.
+// ============================================================
+const tvAoVivo = require('./tv-ao-vivo');
+app.get('/api/tv/listas', (req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    res.json({ listas: tvAoVivo.LISTAS.map(l => ({ id: l.id, nome: l.nome, nota: l.nota })) });
+});
+app.get('/api/tv/canais', async (req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    try {
+        const lista = String(req.query.lista || 'brasil').slice(0, 20);
+        const canais = await tvAoVivo.canais(lista);
+        const busca = String(req.query.q || '').toLowerCase().slice(0, 40);
+        const filtrados = busca ? canais.filter(c => c.nome.toLowerCase().includes(busca) || c.grupo.toLowerCase().includes(busca)) : canais;
+        res.json({ lista, total: filtrados.length, canais: filtrados.slice(0, 400) });
+    } catch {
+        res.status(502).json({ error: 'Não foi possível carregar os canais agora.' });
+    }
+});
+
 const libraryCatalog=require('./android/app/src/main/assets/catalog').createCatalog(async (url,options)=>{const r=await axios.get(url,{signal:options?.signal});return {ok:true,json:async()=>r.data};},TMDB_KEY);
 app.get(['/api/explore','/api/genres','/api/top-br','/api/alta',/^\/api\/(tv|season|episode)\//],async(req,res)=>{try{res.json(await libraryCatalog.request(req.originalUrl));}catch{res.status(502).json({error:'Catálogo indisponível'});}});
 app.get('/personal.js',(req,res)=>{res.setHeader('Cache-Control','no-store');res.sendFile(path.join(__dirname,'personal.js'));});
