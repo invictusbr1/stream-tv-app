@@ -17,6 +17,7 @@ const identidade = require('./identidade.js');
 const { criarAgente } = require('./agente.js');
 const { criarCacador } = require('./cacador.js');
 const { criarRegistro } = require('./titulos.js');
+const { criarRevisor } = require('./revisor.js');
 
 const app = express();
 const PORTA = Number(process.env.PORT || process.env.CENTRAL_PORT || 4100);
@@ -71,6 +72,10 @@ const cacador = criarCacador({ pastaDados: DADOS });
 // Histórico de qualidade por título (alimentado pelos eventos do aplicativo).
 const titulos = criarRegistro({ pastaDados: DADOS });
 agente.iniciar();
+// Revisor automático: pega os títulos com problema e manda o agente testar as
+// fontes de novo, guardando a solução encontrada.
+const revisor = criarRevisor({ titulos, agente });
+revisor.iniciar();
 
 // ---------------------------------------------------------------- armazenamento
 function lerJson(arquivo, padrao) {
@@ -246,7 +251,16 @@ app.get('/api/fontes', exigirChave, (req, res) => res.json(cacador.ultimo() || {
 // Qualidade por título (histórico medido pelo aplicativo).
 app.get('/api/titulos', exigirChave, (req, res) => {
     const limite = Math.max(1, Math.min(200, Number(req.query.limite) || 60));
-    res.json({ total: titulos.total(), titulos: titulos.listar(limite) });
+    res.json({ total: titulos.total(), titulos: titulos.listar(limite), problemas: titulos.comProblema(20) });
+});
+
+// Revisão automática sob demanda: testa de novo os títulos com problema e
+// guarda a solução encontrada (o agente usa as rotas do próprio aplicativo).
+app.post('/api/revisar-titulos', exigirChave, (req, res) => {
+    if (revisor.rodando()) return res.json({ ok: true, rodando: true });
+    const limite = Math.max(1, Math.min(8, Number(req.body && req.body.limite) || 3));
+    revisor.revisarAgora(limite).catch(() => {});
+    res.json({ ok: true, iniciado: true, limite, aviso: 'a revisão testa as fontes no aplicativo; acompanhe pelo painel' });
 });
 
 // Conferência sob demanda de um endereço de vídeo: reproduz no navegador e
@@ -384,6 +398,8 @@ async function gerarStatus() {
         // Qualidade por título: o que o avaliador escolheu e o que o player
         // mediu de verdade (altura, taxa, áudio) — histórico curto por título.
         titulos: { total: titulos.total(), lista: titulos.resumo(12) },
+        titulosComProblema: titulos.comProblema(8),
+        revisao: revisor.resumo(),
         eventos: eventos.slice(-40).reverse().map(e => ({ ...e, emCurto: curto(e.em) }))
     };
 }

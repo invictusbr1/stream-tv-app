@@ -94,6 +94,13 @@ code{background:#ffffff10;padding:2px 6px;border-radius:6px;font-size:12.5px}
         <table><thead><tr><th>Título</th><th>Fonte escolhida</th><th>Qualidade medida</th><th>Áudio</th><th>Quando</th></tr></thead>
         <tbody id="linha-titulos"></tbody></table>
       </section>
+      <section class="bloco">
+        <h2>Títulos com problema <small id="problemas-total"></small></h2>
+        <p class="mini" style="padding:0 14px 6px">Falhas seguidas, títulos que nunca tocaram ou qualidade que caiu. O revisor testa as fontes de novo sozinho a cada 30 minutos — ou agora, no botão.</p>
+        <div style="padding:0 14px 8px"><button class="botao" id="botao-revisar">Revisar agora</button></div>
+        <table><thead><tr><th>Título</th><th>Motivo</th><th>Última revisão</th><th>Resultado</th></tr></thead>
+        <tbody id="linha-problemas"></tbody></table>
+      </section>
     </div>
     <div>
       <section class="bloco">
@@ -178,6 +185,33 @@ function pintar(dados) {
       <td class="fraco">${escapar(new Date(t.atualizadoEm).toLocaleString('pt-BR'))}</td>
     </tr>`;
   }).join('') : '<tr><td colspan="5" class="vazio">Assista algo no aplicativo para começar a medir.</td></tr>';
+
+  // Títulos com problema + revisão automática.
+  const problemas = dados.titulosComProblema || [];
+  el('problemas-total').textContent = problemas.length ? problemas.length + ' título(s) pedindo atenção' : 'nenhum problema no momento';
+  el('linha-problemas').innerHTML = problemas.length ? problemas.map(p => {
+    const revisao = p.revisao;
+    const quando = revisao ? new Date(revisao.em).toLocaleString('pt-BR') : 'ainda não revisado';
+    const resultado = revisao
+      ? (revisao.ok ? selo('resolvido com ' + ((revisao.solucao && (revisao.solucao.fonte || revisao.solucao.caminho)) || 'uma fonte'), 'bom') : selo('sem fonte nesta rodada', 'medio'))
+      : '—';
+    return `<tr>
+      <td class="nome">${escapar(p.titulo)}<br><span class="fraco" style="font-size:11px">${escapar((p.motivos || []).join(' · '))}</span></td>
+      <td class="fraco">${p.falhas ? p.falhas + ' falha(s)' : ''}${p.falhasSeguidas ? ' · ' + p.falhasSeguidas + ' seguidas' : ''}${p.melhorAltura ? ' · melhor: ' + p.melhorAltura + 'p' : ''}</td>
+      <td class="fraco">${escapar(quando)}</td>
+      <td class="fraco">${resultado}</td>
+    </tr>`;
+  }).join('') : '<tr><td colspan="4" class="vazio">Nenhum título com problema — tudo abrindo bem.</td></tr>';
+  const botaoRevisar = el('botao-revisar');
+  if (botaoRevisar && !botaoRevisar.dataset.ligado) {
+    botaoRevisar.dataset.ligado = '1';
+    botaoRevisar.onclick = () => {
+      botaoRevisar.disabled = true;
+      fetch('/api/revisar-titulos', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ limite: 3 }) })
+        .catch(() => {})
+        .finally(() => setTimeout(() => { botaoRevisar.disabled = false; }, 4000));
+    };
+  }
   el('linha-aparelhos').innerHTML = dados.aparelhos.length ? dados.aparelhos.map(a => {
     const id = a.identidade || {};
     const rede = [id.redeRotulo, a.ip].filter(Boolean).join(' · ');

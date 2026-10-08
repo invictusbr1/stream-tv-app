@@ -52,6 +52,9 @@ function criarRegistro({ pastaDados } = {}) {
         atual.atualizadoEm = evento.em;
         atual.dispositivo = evento.dispositivo || atual.dispositivo || '';
         atual.aparelho = evento.aparelho || atual.aparelho || '';
+        if (evento.temporada || evento.numero) {
+            atual.ultimoEpisodio = { temporada: String(evento.temporada || '1'), numero: String(evento.numero || '1') };
+        }
 
         if (evento.tipo === 'avaliacao') {
             atual.escolha = {
@@ -61,6 +64,17 @@ function criarRegistro({ pastaDados } = {}) {
                 disputa: Array.isArray(evento.avaliacao) ? evento.avaliacao.slice(0, 4) : [],
             };
         } else if (evento.tipo === 'confirmacao') {
+            const alturaAtual = Number(String(evento.resolucao || '').replace(/\D/g, '')) || 0;
+            const melhorConhecida = Number(atual.melhorAltura || 0);
+            if (alturaAtual && alturaAtual >= melhorConhecida) {
+                atual.melhorAltura = alturaAtual;
+                atual.quedaDeQualidade = false;
+            } else if (alturaAtual && melhorConhecida && alturaAtual < melhorConhecida) {
+                // Já rodou melhor neste título — fica registrado para a revisão.
+                atual.quedaDeQualidade = true;
+                atual.quedaEm = evento.em;
+                atual.quedaDetalhe = `já tocou em ${melhorConhecida}p; agora veio ${alturaAtual}p`;
+            }
             atual.qualidade = {
                 resolucao: evento.resolucao || '',
                 taxa: evento.taxa || '',
@@ -123,7 +137,67 @@ function criarRegistro({ pastaDados } = {}) {
 
     function limpar() { dados = {}; gravar(); }
 
-    return { registrar, listar, resumo, limpar, total: () => Object.keys(dados).length };
+    // Títulos que merecem revisão: falhas seguidas, falhas sem nunca tocar, ou
+    // qualidade caindo em relação ao que já rodou antes.
+    function comProblema(limite = 8) {
+        return Object.values(dados)
+            .map(item => {
+                const falhasSeguidas = Number(item.falhasSeguidas || 0);
+                const falhas = Number(item.falhas || 0);
+                const plays = Number(item.plays || 0);
+                // Revisão que deu certo DEPOIS da última falha tira o título da
+                // lista (o problema foi tratado); se falhar de novo, volta.
+                const ultimaFalha = [...(item.historico || [])].reverse().find(h => h.tipo === 'falha' || h.ok === false);
+                const revisaoResolveu = item.revisao && item.revisao.ok
+                    && (!ultimaFalha || new Date(item.revisao.em).getTime() >= new Date(ultimaFalha.em).getTime());
+                let gravidade = 0;
+                const motivos = [];
+                if (revisaoResolveu && !item.quedaDeQualidade) return { item, gravidade: 0, motivos: [] };
+                if (falhasSeguidas >= 2) { gravidade += 3 + falhasSeguidas; motivos.push(falhasSeguidas + ' falhas seguidas'); }
+                else if (falhas >= 1 && plays === 0) { gravidade += 2 + falhas; motivos.push(falhas + ' falha(s) e nunca tocou'); }
+                if (item.quedaDeQualidade) { gravidade += 2; motivos.push(item.quedaDetalhe || 'qualidade caiu'); }
+                if (!item.qualidade && falhas === 0 && plays === 0) { gravidade += 1; motivos.push('nunca teve medição de qualidade'); }
+                return { item, gravidade, motivos };
+            })
+            .filter(entrada => entrada.gravidade >= 2)
+            .sort((a, b) => b.gravidade - a.gravidade || String(b.item.atualizadoEm || '').localeCompare(String(a.item.atualizadoEm || '')))
+            .slice(0, limite)
+            .map(({ item, gravidade, motivos }) => ({
+                chave: item.chave,
+                id: item.id,
+                tipo: item.tipo,
+                titulo: item.titulo || item.chave,
+                gravidade,
+                motivos,
+                falhas: Number(item.falhas || 0),
+                falhasSeguidas: Number(item.falhasSeguidas || 0),
+                plays: Number(item.plays || 0),
+                melhorAltura: Number(item.melhorAltura || 0),
+                ultimoEpisodio: item.ultimoEpisodio || null,
+                ultimaFonte: (item.qualidade && item.qualidade.fonte) || (item.escolha && item.escolha.fonte) || '',
+                atualizadoEm: item.atualizadoEm || '',
+                revisao: item.revisao || null,
+            }));
+    }
+
+    // Resultado de uma revisão automática (o revisor chama isto).
+    function anotarRevisao(chave, dadosDaRevisao) {
+        const item = dados[chave];
+        if (!item) return null;
+        item.revisao = {
+            em: dadosDaRevisao.em || new Date().toISOString(),
+            ok: Boolean(dadosDaRevisao.ok),
+            solucao: dadosDaRevisao.solucao || null,
+            tentativas: Number(dadosDaRevisao.tentativas || 0),
+            motivo: String(dadosDaRevisao.motivo || '').slice(0, 120),
+        };
+        if (dadosDaRevisao.ok) item.falhasSeguidas = 0;
+        dados[chave] = item;
+        gravar();
+        return item.revisao;
+    }
+
+    return { registrar, listar, resumo, comProblema, anotarRevisao, limpar, total: () => Object.keys(dados).length };
 }
 
 module.exports = { criarRegistro, MAX_TITULOS, MAX_HISTORICO };
