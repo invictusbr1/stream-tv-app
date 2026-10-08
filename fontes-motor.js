@@ -230,6 +230,29 @@ const FONTES = [
         }
     },
     {
+        // FenixFlix (addon público, provedor "Hollymovies"): entrega lista HLS
+        // 720p com áudio em português — conferido por transcrição do áudio em
+        // 08/10/2026 ("Que te faça sentir vivo…"). É uma TERCEIRA opção dublada:
+        // o catálogo em HLS é pequeno (2 de 12 filmes medidos), mas cobre
+        // títulos que as outras fontes não têm, e o vídeo vai direto ao player
+        // (sem página com anúncio). Endereços só em MKV são recusados: neles o
+        // navegador toca mudo.
+        id: 'fenix',
+        nome: 'Dublado · FenixFlix',
+        papel: 'dublado',
+        peso: 96,
+        seAplica: alvo => alvo.tipo === 'movie' || alvo.tipo === 'tv',
+        resolver: async id => {
+            if (typeof id !== 'object') return null;
+            const fenix = require('./fenix-source');
+            const dados = id.tipo === 'tv'
+                ? await fenix.resolverEpisodio(id.tmdbId, id.temporada, id.episodio)
+                : await fenix.resolver('movie', id.tmdbId);
+            if (!dados) return null;
+            return dados;
+        }
+    },
+    {
         id: 'vixsrc',
         nome: 'Full HD · legenda em português',
         papel: 'hd',

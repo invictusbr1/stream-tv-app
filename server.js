@@ -353,6 +353,17 @@ app.get('/api/hls', async (req, res) => {
         const ehLista = /mpegurl|m3u8/i.test(tipo) || /\.m3u8$/i.test(endereco.pathname);
         if (ehLista) {
             const texto = await respostaFinal.text();
+            // O provedor pode ter redirecionado a lista para outro servidor:
+            // libera também o endereço final antes de reescrever os pedaços.
+            try { midia.liberarHost(new URL(respostaFinal.url || endereco.href).hostname.toLowerCase()); } catch { /* endereço estranho */ }
+            // A lista pode apontar para servidores de vídeo de outros domínios
+            // (é assim no FenixFlix: a lista vem de um endereço e os pedaços do
+            // filme vêm de outro). Como a lista veio de uma fonte já autorizada,
+            // liberamos os domínios que ELA indica — sem isso o navegador tenta
+            // falar direto com eles e o vídeo não abre.
+            for (const achado of texto.matchAll(/https?:\/\/([a-z0-9.-]+\.[a-z]{2,})/gi)) {
+                try { midia.liberarHost(achado[1].toLowerCase()); } catch { /* endereço estranho */ }
+            }
             res.setHeader('Content-Type', 'application/vnd.apple.mpegurl');
             res.setHeader('Cache-Control', 'no-store');
             return res.send(midia.reescreverPlaylist(texto, respostaFinal.url || endereco.href, referenciaFinal));

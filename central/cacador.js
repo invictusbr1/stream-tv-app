@@ -160,6 +160,7 @@ const TEMPO = 20000;
 const JA_NO_APP = [
     { nome: 'WatchPlay', dominios: ['watchplay.shop', 'hclod.qzz.io'], papel: 'dublado · filmes e séries' },
     { nome: 'PipocaCine', dominios: ['pipocacine.lat', 'nixplay.lat'], papel: 'dublado · filme e episódios' },
+    { nome: 'FenixFlix (Hollymovies)', dominios: ['fenixhub.online', 'embedplayer2.xyz', 'firevideoplayer.com'], papel: 'dublado · filmes (lista HLS 720p)' },
     { nome: 'Vixsrc', dominios: ['vixsrc.to', 'mistyreef77.boats'], papel: 'alta definição com legenda' },
     { nome: 'VidSrc', dominios: ['vidsrc.sh', 'vidsrc.xyz', 'vidsrc.net', 'vidsrc.to', 'vidsrc.me'], papel: 'Full HD de lançamento' }
 ];
