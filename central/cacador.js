@@ -39,7 +39,9 @@ const CATEGORIAS = [
             { nome: '4KHDHub', url: 'https://4khdhub.one/', motivoEsperado: 'sem dublado em português' },
             { nome: 'PobreFlix', url: 'https://pobreflixhd.sbs/', motivoEsperado: 'player só abre com navegador' },
             { nome: 'RedeCanais', url: 'https://redecanais20.lat/', motivoEsperado: 'player só abre com navegador' },
-            { nome: 'YouCine', url: 'https://youcinehd.lat/', motivoEsperado: 'catálogo com anúncio' }
+            { nome: 'YouCine', url: 'https://youcinehd.lat/', motivoEsperado: 'catálogo com anúncio' },
+            { nome: 'Cinerave (banco Firebase)', url: 'https://cinexrave-default-rtdb.firebaseio.com/.json', motivoEsperado: 'banco fechado: quando abrir, vira fonte' },
+            { nome: 'MGEB (via BRFlix)', url: 'https://mgeb.top/embed/27205', motivoEsperado: 'já implementado como 2ª opção dublada' }
         ]
     },
     {
@@ -284,6 +286,10 @@ async function conferirCandidata(candidata) {
         const canais = (corpo.match(/#EXTINF/g) || []).length;
         let situacao = 'em análise';
         let motivo = 'não avaliada a fundo';
+        if (/firebaseio\.com/i.test(candidata.url)) {
+            const negado = /permission denied|Permission denied/i.test(corpo);
+            return { nome: candidata.nome, url: candidata.url, status: resposta.status, situacao: negado ? 'descartada' : 'promover', motivo: negado ? 'banco fechado (regras protegidas) — será reconferido na próxima rodada' : 'BANCO ABERTO: catálogo acessível pelo servidor, testar como fonte', esperado: candidata.motivoEsperado };
+        }
         if (verificacao) { situacao = 'descartada'; motivo = 'pede verificação no navegador (e traz anúncio)'; }
         else if (anuncio) { situacao = 'descartada'; motivo = 'página com anúncio; o app não teria como abrir limpo'; }
         else if (vazio) { situacao = 'descartada'; motivo = 'página vazia ou bloqueada'; }
@@ -376,8 +382,64 @@ async function medirListaDeCanais(lista) {
 function criarCacador(opcoes = {}) {
     const pastaDados = opcoes.pastaDados;
     const arquivo = path.join(pastaDados, 'fontes.json');
+    const arquivoHistorico = path.join(pastaDados, 'fontes-historico.json');
     let rodando = false;
     let categoriaAtual = '';
+
+    // ---------------------------------------------------------- evolução
+    // Cada medição é guardada: assim o caçador tem memória, mostra a tendência
+    // de cada fonte e rebaixa sozinho quem piora (sem o usuário pedir).
+    let historico = {};
+    try { historico = JSON.parse(fs.readFileSync(arquivoHistorico, 'utf8')) || {}; } catch { historico = {}; }
+    const MAX_MEDICOES = 30;
+
+    function gravarHistorico() {
+        try { fs.mkdirSync(pastaDados, { recursive: true }); fs.writeFileSync(arquivoHistorico, JSON.stringify(historico, null, 1)); } catch { /* sem disco */ }
+    }
+    function anotarMedicao(categoriaId, item) {
+        const chave = `${categoriaId}|${item.id || item.nome}`;
+        const registro = historico[chave] || { nome: item.nome, categoria: categoriaId, medicoes: [], descoberto: new Date().toISOString(), origem: item.origem || (item.noApp ? 'já no aplicativo' : 'varredura do caçador') };
+        registro.medicoes = [...registro.medicoes, { em: new Date().toISOString(), nota: item.nota, situacao: item.detalhes?.taxaSucesso || 0 }].slice(-MAX_MEDICOES);
+        registro.ultimaNota = item.nota;
+        historico[chave] = registro;
+        return registro;
+    }
+    function evolucaoDe(chave) {
+        const registro = historico[chave];
+        if (!registro || registro.medicoes.length < 2) return { medicoes: registro ? registro.medicoes.length : 0, tendencia: 'nova', quedasSeguidas: 0, descoberto: registro?.descoberto || '', origem: registro?.origem || '' };
+        const notas = registro.medicoes.map(m => Number(m.nota) || 0);
+        const atual = notas[notas.length - 1];
+        const anteriores = notas.slice(0, -1);
+        const mediaAnterior = anteriores.reduce((s, n) => s + n, 0) / anteriores.length;
+        let quedas = 0;
+        for (let i = notas.length - 1; i > 0; i--) { if (notas[i] < notas[i - 1] - 0.3) quedas++; else break; }
+        const variacao = atual - mediaAnterior;
+        return {
+            medicoes: registro.medicoes.length,
+            tendencia: variacao > 0.3 ? 'subindo' : variacao < -0.3 ? 'caindo' : 'estável',
+            variacao: Math.round(variacao * 10) / 10,
+            quedasSeguidas: quedas,
+            descoberto: registro.descoberto,
+            origem: registro.origem,
+            historico: registro.medicoes.slice(-6).map(m => m.nota)
+        };
+    }
+    function aplicarEvolucao(categoriaId, item) {
+        const registro = anotarMedicao(categoriaId, item);
+        item.evolucao = evolucaoDe(`${categoriaId}|${item.id || item.nome}`);
+        // Ciclo de vida: fonte que já está no app e caiu 2 medições seguidas
+        // desce para segunda opção sozinha (nunca é apagada).
+        if (item.noApp && item.evolucao.quedasSeguidas >= 2) {
+            item.avaliacao = { ...(item.avaliacao || {}), decisao: 'segunda opcao', motivo: `nota caiu ${item.evolucao.quedasSeguidas} medições seguidas — rebaixada automaticamente` };
+        }
+        return registro;
+    }
+    function salvarHistorico() { gravarHistorico(); }
+    function historicoCompleto() {
+        return Object.values(historico)
+            .map(r => ({ nome: r.nome, categoria: r.categoria, origem: r.origem, descoberto: r.descoberto, medicoes: r.medicoes.length, ultimaNota: r.ultimaNota, ultimas: r.medicoes.slice(-8).map(m => m.nota) }))
+            .sort((a, b) => String(b.descoberto).localeCompare(String(a.descoberto)));
+    }
 
     async function cacarCategoria(categoria) {
         const candidatas = [];
@@ -393,6 +455,8 @@ function criarCacador(opcoes = {}) {
                 ranking.push({ ...medida, noApp: false });
             }
             for (const item of ranking) item.avaliacao = avaliarPromocao(item);
+            for (const item of ranking) aplicarEvolucao(categoria.id, item);
+            salvarHistorico();
             ranking.sort((a, b) => b.nota - a.nota);
             // Fontes do aplicativo saem da lista principal (elas já estão no
             // sistema) e ficam só no resumo de "mantidas".
@@ -417,6 +481,8 @@ function criarCacador(opcoes = {}) {
             ranking.push({ id: fonte.id, nome: fonte.nome, papel: fonte.papel, nota, detalhes, medidas, noApp: true });
         }
         for (const item of ranking) item.avaliacao = avaliarPromocao(item);
+        for (const item of ranking) aplicarEvolucao(categoria.id, item);
+        salvarHistorico();
         ranking.sort((a, b) => b.nota - a.nota);
         // Confere que nenhuma medida veio de título de outra categoria.
         const esperados = new Set(categoria.amostras.map(a => a.titulo));
@@ -429,7 +495,7 @@ function criarCacador(opcoes = {}) {
         const novos = ranking.filter(i => !i.noApp);
         return {
             id: categoria.id, nome: categoria.nome, atualizadoEm: new Date().toISOString(),
-            padrao: PADRAO_APP, amostras: [...esperados],
+            padrao: PADRAO_APP, amostras: [...esperados], historico: historicoCompleto(),
             ranking: novos, jaNoApp: doApp.map(i => ({ nome: i.nome, nota: i.nota, decisao: (i.avaliacao || {}).decisao, motivo: (i.avaliacao || {}).motivo })),
             candidatas
         };
@@ -459,7 +525,7 @@ function criarCacador(opcoes = {}) {
         try { return JSON.parse(fs.readFileSync(arquivo, 'utf8')); } catch { return null; }
     }
 
-    return { cacar, ultimo, rodando: () => rodando, categoriaAtual: () => categoriaAtual, CATEGORIAS };
+    return { cacar, ultimo, rodando: () => rodando, categoriaAtual: () => categoriaAtual, CATEGORIAS, historico: historicoCompleto };
 }
 
 module.exports = { criarCacador, notaDoFornecedor, avaliarPromocao, CATEGORIAS, PADRAO_APP, medirListaDeCanais };

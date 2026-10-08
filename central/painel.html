@@ -97,6 +97,7 @@ code{background:#ffffff10;padding:2px 6px;border-radius:6px;font-size:12.5px}
         <table><thead><tr><th>Fonte</th><th>Nota</th><th>Destino</th><th id="coluna-extra">Dublado</th><th>Qualidade</th><th>Resposta</th></tr></thead>
         <tbody id="linha-fontes-cacadas"></tbody></table>
         <div id="fontes-candidatas" class="mini"></div>
+        <div id="fontes-descobertas" class="mini"></div>
       </section>
       <section class="bloco">
         <h2>Agente de investigação <small id="agente-resumo"></small></h2>
@@ -213,13 +214,16 @@ function pintar(dados) {
       const d = f.detalhes || {};
       const classe = f.nota >= 7 ? 'alta' : f.nota >= 4 ? 'media' : 'baixa';
       const extra = aoVivo ? (d.canais || 0) + ' canais' : (d.dublados || 0) + '/' + (d.testes || 0);
-      const av = f.avaliacao || {};
+      const av = f.avaliacao || {};const ev = f.evolucao || {};
+      const seta = ev.tendencia === 'subindo' ? '▲' : ev.tendencia === 'caindo' ? '▼' : ev.tendencia === 'estável' ? '▬' : '•';
+      const cor = ev.tendencia === 'subindo' ? '#2fd07a' : ev.tendencia === 'caindo' ? '#ff6b6b' : '#8d97a8';
+      const linha = (ev.historico || []).map(n => String(n).replace('.', ',')).join(' → ');
       const seloDestino = av.decisao === 'manter' ? selo('manter no app', 'on')
         : av.decisao === 'promover' ? selo('promover', 'bom')
         : av.decisao === 'segunda opcao' ? selo('2ª opção', 'medio')
         : selo('descartar', 'ruim');
       return `<tr>
-        <td class="nome">${escapar(f.nome)} ${f.noApp ? selo('já no app', 'bom') : ''}<br><span class="fraco" style="font-size:11px">${escapar(f.papel || '')}</span></td>
+        <td class="nome">${escapar(f.nome)} ${f.noApp ? selo('já no app', 'bom') : ''}<br><span style="font-size:11px;color:${cor}">${seta} ${escapar(ev.tendencia || 'nova')} (${ev.medicoes || 1} medição${(ev.medicoes || 1) > 1 ? 'ões' : ''})</span><br><span class="fraco" style="font-size:10.5px">notas: ${escapar(linha || '—')}</span></td>
         <td><span class="nota ${classe}">${String(f.nota).replace('.', ',')}</span></td>
         <td title="${escapar(av.motivo || '')}">${seloDestino}<br><span class="fraco" style="font-size:10.5px">${escapar((av.motivo || '').slice(0, 60))}</span></td>
         <td class="fraco">${escapar(String(extra))}</td>
@@ -239,6 +243,11 @@ function pintar(dados) {
       : resumoMantidas;
   }
   pintarCategoria();
+  const descobertas = (dados.fontesCacadas && dados.fontesCacadas.porCategoria && (cacadas === null || true)) ? null : null;
+  const historicoGeral = Object.values(porCategoria).flatMap(c => c.historico || []);
+  el('fontes-descobertas').innerHTML = historicoGeral.length
+    ? '<b style="color:#cfd6e3">Evolução das fontes (origem e histórico):</b><br>' + historicoGeral.slice(0, 12).map(h => `${escapar(h.nome)} <span class="fraco">· ${escapar(h.categoria)} · veio de: ${escapar(h.origem)} · ${h.medicoes} medições · últimas notas ${escapar((h.ultimas || []).map(n => String(n).replace('.', ',')).join(' → '))}</span>`).join('<br>')
+    : '';
 
   // -------------------------------------------------- agente de investigação
   const ag = dados.investigacoes || { lista: [] };
