@@ -344,7 +344,14 @@ async function escolher(papel, alvo, opcoes = {}) {
     // título (aviso do player) nem quando o aplicativo pediu para pulá-la.
     const lembradoBloqueado = lembrado && lembrado.dados
         && (semTitulo.get(`${chave}|${lembrado.dados.fonteId}`) || 0) > Date.now();
-    if (lembrado && lembrado.expira > Date.now() && lembrado.dados && !lembradoBloqueado && !exceto.has(String(lembrado.dados.fonteId))) return lembrado.dados;
+    if (lembrado && lembrado.expira > Date.now() && lembrado.dados && !lembradoBloqueado && !exceto.has(String(lembrado.dados.fonteId))) {
+        // A memória também passa pela conferência: o endereço pode ter deixado
+        // de entregar vídeo (fonte trocou de servidor) desde a última vez.
+        const entrega = await require('./midia-proxy').validarMidia(lembrado.dados.url, lembrado.dados.referer).catch(() => true);
+        if (entrega) return lembrado.dados;
+        anotarFalha(lembrado.dados.fonteId, 'o endereço não entrega vídeo');
+        semTitulo.set(`${chave}|${lembrado.dados.fonteId}`, Date.now() + VALIDADE_SEM_TITULO);
+    }
 
     const agora = Date.now();
     // A fila já traz a ordem final (peso, saúde, idioma confirmado pela central
@@ -364,6 +371,14 @@ async function escolher(papel, alvo, opcoes = {}) {
                 anotarFalha(fonte.id, erro.message);
             }
             if (dados && dados.url) {
+                // Confere se o endereço realmente devolve vídeo antes de
+                // entregar ao player; se não devolver, segue para a próxima.
+                const entrega = await require('./midia-proxy').validarMidia(dados.url, dados.referer).catch(() => true);
+                if (!entrega) {
+                    anotarFalha(fonte.id, 'o endereço não entrega vídeo');
+                    anotarSemTitulo(fonte.id, chave);
+                    break;
+                }
                 anotarAcerto(fonte.id);
                 const pronto = { ...dados, fonteId: fonte.id };
                 // Fontes com endereço assinado informam por quanto tempo o

@@ -2,6 +2,10 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { analisarPlaylist, notaDaFonte } = require('./avaliador');
 
+// Os testes usam endereços fictícios: a conferência de entrega de vídeo (feita
+// pela internet) é simulada como "sempre entrega".
+require('./midia-proxy').validarMidia = async () => true;
+
 // Lista mestre parecida com as dos provedores (qualidades + áudio + legenda).
 const LISTA = [
     '#EXTM3U',

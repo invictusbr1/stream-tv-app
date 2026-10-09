@@ -156,22 +156,41 @@ async function escolherMelhor(papel, alvo, opcoes = {}) {
     if (!resolvidas.length) return null;
 
     const idiomas = motor.lerIdiomasVerificados()[motor.chaveDoTitulo(alvo)] || {};
-    // Sondagens em paralelo, dentro do orçamento total da checagem.
-    const sondas = await prazo(
-        Promise.all(resolvidas.map(item => prazo(sondar({ url: item.dados.url, referer: item.dados.referer, converter: item.dados.converter, resolucao: item.dados.resolucao }), TEMPO_SONDAR))),
-        Math.max(1200, ORCAMENTO - (Date.now() - inicio)),
-        null);
+    const restante = Math.max(1200, ORCAMENTO - (Date.now() - inicio));
+    // Sondagem (o que a fonte promete) e validação (o que ela entrega AGORA)
+    // acontecem juntas, dentro do mesmo orçamento de tempo.
+    const [sondas, validacoes] = await Promise.all([
+        prazo(
+            Promise.all(resolvidas.map(item => prazo(sondar({ url: item.dados.url, referer: item.dados.referer, converter: item.dados.converter, resolucao: item.dados.resolucao }), TEMPO_SONDAR))),
+            restante,
+            null),
+        prazo(
+            Promise.all(resolvidas.map(item => prazo(midia.validarMidia(item.dados.url, item.dados.referer, TEMPO_SONDAR), TEMPO_SONDAR + 500, true))),
+            restante,
+            null),
+    ]);
     const lista = sondas || resolvidas.map(() => null);
 
-    const avaliacoes = resolvidas.map((item, i) => {
+    // Fonte que responde o título mas devolve página de erro (o caso do
+    // PipocaCine em 09/10/2026) sai da disputa e fica marcada neste título.
+    const conferidas = resolvidas
+        .map((item, i) => ({ item, sonda: lista[i], valida: validacoes ? validacoes[i] !== false : true }))
+        .filter(registro => {
+            if (registro.valida) return true;
+            try { motor.registrarFalha(registro.item.fonte.id, 'o endereço não entrega vídeo', `dublado:${motor.chaveDoTitulo(alvo)}`); } catch { /* segue */ }
+            return false;
+        });
+    if (!conferidas.length) return null;
+
+    const avaliacoes = conferidas.map((registro, i) => {
         const { nota, detalhes } = notaDaFonte({
-            dados: item.dados, sonda: lista[i], idiomaVerificado: idiomas[item.fonte.id] || '', ms: item.ms,
+            dados: registro.item.dados, sonda: registro.sonda, idiomaVerificado: idiomas[registro.item.fonte.id] || '', ms: registro.item.ms,
         });
         // Empate vai para quem o motor já prefere: a ordem da fila representa a
         // regra do projeto (dublado conferido, depois as demais). Sem isso, uma
         // fonte rápida mas "latina" (MGEB) passava na frente da principal.
         const bonusDaFila = Math.max(0, 0.15 - i * 0.05);
-        return { fonteId: item.fonte.id, fonte: item.dados.fonte || item.fonte.nome, nota: Math.round((nota + bonusDaFila) * 100) / 100, detalhes: { ...detalhes, ordemNoMotor: i + 1 }, dados: item.dados, ms: item.ms };
+        return { fonteId: registro.item.fonte.id, fonte: registro.item.dados.fonte || registro.item.fonte.nome, nota: Math.round((nota + bonusDaFila) * 100) / 100, detalhes: { ...detalhes, ordemNoMotor: i + 1 }, dados: registro.item.dados, ms: registro.item.ms };
     }).sort((a, b) => b.nota - a.nota);
 
     const melhor = avaliacoes[0];

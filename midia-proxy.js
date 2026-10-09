@@ -30,6 +30,41 @@ const REFERERS_CONHECIDOS = {
     'hclod.qzz.io': 'https://watchplay.shop/'
 };
 
+const UA_VALIDACAO = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36';
+
+// Confere se o endereço realmente entrega VÍDEO antes de mandar para o player.
+//
+// As fontes trocam de servidor sem avisar: em 09/10/2026 o PipocaCine passou a
+// devolver uma página de erro ("Credenciais inválidas", HTTP 401) em vez do
+// arquivo, e o aplicativo só descobria isso depois de tentar tocar — o filme
+// ficava parado até cair para a próxima fonte. Com esta checagem a fonte ruim é
+// descartada na hora e o filme já abre pela fonte seguinte.
+async function validarMidia(url, referer, tempo = 5000) {
+    const endereco = String(url || '');
+    if (!endereco) return false;
+    if (endereco.startsWith('/')) return true; // caminho interno do aplicativo
+    let host = '';
+    try { host = new URL(endereco).hostname; } catch { return false; }
+    const cabecalhos = { 'User-Agent': UA_VALIDACAO, Accept: '*/*', Range: 'bytes=0-2047' };
+    const referencia = referer || refererPadrao(host);
+    if (referencia) cabecalhos.Referer = referencia;
+    try {
+        const axios = require('axios');
+        const resposta = await axios.get(endereco, {
+            headers: cabecalhos,
+            timeout: tempo,
+            responseType: 'arraybuffer',
+            maxRedirects: 4,
+            maxContentLength: 1024 * 1024,
+            validateStatus: status => status < 600
+        });
+        if (resposta.status >= 400) return false;
+        const tipo = String(resposta.headers['content-type'] || '').toLowerCase();
+        if (/text\/html|application\/json|text\/xml|application\/xhtml/.test(tipo)) return false;
+        return true;
+    } catch { return false; }
+}
+
 function hostPermitido(host) {
     const nome = String(host || '');
     if (!nome) return false;
@@ -94,5 +129,6 @@ module.exports = {
     base64url,
     textoDeBase64url,
     urlViaProxy,
-    reescreverPlaylist
+    reescreverPlaylist,
+    validarMidia
 };

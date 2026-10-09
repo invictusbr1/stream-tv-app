@@ -2,6 +2,10 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const motor = require('./fontes-motor');
 
+// Os testes usam endereços fictícios (exemplo.test): a conferência de entrega
+// de vídeo, que é feita pela internet, é simulada como "sempre entrega".
+require('./midia-proxy').validarMidia = async () => true;
+
 // Guarda o registro real antes de qualquer teste trocar as fontes.
 const REGISTRO_REAL = motor.FONTES.map(f => `${f.id}:${f.papel}`);
 
