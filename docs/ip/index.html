@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Conecta TV · conexão</title>
+<meta name="robots" content="noindex">
+<style>
+  body{margin:0;background:#0b0e15;color:#e8ecf3;font:20px/1.5 system-ui,-apple-system,'Segoe UI',sans-serif;
+       display:grid;place-items:center;min-height:100vh;text-align:center;padding:26px}
+  h1{font-size:26px;margin:0 0 18px;color:#93a0b4;font-weight:600}
+  .ip{font:800 64px ui-monospace,Consolas,monospace;letter-spacing:2px;color:#5ce08d;word-break:break-all}
+  .nota{color:#6b7486;font-size:14px;margin-top:26px;max-width:820px}
+  .ua{color:#4c5568;font-size:12px;font-family:monospace;margin-top:22px;word-break:break-all}
+</style>
+</head>
+<body>
+  <div>
+    <h1>Endereço de internet desta conexão</h1>
+    <div class="ip" id="ip">…</div>
+    <p class="nota">Se este número for <b>igual</b> ao do computador, a TV está ligada no mesmo roteador. Se for diferente, é outra conexão.</p>
+    <p class="ua" id="ua"></p>
+  </div>
+<script>
+(function () {
+  'use strict';
+  document.getElementById('ua').textContent = navigator.userAgent || '';
+  function atualizar() {
+    var pedido = new XMLHttpRequest();
+    pedido.open('GET', 'https://api.ipify.org?format=json&t=' + new Date().getTime(), true);
+    pedido.timeout = 9000;
+    pedido.onload = function () {
+      try { document.getElementById('ip').textContent = JSON.parse(pedido.responseText).ip || 'não consegui medir'; }
+      catch (e) { document.getElementById('ip').textContent = 'não consegui medir'; }
+    };
+    pedido.onerror = pedido.ontimeout = function () { document.getElementById('ip').textContent = 'sem internet agora'; };
+    pedido.send();
+  }
+  atualizar();
+  window.setInterval(atualizar, 12000);
+})();
+</script>
+</body>
+</html>
