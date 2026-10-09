@@ -23,6 +23,7 @@ const VALIDADE_ACERTO = 40 * 60 * 1000;  // lembra o acerto por 40 minutos
 const VALIDADE_SEM_TITULO = 30 * 60 * 1000; // lembra "não tem este título" por 30 minutos
 const CASTIGO = 20 * 60 * 1000;       // 2 falhas seguidas: sai da frente por 20 minutos
 const CASTIGO_LONGO = 4 * 60 * 60 * 1000; // falha repetida (5+): sai por 4 horas
+const CASTIGO_LEVE = 6 * 60 * 1000;    // tropeço de rede: sai da frente por 6 minutos
 // No aplicativo instalado a pasta do programa é só de leitura: o histórico vive
 // na pasta do usuário. Rodando do projeto, fica junto dos relatórios.
 const ARQUIVO_SAUDE = process.pkg
@@ -109,10 +110,12 @@ function anotarFalha(id, motivo) {
     const s = estadoDaFonte(id);
     s.falhas += 1;
     s.falhasSeguidas = (s.falhasSeguidas || 0) + 1;
-    if (s.falhasSeguidas >= 2) s.castigoAte = Date.now() + CASTIGO;
-    // Fonte que insiste em falhar (ex.: mudou de servidor e passou a devolver
-    // página de erro) fica de fora por horas — e volta sozinha no teste depois.
-    if (s.falhasSeguidas >= 5) s.castigoAte = Date.now() + CASTIGO_LONGO;
+    // "não entrega vídeo" é defeito da fonte (quebrou, trocou de servidor).
+    // "sem resposta" costuma ser tropeço de rede — inclusive porque as fontes
+    // limitam quem pede muito seguido. Por isso o castigo é bem mais curto.
+    const defeito = /não entrega vídeo|endereço/i.test(String(motivo || ''));
+    if (s.falhasSeguidas >= 2) s.castigoAte = Date.now() + (defeito ? CASTIGO : CASTIGO_LEVE);
+    if (defeito && s.falhasSeguidas >= 5) s.castigoAte = Date.now() + CASTIGO_LONGO;
     s.ultimoMotivo = String(motivo || '').slice(0, 120);
     salvarSaude();
 }

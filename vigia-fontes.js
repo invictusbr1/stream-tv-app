@@ -13,8 +13,10 @@ const fs = require('fs');
 const path = require('path');
 const axios = require('axios');
 
-const INTERVALO = Number(process.env.VIGIA_INTERVALO_MS || 8 * 60 * 1000);
-const POR_RODADA = Number(process.env.VIGIA_POR_RODADA || 3);
+// Ritmo cuidadoso: as fontes são servidores públicos e limitam quem pede
+// muito seguido. Testar demais faz a própria fonte parecer quebrada.
+const INTERVALO = Number(process.env.VIGIA_INTERVALO_MS || 12 * 60 * 1000);
+const POR_RODADA = Number(process.env.VIGIA_POR_RODADA || 2);
 const PASTA = path.join(__dirname, 'relatorios');
 const ARQUIVO = path.join(PASTA, 'vigia-fontes.json');
 
@@ -114,9 +116,10 @@ async function rodarRodada({ tmdbKey, registrar = () => {}, reportar = () => {} 
             })) : [];
             const semDublado = !resultado;
             let apenasOriginal = false;
-            if (semDublado) {
-                // Sem fonte dublada: confere se existe a versão em alta
-                // definição (som original + legenda) para o app já oferecer.
+            // Só de vez em quando conferimos a versão em alta definição
+            // (som original + legenda): fazer isso em todo título sem dublado
+            // sobrecarregava as fontes de HD e derrubava a nota delas.
+            if (semDublado && estado.rodadas % 5 === 0) {
                 try {
                     const hd = await motor.escolher('hd', alvo, {}).catch(() => null);
                     apenasOriginal = Boolean(hd && hd.url);
