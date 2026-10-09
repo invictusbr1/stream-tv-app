@@ -1,0 +1,555 @@
+{
+ "ligado": true,
+ "rodando": true,
+ "rodadas": 2,
+ "ultimaRodada": 1791545633460,
+ "proximaRodada": 0,
+ "titulos": [
+  {
+   "id": "969681",
+   "titulo": "Homem-Aranha: Um Novo Dia"
+  },
+  {
+   "id": "1423191",
+   "titulo": "Resident Evil"
+  },
+  {
+   "id": "1368337",
+   "titulo": "A Odisseia"
+  },
+  {
+   "id": "1291595",
+   "titulo": "Sobrenatural: Agora Entre Nós"
+  },
+  {
+   "id": "1228834",
+   "titulo": "The Fix"
+  },
+  {
+   "id": "1599191",
+   "titulo": "Renegade Immortal: Batalha dos Imortais"
+  },
+  {
+   "id": "1377237",
+   "titulo": "Três Horas Para Viver"
+  },
+  {
+   "id": "1101412",
+   "titulo": "A Queda 2: No Limite"
+  },
+  {
+   "id": "1751701",
+   "titulo": "After Impact"
+  },
+  {
+   "id": "1204680",
+   "titulo": "Coyote vs. Acme"
+  },
+  {
+   "id": "460458",
+   "titulo": "Resident Evil: Bem-Vindo a Raccoon City"
+  },
+  {
+   "id": "30723",
+   "titulo": "Cavegirl"
+  },
+  {
+   "id": "1101383",
+   "titulo": "O Fim da Rua"
+  },
+  {
+   "id": "1294189",
+   "titulo": "The Mongoose"
+  },
+  {
+   "id": "1712451",
+   "titulo": "Resident Dead"
+  },
+  {
+   "id": "1248832",
+   "titulo": "Digger"
+  },
+  {
+   "id": "1032863",
+   "titulo": "A Hipótese do Amor"
+  },
+  {
+   "id": "1084244",
+   "titulo": "Toy Story 5"
+  },
+  {
+   "id": "1232569",
+   "titulo": "Pinóquio: Maldição de Madeira"
+  },
+  {
+   "id": "1339713",
+   "titulo": "Obsessão"
+  },
+  {
+   "id": "1283515",
+   "titulo": "Verity"
+  },
+  {
+   "id": "1288445",
+   "titulo": "Código: Vingança"
+  },
+  {
+   "id": "977942",
+   "titulo": "O Rebelde"
+  },
+  {
+   "id": "1375646",
+   "titulo": "Zona Zero"
+  },
+  {
+   "id": "1556321",
+   "titulo": "ธี่หยด: สมิงเขาขวาง"
+  },
+  {
+   "id": "1339274",
+   "titulo": "No dejes a los niños solos"
+  },
+  {
+   "id": "1482547",
+   "titulo": "Zip Wire"
+  },
+  {
+   "id": "1263337",
+   "titulo": "Coração Selvagem"
+  },
+  {
+   "id": "299534",
+   "titulo": "Vingadores: Ultimato"
+  },
+  {
+   "id": "1108427",
+   "titulo": "Moana"
+  },
+  {
+   "id": "1477712",
+   "titulo": "O Sorveteiro"
+  },
+  {
+   "id": "1450404",
+   "titulo": "La casa en el árbol"
+  },
+  {
+   "id": "204922",
+   "titulo": "Antes de Dormir"
+  },
+  {
+   "id": "1003596",
+   "titulo": "Vingadores: Doutor Destino"
+  },
+  {
+   "id": "1156869",
+   "titulo": "性迷宮"
+  },
+  {
+   "id": "687163",
+   "titulo": "Devoradores de Estrelas"
+  },
+  {
+   "id": "1607127",
+   "titulo": "O Último Tiro Certo"
+  },
+  {
+   "id": "1084242",
+   "titulo": "Zootopia 2"
+  },
+  {
+   "id": "755898",
+   "titulo": "A Guerra dos Mundos"
+  },
+  {
+   "id": "1083381",
+   "titulo": "Backrooms: Um Não-Lugar"
+  },
+  {
+   "id": "1148365",
+   "titulo": "Matchbox - O Filme"
+  },
+  {
+   "id": "1236045",
+   "titulo": "Sobrevivência"
+  },
+  {
+   "id": "1400837",
+   "titulo": "Outra Mamãe"
+  },
+  {
+   "id": "1284046",
+   "titulo": "Protocolo de Extermínio"
+  },
+  {
+   "id": "1036081",
+   "titulo": "ഖലീഫ: The Ruler"
+  },
+  {
+   "id": "1591675",
+   "titulo": "ルックバック"
+  },
+  {
+   "id": "1281331",
+   "titulo": "O Outro Lado das Redes"
+  },
+  {
+   "id": "1400940",
+   "titulo": "Cara-de-Barro"
+  },
+  {
+   "id": "1620080",
+   "titulo": "Less of a Stranger"
+  },
+  {
+   "id": "1476746",
+   "titulo": "A Última Entrega"
+  }
+ ],
+ "cursor": 6,
+ "ultimoResumo": {
+  "em": "2026-10-09T11:33:53.460Z",
+  "testados": 3,
+  "abriram": 2,
+  "resultados": [
+   {
+    "id": "1291595",
+    "titulo": "Sobrenatural: Agora Entre Nós",
+    "ok": true,
+    "fonte": "watchplay",
+    "fontesTestadas": [
+     {
+      "fonte": "watchplay",
+      "nota": 4.65,
+      "idioma": "a fonte informa dublado",
+      "qualidade": "720p"
+     }
+    ],
+    "semDublado": false,
+    "apenasOriginal": false
+   },
+   {
+    "id": "1228834",
+    "titulo": "The Fix",
+    "ok": true,
+    "fonte": "fenix",
+    "fontesTestadas": [
+     {
+      "fonte": "fenix",
+      "nota": 4.65,
+      "idioma": "a fonte informa dublado",
+      "qualidade": "720p"
+     },
+     {
+      "fonte": "mgeb",
+      "nota": 3.2,
+      "idioma": "a fonte informa dublado",
+      "qualidade": "não mediu a altura"
+     }
+    ],
+    "semDublado": false,
+    "apenasOriginal": false
+   },
+   {
+    "id": "1599191",
+    "titulo": "Renegade Immortal: Batalha dos Imortais",
+    "ok": false,
+    "fonte": "",
+    "fontesTestadas": [],
+    "semDublado": true,
+    "apenasOriginal": false
+   }
+  ],
+  "fontes": [
+   {
+    "id": "watchplay",
+    "acertos": 3,
+    "falhas": 0,
+    "falhasSeguidas": 0,
+    "castigada": false,
+    "ultimoMotivo": ""
+   },
+   {
+    "id": "pipoca-serie",
+    "acertos": 0,
+    "falhas": 0,
+    "falhasSeguidas": 0,
+    "castigada": false,
+    "ultimoMotivo": ""
+   },
+   {
+    "id": "mgeb",
+    "acertos": 2,
+    "falhas": 1,
+    "falhasSeguidas": 1,
+    "castigada": false,
+    "ultimoMotivo": "o endereço não entrega vídeo"
+   },
+   {
+    "id": "pipoca",
+    "acertos": 0,
+    "falhas": 2,
+    "falhasSeguidas": 2,
+    "castigada": true,
+    "ultimoMotivo": "o endereço não entrega vídeo"
+   },
+   {
+    "id": "fenix",
+    "acertos": 1,
+    "falhas": 0,
+    "falhasSeguidas": 0,
+    "castigada": false,
+    "ultimoMotivo": ""
+   },
+   {
+    "id": "vixsrc",
+    "acertos": 1,
+    "falhas": 4,
+    "falhasSeguidas": 4,
+    "castigada": true,
+    "ultimoMotivo": "sem resposta"
+   },
+   {
+    "id": "vidsrc",
+    "acertos": 0,
+    "falhas": 0,
+    "falhasSeguidas": 0,
+    "castigada": false,
+    "ultimoMotivo": ""
+   }
+  ]
+ },
+ "historico": [
+  {
+   "em": "2026-10-09T11:33:53.460Z",
+   "testados": 3,
+   "abriram": 2,
+   "resultados": [
+    {
+     "id": "1291595",
+     "titulo": "Sobrenatural: Agora Entre Nós",
+     "ok": true,
+     "fonte": "watchplay",
+     "fontesTestadas": [
+      {
+       "fonte": "watchplay",
+       "nota": 4.65,
+       "idioma": "a fonte informa dublado",
+       "qualidade": "720p"
+      }
+     ],
+     "semDublado": false,
+     "apenasOriginal": false
+    },
+    {
+     "id": "1228834",
+     "titulo": "The Fix",
+     "ok": true,
+     "fonte": "fenix",
+     "fontesTestadas": [
+      {
+       "fonte": "fenix",
+       "nota": 4.65,
+       "idioma": "a fonte informa dublado",
+       "qualidade": "720p"
+      },
+      {
+       "fonte": "mgeb",
+       "nota": 3.2,
+       "idioma": "a fonte informa dublado",
+       "qualidade": "não mediu a altura"
+      }
+     ],
+     "semDublado": false,
+     "apenasOriginal": false
+    },
+    {
+     "id": "1599191",
+     "titulo": "Renegade Immortal: Batalha dos Imortais",
+     "ok": false,
+     "fonte": "",
+     "fontesTestadas": [],
+     "semDublado": true,
+     "apenasOriginal": false
+    }
+   ],
+   "fontes": [
+    {
+     "id": "watchplay",
+     "acertos": 3,
+     "falhas": 0,
+     "falhasSeguidas": 0,
+     "castigada": false,
+     "ultimoMotivo": ""
+    },
+    {
+     "id": "pipoca-serie",
+     "acertos": 0,
+     "falhas": 0,
+     "falhasSeguidas": 0,
+     "castigada": false,
+     "ultimoMotivo": ""
+    },
+    {
+     "id": "mgeb",
+     "acertos": 2,
+     "falhas": 1,
+     "falhasSeguidas": 1,
+     "castigada": false,
+     "ultimoMotivo": "o endereço não entrega vídeo"
+    },
+    {
+     "id": "pipoca",
+     "acertos": 0,
+     "falhas": 2,
+     "falhasSeguidas": 2,
+     "castigada": true,
+     "ultimoMotivo": "o endereço não entrega vídeo"
+    },
+    {
+     "id": "fenix",
+     "acertos": 1,
+     "falhas": 0,
+     "falhasSeguidas": 0,
+     "castigada": false,
+     "ultimoMotivo": ""
+    },
+    {
+     "id": "vixsrc",
+     "acertos": 1,
+     "falhas": 4,
+     "falhasSeguidas": 4,
+     "castigada": true,
+     "ultimoMotivo": "sem resposta"
+    },
+    {
+     "id": "vidsrc",
+     "acertos": 0,
+     "falhas": 0,
+     "falhasSeguidas": 0,
+     "castigada": false,
+     "ultimoMotivo": ""
+    }
+   ]
+  },
+  {
+   "em": "2026-10-09T11:32:55.611Z",
+   "testados": 3,
+   "abriram": 3,
+   "resultados": [
+    {
+     "id": "969681",
+     "titulo": "Homem-Aranha: Um Novo Dia",
+     "ok": true,
+     "fonte": "watchplay",
+     "fontesTestadas": [
+      {
+       "fonte": "watchplay",
+       "nota": 4.65,
+       "idioma": "a fonte informa dublado",
+       "qualidade": "720p"
+      }
+     ],
+     "semDublado": false,
+     "apenasOriginal": false
+    },
+    {
+     "id": "1423191",
+     "titulo": "Resident Evil",
+     "ok": true,
+     "fonte": "watchplay",
+     "fontesTestadas": [
+      {
+       "fonte": "watchplay",
+       "nota": 4.65,
+       "idioma": "a fonte informa dublado",
+       "qualidade": "720p"
+      }
+     ],
+     "semDublado": false,
+     "apenasOriginal": false
+    },
+    {
+     "id": "1368337",
+     "titulo": "A Odisseia",
+     "ok": true,
+     "fonte": "mgeb",
+     "fontesTestadas": [
+      {
+       "fonte": "mgeb",
+       "nota": 4.9,
+       "idioma": "a fonte informa dublado",
+       "qualidade": "720p"
+      },
+      {
+       "fonte": "watchplay",
+       "nota": 4.65,
+       "idioma": "a fonte informa dublado",
+       "qualidade": "720p"
+      }
+     ],
+     "semDublado": false,
+     "apenasOriginal": false
+    }
+   ],
+   "fontes": [
+    {
+     "id": "watchplay",
+     "acertos": 2,
+     "falhas": 0,
+     "falhasSeguidas": 0,
+     "castigada": false,
+     "ultimoMotivo": ""
+    },
+    {
+     "id": "pipoca-serie",
+     "acertos": 0,
+     "falhas": 0,
+     "falhasSeguidas": 0,
+     "castigada": false,
+     "ultimoMotivo": ""
+    },
+    {
+     "id": "mgeb",
+     "acertos": 1,
+     "falhas": 0,
+     "falhasSeguidas": 0,
+     "castigada": false,
+     "ultimoMotivo": ""
+    },
+    {
+     "id": "pipoca",
+     "acertos": 0,
+     "falhas": 2,
+     "falhasSeguidas": 2,
+     "castigada": true,
+     "ultimoMotivo": "o endereço não entrega vídeo"
+    },
+    {
+     "id": "fenix",
+     "acertos": 0,
+     "falhas": 0,
+     "falhasSeguidas": 0,
+     "castigada": false,
+     "ultimoMotivo": ""
+    },
+    {
+     "id": "vixsrc",
+     "acertos": 0,
+     "falhas": 0,
+     "falhasSeguidas": 0,
+     "castigada": false,
+     "ultimoMotivo": ""
+    },
+    {
+     "id": "vidsrc",
+     "acertos": 0,
+     "falhas": 0,
+     "falhasSeguidas": 0,
+     "castigada": false,
+     "ultimoMotivo": ""
+    }
+   ]
+  }
+ ]
+}

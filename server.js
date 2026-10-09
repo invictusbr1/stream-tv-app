@@ -677,6 +677,26 @@ const TMDB_KEY = 'b803dfcad0baeafbb66a673ffe98a5ef';
 app.get('/api/motor/estado', (req, res) => res.json({ fontes: require('./fontes-motor').estado() }));
 
 // ============================================================
+// VIGIA DAS FONTES — o robô que testa filmes em rodízio, 24 horas por dia,
+// e alimenta a saúde das fontes. A correção é automática: o motor e o
+// avaliador passam a evitar a fonte que não entrega vídeo.
+// ============================================================
+app.get('/api/vigia', (req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    try { res.json(require('./vigia-fontes').resumo()); } catch (erro) { res.status(500).json({ erro: erro.message }); }
+});
+app.post('/api/vigia/rodar', async (req, res) => {
+    try {
+        const resultado = await require('./vigia-fontes').rodarRodada({
+            tmdbKey: TMDB_KEY,
+            registrar: mensagem => console.log('[vigia] ' + mensagem),
+            reportar: evento => central.reportar(evento),
+        });
+        res.json({ ok: true, resultado });
+    } catch (erro) { res.status(500).json({ ok: false, erro: erro.message }); }
+});
+
+// ============================================================
 // TV AO VIVO — canais das listas públicas (iptv-org) que o caçador
 // da central aprovou com nota acima de 8.
 // ============================================================
@@ -1228,6 +1248,16 @@ async function portaLivre(preferida) {
 (async () => {
 const PORTA_ESCOLHIDA = await portaLivre(PORT);
 process.env.CONECTA_PORTA = String(PORTA_ESCOLHIDA);
+// Liga o vigia das fontes: ele roda junto com o aplicativo e testa filmes em
+// rodízio (24h) para manter a escolha de fonte sempre saudável.
+try {
+    require('./vigia-fontes').iniciar({
+        tmdbKey: TMDB_KEY,
+        registrar: mensagem => console.log('[vigia] ' + mensagem),
+        reportar: evento => central.reportar(evento),
+    });
+} catch (erro) { console.log('[vigia] não ligou: ' + erro.message); }
+
 if (Number(PORTA_ESCOLHIDA) !== Number(PORT)) console.log(`A porta ${PORT} já estava em uso (outra instância aberta). Usando a porta ${PORTA_ESCOLHIDA}.`);
 app.listen(PORTA_ESCOLHIDA, '0.0.0.0', () => {
     const privado = ip => /^192\.168\./.test(ip) || /^10\./.test(ip) || /^172\.(1[6-9]|2\d|3[01])\./.test(ip);

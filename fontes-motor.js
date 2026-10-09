@@ -21,7 +21,8 @@ const os = require('os');
 const TEMPO_FONTE = 14000;      // limite por fonte
 const VALIDADE_ACERTO = 40 * 60 * 1000;  // lembra o acerto por 40 minutos
 const VALIDADE_SEM_TITULO = 30 * 60 * 1000; // lembra "não tem este título" por 30 minutos
-const CASTIGO = 6 * 60 * 1000;  // fonte que falhou sai da frente por 6 minutos
+const CASTIGO = 20 * 60 * 1000;       // 2 falhas seguidas: sai da frente por 20 minutos
+const CASTIGO_LONGO = 4 * 60 * 60 * 1000; // falha repetida (5+): sai por 4 horas
 // No aplicativo instalado a pasta do programa é só de leitura: o histórico vive
 // na pasta do usuário. Rodando do projeto, fica junto dos relatórios.
 const ARQUIVO_SAUDE = process.pkg
@@ -109,6 +110,9 @@ function anotarFalha(id, motivo) {
     s.falhas += 1;
     s.falhasSeguidas = (s.falhasSeguidas || 0) + 1;
     if (s.falhasSeguidas >= 2) s.castigoAte = Date.now() + CASTIGO;
+    // Fonte que insiste em falhar (ex.: mudou de servidor e passou a devolver
+    // página de erro) fica de fora por horas — e volta sozinha no teste depois.
+    if (s.falhasSeguidas >= 5) s.castigoAte = Date.now() + CASTIGO_LONGO;
     s.ultimoMotivo = String(motivo || '').slice(0, 120);
     salvarSaude();
 }
