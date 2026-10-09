@@ -2,7 +2,7 @@
  "ligado": true,
  "rodando": true,
  "rodadas": 1,
- "ultimaRodada": 1791589332638,
+ "ultimaRodada": 1791589751491,
  "proximaRodada": 0,
  "titulos": [
   {
@@ -549,7 +549,7 @@
  "cursor": 2,
  "semFonte": [],
  "ultimoResumo": {
-  "em": "2026-10-09T23:42:12.638Z",
+  "em": "2026-10-09T23:49:11.491Z",
   "testados": 2,
   "abriram": 2,
   "resultados": [
@@ -627,7 +627,7 @@
    },
    {
     "id": "pipoca",
-    "acertos": 6,
+    "acertos": 2,
     "falhas": 0,
     "falhasSeguidas": 0,
     "castigada": false,
@@ -661,7 +661,7 @@
  },
  "historico": [
   {
-   "em": "2026-10-09T23:42:12.638Z",
+   "em": "2026-10-09T23:49:11.491Z",
    "testados": 2,
    "abriram": 2,
    "resultados": [
@@ -739,7 +739,7 @@
     },
     {
      "id": "pipoca",
-     "acertos": 6,
+     "acertos": 2,
      "falhas": 0,
      "falhasSeguidas": 0,
      "castigada": false,

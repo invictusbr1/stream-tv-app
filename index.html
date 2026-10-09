@@ -105,6 +105,17 @@ html.modo-tv .card:focus{transform:none!important;outline:4px solid #fff!importa
 html.modo-tv #series-dialog .episode-row{grid-template-columns:280px 1fr 56px!important}
 html.modo-tv #series-dialog .episode-row .episode-art{width:280px!important;height:158px!important}
 html.modo-tv #series-dialog .episode-row .episode-sinopse{font-size:17px!important}
+
+/* --- sinopse-horizontal: a sinopse ocupa toda a largura da linha --- */
+#series-dialog .episode-row .episode-sinopse,#series-dialog .episode-sinopse{grid-column:1/-1!important;grid-area:auto!important;justify-self:stretch;width:100%;max-width:none!important}
+#series-dialog .episode-row{grid-template-columns:96px minmax(0,1fr) 44px!important}
+html.modo-tv #series-dialog .episode-row{grid-template-columns:240px minmax(0,1fr) 56px!important}
+#series-dialog .episode-check[aria-pressed="false"]{opacity:.75}
+
+#series-dialog .episode-info{display:block}
+#series-dialog .episode-sinopse{display:block!important;margin-left:-108px!important;width:calc(100% + 108px)!important;max-width:none!important;font-size:13.5px!important;line-height:1.55}
+html.modo-tv #series-dialog .episode-sinopse{margin-left:-252px!important;width:calc(100% + 252px)!important;font-size:17px!important}
+/* sinopse-cheia */
 </style>
 <style>#direct-resume{position:absolute;z-index:3;top:50%;left:50%;transform:translate(-50%,-50%)}#direct-quality select{width:100%;background:#222a37;color:white;padding:12px;border:1px solid #536075;border-radius:8px}#player:fullscreen .barra,#player.expanded .barra{position:absolute;top:0;left:0;right:0;z-index:3;background:#101217cc;opacity:0;transition:opacity .2s}#player:fullscreen:hover .barra,#player:fullscreen:focus-within .barra,#player.expanded:hover .barra,#player.expanded:focus-within .barra{opacity:1}#player:fullscreen .area-player{width:100%;height:100%}#player:fullscreen{width:100%;height:100%}#direct-controls{position:absolute;bottom:0;left:0;right:0;z-index:2;padding:36px 5% 24px;background:linear-gradient(transparent,#000e)}#direct-controls progress{width:100%;height:4px;accent-color:#e50914;margin-bottom:16px}.direct-row{display:flex;align-items:center;gap:12px}.direct-row button{background:#202633;min-width:76px;font-size:15px}.direct-row button:focus-visible{outline:3px solid white;background:#46546b}.direct-row span{flex:1;color:#ddd;font-size:13px}@media(max-width:620px){#direct-controls{padding:20px 12px}.direct-row{gap:6px}.direct-row button{min-width:48px;font-size:12px;padding:10px 8px}.direct-row span{font-size:10px}}
 </style>
