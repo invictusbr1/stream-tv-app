@@ -1,4 +1,6 @@
 'use strict';
+// Marca o aparelho como TV (o visual fica maior e com foco para o controle).
+try{if(/Android ?TV|FireTV|BRAVIA|GoogleTV|SMART-TV|Tizen/i.test(navigator.userAgent))document.documentElement.classList.add('modo-tv');}catch(e){}
 // Use the device's network directly. There is no localhost API or Node runtime.
 const androidCatalog = fetch('/config.json').then(r => {
     if (!r.ok) throw new Error('Configuração ausente');

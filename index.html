@@ -49,6 +49,28 @@
   .series-body{padding:16px 18px 24px}
   .series-abas{padding:0 18px}
 }
+
+/* --- Episódio no estilo das plataformas (miniatura + play + selos + sinopse) --- */
+#series-dialog .episode-play-btn{display:grid;grid-template-columns:200px 1fr;gap:16px;align-items:start;position:relative}
+#series-dialog .episode-capa{position:relative;display:block;line-height:0}
+#series-dialog .episode-capa::after{content:'▶';position:absolute;left:8px;bottom:8px;width:26px;height:26px;display:grid;place-items:center;font-size:11px;color:#fff;background:#000000a8;border-radius:50%}
+#series-dialog .episode-selos{display:flex;gap:8px;align-items:center;margin:8px 0 0}
+#series-dialog .episode-selo{background:#2a3140;border:1px solid #ffffff1f;border-radius:5px;padding:2px 7px;font-size:11.5px;font-weight:700;color:#d8dfe9}
+#series-dialog .episode-baixar{margin-left:auto;align-self:center;background:#1b2230;border:1px solid #ffffff1c;border-radius:10px;width:46px;height:46px;font-size:19px;color:#e8ecf3}
+#series-dialog .episode-sinopse{display:block;margin:14px 0 0;color:#c3ccda;font-size:15px;line-height:1.65}
+#series-dialog .episode-row{flex-wrap:wrap}
+#series-dialog .episode-bloco{display:flex;gap:12px;align-items:flex-start;flex:1 1 100%;min-width:0}
+#series-dialog .episode-sinopse{flex:1 1 100%}
+.titulo-detalhe{margin:0 0 6px}
+/* --- TV: tudo maior e foco bem visível para o controle remoto --- */
+html.modo-tv body{font-size:18px}
+html.modo-tv .card{min-width:210px}
+html.modo-tv .nav,html.modo-tv .brand{font-size:22px}
+html.modo-tv #series-dialog{width:min(1200px,96vw);max-height:94vh;font-size:20px}
+html.modo-tv #series-dialog .episode-play-btn{grid-template-columns:320px 1fr;gap:22px}
+html.modo-tv #series-dialog .episode-art{width:320px}
+html.modo-tv #series-dialog .episode-sinopse{font-size:18px}
+html.modo-tv button:focus,html.modo-tv a:focus,html.modo-tv [tabindex]:focus,html.modo-tv .card:focus{outline:4px solid #fff;outline-offset:4px;border-radius:12px}
 </style>
 <style>#direct-resume{position:absolute;z-index:3;top:50%;left:50%;transform:translate(-50%,-50%)}#direct-quality select{width:100%;background:#222a37;color:white;padding:12px;border:1px solid #536075;border-radius:8px}#player:fullscreen .barra,#player.expanded .barra{position:absolute;top:0;left:0;right:0;z-index:3;background:#101217cc;opacity:0;transition:opacity .2s}#player:fullscreen:hover .barra,#player:fullscreen:focus-within .barra,#player.expanded:hover .barra,#player.expanded:focus-within .barra{opacity:1}#player:fullscreen .area-player{width:100%;height:100%}#player:fullscreen{width:100%;height:100%}#direct-controls{position:absolute;bottom:0;left:0;right:0;z-index:2;padding:36px 5% 24px;background:linear-gradient(transparent,#000e)}#direct-controls progress{width:100%;height:4px;accent-color:#e50914;margin-bottom:16px}.direct-row{display:flex;align-items:center;gap:12px}.direct-row button{background:#202633;min-width:76px;font-size:15px}.direct-row button:focus-visible{outline:3px solid white;background:#46546b}.direct-row span{flex:1;color:#ddd;font-size:13px}@media(max-width:620px){#direct-controls{padding:20px 12px}.direct-row{gap:6px}.direct-row button{min-width:48px;font-size:12px;padding:10px 8px}.direct-row span{font-size:10px}}
 </style>
