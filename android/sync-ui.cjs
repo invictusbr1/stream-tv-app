@@ -22,6 +22,9 @@ replace("url.origin!==location.origin||!/^\\/assistir\\/\\d{1,10}\\/[0-7]$/.test
 // O aviso de atualização do Android já aparece no selo do topo, no aviso da
 // tela e na gaveta ("Atualizar aplicativo"); o link extra "Atualizações" que
 // ficava no cabeçalho do catálogo saiu de vez.
+// seloDeVersao: acrescenta ?v=... nos scripts para o WebView largar o cache antigo.
+const seloDeVersao='v'+Date.now();
+html=html.replace(/(<script src="\/[a-z0-9.-]+\.js)(")/gi,(m,nome,fim)=>nome+'?'+seloDeVersao+fim);
 fs.writeFileSync(path.join(assets,'index.html'),html);
 fs.copyFileSync(path.join(root,'playback.js'),path.join(assets,'playback.js'));
 // As legendas do aplicativo (arquivo local e busca na internet) seguem junto

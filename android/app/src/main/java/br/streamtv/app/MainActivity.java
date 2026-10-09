@@ -63,7 +63,11 @@ public final class MainActivity extends Activity {
         setContentView(root);
         main = createWebView(true);
         root.addView(main, new FrameLayout.LayoutParams(-1, -1));
-        main.loadUrl(HOME);
+        // Aparelho sem tela de toque = TV / TV box (Xiaomi, Fire TV e afins).
+        // Nesse caso a interface abre em modo TV (letras e capas maiores, foco
+        // para o controle remoto). No telefone nada muda.
+        boolean temToque = getPackageManager().hasSystemFeature(android.content.pm.PackageManager.FEATURE_TOUCHSCREEN);
+        main.loadUrl(temToque ? HOME : HOME + "?canal=tv");
         updater = new AppUpdater(this);
         main.postDelayed(() -> { if (!isFinishing() && !isDestroyed()) updater.check(false); }, 4000);
         if (Build.VERSION.SDK_INT >= 33) getOnBackInvokedDispatcher().registerOnBackInvokedCallback(0, this::back);

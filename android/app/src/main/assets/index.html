@@ -80,6 +80,31 @@ html.modo-tv .card strong,html.modo-tv .card .card-titulo{font-size:16px;text-al
 html.modo-tv #player .area-player video{width:100%;height:100%;object-fit:contain;margin:0 auto}
 html.modo-tv #player .barra{max-width:100%;margin:0 auto}
 html.modo-tv dialog{margin:auto}
+
+/* --- modo-tv-desempenho: menos efeitos (menos travamento) e grade de TV --- */
+html.modo-tv *{backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
+html.modo-tv .card{transition:none!important;box-shadow:none!important}
+html.modo-tv .card img{box-shadow:none!important;filter:none!important}
+html.modo-tv #catalogo{gap:22px!important}
+html.modo-tv #catalogo .card,html.modo-tv #resultados .card{flex:0 0 230px!important;min-width:230px!important;max-width:230px!important}
+html.modo-tv .card img{width:100%!important;height:330px!important;object-fit:cover}
+html.modo-tv .card strong,html.modo-tv .card .card-titulo{font-size:17px!important;text-align:center}
+html.modo-tv .header{position:sticky;top:0;background:#0b0d12}
+html.modo-tv .card:focus{transform:none!important;outline:4px solid #fff!important;outline-offset:4px}
+
+/* --- episode-grid-final: sinopse embaixo, com largura cheia (telefone) --- */
+#series-dialog .episode-row{display:grid!important;grid-template-columns:104px 1fr 44px;grid-template-areas:"capa texto check" "sinopse sinopse sinopse";gap:10px 12px;align-items:start;padding:14px 0}
+#series-dialog .episode-play-btn{display:contents!important}
+#series-dialog .episode-row .episode-art{grid-area:capa;width:104px!important;height:59px!important;object-fit:cover;border-radius:8px}
+#series-dialog .episode-row .episode-capa{grid-area:capa;position:relative;line-height:0}
+#series-dialog .episode-row .episode-info{grid-area:texto;min-width:0}
+#series-dialog .episode-row .episode-sinopse{grid-area:sinopse;font-size:13.5px!important;line-height:1.55;margin:0!important;color:#c3ccda}
+#series-dialog .episode-row .episode-check{grid-area:check;width:40px!important;height:40px!important;font-size:17px!important}
+#series-dialog .episode-row .episode-info strong{font-size:14.5px!important;margin:0 0 4px}
+#series-dialog .episode-row .episode-selos{margin:6px 0 0}
+html.modo-tv #series-dialog .episode-row{grid-template-columns:280px 1fr 56px!important}
+html.modo-tv #series-dialog .episode-row .episode-art{width:280px!important;height:158px!important}
+html.modo-tv #series-dialog .episode-row .episode-sinopse{font-size:17px!important}
 </style>
 <style>#direct-resume{position:absolute;z-index:3;top:50%;left:50%;transform:translate(-50%,-50%)}#direct-quality select{width:100%;background:#222a37;color:white;padding:12px;border:1px solid #536075;border-radius:8px}#player:fullscreen .barra,#player.expanded .barra{position:absolute;top:0;left:0;right:0;z-index:3;background:#101217cc;opacity:0;transition:opacity .2s}#player:fullscreen:hover .barra,#player:fullscreen:focus-within .barra,#player.expanded:hover .barra,#player.expanded:focus-within .barra{opacity:1}#player:fullscreen .area-player{width:100%;height:100%}#player:fullscreen{width:100%;height:100%}#direct-controls{position:absolute;bottom:0;left:0;right:0;z-index:2;padding:36px 5% 24px;background:linear-gradient(transparent,#000e)}#direct-controls progress{width:100%;height:4px;accent-color:#e50914;margin-bottom:16px}.direct-row{display:flex;align-items:center;gap:12px}.direct-row button{background:#202633;min-width:76px;font-size:15px}.direct-row button:focus-visible{outline:3px solid white;background:#46546b}.direct-row span{flex:1;color:#ddd;font-size:13px}@media(max-width:620px){#direct-controls{padding:20px 12px}.direct-row{gap:6px}.direct-row button{min-width:48px;font-size:12px;padding:10px 8px}.direct-row span{font-size:10px}}
 </style>
@@ -345,8 +370,8 @@ body{padding-bottom:76px}
 
 <button class="primary" id="direct-resume" hidden onclick="StreamPlayback.play()">▶ Reproduzir</button><div id="loading" role="status" aria-live="polite"><div class="spinner"></div><div id="load-msg"></div><div id="load-sub"></div><div id="acoes-erro" hidden><button class="primary" onclick="tentarNovamente()">Tentar novamente</button><button class="quiet" onclick="abrirOpcoes()">Ver opções</button></div></div></div>
 <div class="scrim" id="opcoes" hidden onclick="if(event.target===this) fecharOpcoes()"><aside class="options" role="dialog" aria-modal="true" aria-labelledby="options-title"><div class="options-head"><h2 id="options-title">Fontes e ajustes</h2><button class="icon-btn" id="options-close" onclick="fecharOpcoes()" aria-label="Fechar">×</button></div><p id="options-status" class="options-status">O aplicativo escolhe a fonte sozinho e troca de fonte quando uma não inicia.</p><div class="options-label">Fontes</div><div id="fontes"></div><button class="quiet retry" id="proxima" onclick="proximaFonte()">Tentar a próxima automaticamente</button><p class="regras-fontes">Só entram fontes dubladas, sem anúncio e em HD. Quando o título não tem dublagem em nenhuma fonte, o aplicativo abre a alta definição com legenda em português — e avisa na tela.</p></aside></div></section></section>
-<script src="/catalog.js"></script><script src="/android.js"></script>
-<script src="/vidsrc-source.js"></script>
+<script src="/catalog.js?v1791589295836"></script><script src="/android.js?v1791589295836"></script>
+<script src="/vidsrc-source.js?v1791589295836"></script>
 <script>
 const API = '/api';
 let players=[],playerRequest=null,playerTimer=null,playerVersion=0,fonteAtual=-1,filmeAtual=null,ultimoFoco=null,fontesParaPular=[];
@@ -512,7 +537,7 @@ async function alternarFullHd(){if(!filmeAtual||filmeAtual.episode)return;const 
 function fechar(){if(fonteAtual>=0&&players[fonteAtual])lembrarFonte(players[fonteAtual].nome);window.StreamExitFullscreen?.();++playerVersion;playerRequest?.abort();pararFrame();if(document.fullscreenElement)document.exitFullscreen().catch(()=>{});el('player').classList.remove('expanded');fecharOpcoes(false);el('player').classList.remove('ativo');el('loading').classList.remove('vis');el('abrir-externo')?.removeAttribute('href');players=[];fonteAtual=-1;document.body.style.overflow='';ultimoFoco?.focus();window.StreamPersonal?.render();}
 document.addEventListener('keydown',e=>{if(!el('player').classList.contains('ativo'))return;if(e.key==='Escape'){e.preventDefault();if(!el('opcoes').hidden)fecharOpcoes();else fechar();}if(e.key==='Tab'&&!el('opcoes').hidden){const nodes=[...el('opcoes').querySelectorAll('button:not(:disabled),select,a[href],summary')].filter(n=>n.getClientRects().length);const first=nodes[0],last=nodes[nodes.length-1];if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus();}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus();}}});
 carregarRankings();
-</script><script src="/hls.min.js"></script><script src="/playback.js"></script><script src="/library.js"></script><script src="/personal.js"></script><script src="/auth.js"></script><script src="/jarvis.js"></script><script src="/acesso.js"></script><script src="/legendas.js"></script>
+</script><script src="/hls.min.js?v1791589295836"></script><script src="/playback.js?v1791589295836"></script><script src="/library.js?v1791589295836"></script><script src="/personal.js?v1791589295836"></script><script src="/auth.js?v1791589295836"></script><script src="/jarvis.js?v1791589295836"></script><script src="/acesso.js?v1791589295836"></script><script src="/legendas.js?v1791589295836"></script>
 <div id="update-aviso" class="toast" hidden><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" style="fill:none;stroke:#ff5566;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round"><path d="M12 4v10"></path><path d="M8 10.5l4 4 4-4"></path><path d="M5 19h14"></path></svg><strong>Nova versão disponível</strong><span>Atualize sem perder o histórico.</span><a href="/check-updates">Atualizar</a><button class="fechar" aria-label="Fechar aviso" onclick="document.getElementById('update-aviso').hidden=true">×</button></div>
 <script>
 (function(){

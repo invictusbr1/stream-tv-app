@@ -2,7 +2,7 @@
  "ligado": true,
  "rodando": true,
  "rodadas": 1,
- "ultimaRodada": 1791586585835,
+ "ultimaRodada": 1791589332638,
  "proximaRodada": 0,
  "titulos": [
   {
@@ -38,11 +38,6 @@
   {
    "id": "1101412",
    "titulo": "A Queda 2: No Limite",
-   "tipo": "movie"
-  },
-  {
-   "id": "30723",
-   "titulo": "Cavegirl",
    "tipo": "movie"
   },
   {
@@ -103,6 +98,11 @@
   {
    "id": "1032863",
    "titulo": "A Hipótese do Amor",
+   "tipo": "movie"
+  },
+  {
+   "id": "1288445",
+   "titulo": "Código: Vingança",
    "tipo": "movie"
   },
   {
@@ -226,13 +226,13 @@
    "tipo": "movie"
   },
   {
-   "id": "1476746",
-   "titulo": "A Última Entrega",
+   "id": "1400940",
+   "titulo": "Cara-de-Barro",
    "tipo": "movie"
   },
   {
-   "id": "1400940",
-   "titulo": "Cara-de-Barro",
+   "id": "1476746",
+   "titulo": "A Última Entrega",
    "tipo": "movie"
   },
   {
@@ -549,7 +549,7 @@
  "cursor": 2,
  "semFonte": [],
  "ultimoResumo": {
-  "em": "2026-10-09T22:56:25.835Z",
+  "em": "2026-10-09T23:42:12.638Z",
   "testados": 2,
   "abriram": 2,
   "resultados": [
@@ -565,12 +565,6 @@
       "nota": 5.15,
       "idioma": "faixa em português é a padrão do arquivo",
       "qualidade": "800p"
-     },
-     {
-      "fonte": "fenix",
-      "nota": 4.85,
-      "idioma": "a fonte informa dublado",
-      "qualidade": "720p"
      },
      {
       "fonte": "watchplay",
@@ -633,7 +627,7 @@
    },
    {
     "id": "pipoca",
-    "acertos": 4,
+    "acertos": 6,
     "falhas": 0,
     "falhasSeguidas": 0,
     "castigada": false,
@@ -667,7 +661,7 @@
  },
  "historico": [
   {
-   "em": "2026-10-09T22:56:25.835Z",
+   "em": "2026-10-09T23:42:12.638Z",
    "testados": 2,
    "abriram": 2,
    "resultados": [
@@ -683,12 +677,6 @@
        "nota": 5.15,
        "idioma": "faixa em português é a padrão do arquivo",
        "qualidade": "800p"
-      },
-      {
-       "fonte": "fenix",
-       "nota": 4.85,
-       "idioma": "a fonte informa dublado",
-       "qualidade": "720p"
       },
       {
        "fonte": "watchplay",
@@ -751,7 +739,7 @@
     },
     {
      "id": "pipoca",
-     "acertos": 4,
+     "acertos": 6,
      "falhas": 0,
      "falhasSeguidas": 0,
      "castigada": false,
