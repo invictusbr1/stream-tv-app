@@ -68,6 +68,18 @@ html.modo-tv #series-dialog .episode-play-btn{grid-template-columns:260px 1fr;ga
 html.modo-tv #series-dialog .episode-art{width:260px}
 html.modo-tv #series-dialog .episode-sinopse{font-size:18px}
 html.modo-tv button:focus,html.modo-tv a:focus,html.modo-tv [tabindex]:focus,html.modo-tv .card:focus{outline:4px solid #fff;outline-offset:4px;border-radius:12px}
+
+/* --- modo-tv-layout: TV usa a tela toda e tudo fica centralizado --- */
+html.modo-tv .catalogo,html.modo-tv .conteudo,html.modo-tv main,html.modo-tv #catalogo,html.modo-tv #resultados{max-width:100%;margin:0 auto;padding-left:3vw;padding-right:3vw}
+html.modo-tv #hero{min-height:78vh;max-width:100%}
+html.modo-tv #hero .hero-texto,html.modo-tv #hero .hero-conteudo{max-width:900px;margin:0 auto;text-align:center;align-items:center}
+html.modo-tv #hero button,html.modo-tv #hero a{margin-left:auto;margin-right:auto}
+html.modo-tv #catalogo .card,html.modo-tv #resultados .card{min-width:190px;max-width:230px}
+html.modo-tv .card img{height:290px}
+html.modo-tv .card strong,html.modo-tv .card .card-titulo{font-size:16px;text-align:center}
+html.modo-tv #player .area-player video{width:100%;height:100%;object-fit:contain;margin:0 auto}
+html.modo-tv #player .barra{max-width:100%;margin:0 auto}
+html.modo-tv dialog{margin:auto}
 </style>
 <style>#direct-resume{position:absolute;z-index:3;top:50%;left:50%;transform:translate(-50%,-50%)}#direct-quality select{width:100%;background:#222a37;color:white;padding:12px;border:1px solid #536075;border-radius:8px}#player:fullscreen .barra,#player.expanded .barra{position:absolute;top:0;left:0;right:0;z-index:3;background:#101217cc;opacity:0;transition:opacity .2s}#player:fullscreen:hover .barra,#player:fullscreen:focus-within .barra,#player.expanded:hover .barra,#player.expanded:focus-within .barra{opacity:1}#player:fullscreen .area-player{width:100%;height:100%}#player:fullscreen{width:100%;height:100%}#direct-controls{position:absolute;bottom:0;left:0;right:0;z-index:2;padding:36px 5% 24px;background:linear-gradient(transparent,#000e)}#direct-controls progress{width:100%;height:4px;accent-color:#e50914;margin-bottom:16px}.direct-row{display:flex;align-items:center;gap:12px}.direct-row button{background:#202633;min-width:76px;font-size:15px}.direct-row button:focus-visible{outline:3px solid white;background:#46546b}.direct-row span{flex:1;color:#ddd;font-size:13px}@media(max-width:620px){#direct-controls{padding:20px 12px}.direct-row{gap:6px}.direct-row button{min-width:48px;font-size:12px;padding:10px 8px}.direct-row span{font-size:10px}}
 </style>
