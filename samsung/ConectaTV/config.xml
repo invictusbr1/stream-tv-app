@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Aplicativo do Conecta TV para as televisões Samsung (sistema Tizen).
+     Ele abre a tela inicial e leva direto para o servidor do aplicativo. -->
+<widget xmlns:tizen="http://tizen.org/ns/widgets" xmlns="http://www.w3.org/ns/widgets"
+        id="https://invictusbr1.github.io/stream-tv-app/" version="1.0.0" viewmodes="maximized">
+    <access origin="*" subdomains="true"></access>
+    <tizen:application id="k7Qm2Xr9vT.ConectaTV" package="k7Qm2Xr9vT" required_version="3.0"/>
+    <author href="https://invictusbr1.github.io/stream-tv-app/">Conecta TV</author>
+    <content src="index.html"/>
+    <feature name="http://tizen.org/feature/screen.size.all"/>
+    <icon src="icon.png"/>
+    <name>Conecta TV</name>
+    <tizen:privilege name="http://tizen.org/privilege/internet"/>
+    <tizen:privilege name="http://developer.samsung.com/privilege/network.public"/>
+    <tizen:privilege name="http://tizen.org/privilege/tv.inputdevice"/>
+    <tizen:profile name="tv-samsung"/>
+    <tizen:metadata key="http://samsung.com/tv/metadata/floating.navigation" value="false"/>
+    <tizen:metadata key="http://samsung.com/tv/metadata/use.uwe" value="true"/>
+    <tizen:setting screen-orientation="landscape" context-menu="enable" background-support="enable"
+                   encryption="disable" install-location="auto" hwkey-event="enable"/>
+</widget>

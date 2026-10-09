@@ -149,8 +149,21 @@
 
     window.StreamAcesso = { registrar, reportar, aparelho, identificador, usuario: guardado, abrirPortao: mostrarPortao };
 
+    // Alguns aparelhos (TV, TV box) já mandam o nome no próprio endereço — é o
+    // caso do aplicativo da TV Samsung. Assim ninguém precisa digitar no
+    // controle remoto, e a central continua registrando quem está assistindo.
+    function nomeDoEndereco() {
+        try {
+            const parametros = new URLSearchParams(location.search);
+            const nome = String(parametros.get('nome') || '').trim().replace(/\s+/g, ' ');
+            return nome.length >= 2 ? nome.slice(0, 60) : '';
+        } catch { return ''; }
+    }
+
     document.addEventListener('DOMContentLoaded', () => {
+        const doEndereco = nomeDoEndereco();
         if (guardado()?.nome) registrar().catch(() => {});
+        else if (doEndereco) { salvar(doEndereco); registrar().catch(() => {}); liberar(); }
         else mostrarPortao();
         setInterval(() => registrar().catch(() => {}), 10 * 60 * 1000);
     });

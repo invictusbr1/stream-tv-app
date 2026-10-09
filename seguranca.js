@@ -317,6 +317,13 @@ ${erro}
 <button type="submit">Entrar</button>
 </form>
 <script>
+// Quando o endereço já traz o código e o nome (caso do aplicativo da TV
+// Samsung), a entrada acontece sozinha — sem digitar nada no controle.
+const parametros=new URLSearchParams(location.search);
+const codigoDoEndereco=parametros.get('codigo')||'';
+const nomeDoEndereco=(parametros.get('nome')||'').trim();
+if(codigoDoEndereco) document.getElementById('codigo').value=codigoDoEndereco;
+if(nomeDoEndereco) document.getElementById('nome').value=nomeDoEndereco;
 document.getElementById('forma').onsubmit=async function(evento){
   evento.preventDefault();
   const nome=document.getElementById('nome').value.trim();
@@ -324,10 +331,11 @@ document.getElementById('forma').onsubmit=async function(evento){
   const aviso=document.querySelector('.erro')||document.createElement('p');
   aviso.className='erro';aviso.textContent='';
   const resposta=await fetch('/api/entrar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({nome:nome,codigo:codigo,dispositivo:localStorage.getItem('streamtv-dispositivo')||''})}).catch(()=>({ok:false}));
-  if(resposta.ok){location.href='/';return;}
+  if(resposta.ok){location.href='/'+(nomeDoEndereco?'?nome='+encodeURIComponent(nomeDoEndereco):'');return;}
   let motivo='Não foi possível entrar.';try{const json=await resposta.json();if(json&&json.error)motivo=json.error;}catch{}
   aviso.textContent=motivo;this.append(aviso);
 };
+if(codigoDoEndereco&&nomeDoEndereco){document.getElementById('forma').dispatchEvent(new Event('submit',{cancelable:true}));}
 </script></body></html>`;
 }
 

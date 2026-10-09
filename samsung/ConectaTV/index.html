@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Conecta TV</title>
+<style>
+  html,body{height:100%}
+  body{margin:0;background:radial-gradient(900px 520px at 70% -10%,#1b2436 0%,#0b0e15 60%);color:#e8ecf3;
+       font:16px/1.5 system-ui,-apple-system,'Segoe UI',sans-serif;display:grid;place-items:center;min-height:100vh;padding:24px}
+  .caixa{text-align:center;max-width:640px}
+  h1{margin:0 0 10px;font-size:44px;letter-spacing:6px;font-weight:800}
+  h1 span{color:#e50914}
+  .estado{margin:0 0 6px;color:#aab4c4;font-size:17px}
+  .codigo{margin:18px 0 0;color:#8d97a8;font-size:15px}
+  .codigo b{color:#fff;letter-spacing:1px}
+  button{margin:26px auto 0;display:block;background:#e50914;border:0;color:#fff;border-radius:12px;
+         padding:14px 26px;font:inherit;font-weight:600;min-width:220px}
+  button:focus{outline:3px solid #fff;outline-offset:4px}
+  .nota{margin-top:26px;color:#6b7486;font-size:13px}
+  .ponto{display:inline-block;width:9px;height:9px;border-radius:50%;background:#2fd07a;margin-right:8px;
+         vertical-align:middle;animation:pulsa 1.6s infinite}
+  @keyframes pulsa{0%{opacity:1}50%{opacity:.25}100%{opacity:1}}
+</style>
+</head>
+<body>
+  <div class="caixa">
+    <h1>CONECTA<span>TV</span></h1>
+    <p class="estado"><span class="ponto"></span><span id="estado">Procurando o servidor…</span></p>
+    <p class="codigo" id="bloco-codigo" hidden>Código de acesso: <b id="codigo">conecta-2007</b></p>
+    <button id="tentar" hidden>Tentar de novo</button>
+    <p class="nota">Filmes e séries dublados, sem anúncio.</p>
+  </div>
+<script>
+(function () {
+  'use strict';
+  // Página fixa: sempre aponta para o endereço atual do servidor.
+  var FIXO = 'https://invictusbr1.github.io/stream-tv-app/endereco.json';
+  // Endereço de reserva (atualizado na hora de montar o aplicativo).
+  var RESERVA = '__ENDERECO__';
+  var CODIGO = 'conecta-2007';
+  // Nome que aparece na central do aplicativo.
+  var NOME = 'TV da sala';
+
+  var estado = document.getElementById('estado');
+  var botao = document.getElementById('tentar');
+  var bloco = document.getElementById('bloco-codigo');
+  var codigo = document.getElementById('codigo');
+  codigo.textContent = CODIGO;
+  var tentando = false;
+
+  function mostrar(mensagem) { estado.textContent = mensagem; }
+
+  function abrir(endereco) {
+    var base = String(endereco).replace(/\/+$/, '');
+    var alvo = base + '/?codigo=' + encodeURIComponent(CODIGO) + '&nome=' + encodeURIComponent(NOME);
+    mostrar('Abrindo o Conecta TV…');
+    setTimeout(function () { location.replace(alvo); }, 700);
+  }
+
+  function desistir(motivo) {
+    mostrar(motivo);
+    bloco.hidden = false;
+    botao.hidden = false;
+    tentando = false;
+  }
+
+  function usarReserva(motivo) {
+    if (/^https:\/\//.test(RESERVA)) {
+      mostrar('Usando o último endereço conhecido…');
+      setTimeout(function () { abrir(RESERVA); }, 900);
+      return;
+    }
+    desistir(motivo);
+  }
+
+  function procurar() {
+    if (tentando) return;
+    tentando = true;
+    botao.hidden = true;
+    bloco.hidden = true;
+    mostrar('Procurando o servidor…');
+    var pedido = new XMLHttpRequest();
+    pedido.open('GET', FIXO + '?t=' + Date.now(), true);
+    pedido.timeout = 9000;
+    pedido.onload = function () {
+      var endereco = '';
+      try { endereco = (JSON.parse(pedido.responseText) || {}).endereco || ''; } catch (e) { endereco = ''; }
+      if (/^https:\/\/.+/.test(endereco)) { abrir(endereco); return; }
+      usarReserva('O servidor ainda não publicou um endereço.');
+    };
+    pedido.onerror = function () { usarReserva('Não consegui falar com o endereço fixo.'); };
+    pedido.ontimeout = function () { usarReserva('A internet demorou demais para responder.'); };
+    pedido.send();
+  }
+
+  botao.onclick = procurar;
+  document.addEventListener('keydown', function (evento) {
+    if (evento.keyCode === 13 && !botao.hidden) { procurar(); }
+  });
+  procurar();
+})();
+</script>
+</body>
+</html>
