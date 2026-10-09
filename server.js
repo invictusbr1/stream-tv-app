@@ -536,7 +536,7 @@ app.get('/api/playback/serie/:id/:season/:episode', async (req, res) => {
             avaliacao: avaliacao || undefined,
         });
     } catch {
-        res.status(502).json({ error: 'Nenhuma fonte limpa respondeu para este episódio agora.' });
+    res.status(502).json({ error: 'Nenhuma fonte sem anúncio tem este episódio ainda. O robô do aplicativo continua procurando: assim que aparecer, o episódio abre sozinho — não precisa atualizar nada.' });
     }
 });
 

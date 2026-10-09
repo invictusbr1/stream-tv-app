@@ -26,6 +26,7 @@ const estado = {
     proximaRodada: 0,
     titulos: [],
     cursor: 0,
+    semFonte: [],
     ultimoResumo: null,
     historico: [],
 };
@@ -44,26 +45,37 @@ async function montarLista(tmdbKey) {
         `https://api.themoviedb.org/3/movie/popular?api_key=${tmdbKey}&language=pt-BR&page=1`,
         `https://api.themoviedb.org/3/movie/popular?api_key=${tmdbKey}&language=pt-BR&page=2`,
         `https://api.themoviedb.org/3/trending/movie/day?api_key=${tmdbKey}&language=pt-BR`,
+        // Séries também entram na fila: é o caso das turcas/novidades, que
+        // aparecem nas fontes semanas depois do lançamento.
+        `https://api.themoviedb.org/3/tv/popular?api_key=${tmdbKey}&language=pt-BR&page=1`,
+        `https://api.themoviedb.org/3/trending/tv/day?api_key=${tmdbKey}&language=pt-BR`,
     ];
     for (const endereco of enderecos) {
         try {
             const r = await axios.get(endereco, { timeout: 20000 });
             for (const item of (r.data && r.data.results) || []) {
                 if (!item || !item.id) continue;
-                achados.set(String(item.id), { id: String(item.id), titulo: String(item.title || item.name || '') });
+                const serie = !item.title && Boolean(item.name);
+                achados.set(String(item.id), {
+                    id: String(item.id),
+                    titulo: String(item.title || item.name || ''),
+                    tipo: serie ? 'tv' : 'movie',
+                });
             }
         } catch { /* tenta o próximo */ }
     }
     // Títulos que já deram problema entram na frente (precisam de atenção).
     try {
         const problemas = JSON.parse(fs.readFileSync(path.join(PASTA, 'vigia-fontes.json'), 'utf8'));
-        for (const item of problemas.comProblema || []) if (item && item.id) achados.set(String(item.id), { id: String(item.id), titulo: String(item.titulo || '') });
+        for (const item of estado.semFonte || []) if (item && item.id) achados.set(String(item.id), { id: String(item.id), titulo: String(item.titulo || ''), tipo: item.tipo || 'movie' });
     } catch { /* primeiro uso */ }
     return [...achados.values()];
 }
 
 function alvoDe(titulo) {
-    return { tipo: 'movie', tmdbId: String(titulo.id) };
+    return titulo.tipo === 'tv'
+        ? { tipo: 'tv', tmdbId: String(titulo.id), temporada: '1', episodio: '1' }
+        : { tipo: 'movie', tmdbId: String(titulo.id) };
 }
 
 async function rodarRodada({ tmdbKey, registrar = () => {}, reportar = () => {} }) {
@@ -110,12 +122,21 @@ async function rodarRodada({ tmdbKey, registrar = () => {}, reportar = () => {} 
             resultados.push({
                 id: titulo.id,
                 titulo: titulo.titulo,
+                tipo: titulo.tipo || 'movie',
                 ok: Boolean(resultado && resultado.escolhido && resultado.escolhido.url),
                 fonte: resultado ? resultado.escolhido.fonteId : '',
                 fontesTestadas: linhas,
                 semDublado,
                 apenasOriginal,
             });
+            // Guarda quem ficou sem fonte: esses títulos voltam na frente das
+            // próximas rodadas (é assim que a novidade aparece quando sai).
+            const registrado = estado.semFonte.find(item => item.id === titulo.id);
+            if (semDublado) {
+                if (!registrado) estado.semFonte.push({ id: titulo.id, titulo: titulo.titulo, tipo: titulo.tipo || 'movie', desde: new Date().toISOString() });
+            } else if (registrado) {
+                estado.semFonte = estado.semFonte.filter(item => item.id !== titulo.id);
+            }
             registrar(resultado
                 ? `"${titulo.titulo}": abriu com ${resultado.escolhido.fonteId}`
                 : `"${titulo.titulo}": nenhuma fonte dublada respondeu${apenasOriginal ? ' (tem versão em HD com legenda)' : ''}`);
