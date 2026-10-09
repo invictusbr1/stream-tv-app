@@ -2,7 +2,7 @@
  "ligado": true,
  "rodando": true,
  "rodadas": 1,
- "ultimaRodada": 1791586230542,
+ "ultimaRodada": 1791586585835,
  "proximaRodada": 0,
  "titulos": [
   {
@@ -391,18 +391,8 @@
    "tipo": "tv"
   },
   {
-   "id": "196322",
-   "titulo": "Matéria Escura",
-   "tipo": "tv"
-  },
-  {
    "id": "320909",
    "titulo": "Firefly Wedding",
-   "tipo": "tv"
-  },
-  {
-   "id": "284580",
-   "titulo": "A Certain Dark Item",
    "tipo": "tv"
   },
   {
@@ -416,13 +406,18 @@
    "tipo": "tv"
   },
   {
-   "id": "97546",
-   "titulo": "Ted Lasso",
+   "id": "284580",
+   "titulo": "A Certain Dark Item",
    "tipo": "tv"
   },
   {
-   "id": "45790",
-   "titulo": "JoJo's Bizarre Adventure",
+   "id": "196322",
+   "titulo": "Matéria Escura",
+   "tipo": "tv"
+  },
+  {
+   "id": "97546",
+   "titulo": "Ted Lasso",
    "tipo": "tv"
   },
   {
@@ -431,18 +426,23 @@
    "tipo": "tv"
   },
   {
-   "id": "200777",
-   "titulo": "The Iceblade Sorcerer Shall Rule the World",
-   "tipo": "tv"
-  },
-  {
    "id": "294446",
    "titulo": "美人余",
    "tipo": "tv"
   },
   {
-   "id": "1413",
-   "titulo": "American Horror Story",
+   "id": "45790",
+   "titulo": "JoJo's Bizarre Adventure",
+   "tipo": "tv"
+  },
+  {
+   "id": "313630",
+   "titulo": "Eternally Yours",
+   "tipo": "tv"
+  },
+  {
+   "id": "200777",
+   "titulo": "The Iceblade Sorcerer Shall Rule the World",
    "tipo": "tv"
   },
   {
@@ -549,7 +549,7 @@
  "cursor": 2,
  "semFonte": [],
  "ultimoResumo": {
-  "em": "2026-10-09T22:50:30.542Z",
+  "em": "2026-10-09T22:56:25.835Z",
   "testados": 2,
   "abriram": 2,
   "resultados": [
@@ -562,7 +562,7 @@
     "fontesTestadas": [
      {
       "fonte": "pipoca",
-      "nota": 4.85,
+      "nota": 5.15,
       "idioma": "faixa em português é a padrão do arquivo",
       "qualidade": "800p"
      },
@@ -633,7 +633,7 @@
    },
    {
     "id": "pipoca",
-    "acertos": 2,
+    "acertos": 4,
     "falhas": 0,
     "falhasSeguidas": 0,
     "castigada": false,
@@ -667,7 +667,7 @@
  },
  "historico": [
   {
-   "em": "2026-10-09T22:50:30.542Z",
+   "em": "2026-10-09T22:56:25.835Z",
    "testados": 2,
    "abriram": 2,
    "resultados": [
@@ -680,7 +680,7 @@
      "fontesTestadas": [
       {
        "fonte": "pipoca",
-       "nota": 4.85,
+       "nota": 5.15,
        "idioma": "faixa em português é a padrão do arquivo",
        "qualidade": "800p"
       },
@@ -751,7 +751,7 @@
     },
     {
      "id": "pipoca",
-     "acertos": 2,
+     "acertos": 4,
      "falhas": 0,
      "falhasSeguidas": 0,
      "castigada": false,
