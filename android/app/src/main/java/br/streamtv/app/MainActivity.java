@@ -130,11 +130,50 @@ public final class MainActivity extends Activity {
     }
 
     private WebResourceResponse jsonMidia(String url, String tipo, String fonte) {
+        // Antes de entregar o endereço ao player, confere se ele realmente
+        // devolve VÍDEO. As fontes trocam de servidor sem avisar (o PipocaCine
+        // passou a devolver página de erro em 09/10/2026) e, sem esta
+        // checagem, o aparelho ficava esperando uma imagem que nunca vinha.
+        if (!entregaVideo(url, refererDaFonte(url))) return error(502);
         try {
             JSONObject result = new JSONObject();
             result.put("url", url); result.put("audio", "pt-BR"); result.put("type", tipo); result.put("source", fonte);
             return new WebResourceResponse("application/json", "UTF-8", 200, "OK", Collections.singletonMap("Cache-Control", "no-store"), new ByteArrayInputStream(result.toString().getBytes(StandardCharsets.UTF_8)));
         } catch (Exception e) { return error(502); }
+    }
+
+    private String refererDaFonte(String url) {
+        if (url == null) return null;
+        if (url.contains("nixplay") || url.contains("pipocacine")) return "https://pipocacine.lat/";
+        if (url.contains("hclod.qzz.io")) return "https://watchplay.shop/";
+        if (url.contains("mgeb") || url.contains("solo-latino") || url.contains("97bf1") || url.contains("playercdn")) return "https://mgeb.top/";
+        if (url.contains("vixsrc") || url.contains("mistyreef")) return "https://vixsrc.to/";
+        return null;
+    }
+
+    private boolean entregaVideo(String url, String referer) {
+        if (url == null || url.isEmpty()) return false;
+        HttpsURLConnection conexao = null;
+        try {
+            conexao = (HttpsURLConnection) new URL(url).openConnection();
+            conexao.setConnectTimeout(6000); conexao.setReadTimeout(6000);
+            conexao.setInstanceFollowRedirects(true);
+            conexao.setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Mobile Safari/537.36");
+            conexao.setRequestProperty("Accept", "*/*");
+            conexao.setRequestProperty("Range", "bytes=0-2047");
+            if (referer != null && !referer.isEmpty()) conexao.setRequestProperty("Referer", referer);
+            int codigo = conexao.getResponseCode();
+            String tipo = conexao.getContentType() == null ? "" : conexao.getContentType().toLowerCase();
+            if (codigo >= 400) return false;
+            if (tipo.contains("text/html") || tipo.contains("application/json") || tipo.contains("text/xml")) return false;
+            return true;
+        } catch (Exception e) {
+            // Sem resposta conclusiva (rede, tempo), deixa o player tentar —
+            // só recusamos quando a fonte responde claramente que não é vídeo.
+            return true;
+        } finally {
+            if (conexao != null) conexao.disconnect();
+        }
     }
 
     // Fonte dublada principal: filme em /movie e episódio em /tvshow.
