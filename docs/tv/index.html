@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Conecta TV</title>
+<meta name="robots" content="noindex">
+<style>
+  html,body{height:100%}
+  body{margin:0;background:radial-gradient(900px 520px at 70% -10%,#1b2436 0%,#0b0e15 60%);color:#e8ecf3;
+       font:18px/1.5 system-ui,-apple-system,'Segoe UI',sans-serif;display:grid;place-items:center;min-height:100vh;padding:28px;
+       text-align:center}
+  .caixa{max-width:900px}
+  h1{margin:0 0 14px;font-size:54px;letter-spacing:7px;font-weight:800}
+  h1 span{color:#e50914}
+  .estado{margin:0 0 10px;color:#aab4c4;font-size:22px}
+  .botao{display:inline-block;margin:26px auto 0;background:#e50914;color:#fff;border-radius:14px;padding:18px 34px;
+         font-size:22px;font-weight:700;text-decoration:none}
+  .botao:focus{outline:4px solid #fff;outline-offset:4px}
+  .codigo{margin:22px 0 0;color:#8d97a8;font-size:18px}
+  .codigo b{color:#fff;letter-spacing:1px}
+  .info{margin:30px 0 0;color:#5f6a7c;font-size:13px;font-family:monospace;word-break:break-all}
+</style>
+</head>
+<body>
+  <div class="caixa">
+    <h1>CONECTA<span>TV</span></h1>
+    <p class="estado" id="estado">Procurando o servidor…</p>
+    <a class="botao" id="abrir" href="#" style="display:none">Abrir o Conecta TV</a>
+    <p class="codigo">Código de acesso: <b id="codigo">conecta-2007</b></p>
+    <p class="info" id="info">conferência: <span id="ua"></span></p>
+  </div>
+<script>
+// Página pensada para o navegador da televisão (funciona até em modelos antigos).
+(function () {
+  'use strict';
+  var CODIGO = 'conecta-2007';
+  var NOME = 'TV da sala';
+  var estado = document.getElementById('estado');
+  var abrir = document.getElementById('abrir');
+  var ua = document.getElementById('ua');
+  ua.textContent = navigator.userAgent || '(sem informação)';
+
+  function alvo(endereco) {
+    return String(endereco).replace(/\/+$/, '') + '/?codigo=' + encodeURIComponent(CODIGO) + '&nome=' + encodeURIComponent(NOME);
+  }
+
+  function mostrarBotao(endereco) {
+    var link = alvo(endereco);
+    abrir.href = link;
+    abrir.style.display = 'inline-block';
+    estado.textContent = 'Tudo pronto. Abrindo o aplicativo…';
+    window.setTimeout(function () { location.href = link; }, 12000);
+  }
+
+  var pedido = new XMLHttpRequest();
+  pedido.open('GET', '../endereco.json?t=' + new Date().getTime(), true);
+  pedido.timeout = 9000;
+  pedido.onload = function () {
+    var endereco = '';
+    try { endereco = JSON.parse(pedido.responseText).endereco || ''; } catch (e) { endereco = ''; }
+    if (endereco.indexOf('https://') === 0) { mostrarBotao(endereco); return; }
+    estado.textContent = 'O servidor ainda não publicou um endereço. Toque em Abrir mesmo assim.';
+    abrir.href = 'https://invictusbr1.github.io/stream-tv-app/';
+    abrir.style.display = 'inline-block';
+  };
+  pedido.onerror = pedido.ontimeout = function () {
+    estado.textContent = 'Não consegui falar com a página fixa agora.';
+    abrir.href = 'https://invictusbr1.github.io/stream-tv-app/';
+    abrir.style.display = 'inline-block';
+  };
+  pedido.send();
+})();
+</script>
+</body>
+</html>
