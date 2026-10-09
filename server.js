@@ -147,6 +147,17 @@ app.get(['/','/index.html'], (req, res) => {
     res.status(500).send('Interface do Conecta TV não encontrada.');
 });
 app.get('/manifest.webmanifest',(req,res)=>res.type('application/manifest+json').sendFile(path.join(__dirname,'pwa/manifest.webmanifest')));
+// Diagnóstico: mostra (na tela e na central) o que o navegador do aparelho
+// consegue tocar. É a ferramenta usada para descobrir por que uma TV não abre
+// o vídeo, sem adivinhar.
+app.get('/diagnostico', (req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    res.type('html').send(require('./diagnostico').pagina('A Luta pela Esperança'));
+});
+app.get('/diagnostico/controle.mp4', (req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    res.type('video/mp4').sendFile(path.join(__dirname, 'diagnostico-controle.mp4'));
+});
 app.get('/sw.js',(req,res)=>{res.setHeader('Cache-Control','no-cache');res.type('js').sendFile(path.join(__dirname,'pwa/sw.js'));});
 app.get(['/pwa/install.js','/pwa/icon-180.png','/pwa/icon-192.png','/pwa/icon-512.png'],(req,res)=>res.sendFile(path.join(__dirname,req.path)));
 app.get('/api/health', (req, res) => res.json({ status: 'ok', app: 'stream-tv' }));

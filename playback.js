@@ -75,6 +75,10 @@ window.StreamPlayback = (() => {
     }
 
     const android=/StreamTVAndroid/.test(navigator.userAgent);
+    // Televisões (Samsung/Tizen, LG/webOS, Android TV e afins) tocam listas HLS
+    // pelo próprio aparelho. Quando o motor do navegador não der imagem, o
+    // aplicativo tenta esse caminho nativo antes de desistir da fonte.
+    const televisao=/SMART-TV|Tizen|HbbTV|NetCast|webOS|GoogleTV|BRAVIA|AndroidTV|FireTV/i.test(navigator.userAgent||'');
     let initialFocus=false, frameCallback=null;
     let hls=null, video=null, generation=0, settle=null, startupTimer=null, controlsTimer=null, direct=false;
     function stop(){saveProgress();subtitleChoice=-1;clearTimeout(relogioConfirmacao);if(video&&frameCallback!==null&&video.cancelVideoFrameCallback)video.cancelVideoFrameCallback(frameCallback);frameCallback=null;initialFocus=false;clearTimeout(controlsTimer);el('direct-controls').hidden=true;++generation;clearTimeout(startupTimer);if(settle){settle(false);settle=null;}if(hls){hls.destroy();hls=null;}if(video){video.pause();video.removeAttribute('src');video.load();video.remove();video=null;}direct=false;el('frame').hidden=false;el('direct-resume').hidden=true;el('direct-quality').hidden=true;el('quality-limit').textContent='';subtitleMenu();}
@@ -113,7 +117,12 @@ window.StreamPlayback = (() => {
     function quality(value){if(hls)hls.currentLevel=value==='best'?bestLevel():Number(value);}
     function qualityMenu(){const select=el('quality-select');select.hidden=false;select.replaceChildren();const values=[['best','Melhor disponível'],['-1','Automática (conexão)']];if(hls)hls.levels.forEach((l,i)=>{if(l.height)values.push([String(i),`${l.height}p`]);});for(const [value,label] of values){const o=document.createElement('option');o.value=value;o.textContent=label;select.append(o);}select.value='best';el('direct-quality').hidden=false;}
     function play(){if(!video)return;const target=video,token=generation;target.play().catch(e=>{if(token!==generation||target!==video)return;if(e.name==='NotAllowedError'){el('loading').classList.remove('vis');el('direct-resume').hidden=false;}else failure();});}
-    function failure(){if(!relatoFeito){relatoFeito=true;relatar({tipo:'falha',ok:false,fonte:fonteUsada,fonteId:fonteIdUsada,audio:rotuloAudio,resolucao:'',motivo:'a reprodução não abriu'});}const pending=settle;settle=null;if(pending){stop();pending(false);}else if(direct){stop();mostrarErro('A reprodução foi interrompida.','Tente novamente ou escolha outra fonte em Opções.');}}
+    function failure(){if(!relatoFeito){relatoFeito=true;
+        // O motivo leva o estado do aparelho junto: é o que permite descobrir,
+        // pela central, por que uma TV não conseguiu tocar (sem adivinhar).
+        const detalhe=video?(' · erro '+(video.error?video.error.code:'-')+' · pronto '+video.readyState+' · rede '+video.networkState+(video.currentSrc?' · '+String(video.currentSrc).slice(0,60):'')):' · sem player';
+        relatar({tipo:'falha',ok:false,fonte:fonteUsada,fonteId:fonteIdUsada,audio:rotuloAudio,resolucao:'',motivo:('a reprodução não abriu'+detalhe).slice(0,180)});}
+        const pending=settle;settle=null;if(pending){stop();pending(false);}else if(direct){stop();mostrarErro('A reprodução foi interrompida.','Tente novamente ou escolha outra fonte em Opções.');}}
         // Endereços aceitos: o encaminhamento do próprio aplicativo, as fontes
         // conhecidas e listas de reprodução (inclusive as de caminho protegido,
         // que são liberadas na hora pelo resolvedor).
@@ -147,7 +156,7 @@ window.StreamPlayback = (() => {
             };
             const pictureTimeout=()=>{
                 if(!current())return;
-                if(android&&hls&&!nativeFallback&&video.canPlayType('application/vnd.apple.mpegurl')){
+                if((android||televisao)&&hls&&!nativeFallback&&video.canPlayType('application/vnd.apple.mpegurl')){
                     nativeFallback=true;resumeApplied=false;hls.destroy();hls=null;video.pause();video.src=data.url;
                     el('direct-quality').hidden=false;el('quality-select').hidden=true;
                     startupTimer=setTimeout(()=>{if(current())failure();},12000);play();

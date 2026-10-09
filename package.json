@@ -1,6 +1,6 @@
 {
   "name": "stream-tv",
-  "version": "2.13.12",
+  "version": "2.13.13",
   "description": "Conecta TV - catalogo, players e aplicativos (Android, Windows, iPhone)",
   "main": "launcher.js",
   "bin": "launcher.js",
@@ -30,6 +30,7 @@
       "seguranca.js",
       "central-reporter.js",
       "playback-source.js",
+      "diagnostico.js",
       "midia-proxy.js",
       "series-source.js",
       "pipoca-source.js",
@@ -51,6 +52,7 @@
       "android/app/src/main/assets/assistir.html",
       "android/app/src/main/assets/catalog.js",
       "personal.js",
+    "diagnostico-controle.mp4",
       "config.local.json",
       ".env.example",
       "pwa/*",

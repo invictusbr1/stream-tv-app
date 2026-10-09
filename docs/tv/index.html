@@ -27,6 +27,7 @@
     <h1>CONECTA<span>TV</span></h1>
     <p class="estado" id="estado">Procurando o servidor…</p>
     <a class="botao" id="abrir" href="#" style="display:none">Abrir o Conecta TV</a>
+    <a class="botao" id="diagnostico" href="#" style="display:none;margin-top:14px;background:#2c3444">Diagnóstico da TV</a>
     <p class="codigo">Código de acesso: <b id="codigo">conecta-2007</b></p>
     <p class="info" id="info">conferência: <span id="ua"></span></p>
   </div>
@@ -49,8 +50,17 @@
     var link = alvo(endereco);
     abrir.href = link;
     abrir.style.display = 'inline-block';
+    var botaoDiag = document.getElementById('diagnostico');
+    botaoDiag.href = String(endereco).replace(/\/+$/, '') + '/diagnostico';
+    botaoDiag.style.display = 'inline-block';
     estado.textContent = 'Tudo pronto. Abrindo o aplicativo…';
-    window.setTimeout(function () { location.href = link; }, 12000);
+    // Abre sozinho depois de um tempo — mas se você escolher o diagnóstico,
+    // esse abrir sozinho é cancelado.
+    var relogio = window.setTimeout(function () { location.href = link; }, 30000);
+    var cancelar = function () { window.clearTimeout(relogio); estado.textContent = 'Escolha abaixo o que você quer abrir.'; };
+    botaoDiag.onmouseover = cancelar;
+    botaoDiag.onfocus = cancelar;
+    botaoDiag.onclick = cancelar;
   }
 
   var pedido = new XMLHttpRequest();
