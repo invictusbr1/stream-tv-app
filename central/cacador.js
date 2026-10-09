@@ -294,7 +294,11 @@ function notaDoFornecedor(medidas) {
     // Dizer "dublado" e entregar outro idioma é o pior caso: zera o ponto de
     // dublagem (a regra número 1 do projeto).
     const pDublado = contrariadas > 0 && !sucesso.some(m => m.idioma === 'pt') ? 0 : taxaDublado * 3;
-    const pSemAnuncio = 2;
+    // "Sem anúncio" agora é MEDIDO (varredura da página por redes de anúncio).
+    // Antes era um ponto fixo de 2 — qualquer fonte ganhava o ponto mesmo com
+    // anúncio na página.
+    const comAnuncio = medidas.some(m => (Array.isArray(m.anuncios) && m.anuncios.length) || m.anuncios === true);
+    const pSemAnuncio = comAnuncio ? 0 : 2;
     const pQualidade = melhorAltura >= 1080 ? 2 : melhorAltura >= 720 ? 1.4 : melhorAltura > 0 ? 0.6 : 0;
     const pVelocidade = latencia && latencia <= 3000 ? 1 : latencia <= 8000 ? 0.6 : 0.3;
     // Medição que revelou áudio mudo no navegador desconta da nota: o usuário
@@ -312,6 +316,7 @@ function notaDoFornecedor(medidas) {
             contrariados: contrariadas,
             avisosDeAudio: comAvisoDeAudio,
             evidencias: sucesso.filter(m => m.idiomaEvidencia).map(m => ({ amostra: m.amostra, idioma: m.idioma, evidencia: m.idiomaEvidencia })).slice(0, 3),
+            semAnuncio: comAnuncio ? 'anúncio encontrado' : 'sem anúncio',
             melhorQualidade: melhorAltura ? melhorAltura + 'p' : '—',
             latenciaMedia: latencia,
             pontos: {
@@ -441,7 +446,9 @@ async function conferirCandidata(candidata) {
         });
         const corpo = await resposta.text().catch(() => '');
         const verificacao = /turnstile|hcaptcha|recaptcha|não sou robô|nao sou robo|just a moment|checking your browser/i.test(corpo);
-        const anuncio = /popads|popcash|adsterra|propellerads|googlesyndication|adsbygoogle|monetag|clickadu/i.test(corpo);
+        // Detecção de anúncio com a lista completa de redes (varredor).
+        const redesDeAnuncio = require('./varredor').sinaisDeAnuncio(corpo);
+        const anuncio = redesDeAnuncio.length > 0;
         const vazio = corpo.length < 800;
         const episodios = (corpo.match(/href="[^"]*(?:episodio|episode)[^"]*"/gi) || []).length;
         const canais = (corpo.match(/#EXTINF/g) || []).length;
@@ -452,13 +459,13 @@ async function conferirCandidata(candidata) {
             return { nome: candidata.nome, url: candidata.url, status: resposta.status, situacao: negado ? 'descartada' : 'promover', motivo: negado ? 'banco fechado (regras protegidas) — será reconferido na próxima rodada' : 'BANCO ABERTO: catálogo acessível pelo servidor, testar como fonte', esperado: candidata.motivoEsperado };
         }
         if (verificacao) { situacao = 'descartada'; motivo = 'pede verificação no navegador (e traz anúncio)'; }
-        else if (anuncio) { situacao = 'descartada'; motivo = 'página com anúncio; o app não teria como abrir limpo'; }
+        else if (anuncio) { situacao = 'descartada'; motivo = 'página com anúncio (' + redesDeAnuncio.slice(0, 3).join(', ') + ') — não atende a regra do app'; }
         else if (vazio) { situacao = 'descartada'; motivo = 'página vazia ou bloqueada'; }
         else if (canais) { situacao = 'boa'; motivo = 'lista de canais ao vivo (' + canais + ' canais), sem anúncio'; }
         else if (episodios) { situacao = 'em análise'; motivo = episodios + ' links de episódio, mas o vídeo não sai direto para o app'; }
         else if (/dublad|portugu/i.test(corpo)) { situacao = 'em análise'; motivo = 'cita dublado, mas o vídeo não é entregue direto ao app'; }
         else { situacao = 'descartada'; motivo = candidata.motivoEsperado; }
-        return { nome: candidata.nome, url: candidata.url, status: resposta.status, situacao, motivo, esperado: candidata.motivoEsperado };
+        return { nome: candidata.nome, url: candidata.url, status: resposta.status, situacao, motivo, esperado: candidata.motivoEsperado, anuncios: redesDeAnuncio };
     } catch (erro) {
         return {
             nome: candidata.nome, url: candidata.url, status: 0, situacao: 'descartada',

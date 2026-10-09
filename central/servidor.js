@@ -69,7 +69,7 @@ fs.mkdirSync(DADOS, { recursive: true });
 // Agente de investigação (descobre por qual fonte o título que falhou abre) e
 // caçador de fornecedores (dá nota de 0 a 10 para cada fonte).
 const agente = criarAgente({ pastaDados: DADOS, appUrl: APP_URL, codigoApp: APP_CODIGO });
-const cacador = criarCacador({ pastaDados: DADOS });
+const cacador = criarCacador({ pastaDados: DADOS, registrar: mensagem => console.log('[cacador] ' + mensagem) });
 // Histórico de qualidade por título (alimentado pelos eventos do aplicativo).
 const titulos = criarRegistro({ pastaDados: DADOS });
 agente.iniciar();
@@ -77,6 +77,23 @@ agente.iniciar();
 // fontes de novo, guardando a solução encontrada.
 const revisor = criarRevisor({ titulos, agente });
 revisor.iniciar();
+// Caçada automática de fornecedores: a cada 6 horas o caçador procura fontes
+// novas, alternando as categorias. O varredor (addons do Stremio, GitHub e o
+// código dos agregadores) alimenta a lista de candidatas, e cada uma é MEDIDA
+// (reprodução + idioma + anúncio) antes de entrar no ranking.
+const CATEGORIAS_CACADAS = ['filme', 'serie', 'dorama', 'anime', 'tv-online'];
+let voltaDaCacada = 0;
+function cacadaAutomatica() {
+    try {
+        if (cacador.rodando()) return;
+        const categoria = CATEGORIAS_CACADAS[voltaDaCacada % CATEGORIAS_CACADAS.length];
+        voltaDaCacada += 1;
+        console.log('[central] caçada automática: ' + categoria);
+        cacador.cacar(categoria).catch(() => {});
+    } catch { /* nunca impede a central de subir */ }
+}
+setTimeout(cacadaAutomatica, 8 * 60 * 1000);
+setInterval(cacadaAutomatica, 6 * 60 * 60 * 1000);
 // Ponte com o aplicativo: lista e bloqueia aparelhos autorizados.
 const clienteApp = criarClienteApp({ appUrl: APP_URL, codigo: APP_CODIGO });
 

@@ -14,6 +14,29 @@ const axios = require('axios');
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36';
 const TEMPO = 20000;
 
+// Redes de anúncio conhecidas. Se o site carrega qualquer uma delas, a regra
+// "sem anúncio" do projeto não é atendida — e isso precisa contar na nota.
+const REDES_DE_ANUNCIO = [
+    'propellerads', 'propeller', 'popads', 'popcash', 'adsterra', 'exoclick', 'exosrv', 'juicyads',
+    'clickadu', 'hilltopads', 'monetag', 'adcash', 'onclck', 'onclickads', 'adnium', 'trafficjunky',
+    'highperformanceformat', 'googlesyndication', 'doubleclick', 'adservice', 'adsystem',
+    'mgid', 'revcontent', 'taboola', 'outbrain', 'criteo', 'pubmatic', 'rubiconproject',
+    'smartadserver', 'adform', 'loopme', 'inmobi', 'applovin', 'unityads', 'vungle',
+    'popunder', 'popunderjs', 'popup-domination', 'linkvertise', 'shortest',
+];
+
+function sinaisDeAnuncio(texto) {
+    const bruto = String(texto || '');
+    const alvo = bruto.toLowerCase();
+    const achados = new Set();
+    for (const rede of REDES_DE_ANUNCIO) {
+        if (alvo.includes(rede)) achados.add(rede);
+    }
+    if (/window\.open\s*\(/.test(bruto) && /(pop|anunci|ads?|click)/i.test(bruto)) achados.add('popup automático');
+    if (/<iframe[^>]+(ads?|banner|pop)/i.test(bruto)) achados.add('iframe de anúncio');
+    return [...achados];
+}
+
 // Addons do Stremio com streams (endereço público, sem cadastro).
 const ADDONS = [
     { nome: 'FenixFlix (FenixHub)', base: 'https://fenixflix.fenixhub.online' },
@@ -105,6 +128,59 @@ async function varrerGithub(token = '', registrar = () => {}) {
 // ---------------------------------------------------------------- código dos sites
 const DOMINIOS_CONHECIDOS = /(google|gstatic|cloudflare|jsdelivr|unpkg|tailwind|github|tmdb|themoviedb|fontawesome|bootstrap|jquery|gstatic|w3\.org|schema|facebook|twitter|whatsapp|disqus|chatango|histats|doubleclick|adservice)/i;
 
+// ---------------------------------------------------------------- código aberto
+// Projetos públicos mantêm listas de provedores de embed/streaming. Com o token
+// do GitHub a busca de CÓDIGO funciona e rende candidatos que ninguém digitou
+// na mão — é a diferença entre "testar o que já conhecemos" e "descobrir".
+function extrairDominios(texto) {
+    const achados = new Set();
+    for (const m of String(texto || '').matchAll(/https?:\\?\/\\?\/([a-z0-9.-]+\.[a-z]{2,})/gi)) {
+        const dominio = m[1].toLowerCase().replace(/^www\./, '');
+        if (DOMINIOS_CONHECIDOS.test(dominio)) continue;
+        if (!/\./.test(dominio)) continue;
+        achados.add(dominio);
+    }
+    return [...achados];
+}
+
+async function varrerCodigoGithub(token = '', registrar = () => {}) {
+    if (!token) return [];
+    const consultas = [
+        '"vidsrc" "embed" extension:json',
+        '"embed" "m3u8" "dublado" extension:json',
+        '"embedProviders" OR "embed_providers" extension:js',
+    ];
+    const achados = [];
+    for (const termo of consultas) {
+        try {
+            const busca = await axios.get('https://api.github.com/search/code', {
+                params: { q: termo, per_page: 5 },
+                headers: { 'User-Agent': UA, Accept: 'application/vnd.github+json', Authorization: 'Bearer ' + token },
+                timeout: 25000, validateStatus: s => s < 500,
+            });
+            const itens = (busca.data && busca.data.items) || [];
+            registrar(`GitHub (código) "${termo}": ${itens.length} arquivo(s)`);
+            for (const item of itens.slice(0, 3)) {
+                const repositorio = item.repository || {};
+                const bruto = `https://raw.githubusercontent.com/${repositorio.full_name}/${repositorio.default_branch || 'main'}/${item.path}`;
+                const conteudo = await axios.get(bruto, { headers: { 'User-Agent': UA }, timeout: 20000, responseType: 'text', validateStatus: s => s < 500 }).catch(() => null);
+                if (!conteudo || typeof conteudo.data !== 'string') continue;
+                for (const dominio of extrairDominios(conteudo.data).slice(0, 4)) {
+                    achados.push({
+                        nome: `listado em ${repositorio.full_name || 'projeto'}`,
+                        url: `https://${dominio}/`,
+                        origem: 'lista pública no GitHub',
+                        motivoEsperado: `domínio citado em ${item.path}`,
+                        anuncios: sinaisDeAnuncio(conteudo.data),
+                    });
+                }
+            }
+        } catch (erro) { registrar('GitHub (código) falhou: ' + String(erro.message).slice(0, 60)); }
+    }
+    const vistos = new Set();
+    return achados.filter(item => !vistos.has(item.url) && vistos.add(item.url)).slice(0, 25);
+}
+
 async function varrerSites(registrar = () => {}) {
     const achados = [];
     for (const site of SITES) {
@@ -127,6 +203,8 @@ async function varrerSites(registrar = () => {}) {
                 origem: 'código do site',
                 siteBase: site.nome,
                 motivoEsperado: 'endereço de player citado no código do site',
+                // Já vai marcado quando o site de origem carrega rede de anúncio.
+                anuncios: sinaisDeAnuncio(juntos),
             });
             registrar(`${site.nome}: ${dominios.length} domínio(s) de terceiros no código`);
         } catch (erro) {
@@ -137,12 +215,13 @@ async function varrerSites(registrar = () => {}) {
 }
 
 async function varrerTudo({ token = '', registrar = () => {} } = {}) {
-    const [addons, github, sites] = await Promise.all([
+    const [addons, github, codigo, sites] = await Promise.all([
         varrerAddons(registrar).catch(() => []),
         varrerGithub(token, registrar).catch(() => []),
+        varrerCodigoGithub(token, registrar).catch(() => []),
         varrerSites(registrar).catch(() => []),
     ]);
-    return [...addons, ...github, ...sites];
+    return [...addons, ...github, ...codigo, ...sites];
 }
 
-module.exports = { varrerTudo, varrerAddons, varrerGithub, varrerSites, marcasDeDublado, ADDONS, SITES };
+module.exports = { varrerTudo, varrerAddons, varrerGithub, varrerCodigoGithub, varrerSites, marcasDeDublado, sinaisDeAnuncio, extrairDominios, REDES_DE_ANUNCIO, ADDONS, SITES };
