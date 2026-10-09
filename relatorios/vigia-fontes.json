@@ -2,7 +2,7 @@
  "ligado": true,
  "rodando": true,
  "rodadas": 1,
- "ultimaRodada": 1791585168725,
+ "ultimaRodada": 1791586230542,
  "proximaRodada": 0,
  "titulos": [
   {
@@ -549,7 +549,7 @@
  "cursor": 2,
  "semFonte": [],
  "ultimoResumo": {
-  "em": "2026-10-09T22:32:48.725Z",
+  "em": "2026-10-09T22:50:30.542Z",
   "testados": 2,
   "abriram": 2,
   "resultados": [
@@ -667,7 +667,7 @@
  },
  "historico": [
   {
-   "em": "2026-10-09T22:32:48.725Z",
+   "em": "2026-10-09T22:50:30.542Z",
    "testados": 2,
    "abriram": 2,
    "resultados": [

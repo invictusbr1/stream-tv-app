@@ -15,7 +15,7 @@
 .tv-card .tv-grupo{font-size:10.5px;color:#8b95a7;margin:0 10px 10px;text-transform:uppercase;letter-spacing:.4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}#player{display:none;position:fixed;inset:0;z-index:20;background:#000;flex-direction:column}#player.ativo{display:flex}.barra{height:64px;flex-shrink:0;display:flex;gap:18px;align-items:center;padding:8px 22px;background:#101217}.icon-btn,.quiet{background:#ffffff0c;border:1px solid #ffffff12;border-radius:9px;padding:10px 14px;min-height:42px}.icon-btn{font-size:20px;line-height:1}.player-title{min-width:0;flex:1}#titulo-player{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:14px;font-weight:600}.player-language{font-size:10px;color:#9ea9b8;letter-spacing:1.3px;text-transform:uppercase;margin-top:4px}.quiet{font-size:12px;color:#c5ccda}.area-player{position:relative;flex:1;min-height:0}#frame{width:100%;height:100%;border:0;background:#000}#loading{position:absolute;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;gap:15px;background:#000;z-index:1;text-align:center;padding:24px}#loading.vis{display:flex}#load-msg{font-size:18px;font-weight:600}#load-sub{color:var(--muted);font-size:13px;max-width:400px;line-height:1.6}.spinner{height:32px;width:32px;border:2px solid #303744;border-top-color:#fff;border-radius:50%;animation:spin .8s linear infinite}.erro .spinner{display:none}#acoes-erro{display:flex;gap:10px;flex-wrap:wrap;justify-content:center}.scrim{position:absolute;inset:0;background:#0009;z-index:4;display:flex;justify-content:flex-end}.options{width:min(420px,100%);height:100%;background:#171b24;border-left:1px solid #ffffff14;padding:28px;overflow:auto;box-shadow:-20px 0 80px #0008}.options-head{display:flex;justify-content:space-between;align-items:center;gap:12px}.options h2{font-size:22px;margin:0;letter-spacing:-.5px}.options p{color:#aeb6c5;line-height:1.6;font-size:13px}.options-label{font-size:11px;letter-spacing:1.8px;text-transform:uppercase;color:#8e9aaf;margin:28px 0 12px}#fontes{display:grid;gap:9px}.btn-fonte{display:flex;align-items:center;justify-content:space-between;text-align:left;gap:12px;border:1px solid #343c4b;background:#202633;border-radius:10px;padding:14px;font-size:14px}.btn-fonte[aria-pressed="true"]{background:#303948;border-color:#99a9c0}.btn-fonte small{font-size:11px;color:#aab5c6}.compat{border-top:1px solid #ffffff12;margin-top:25px;padding-top:10px}.compat select{width:100%;background:#222a37;border:1px solid #3c4659;color:white;border-radius:8px;padding:12px;margin:8px 0}.compat a{display:block;padding:12px;text-align:center;text-decoration:none;border:1px solid #566074;border-radius:8px;font-size:13px}.compat a:not([href]){opacity:.4;pointer-events:none}.options .quality{font-size:12px;color:#8592a7}.options .retry{width:100%;margin-top:16px}.options button:focus-visible{outline-offset:2px}@keyframes spin{to{transform:rotate(360deg)}}@media(max-width:620px){.header{padding:20px;gap:10px;flex-wrap:wrap}.brand{font-size:18px}.nav{margin-left:auto}.busca{width:100%;margin:3px 0 0}.busca input{flex:1}.hero{min-height:370px;padding:38px 22px 48px}.hero h1{letter-spacing:-1px}.hero:after{background:linear-gradient(90deg,#0b0d12e8,#0b0d1240),linear-gradient(0deg,var(--bg),transparent)}.secao{padding:0 20px 30px}.colecao-cabecalho{display:block}.colecao-cabecalho h2{font-size:19px}.colecao-cabecalho span{display:block;margin-top:5px}.section-head{margin:0 0 15px}.barra{padding:8px 12px;gap:10px;height:60px}.options{padding:22px}.quiet{padding:10px}.poster-row{grid-auto-columns:43vw;gap:13px}}@media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important;transition:none!important}}@media(max-height:450px){.barra{height:52px}.player-language{display:none}.options{padding:16px}}
 
 /* --- Tela da série no estilo das grandes plataformas --- */
-#series-dialog{padding:0;overflow:hidden;background:#101319;width:min(920px,94vw)}
+#series-dialog{padding:0;overflow-y:auto;overscroll-behavior:contain;background:#101319;width:min(920px,94vw);max-height:92vh}
 .series-cover{min-height:300px}
 .series-selos{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0 0}
 .serie-selo{background:#ffffff1c;border:1px solid #ffffff2b;border-radius:6px;padding:4px 9px;font-size:11.5px;letter-spacing:.4px;text-transform:uppercase;font-weight:700}
@@ -58,17 +58,14 @@
 #series-dialog .episode-selo{background:#2a3140;border:1px solid #ffffff1f;border-radius:5px;padding:2px 7px;font-size:11.5px;font-weight:700;color:#d8dfe9}
 #series-dialog .episode-baixar{margin-left:auto;align-self:center;background:#1b2230;border:1px solid #ffffff1c;border-radius:10px;width:46px;height:46px;font-size:19px;color:#e8ecf3}
 #series-dialog .episode-sinopse{display:block;margin:14px 0 0;color:#c3ccda;font-size:15px;line-height:1.65}
-#series-dialog .episode-row{flex-wrap:wrap}
-#series-dialog .episode-bloco{display:flex;gap:12px;align-items:flex-start;flex:1 1 100%;min-width:0}
-#series-dialog .episode-sinopse{flex:1 1 100%}
+#series-dialog .episode-row{display:block}
+#series-dialog .episode-bloco{display:block;position:relative}
+#series-dialog .episode-sinopse{display:block;margin-top:12px}
 .titulo-detalhe{margin:0 0 6px}
 /* --- TV: tudo maior e foco bem visível para o controle remoto --- */
-html.modo-tv body{font-size:18px}
-html.modo-tv .card{min-width:210px}
-html.modo-tv .nav,html.modo-tv .brand{font-size:22px}
 html.modo-tv #series-dialog{width:min(1200px,96vw);max-height:94vh;font-size:20px}
-html.modo-tv #series-dialog .episode-play-btn{grid-template-columns:320px 1fr;gap:22px}
-html.modo-tv #series-dialog .episode-art{width:320px}
+html.modo-tv #series-dialog .episode-play-btn{grid-template-columns:260px 1fr;gap:20px}
+html.modo-tv #series-dialog .episode-art{width:260px}
 html.modo-tv #series-dialog .episode-sinopse{font-size:18px}
 html.modo-tv button:focus,html.modo-tv a:focus,html.modo-tv [tabindex]:focus,html.modo-tv .card:focus{outline:4px solid #fff;outline-offset:4px;border-radius:12px}
 </style>
