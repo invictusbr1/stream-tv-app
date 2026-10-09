@@ -49,6 +49,9 @@ async function montarLista(tmdbKey) {
         // aparecem nas fontes semanas depois do lançamento.
         `https://api.themoviedb.org/3/tv/popular?api_key=${tmdbKey}&language=pt-BR&page=1`,
         `https://api.themoviedb.org/3/trending/tv/day?api_key=${tmdbKey}&language=pt-BR`,
+        // Lançamentos turcos: é o caso da série que o usuário pediu — novelas
+        // turcas entram nas fontes brasileiras semanas depois do lançamento.
+        `https://api.themoviedb.org/3/discover/tv?api_key=${tmdbKey}&language=pt-BR&with_origin_country=TR&sort_by=popularity.desc&page=1`,
     ];
     for (const endereco of enderecos) {
         try {
