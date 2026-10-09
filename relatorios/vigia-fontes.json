@@ -1,8 +1,8 @@
 {
  "ligado": true,
  "rodando": true,
- "rodadas": 2,
- "ultimaRodada": 1791546225228,
+ "rodadas": 1,
+ "ultimaRodada": 1791585168725,
  "proximaRodada": 0,
  "titulos": [
   {
@@ -31,11 +31,6 @@
    "tipo": "movie"
   },
   {
-   "id": "1599191",
-   "titulo": "Renegade Immortal: Batalha dos Imortais",
-   "tipo": "movie"
-  },
-  {
    "id": "1377237",
    "titulo": "Três Horas Para Viver",
    "tipo": "movie"
@@ -43,6 +38,11 @@
   {
    "id": "1101412",
    "titulo": "A Queda 2: No Limite",
+   "tipo": "movie"
+  },
+  {
+   "id": "30723",
+   "titulo": "Cavegirl",
    "tipo": "movie"
   },
   {
@@ -61,18 +61,13 @@
    "tipo": "movie"
   },
   {
-   "id": "30723",
-   "titulo": "Cavegirl",
+   "id": "1294189",
+   "titulo": "The Mongoose",
    "tipo": "movie"
   },
   {
    "id": "1101383",
    "titulo": "O Fim da Rua",
-   "tipo": "movie"
-  },
-  {
-   "id": "1294189",
-   "titulo": "The Mongoose",
    "tipo": "movie"
   },
   {
@@ -86,8 +81,8 @@
    "tipo": "movie"
   },
   {
-   "id": "1032863",
-   "titulo": "A Hipótese do Amor",
+   "id": "1599191",
+   "titulo": "Renegade Immortal: Batalha dos Imortais",
    "tipo": "movie"
   },
   {
@@ -106,13 +101,23 @@
    "tipo": "movie"
   },
   {
+   "id": "1032863",
+   "titulo": "A Hipótese do Amor",
+   "tipo": "movie"
+  },
+  {
+   "id": "1339274",
+   "titulo": "No dejes a los niños solos",
+   "tipo": "movie"
+  },
+  {
    "id": "1283515",
    "titulo": "Verity",
    "tipo": "movie"
   },
   {
-   "id": "1288445",
-   "titulo": "Código: Vingança",
+   "id": "1556321",
+   "titulo": "ธี่หยด: สมิงเขาขวาง",
    "tipo": "movie"
   },
   {
@@ -126,18 +131,13 @@
    "tipo": "movie"
   },
   {
-   "id": "1556321",
-   "titulo": "ธี่หยด: สมิงเขาขวาง",
-   "tipo": "movie"
-  },
-  {
-   "id": "1339274",
-   "titulo": "No dejes a los niños solos",
-   "tipo": "movie"
-  },
-  {
    "id": "1482547",
    "titulo": "Zip Wire",
+   "tipo": "movie"
+  },
+  {
+   "id": "204922",
+   "titulo": "Antes de Dormir",
    "tipo": "movie"
   },
   {
@@ -156,23 +156,23 @@
    "tipo": "movie"
   },
   {
-   "id": "1477712",
-   "titulo": "O Sorveteiro",
-   "tipo": "movie"
-  },
-  {
    "id": "1450404",
    "titulo": "La casa en el árbol",
    "tipo": "movie"
   },
   {
-   "id": "204922",
-   "titulo": "Antes de Dormir",
+   "id": "1003596",
+   "titulo": "Vingadores: Doutor Destino",
    "tipo": "movie"
   },
   {
-   "id": "1003596",
-   "titulo": "Vingadores: Doutor Destino",
+   "id": "1084242",
+   "titulo": "Zootopia 2",
+   "tipo": "movie"
+  },
+  {
+   "id": "1477712",
+   "titulo": "O Sorveteiro",
    "tipo": "movie"
   },
   {
@@ -186,36 +186,6 @@
    "tipo": "movie"
   },
   {
-   "id": "1607127",
-   "titulo": "O Último Tiro Certo",
-   "tipo": "movie"
-  },
-  {
-   "id": "1084242",
-   "titulo": "Zootopia 2",
-   "tipo": "movie"
-  },
-  {
-   "id": "755898",
-   "titulo": "A Guerra dos Mundos",
-   "tipo": "movie"
-  },
-  {
-   "id": "1083381",
-   "titulo": "Backrooms: Um Não-Lugar",
-   "tipo": "movie"
-  },
-  {
-   "id": "1148365",
-   "titulo": "Matchbox - O Filme",
-   "tipo": "movie"
-  },
-  {
-   "id": "1236045",
-   "titulo": "Sobrevivência",
-   "tipo": "movie"
-  },
-  {
    "id": "1400837",
    "titulo": "Outra Mamãe",
    "tipo": "movie"
@@ -226,28 +196,33 @@
    "tipo": "movie"
   },
   {
-   "id": "1036081",
-   "titulo": "ഖലീഫ: The Ruler",
+   "id": "1607127",
+   "titulo": "O Último Tiro Certo",
    "tipo": "movie"
   },
   {
-   "id": "1591675",
-   "titulo": "ルックバック",
+   "id": "1083381",
+   "titulo": "Backrooms: Um Não-Lugar",
    "tipo": "movie"
   },
   {
-   "id": "1281331",
-   "titulo": "O Outro Lado das Redes",
+   "id": "1236045",
+   "titulo": "Sobrevivência",
    "tipo": "movie"
   },
   {
-   "id": "1400940",
-   "titulo": "Cara-de-Barro",
+   "id": "1148365",
+   "titulo": "Matchbox - O Filme",
    "tipo": "movie"
   },
   {
-   "id": "1620080",
-   "titulo": "Less of a Stranger",
+   "id": "1742441",
+   "titulo": "V/H/S/Mixtape",
+   "tipo": "movie"
+  },
+  {
+   "id": "1599993",
+   "titulo": "Animales",
    "tipo": "movie"
   },
   {
@@ -256,18 +231,38 @@
    "tipo": "movie"
   },
   {
+   "id": "1400940",
+   "titulo": "Cara-de-Barro",
+   "tipo": "movie"
+  },
+  {
+   "id": "1281331",
+   "titulo": "O Outro Lado das Redes",
+   "tipo": "movie"
+  },
+  {
+   "id": "1036081",
+   "titulo": "ഖലീഫ: The Ruler",
+   "tipo": "movie"
+  },
+  {
+   "id": "1153576",
+   "titulo": "Street Fighter",
+   "tipo": "movie"
+  },
+  {
    "id": "91759",
    "titulo": "Come Home Love: Lo and Behold",
    "tipo": "tv"
   },
   {
-   "id": "70998",
-   "titulo": "Uma Noite Pecaminosa",
+   "id": "22980",
+   "titulo": "Watch What Happens Live with Andy Cohen",
    "tipo": "tv"
   },
   {
-   "id": "22980",
-   "titulo": "Watch What Happens Live with Andy Cohen",
+   "id": "70998",
+   "titulo": "Uma Noite Pecaminosa",
    "tipo": "tv"
   },
   {
@@ -296,13 +291,28 @@
    "tipo": "tv"
   },
   {
-   "id": "61818",
-   "titulo": "Late Night with Seth Meyers",
+   "id": "5920",
+   "titulo": "O Mentalista",
    "tipo": "tv"
   },
   {
    "id": "33238",
    "titulo": "Running Man",
+   "tipo": "tv"
+  },
+  {
+   "id": "2316",
+   "titulo": "The Office",
+   "tipo": "tv"
+  },
+  {
+   "id": "61818",
+   "titulo": "Late Night with Seth Meyers",
+   "tipo": "tv"
+  },
+  {
+   "id": "549",
+   "titulo": "Lei & Ordem",
    "tipo": "tv"
   },
   {
@@ -316,13 +326,8 @@
    "tipo": "tv"
   },
   {
-   "id": "2316",
-   "titulo": "The Office",
-   "tipo": "tv"
-  },
-  {
-   "id": "5920",
-   "titulo": "O Mentalista",
+   "id": "2224",
+   "titulo": "The Daily Show com Trevor Noah",
    "tipo": "tv"
   },
   {
@@ -331,18 +336,8 @@
    "tipo": "tv"
   },
   {
-   "id": "2224",
-   "titulo": "The Daily Show com Trevor Noah",
-   "tipo": "tv"
-  },
-  {
    "id": "15226",
    "titulo": "C.I.D",
-   "tipo": "tv"
-  },
-  {
-   "id": "549",
-   "titulo": "Lei & Ordem",
    "tipo": "tv"
   },
   {
@@ -371,13 +366,18 @@
    "tipo": "tv"
   },
   {
+   "id": "284833",
+   "titulo": "Avatar: Os Sete Refúgios",
+   "tipo": "tv"
+  },
+  {
    "id": "289423",
    "titulo": "Um Choque de Amor",
    "tipo": "tv"
   },
   {
-   "id": "284833",
-   "titulo": "Avatar: Os Sete Refúgios",
+   "id": "293610",
+   "titulo": "Doctor X: A Máfia do Jaleco Branco",
    "tipo": "tv"
   },
   {
@@ -386,43 +386,8 @@
    "tipo": "tv"
   },
   {
-   "id": "294446",
-   "titulo": "美人余",
-   "tipo": "tv"
-  },
-  {
-   "id": "305551",
-   "titulo": "Amor Doce Amor",
-   "tipo": "tv"
-  },
-  {
    "id": "303630",
    "titulo": "Cupertino",
-   "tipo": "tv"
-  },
-  {
-   "id": "97546",
-   "titulo": "Ted Lasso",
-   "tipo": "tv"
-  },
-  {
-   "id": "255752",
-   "titulo": "Hotel Assombrado",
-   "tipo": "tv"
-  },
-  {
-   "id": "258165",
-   "titulo": "A Leste do Éden",
-   "tipo": "tv"
-  },
-  {
-   "id": "313630",
-   "titulo": "Eternally Yours",
-   "tipo": "tv"
-  },
-  {
-   "id": "290233",
-   "titulo": "Dentro do Círculo",
    "tipo": "tv"
   },
   {
@@ -431,13 +396,38 @@
    "tipo": "tv"
   },
   {
-   "id": "1413",
-   "titulo": "American Horror Story",
+   "id": "320909",
+   "titulo": "Firefly Wedding",
    "tipo": "tv"
   },
   {
-   "id": "283428",
-   "titulo": "Parede de Gelo",
+   "id": "284580",
+   "titulo": "A Certain Dark Item",
+   "tipo": "tv"
+  },
+  {
+   "id": "255752",
+   "titulo": "Hotel Assombrado",
+   "tipo": "tv"
+  },
+  {
+   "id": "220542",
+   "titulo": "Diários de uma Apotecária",
+   "tipo": "tv"
+  },
+  {
+   "id": "97546",
+   "titulo": "Ted Lasso",
+   "tipo": "tv"
+  },
+  {
+   "id": "45790",
+   "titulo": "JoJo's Bizarre Adventure",
+   "tipo": "tv"
+  },
+  {
+   "id": "258165",
+   "titulo": "A Leste do Éden",
    "tipo": "tv"
   },
   {
@@ -446,86 +436,180 @@
    "tipo": "tv"
   },
   {
-   "id": "45790",
-   "titulo": "JoJo's Bizarre Adventure",
+   "id": "294446",
+   "titulo": "美人余",
+   "tipo": "tv"
+  },
+  {
+   "id": "1413",
+   "titulo": "American Horror Story",
+   "tipo": "tv"
+  },
+  {
+   "id": "256440",
+   "titulo": "Alıkara",
+   "tipo": "tv"
+  },
+  {
+   "id": "25406",
+   "titulo": "Jasão e o Velo de Ouro",
+   "tipo": "tv"
+  },
+  {
+   "id": "274556",
+   "titulo": "Longe Demais",
+   "tipo": "tv"
+  },
+  {
+   "id": "215709",
+   "titulo": "O Cativeiro",
+   "tipo": "tv"
+  },
+  {
+   "id": "95603",
+   "titulo": "O Otomano",
+   "tipo": "tv"
+  },
+  {
+   "id": "309328",
+   "titulo": "Yeraltı",
+   "tipo": "tv"
+  },
+  {
+   "id": "49497",
+   "titulo": "Siyaset Meydanı",
+   "tipo": "tv"
+  },
+  {
+   "id": "119806",
+   "titulo": "Teşkilat",
+   "tipo": "tv"
+  },
+  {
+   "id": "300388",
+   "titulo": "Pecados e Rosas",
+   "tipo": "tv"
+  },
+  {
+   "id": "34899",
+   "titulo": "Século Magnífico",
+   "tipo": "tv"
+  },
+  {
+   "id": "302063",
+   "titulo": "Taşacak Bu Deniz",
+   "tipo": "tv"
+  },
+  {
+   "id": "283123",
+   "titulo": "Eşref Rüya",
+   "tipo": "tv"
+  },
+  {
+   "id": "34587",
+   "titulo": "Kurtlar Vadisi",
+   "tipo": "tv"
+  },
+  {
+   "id": "210865",
+   "titulo": "O Canto do Pássaro",
+   "tipo": "tv"
+  },
+  {
+   "id": "49347",
+   "titulo": "Elif",
+   "tipo": "tv"
+  },
+  {
+   "id": "74823",
+   "titulo": "Çukur",
+   "tipo": "tv"
+  },
+  {
+   "id": "246621",
+   "titulo": "Mehmed: Fetihler Sultanı",
+   "tipo": "tv"
+  },
+  {
+   "id": "213194",
+   "titulo": "A Força do Amor",
+   "tipo": "tv"
+  },
+  {
+   "id": "317883",
+   "titulo": "Daha 17",
+   "tipo": "tv"
+  },
+  {
+   "id": "320760",
+   "titulo": "Conheço Você",
    "tipo": "tv"
   }
  ],
- "cursor": 6,
- "semFonte": [
-  {
-   "id": "1599191",
-   "titulo": "Renegade Immortal: Batalha dos Imortais",
-   "tipo": "movie",
-   "desde": "2026-10-09T11:43:45.228Z"
-  }
- ],
+ "cursor": 2,
+ "semFonte": [],
  "ultimoResumo": {
-  "em": "2026-10-09T11:43:45.228Z",
-  "testados": 3,
+  "em": "2026-10-09T22:32:48.725Z",
+  "testados": 2,
   "abriram": 2,
   "resultados": [
    {
-    "id": "1291595",
-    "titulo": "Sobrenatural: Agora Entre Nós",
+    "id": "969681",
+    "titulo": "Homem-Aranha: Um Novo Dia",
     "tipo": "movie",
     "ok": true,
-    "fonte": "watchplay",
+    "fonte": "pipoca",
     "fontesTestadas": [
      {
+      "fonte": "pipoca",
+      "nota": 4.85,
+      "idioma": "faixa em português é a padrão do arquivo",
+      "qualidade": "800p"
+     },
+     {
+      "fonte": "fenix",
+      "nota": 4.85,
+      "idioma": "a fonte informa dublado",
+      "qualidade": "720p"
+     },
+     {
       "fonte": "watchplay",
+      "nota": 4.6,
+      "idioma": "a fonte informa dublado",
+      "qualidade": "720p"
+     }
+    ],
+    "semDublado": false,
+    "apenasOriginal": false
+   },
+   {
+    "id": "1423191",
+    "titulo": "Resident Evil",
+    "tipo": "movie",
+    "ok": true,
+    "fonte": "pipoca",
+    "fontesTestadas": [
+     {
+      "fonte": "pipoca",
       "nota": 4.65,
       "idioma": "a fonte informa dublado",
       "qualidade": "720p"
      },
      {
-      "fonte": "mgeb",
-      "nota": 3.5,
-      "idioma": "a fonte informa dublado",
-      "qualidade": "não mediu a altura"
-     }
-    ],
-    "semDublado": false,
-    "apenasOriginal": false
-   },
-   {
-    "id": "1228834",
-    "titulo": "The Fix",
-    "tipo": "movie",
-    "ok": true,
-    "fonte": "fenix",
-    "fontesTestadas": [
-     {
-      "fonte": "fenix",
-      "nota": 4.95,
+      "fonte": "watchplay",
+      "nota": 4.6,
       "idioma": "a fonte informa dublado",
       "qualidade": "720p"
-     },
-     {
-      "fonte": "mgeb",
-      "nota": 4.9,
-      "idioma": "a fonte informa dublado",
-      "qualidade": "800p"
      }
     ],
     "semDublado": false,
-    "apenasOriginal": false
-   },
-   {
-    "id": "1599191",
-    "titulo": "Renegade Immortal: Batalha dos Imortais",
-    "tipo": "movie",
-    "ok": false,
-    "fonte": "",
-    "fontesTestadas": [],
-    "semDublado": true,
     "apenasOriginal": false
    }
   ],
   "fontes": [
    {
     "id": "watchplay",
-    "acertos": 4,
+    "acertos": 0,
     "falhas": 0,
     "falhasSeguidas": 0,
     "castigada": false,
@@ -549,15 +633,15 @@
    },
    {
     "id": "pipoca",
-    "acertos": 0,
-    "falhas": 2,
-    "falhasSeguidas": 2,
-    "castigada": true,
-    "ultimoMotivo": "o endereço não entrega vídeo"
+    "acertos": 2,
+    "falhas": 0,
+    "falhasSeguidas": 0,
+    "castigada": false,
+    "ultimoMotivo": ""
    },
    {
     "id": "fenix",
-    "acertos": 1,
+    "acertos": 0,
     "falhas": 0,
     "falhasSeguidas": 0,
     "castigada": false,
@@ -566,10 +650,10 @@
    {
     "id": "vixsrc",
     "acertos": 0,
-    "falhas": 4,
-    "falhasSeguidas": 4,
-    "castigada": true,
-    "ultimoMotivo": "sem resposta"
+    "falhas": 0,
+    "falhasSeguidas": 0,
+    "castigada": false,
+    "ultimoMotivo": ""
    },
    {
     "id": "vidsrc",
@@ -583,141 +667,32 @@
  },
  "historico": [
   {
-   "em": "2026-10-09T11:43:45.228Z",
-   "testados": 3,
+   "em": "2026-10-09T22:32:48.725Z",
+   "testados": 2,
    "abriram": 2,
-   "resultados": [
-    {
-     "id": "1291595",
-     "titulo": "Sobrenatural: Agora Entre Nós",
-     "tipo": "movie",
-     "ok": true,
-     "fonte": "watchplay",
-     "fontesTestadas": [
-      {
-       "fonte": "watchplay",
-       "nota": 4.65,
-       "idioma": "a fonte informa dublado",
-       "qualidade": "720p"
-      },
-      {
-       "fonte": "mgeb",
-       "nota": 3.5,
-       "idioma": "a fonte informa dublado",
-       "qualidade": "não mediu a altura"
-      }
-     ],
-     "semDublado": false,
-     "apenasOriginal": false
-    },
-    {
-     "id": "1228834",
-     "titulo": "The Fix",
-     "tipo": "movie",
-     "ok": true,
-     "fonte": "fenix",
-     "fontesTestadas": [
-      {
-       "fonte": "fenix",
-       "nota": 4.95,
-       "idioma": "a fonte informa dublado",
-       "qualidade": "720p"
-      },
-      {
-       "fonte": "mgeb",
-       "nota": 4.9,
-       "idioma": "a fonte informa dublado",
-       "qualidade": "800p"
-      }
-     ],
-     "semDublado": false,
-     "apenasOriginal": false
-    },
-    {
-     "id": "1599191",
-     "titulo": "Renegade Immortal: Batalha dos Imortais",
-     "tipo": "movie",
-     "ok": false,
-     "fonte": "",
-     "fontesTestadas": [],
-     "semDublado": true,
-     "apenasOriginal": false
-    }
-   ],
-   "fontes": [
-    {
-     "id": "watchplay",
-     "acertos": 4,
-     "falhas": 0,
-     "falhasSeguidas": 0,
-     "castigada": false,
-     "ultimoMotivo": ""
-    },
-    {
-     "id": "pipoca-serie",
-     "acertos": 0,
-     "falhas": 0,
-     "falhasSeguidas": 0,
-     "castigada": false,
-     "ultimoMotivo": ""
-    },
-    {
-     "id": "mgeb",
-     "acertos": 0,
-     "falhas": 0,
-     "falhasSeguidas": 0,
-     "castigada": false,
-     "ultimoMotivo": ""
-    },
-    {
-     "id": "pipoca",
-     "acertos": 0,
-     "falhas": 2,
-     "falhasSeguidas": 2,
-     "castigada": true,
-     "ultimoMotivo": "o endereço não entrega vídeo"
-    },
-    {
-     "id": "fenix",
-     "acertos": 1,
-     "falhas": 0,
-     "falhasSeguidas": 0,
-     "castigada": false,
-     "ultimoMotivo": ""
-    },
-    {
-     "id": "vixsrc",
-     "acertos": 0,
-     "falhas": 4,
-     "falhasSeguidas": 4,
-     "castigada": true,
-     "ultimoMotivo": "sem resposta"
-    },
-    {
-     "id": "vidsrc",
-     "acertos": 0,
-     "falhas": 0,
-     "falhasSeguidas": 0,
-     "castigada": false,
-     "ultimoMotivo": ""
-    }
-   ]
-  },
-  {
-   "em": "2026-10-09T11:42:53.229Z",
-   "testados": 3,
-   "abriram": 3,
    "resultados": [
     {
      "id": "969681",
      "titulo": "Homem-Aranha: Um Novo Dia",
      "tipo": "movie",
      "ok": true,
-     "fonte": "watchplay",
+     "fonte": "pipoca",
      "fontesTestadas": [
       {
+       "fonte": "pipoca",
+       "nota": 4.85,
+       "idioma": "faixa em português é a padrão do arquivo",
+       "qualidade": "800p"
+      },
+      {
+       "fonte": "fenix",
+       "nota": 4.85,
+       "idioma": "a fonte informa dublado",
+       "qualidade": "720p"
+      },
+      {
        "fonte": "watchplay",
-       "nota": 4.65,
+       "nota": 4.6,
        "idioma": "a fonte informa dublado",
        "qualidade": "720p"
       }
@@ -730,36 +705,19 @@
      "titulo": "Resident Evil",
      "tipo": "movie",
      "ok": true,
-     "fonte": "watchplay",
+     "fonte": "pipoca",
      "fontesTestadas": [
       {
-       "fonte": "watchplay",
-       "nota": 4.65,
-       "idioma": "a fonte informa dublado",
-       "qualidade": "720p"
-      }
-     ],
-     "semDublado": false,
-     "apenasOriginal": false
-    },
-    {
-     "id": "1368337",
-     "titulo": "A Odisseia",
-     "tipo": "movie",
-     "ok": true,
-     "fonte": "watchplay",
-     "fontesTestadas": [
-      {
-       "fonte": "watchplay",
+       "fonte": "pipoca",
        "nota": 4.65,
        "idioma": "a fonte informa dublado",
        "qualidade": "720p"
       },
       {
-       "fonte": "mgeb",
-       "nota": 3.5,
+       "fonte": "watchplay",
+       "nota": 4.6,
        "idioma": "a fonte informa dublado",
-       "qualidade": "não mediu a altura"
+       "qualidade": "720p"
       }
      ],
      "semDublado": false,
@@ -769,7 +727,7 @@
    "fontes": [
     {
      "id": "watchplay",
-     "acertos": 3,
+     "acertos": 0,
      "falhas": 0,
      "falhasSeguidas": 0,
      "castigada": false,
@@ -793,11 +751,11 @@
     },
     {
      "id": "pipoca",
-     "acertos": 0,
-     "falhas": 2,
-     "falhasSeguidas": 2,
-     "castigada": true,
-     "ultimoMotivo": "o endereço não entrega vídeo"
+     "acertos": 2,
+     "falhas": 0,
+     "falhasSeguidas": 0,
+     "castigada": false,
+     "ultimoMotivo": ""
     },
     {
      "id": "fenix",

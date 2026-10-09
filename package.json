@@ -1,6 +1,6 @@
 {
   "name": "stream-tv",
-  "version": "2.13.19",
+  "version": "2.13.20",
   "description": "Conecta TV - catalogo, players e aplicativos (Android, Windows, iPhone)",
   "main": "launcher.js",
   "bin": "launcher.js",
@@ -61,5 +61,6 @@
     ]
   }
 }
+
 
 
