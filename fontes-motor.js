@@ -319,6 +319,9 @@ function fontesDePerfil() {
     return perfisMotor.perfisValidos(lista).map(perfil => {
         const nota = Number(perfil.nota) || 0;
         const soOriginal = perfil.dublado === false;
+        // Ficha de addon do Stremio é pedida pelo CÓDIGO IMDb: o motor busca
+        // esse código no TMDB na hora (e guarda, para não repetir a consulta).
+        const precisaDeImdb = /\{imdb\}/.test(String(perfil.urlMovie || '') + String(perfil.urlTv || ''));
         return {
             id: String(perfil.id),
             nome: perfil.nome || perfil.id,
@@ -327,9 +330,48 @@ function fontesDePerfil() {
             peso: 60 + nota * 3,
             perfil: true,
             seAplica: alvo => perfisMotor.serve(perfil, alvo, null),
-            resolver: alvo => perfisMotor.resolver(perfil, alvo, { buscar: buscarPagina }),
+            resolver: async alvo => {
+                const completo = precisaDeImdb ? await comImdb(alvo) : alvo;
+                if (!completo) return null;
+                return perfisMotor.resolver(perfil, completo, { buscar: buscarPagina });
+            },
         };
     });
+}
+
+// ------------------------------------------------------- código IMDb (TMDB)
+const imdbPorTitulo = new Map();
+function chaveTmdb() {
+    if (process.env.TMDB_KEY) return process.env.TMDB_KEY;
+    // O config.local.json existe mas pode não ter a chave: por isso só devolve
+    // quando ela existe de fato (antes ele devolvia vazio e parava aqui).
+    try {
+        const local = JSON.parse(fs.readFileSync(path.join(__dirname, 'config.local.json'), 'utf8')).tmdbKey;
+        if (local) return local;
+    } catch { /* tenta o próximo lugar */ }
+    try { return (fs.readFileSync(path.join(__dirname, 'server.js'), 'utf8').match(/const TMDB_KEY = '([^']+)'/) || [])[1] || ''; } catch { return ''; }
+}
+
+async function comImdb(alvo) {
+    if (alvo && alvo.imdb) return alvo;
+    if (!alvo || !/^\d{1,10}$/.test(String(alvo.tmdbId || ''))) return null;
+    const chaveTitulo = `${alvo.tipo === 'tv' ? 'tv' : 'movie'}:${alvo.tmdbId}`;
+    if (imdbPorTitulo.has(chaveTitulo)) {
+        const guardado = imdbPorTitulo.get(chaveTitulo);
+        return guardado ? { ...alvo, imdb: guardado } : null;
+    }
+    let imdb = '';
+    try {
+        const axios = require('axios');
+        const chave = chaveTmdb();
+        if (chave) {
+            const caminho = alvo.tipo === 'tv' ? 'tv' : 'movie';
+            const resposta = await axios.get(`https://api.themoviedb.org/3/${caminho}/${alvo.tmdbId}/external_ids?api_key=${chave}`, { timeout: 10000 });
+            imdb = String((resposta.data && resposta.data.imdb_id) || '');
+        }
+    } catch { imdb = ''; }
+    imdbPorTitulo.set(chaveTitulo, imdb);
+    return imdb ? { ...alvo, imdb } : null;
 }
 
 // Leitura da página do fornecedor descoberto (mesmas regras do caçador: só

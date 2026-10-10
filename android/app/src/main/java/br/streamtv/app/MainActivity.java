@@ -102,6 +102,17 @@ public final class MainActivity extends Activity {
     // ele chega pelo aviso de versão e fica guardado no aparelho.
     private static final String PERFIS_URL = "https://raw.githubusercontent.com/invictusbr1/stream-tv-atualizacoes/main/perfis.json";
     private volatile String perfisTexto = null;
+    // Código IMDb já consultado nesta execução (tipo|id → código).
+    private final java.util.Map<String, String> imdbConhecido = new java.util.concurrent.ConcurrentHashMap<>();
+
+    private String imdbNaMemoria(String tipo, String id) {
+        String guardado = imdbConhecido.get(tipo + "|" + id);
+        return guardado == null ? "" : guardado;
+    }
+
+    private void guardarImdb(String tipo, String id, String imdb) {
+        if (imdb != null && !imdb.isEmpty()) imdbConhecido.put(tipo + "|" + id, imdb);
+    }
 
     private File arquivoPerfis() { return new File(getFilesDir(), "perfis.json"); }
 
@@ -152,6 +163,19 @@ public final class MainActivity extends Activity {
         if (temporada != null) texto = texto.replace("{temporada}", Uri.encode(temporada));
         if (episodio != null) texto = texto.replace("{episodio}", Uri.encode(episodio));
         return texto;
+    }
+
+    /** Código IMDb do título (as fichas de addon são pedidas por esse código). */
+    private String imdbDoTitulo(String tipo, String id) {
+        try {
+            String caminho = "tv".equals(tipo) ? "tv" : "movie";
+            String externo = lerPagina("https://api.themoviedb.org/3/" + caminho + "/" + id + "/external_ids?api_key=" + chaveTmdb(), null);
+            if (externo != null) {
+                Matcher achado = Pattern.compile("\"imdb_id\"\\s*:\\s*\"(tt\\d{5,10})\"").matcher(externo);
+                if (achado.find()) return achado.group(1);
+            }
+        } catch (Exception e) { /* segue sem o código */ }
+        return "";
     }
 
     private boolean enderecoSeguro(String endereco) {
@@ -236,7 +260,16 @@ public final class MainActivity extends Activity {
             Collections.sort(fichas, (a, b) -> Double.compare(b.optDouble("nota", 0), a.optDouble("nota", 0)));
             for (JSONObject ficha : fichas.subList(0, Math.min(3, fichas.size()))) {
                 String modelo = "tv".equals(tipo) ? ficha.optString("urlTv", "") : ficha.optString("urlMovie", "");
-                String endereco = preencher(modelo, id, temporada, episodio);
+                // Ficha de addon do Stremio: o endereço é montado com o código
+                // IMDb, que o aparelho busca no TMDB na hora (e guarda na memória
+                // da abertura, para não repetir a consulta).
+                String imdb = "";
+                if (modelo.contains("{imdb}")) {
+                    imdb = imdbNaMemoria(tipo, id);
+                    if (imdb.isEmpty()) { imdb = imdbDoTitulo(tipo, id); if (!imdb.isEmpty()) guardarImdb(tipo, id, imdb); }
+                    if (imdb.isEmpty()) continue;
+                }
+                String endereco = preencher(modelo, id, temporada, episodio).replace("{imdb}", Uri.encode(imdb));
                 if (!enderecoSeguro(endereco)) continue;
                 String referer = ficha.optString("referer", "");
                 String pagina = lerPagina(endereco, referer.isEmpty() ? null : referer);

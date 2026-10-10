@@ -5,7 +5,7 @@
 
 ## Última versão publicada
 
-- App: **2.13.43** (versionCode 373) — PC, APK do celular (`br.streamtv.app`),
+- App: **2.13.45** (versionCode 375) — PC, APK do celular (`br.streamtv.app`),
   APK da TV (`br.streamtv.app.tv`) e web. Manifesto conferido em 10/10/2026.
 - Central: **1.5.7** (painel com fichas + placar real + caçada profunda).
 - Manifesto: `invictusbr1/stream-tv-atualizacoes` / `latest.json` (app, TV e
@@ -124,6 +124,12 @@ Rotas novas da central: `/api/placar`, `/api/perfis`, `/api/cacar/estado`
    servidor responde nos dois; medido em 10/10/2026). É esta ficha que abre no
    computador e no celular sem versão nova — conferir em `/api/perfis` e no
    bloco "Fichas de fonte aprovadas" do painel.
+   **Conferido no aplicativo instalado (2.13.45, 10/10/2026):** com as fontes
+   fixas fora do caminho (`/api/playback/278?exceto=watchplay,pipoca,mgeb,fenix,
+   pipoca-serie,vixsrc,vidsrc`) o aplicativo responde
+   `fonte=FenixFlix (FenixHub), fonteId=fenixflix-fenixhub, audio=dublado,
+   resolucao=1080p` — e o mesmo no título 155. Para isso o aplicativo agora
+   busca o código IMDb do título no TMDB (o addon é pedido por esse código).
    O que faltava para ela passar: (a) usar o MOLDE certo por tipo (antes uma
    amostra de série virava molde de filme), (b) validar nos títulos que o addon
    realmente tem em vez dos títulos fixos do aplicativo, (c) mandar o
