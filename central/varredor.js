@@ -70,6 +70,9 @@ const SITES = [
     { nome: 'StreamBetter', url: 'https://streambetter.shop/' },
     { nome: 'RedeCanais', url: 'https://redecanais20.lat/' },
     { nome: 'PobreFlix', url: 'https://pobreflixhd.sbs/' },
+    // Pomfy (endereço confirmado pelo usuário em 10/10/2026): aplicativo
+    // brasileiro de filmes e séries, sem anúncio na página inicial.
+    { nome: 'Pomfy', url: 'https://pomfy.online/' },
 ];
 
 function comPrazo(promessa, ms = TEMPO) {
