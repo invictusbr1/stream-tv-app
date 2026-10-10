@@ -25,6 +25,9 @@ replace("url.origin!==location.origin||!/^\\/assistir\\/\\d{1,10}\\/[0-7]$/.test
 // seloDeVersao: acrescenta ?v=... nos scripts para o WebView largar o cache antigo.
 const seloDeVersao='v'+Date.now();
 html=html.replace(/(<script src="\/[a-z0-9.-]+\.js)(")/gi,(m,nome,fim)=>nome+'?'+seloDeVersao+fim);
+// CSS do aplicativo (telefone/TV): garante a tela de episódios no arranjo novo.
+const CSS_APP="\n/* --- episodio-apk-final: capa em cima, texto e sinopse embaixo dela --- */\n#series-dialog .episode-play-btn{display:grid!important;grid-template-columns:1fr!important;gap:10px!important;align-items:start!important}\n#series-dialog .episode-capa,#series-dialog .episode-art{width:46%!important;max-width:240px!important;height:auto!important;aspect-ratio:16/9;object-fit:cover;border-radius:10px}\n#series-dialog .episode-info{display:block!important;min-width:0}\n#series-dialog .episode-sinopse{display:block!important;margin:8px 0 0 0!important;width:auto!important;max-width:none!important;transform:none!important;font-size:13.5px!important;line-height:1.55;color:#c3ccda;text-align:left}\nhtml.modo-tv #series-dialog .episode-capa,html.modo-tv #series-dialog .episode-art{width:34%!important;max-width:420px!important}\nhtml.modo-tv #series-dialog .episode-sinopse{font-size:17px!important}\n";
+if(!html.includes('episodio-apk-final'))html=html.replace('</style>',CSS_APP+'</style>');
 fs.writeFileSync(path.join(assets,'index.html'),html);
 fs.copyFileSync(path.join(root,'playback.js'),path.join(assets,'playback.js'));
 // As legendas do aplicativo (arquivo local e busca na internet) seguem junto
