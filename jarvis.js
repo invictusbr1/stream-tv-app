@@ -1,6 +1,4 @@
 (function () {
-  const MODELOS_GROQ = ['openai/gpt-oss-120b', 'openai/gpt-oss-20b', 'qwen/qwen3.8-27b', 'llama-3.3-70b-versatile'];
-  const INSTRUCAO = 'Você é o Jarvis do Conecta TV. Responda em português, seja direto e nunca prometa que uma fonte funciona.';
   const PERFIL_KEY = 'streamtv-gosto';
   const PERFIL_VALIDADE = 7 * 24 * 60 * 60 * 1000;
   let configPromise;
@@ -71,28 +69,31 @@
     return configPromise;
   }
 
-  // No aparelho: pergunta direto ao provedor, sem servidor no meio.
-  async function perguntarAoProvedor(chave, prompt) {
-    let ultimoErro = null;
-    for (const model of MODELOS_GROQ) {
-      try {
-        const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${chave}` },
-          body: JSON.stringify({ model, temperature: 0.6, max_tokens: 900, messages: [{ role: 'system', content: INSTRUCAO }, { role: 'user', content: prompt }] })
-        });
-        const data = await response.json().catch(() => ({}));
-        if (!response.ok) { ultimoErro = new Error(data.error?.message || 'Jarvis indisponível.'); continue; }
-        const answer = data.choices?.[0]?.message?.content?.trim();
-        if (answer) return answer;
-      } catch (error) { ultimoErro = error; }
-    }
-    throw ultimoErro || new Error('Jarvis indisponível.');
-  }
-
-  // No computador: o servidor local guarda a chave e responde por /api/jarvis.
+  // Tanto o computador quanto o Android usam o servidor; nunca a chave do provedor.
   async function perguntarAoServidor(prompt) {
-    const response = await fetch('/api/jarvis', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt }) });
+    const config = await loadConfig();
+    let origem = '';
+    if (config.app === 'android') {
+      if (!config.jarvisServer) throw new Error('Configure o servidor do Jarvis para usar o assistente neste aparelho.');
+      const url = new URL(config.jarvisServer);
+      if (url.protocol !== 'https:' || url.username || url.password || url.search || url.hash || url.pathname !== '/') throw new Error('Endereço do Jarvis inválido.');
+      origem = url.origin;
+    }
+    const tokenKey = 'streamtv-jarvis-acesso:' + origem;
+    let token = '';
+    try { token = sessionStorage.getItem(tokenKey) || ''; } catch { /* sem armazenamento */ }
+    const pedir = () => fetch(origem + '/api/jarvis', { method: 'POST', headers: { 'Content-Type': 'application/json', ...(token ? { 'X-Acesso': token } : {}) }, body: JSON.stringify({ prompt }) });
+    let response = await pedir();
+    if (response.status === 401 && origem) {
+      const codigo = window.prompt('Informe o código de acesso ao servidor do Jarvis:');
+      if (!codigo) throw new Error('É necessário entrar no servidor para usar o Jarvis.');
+      const entrada = await fetch(origem + '/api/entrar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ codigo, nome: 'Jarvis Android', aparelho: 'Android' }) });
+      const dados = await entrada.json().catch(() => ({}));
+      if (!entrada.ok) throw new Error(dados.error || 'Não foi possível entrar no servidor.');
+      token = dados.token || '';
+      try { sessionStorage.setItem(tokenKey, token); } catch { /* válido nesta pergunta */ }
+      response = await pedir();
+    }
     const data = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(data.error || 'Jarvis indisponível.');
     return data.answer || 'Não encontrei uma resposta.';
@@ -109,8 +110,7 @@
       mostrarPerfil(perfil);
       const contexto = textoDoPerfil(perfil);
       const pergunta = contexto ? `${prompt}\n\n${contexto}` : prompt;
-      const config = await loadConfig();
-      const answer = config.groqKey ? await perguntarAoProvedor(config.groqKey, pergunta) : await perguntarAoServidor(pergunta);
+      const answer = await perguntarAoServidor(pergunta);
       document.getElementById('jarvis-answer').textContent = answer;
       setStatus('');
     } catch (error) { setStatus(error.message || 'Jarvis indisponível.', true); }

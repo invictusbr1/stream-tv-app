@@ -13,6 +13,8 @@ if (-not $Token -and (Test-Path -LiteralPath $arquivoToken)) { $Token = (Get-Con
 if (-not $Token) { throw "Token do GitHub não encontrado. Salve o token em $arquivoToken" }
 
 $apk = (Resolve-Path -LiteralPath $ApkPath).Path
+& (Join-Path $PSScriptRoot 'Verificar-Segredos-Apk.ps1') -ApkPath $apk
+if ($ApkTvPath) { & (Join-Path $PSScriptRoot 'Verificar-Segredos-Apk.ps1') -ApkPath $ApkTvPath }
 $gradle = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'app\build.gradle') -Raw
 $versionCode = [int][regex]::Match($gradle, "versionCode\s+(\d+)").Groups[1].Value
 $versionName = [regex]::Match($gradle, "versionName\s+'([^']+)'").Groups[1].Value

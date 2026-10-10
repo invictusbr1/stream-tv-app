@@ -1,15 +1,12 @@
-const fs=require('fs'),path=require('path'),os=require('os');
+const fs=require('fs'),path=require('path');
 const root=path.resolve(__dirname,'..'),assets=path.join(__dirname,'app/src/main/assets');
 let localConfig={};try{localConfig=JSON.parse(fs.readFileSync(path.join(root,'config.local.json'),'utf8'));}catch{}
-// A versão Android conversa com a IA direto do aparelho: a chave vai dentro do APK de uso pessoal.
-const CHAVE_JARVIS=(()=>{
-    if(process.env.GROQ_API_KEY)return process.env.GROQ_API_KEY.trim();
-    if(localConfig.groqKey)return String(localConfig.groqKey).trim();
-    for(const file of [path.join(os.homedir(),'OneDrive','Área de Trabalho','api.txt'),path.join(os.homedir(),'Desktop','api.txt')]){
-        try{const chave=fs.readFileSync(file,'utf8').match(/gsk_[A-Za-z0-9_-]{20,}/);if(chave)return chave[0];}catch{}
-    }
-    return '';
-})();
+// Somente o endereço público vai para o APK. A chave de IA fica no servidor.
+const jarvisServer=String(process.env.JARVIS_SERVER_URL||localConfig.jarvisServer||'').trim().replace(/\/$/,'');
+if(jarvisServer){
+    const url=new URL(jarvisServer);
+    if(url.protocol!=='https:'||url.username||url.password||url.search||url.hash||url.pathname!=='/')throw Error('JARVIS_SERVER_URL deve ser uma origem HTTPS, sem credenciais.');
+}
 let html=fs.readFileSync(path.join(root,'index.html'),'utf8').replace(/\r\n/g,'\n');
 function replace(before,after){if(!html.includes(before))throw Error('UI adapter no longer matches: '+before);html=html.replace(before,after);}
 replace("async function lerJson(url,signal){const r=await fetch(url,{signal});if(!r.ok)throw Error('Indisponível');return r.json();}","async function lerJson(url,signal){if(url.startsWith('/api/playback/')){const r=await fetch(url,{signal});if(!r.ok)throw Error('Indisponível');return r.json();}return (await androidCatalog).request(url,signal);}");
@@ -50,7 +47,7 @@ fs.writeFileSync(path.join(assets,'config.json'),JSON.stringify({
   tmdbKey:key[1],
   supabaseUrl:process.env.SUPABASE_URL||localConfig.supabaseUrl||'',
   supabaseAnonKey:process.env.SUPABASE_ANON_KEY||localConfig.supabaseAnonKey||'',
-  groqKey:CHAVE_JARVIS,
+  jarvisServer,
   // Endereço da central de status (opcional): o aplicativo do celular também
   // reporta quem entrou e o que está assistindo.
   central:String(process.env.CENTRAL_URL||localConfig.central||'').replace(/\/$/,''),
