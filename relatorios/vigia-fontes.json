@@ -2,7 +2,7 @@
  "ligado": true,
  "rodando": true,
  "rodadas": 1,
- "ultimaRodada": 1791590926871,
+ "ultimaRodada": 1791592136134,
  "proximaRodada": 0,
  "titulos": [
   {
@@ -221,8 +221,8 @@
    "tipo": "movie"
   },
   {
-   "id": "1599993",
-   "titulo": "Animales",
+   "id": "1476746",
+   "titulo": "A Última Entrega",
    "tipo": "movie"
   },
   {
@@ -231,8 +231,8 @@
    "tipo": "movie"
   },
   {
-   "id": "1476746",
-   "titulo": "A Última Entrega",
+   "id": "1036081",
+   "titulo": "ഖലീഫ: The Ruler",
    "tipo": "movie"
   },
   {
@@ -241,13 +241,13 @@
    "tipo": "movie"
   },
   {
-   "id": "1036081",
-   "titulo": "ഖലീഫ: The Ruler",
+   "id": "1153576",
+   "titulo": "Street Fighter",
    "tipo": "movie"
   },
   {
-   "id": "1153576",
-   "titulo": "Street Fighter",
+   "id": "1599993",
+   "titulo": "Animales",
    "tipo": "movie"
   },
   {
@@ -386,8 +386,8 @@
    "tipo": "tv"
   },
   {
-   "id": "303630",
-   "titulo": "Cupertino",
+   "id": "255752",
+   "titulo": "Hotel Assombrado",
    "tipo": "tv"
   },
   {
@@ -396,13 +396,13 @@
    "tipo": "tv"
   },
   {
-   "id": "255752",
-   "titulo": "Hotel Assombrado",
+   "id": "303630",
+   "titulo": "Cupertino",
    "tipo": "tv"
   },
   {
-   "id": "220542",
-   "titulo": "Diários de uma Apotecária",
+   "id": "196322",
+   "titulo": "Matéria Escura",
    "tipo": "tv"
   },
   {
@@ -411,8 +411,8 @@
    "tipo": "tv"
   },
   {
-   "id": "196322",
-   "titulo": "Matéria Escura",
+   "id": "220542",
+   "titulo": "Diários de uma Apotecária",
    "tipo": "tv"
   },
   {
@@ -549,7 +549,7 @@
  "cursor": 2,
  "semFonte": [],
  "ultimoResumo": {
-  "em": "2026-10-10T00:08:46.871Z",
+  "em": "2026-10-10T00:28:56.134Z",
   "testados": 2,
   "abriram": 2,
   "resultados": [
@@ -562,13 +562,13 @@
     "fontesTestadas": [
      {
       "fonte": "pipoca",
-      "nota": 5.15,
+      "nota": 4.85,
       "idioma": "faixa em português é a padrão do arquivo",
       "qualidade": "800p"
      },
      {
       "fonte": "watchplay",
-      "nota": 4,
+      "nota": 4.3,
       "idioma": "a fonte informa dublado",
       "qualidade": "720p"
      }
@@ -627,7 +627,7 @@
    },
    {
     "id": "pipoca",
-    "acertos": 7,
+    "acertos": 11,
     "falhas": 0,
     "falhasSeguidas": 0,
     "castigada": false,
@@ -661,7 +661,7 @@
  },
  "historico": [
   {
-   "em": "2026-10-10T00:08:46.871Z",
+   "em": "2026-10-10T00:28:56.134Z",
    "testados": 2,
    "abriram": 2,
    "resultados": [
@@ -674,13 +674,13 @@
      "fontesTestadas": [
       {
        "fonte": "pipoca",
-       "nota": 5.15,
+       "nota": 4.85,
        "idioma": "faixa em português é a padrão do arquivo",
        "qualidade": "800p"
       },
       {
        "fonte": "watchplay",
-       "nota": 4,
+       "nota": 4.3,
        "idioma": "a fonte informa dublado",
        "qualidade": "720p"
       }
@@ -739,7 +739,7 @@
     },
     {
      "id": "pipoca",
-     "acertos": 7,
+     "acertos": 11,
      "falhas": 0,
      "falhasSeguidas": 0,
      "castigada": false,
