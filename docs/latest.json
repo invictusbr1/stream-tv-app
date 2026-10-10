@@ -1,14 +1,14 @@
 {
-  "versionCode": 383,
-  "versionName": "2.13.53",
-  "apkUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.53/Conecta-TV-Android-2.13.53.apk",
-  "sha256": "668cc7e8ef3d1715623c1550b70d066f7d6b6c79a78f7598388dddb0b21f60fa",
-  "bytes": 381345,
-  "notes": "Relatos pelo Java nativo com descoberta antes do envio. TV box com layout proporcional, painel de episódios compacto, imagens menores e navegação otimizada pelo controle. Destaque automático desativado na TV. PC com CORS corrigido para relatos Android. A Central corrigida está disponível nesta versão: fila com pausa que expira, menos testes repetidos e placar baseado em reprodução confirmada.",
-  "apkTvUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.53/Conecta-TV-TV-2.13.53.apk",
-  "apkTvSha256": "d5e41ad8e35787fd9470f492e282cf3265784ddf7fce08d3a0830d5abb9d9375",
-  "apkTvBytes": 381432,
-  "exeUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.53/Conecta-TV-2.13.53.exe",
-  "exeSha256": "de1d46a3709126f7160385c0b522fe9b17b6d1f0d37998ed5e1eaf1c258635e0",
-  "exeBytes": 119431312
+  "versionCode": 384,
+  "versionName": "2.13.54",
+  "apkUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.54/Conecta-TV-Android-2.13.54.apk",
+  "sha256": "9210237438c2c9e234c0e5cccaa8532c786c80415a75653c10d96be6bf8cc2a2",
+  "bytes": 379432,
+  "notes": "Atualização sem dependência de navegador na tentativa de download. Caçador com prioridade para falhas reais, episódios distintos, distribuição entre domínios e gravação mais segura da fila. Use também a Central 2.13.54 no computador.",
+  "apkTvUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.54/Conecta-TV-TV-2.13.54.apk",
+  "apkTvSha256": "1f73d10b053818138f3df3861bf6c1fdfc1a1be52bbee33d9a58219f627bf289",
+  "apkTvBytes": 379501,
+  "exeUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.54/Conecta-TV-2.13.54.exe",
+  "exeSha256": "8bfe18a5939e341d66ac4056f99b249f61948500b4d1dd45d0f37c17957e78f3",
+  "exeBytes": 119435620
 }
