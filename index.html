@@ -667,7 +667,7 @@ const FEEDS=['https://raw.githubusercontent.com/invictusbr1/stream-tv-atualizaco
 window.StreamVersoes={instalada:'',publicada:'',resultado:'',rotulo:''};
 // O aplicativo do celular chama esta função depois de conferir por conta dele
 // (código Java): assim a central registra o que o aparelho mediu de verdade.
-window.StreamAtualizacao=function(info){try{const i=info||{};window.StreamAcesso?.reportar?.({tipo:'atualizacao',instalada:String(i.instalada||''),publicada:String(i.publicada||''),resultado:String(i.resultado||''),motivo:String(i.motivo||''),canal:String(i.canal||'')});}catch{}};
+window.StreamAtualizacao=function(info){try{const i=info||{};const resumo=('instalada '+(i.instalada||'?')+' · publicada '+(i.publicada||'?')+' · '+(i.resultado||'')+(i.motivo?' · '+i.motivo:'')+(i.canal?' · '+i.canal:'')).slice(0,120);window.StreamAcesso?.reportar?.({tipo:'atualizacao',instalada:String(i.instalada||''),publicada:String(i.publicada||''),resultado:String(i.resultado||''),canal:String(i.canal||''),motivo:resumo});}catch{}};
 async function lerManifesto(){
     for(const endereco of FEEDS){
         try{
@@ -702,7 +702,8 @@ async function lerManifesto(){
             const nova=Boolean(feed&&Number(feed.versionCode)>Number(config.versionCode||0));
             const resultado=!config.versionCode?'sem-versao':!feed?'sem-resposta':nova?'disponivel':'atualizado';
             if(config.app==='android')window.StreamVersoes={instalada,publicada,resultado,rotulo:nova?' · nova versão '+publicada:(instalada?' · versão '+instalada:'')};
-            window.StreamAcesso?.reportar?.({tipo:'atualizacao',instalada,publicada,resultado,canal:String(config.canal||'')}).catch(()=>{});
+            const canal=String(config.canal||'');
+            window.StreamAcesso?.reportar?.({tipo:'atualizacao',instalada,publicada,resultado,canal,motivo:('instalada '+(instalada||'?')+' · publicada '+(publicada||'?')+' · '+resultado+(canal?' · '+canal:'')).slice(0,120)}).catch(()=>{});
             if(config.app!=='android')return;
             const link=document.getElementById('update-link');if(link)link.hidden=false;
             if(!nova)return;

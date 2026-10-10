@@ -5,7 +5,7 @@
 
 ## Última versão publicada
 
-- App: **2.13.40** (versionCode 370) — PC, APK do celular (`br.streamtv.app`),
+- App: **2.13.41** (versionCode 371) — PC, APK do celular (`br.streamtv.app`),
   APK da TV (`br.streamtv.app.tv`) e web. Manifesto conferido em 10/10/2026.
 - Central: **1.5.6**.
 - Manifesto: `invictusbr1/stream-tv-atualizacoes` / `latest.json` — agora traz
@@ -79,6 +79,12 @@
    celular, tocar **Atualizar aplicativo** (na gaveta) e olhar na central o que
    ele mediu; é esse `resultado`/`motivo` que diz se a rede do aparelho bloqueia
    o manifesto.
+
+   Conferido em 10/10/2026 no PC: o evento chega com
+   `motivo: "instalada 2.13.41 · publicada 2.13.41 · sem-versao"`. A central
+   guarda só o campo `motivo` do relato (os campos extras são descartados por
+   ela), então a medida do aparelho aparece ali — no celular deve sair
+   `instalada 2.13.27 · publicada 2.13.41 · disponivel` quando ele conferir.
 2. **Instalar o APK da TV na TV box**: o pacote `br.streamtv.app.tv` já sai em
    cada versão, mas a Xiaomi TV Box ainda está com o APK do celular. Instalar
    uma vez o `Conecta-TV-TV-<versão>.apk` (depois o aviso de atualização manda
