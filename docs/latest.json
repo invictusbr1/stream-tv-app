@@ -1,14 +1,14 @@
 {
-  "versionCode": 386,
-  "versionName": "2.13.56",
-  "apkUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.56/Conecta-TV-Android-2.13.56.apk",
-  "sha256": "55fe822149d6153ccda40d30b38037347516786dc2980557a5a3467b84348145",
-  "bytes": 381032,
-  "notes": "Corrige One Piece e outros episódios da MGEB no Android: acompanha redirecionamento HTTPS entre mgeb.top e mgeb.site. Central 2.13.56 só marca casos como resolvidos após confirmação de reprodução do aparelho. One Piece T1E1 reproduziu em 720p no computador; 192 testes passaram. Atualize o APK e a Central.",
-  "apkTvUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.56/Conecta-TV-TV-2.13.56.apk",
-  "apkTvSha256": "47469cf36a709a7a272142a53f2cea412daaaf047bedc921a979852abdcc3eea",
-  "apkTvBytes": 381110,
-  "exeUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.56/Conecta-TV-2.13.56.exe",
-  "exeSha256": "5a6e62d0513a99c7a9381527314d6dbecd773da9d94dc29451df3375112a78a8",
-  "exeBytes": 119435755
+  "versionCode": 387,
+  "versionName": "2.13.57",
+  "apkUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.57/Conecta-TV-Android-2.13.57.apk",
+  "sha256": "991bd501722701806189a2a1a1cceb7d4ea8b6ea7bb08861b0ded0d822f9198f",
+  "bytes": 464160,
+  "notes": "TV ao vivo com categorias corrigidas e futebol grátis: Premier League, Brasileirão e Copa do Brasil. Abre os canais oficiais no aplicativo YouTube da TV; jogos selecionados. Caçador valida listas HLS. 194 testes passaram.",
+  "apkTvUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.57/Conecta-TV-TV-2.13.57.apk",
+  "apkTvSha256": "6f03cd2508be2dbc8035f17f04af657b94c36011b130f5108785d7122f1ff7cf",
+  "apkTvBytes": 464440,
+  "exeUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.57/Conecta-TV-2.13.57.exe",
+  "exeSha256": "4e1a0eeddf31118404f8699e62ddd5df0d440c6e38bb63f9ba11d7556589124c",
+  "exeBytes": 119439918
 }
