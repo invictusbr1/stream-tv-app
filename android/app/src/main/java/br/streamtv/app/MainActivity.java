@@ -374,10 +374,15 @@ public final class MainActivity extends Activity {
         // devolve VÍDEO. As fontes trocam de servidor sem avisar (o PipocaCine
         // passou a devolver página de erro em 09/10/2026) e, sem esta
         // checagem, o aparelho ficava esperando uma imagem que nunca vinha.
-        if (!entregaVideo(url, refererDaFonte(url))) return error(502);
+        String referer = refererDaFonte(url);
+        if (!entregaVideo(url, referer)) return error(502);
         try {
             JSONObject result = new JSONObject();
-            result.put("url", url); result.put("audio", audio); result.put("type", tipo); result.put("source", fonte);
+            // Lista de reprodução passa pelo encaminhador do aparelho: é o que
+            // evita o 403 do CDN quando o pedido vem do WebView. Arquivo direto
+            // (MP4) continua indo direto — assim o avançar/voltar segue igual.
+            String servido = (url.contains(".m3u8")) ? enderecoEncaminhado(url, referer) : url;
+            result.put("url", servido); result.put("audio", audio); result.put("type", tipo); result.put("source", fonte);
             return new WebResourceResponse("application/json", "UTF-8", 200, "OK", Collections.singletonMap("Cache-Control", "no-store"), new ByteArrayInputStream(result.toString().getBytes(StandardCharsets.UTF_8)));
         } catch (Exception e) { return error(502); }
     }
@@ -392,6 +397,85 @@ public final class MainActivity extends Activity {
         if (url.contains("mgeb") || url.contains("solo-latino") || url.contains("97bf1") || url.contains("playercdn") || url.contains("123pelicula") || url.contains("delivery-limit")) return "https://mgeb.top/";
         if (url.contains("vixsrc") || url.contains("mistyreef")) return "https://vixsrc.to/";
         return null;
+    }
+
+    // ------------------------------------------------------- encaminhador
+    // Alguns CDs (Akamai) recusam pedidos que chegam com a origem do WebView
+    // (medido em 10/10/2026: 403 com a origem do aplicativo, 200 sem). Aqui o
+    // vídeo passa pelo próprio aparelho — como já acontece no computador — e a
+    // lista de reprodução é reescrita para os pedaços também passarem por ele.
+    private static final String UA_ANDROID = "Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Mobile Safari/537.36";
+
+    private String codificar(String valor) {
+        return android.util.Base64.encodeToString(String.valueOf(valor == null ? "" : valor).getBytes(StandardCharsets.UTF_8),
+            android.util.Base64.URL_SAFE | android.util.Base64.NO_PADDING | android.util.Base64.NO_WRAP);
+    }
+
+    private String decodificar(String valor) {
+        try {
+            return new String(android.util.Base64.decode(valor, android.util.Base64.URL_SAFE | android.util.Base64.NO_PADDING | android.util.Base64.NO_WRAP), StandardCharsets.UTF_8);
+        } catch (Exception e) { return ""; }
+    }
+
+    private String enderecoEncaminhado(String url, String referer) {
+        return "/api/hls?u=" + codificar(url) + "&r=" + codificar(referer);
+    }
+
+    private byte[] lerBytes(InputStream entrada) {
+        try (InputStream fluxo = entrada; ByteArrayOutputStream saida = new ByteArrayOutputStream()) {
+            byte[] bloco = new byte[32768]; int lidos;
+            while ((lidos = fluxo.read(bloco)) != -1) { saida.write(bloco, 0, lidos); if (saida.size() > 48 * 1024 * 1024) break; }
+            return saida.toByteArray();
+        } catch (Exception e) { return new byte[0]; }
+    }
+
+    private String encaminharEndereco(String valor, String base, String referer) {
+        try {
+            String absoluto = valor.startsWith("http") ? valor : new URL(new URL(base), valor).toString();
+            return enderecoEncaminhado(absoluto, referer);
+        } catch (Exception e) { return valor; }
+    }
+
+    private WebResourceResponse encaminharMidia(Uri uri) {
+        String alvo = decodificar(uri.getQueryParameter("u"));
+        String referer = decodificar(uri.getQueryParameter("r"));
+        if (alvo.isEmpty() || !enderecoSeguro(alvo)) return error(502);
+        HttpsURLConnection conexao = null;
+        try {
+            conexao = (HttpsURLConnection) new URL(alvo).openConnection();
+            conexao.setConnectTimeout(12000); conexao.setReadTimeout(25000);
+            conexao.setInstanceFollowRedirects(true);
+            conexao.setRequestProperty("User-Agent", UA_ANDROID);
+            conexao.setRequestProperty("Accept", "*/*");
+            if (referer != null && !referer.isEmpty()) conexao.setRequestProperty("Referer", referer);
+            int codigo = conexao.getResponseCode();
+            if (codigo >= 400) return error(codigo);
+            String tipo = conexao.getContentType() == null ? "application/octet-stream" : conexao.getContentType();
+            byte[] corpo = lerBytes(conexao.getInputStream());
+            if (codigo == 200 && (tipo.toLowerCase().contains("mpegurl") || alvo.contains(".m3u8"))) {
+                String base = alvo.substring(0, alvo.lastIndexOf('/') + 1);
+                StringBuilder saida = new StringBuilder();
+                for (String linha : new String(corpo, StandardCharsets.UTF_8).split("\n")) {
+                    String limpa = linha.replace("\r", "");
+                    if (limpa.startsWith("#")) {
+                        Matcher dentro = Pattern.compile("URI=\"([^\"]+)\"").matcher(limpa);
+                        StringBuffer pedaco = new StringBuffer();
+                        while (dentro.find()) dentro.appendReplacement(pedaco, Matcher.quoteReplacement("URI=\"" + encaminharEndereco(dentro.group(1), base, referer) + "\""));
+                        dentro.appendTail(pedaco);
+                        saida.append(pedaco).append('\n');
+                    } else if (limpa.trim().isEmpty()) {
+                        saida.append('\n');
+                    } else {
+                        saida.append(encaminharEndereco(limpa.trim(), base, referer)).append('\n');
+                    }
+                }
+                return new WebResourceResponse("application/vnd.apple.mpegurl", "UTF-8", 200, "OK",
+                    Collections.singletonMap("Cache-Control", "no-store"),
+                    new ByteArrayInputStream(saida.toString().getBytes(StandardCharsets.UTF_8)));
+            }
+            return new WebResourceResponse(tipo, "UTF-8", codigo, "OK", Collections.singletonMap("Cache-Control", "no-store"), new ByteArrayInputStream(corpo));
+        } catch (Exception e) { return error(502); }
+        finally { if (conexao != null) conexao.disconnect(); }
     }
 
     private boolean entregaVideo(String url, String referer) {
@@ -763,6 +847,9 @@ public final class MainActivity extends Activity {
                 // Legendas no aparelho: quando o filme toca com o áudio original,
                 // o telefone busca sozinho a legenda em português (sem cadastro).
                 if (path != null && "/api/legendas/online".equals(path)) return legendasOnline(uri);
+                // Encaminhador do vídeo (ver encaminharMidia): sem isso o CDN
+                // recusa o pedido que vem do WebView e o anime não abre.
+                if (path != null && "/api/hls".equals(path)) return encaminharMidia(uri);
                 // Fichas de fonte (o mesmo arquivo que o computador usa): a
                 // interface lê aqui para montar as listas de canais novas.
                 if (path != null && "/perfis.json".equals(path)) {
