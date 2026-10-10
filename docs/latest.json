@@ -1,14 +1,14 @@
 {
-  "versionCode": 384,
-  "versionName": "2.13.54",
-  "apkUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.54/Conecta-TV-Android-2.13.54.apk",
-  "sha256": "9210237438c2c9e234c0e5cccaa8532c786c80415a75653c10d96be6bf8cc2a2",
-  "bytes": 379432,
-  "notes": "Atualização sem dependência de navegador na tentativa de download. Caçador com prioridade para falhas reais, episódios distintos, distribuição entre domínios e gravação mais segura da fila. Use também a Central 2.13.54 no computador.",
-  "apkTvUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.54/Conecta-TV-TV-2.13.54.apk",
-  "apkTvSha256": "1f73d10b053818138f3df3861bf6c1fdfc1a1be52bbee33d9a58219f627bf289",
-  "apkTvBytes": 379501,
-  "exeUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.54/Conecta-TV-2.13.54.exe",
-  "exeSha256": "8bfe18a5939e341d66ac4056f99b249f61948500b4d1dd45d0f37c17957e78f3",
-  "exeBytes": 119435620
+  "versionCode": 385,
+  "versionName": "2.13.55",
+  "apkUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.55/Conecta-TV-Android-2.13.55.apk",
+  "sha256": "27597e5d8c3478d72e9df0af417b5d4724b6bd3440f6135fac8458ea5e5b10da",
+  "bytes": 380235,
+  "notes": "Corrige a troca de fontes de episódios no Android: respeita fontes já tentadas e informa o identificador ao player. Caçador executado para animes; MGEB reproduziu duas amostras em 720p no computador, mas consultas posteriores tiveram falhas. Nenhuma fonte nova foi aprovada. Instale o APK atualizado na TV box.",
+  "apkTvUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.55/Conecta-TV-TV-2.13.55.apk",
+  "apkTvSha256": "5218264cf9b5e68fc1f5d7eacf0bad92370f5ffa96044fa5f0aa29a84eaac949",
+  "apkTvBytes": 380316,
+  "exeUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.55/Conecta-TV-2.13.55.exe",
+  "exeSha256": "0a884fb30bbd8f65ac066e4dc3ab96b7d5104ae1bb9f6b60b7f413fcbe9d953a",
+  "exeBytes": 119435724
 }
