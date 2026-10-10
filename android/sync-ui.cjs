@@ -35,6 +35,8 @@ const CSS_CAPAS="\n/* capas-sem-corte: poster inteiro (sem cortar) */\n.card img
 if(!html.includes("capas-sem-corte"))html=html.replace("</style>",CSS_CAPAS+"</style>");
 const CSS_BUSCA="\n/* capa-busca: pôster inteiro nos resultados da busca */\n#resultados .card img,#resultados img,#resultados .capa{width:92px!important;height:138px!important;object-fit:contain!important;background:#0f131a!important;border-radius:10px}\nhtml.modo-tv #resultados .card img,html.modo-tv #resultados img{width:150px!important;height:225px!important}\n";
 if(!html.includes("capa-busca"))html=html.replace("</style>",CSS_BUSCA+"</style>");
+const CSS_BUSCA2="\n/* capa-busca-2: capa inteira nos resultados (imagem ou fundo) */\n#resultados img,#resultados .capa,#resultados .poster{object-fit:contain!important;height:auto!important;max-height:none!important;background-size:contain!important;background-repeat:no-repeat!important;background-position:center!important;aspect-ratio:2/3}\n#resultados [style*=\"background-image\"]{background-size:contain!important;background-repeat:no-repeat!important;background-position:center!important}\n#resultados .card{grid-template-columns:96px 1fr!important}\n";
+if(!html.includes("capa-busca-2"))html=html.replace("</style>",CSS_BUSCA2+"</style>");
 fs.writeFileSync(path.join(assets,'index.html'),html);
 fs.copyFileSync(path.join(root,'playback.js'),path.join(assets,'playback.js'));
 // As legendas do aplicativo (arquivo local e busca na internet) seguem junto
