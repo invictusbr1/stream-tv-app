@@ -245,6 +245,25 @@ function registrarFicha(pastaDados, ficha, avaliacao, extras = {}) {
     // A mesma fonte pode ter ficha de filme e de série: junta as duas.
     if (indice >= 0) {
         const anterior = dados.perfis[indice];
+        // Fonte que JÁ está ativa não é desligada por uma rodada ruim: os
+        // endereços de alguns fornecedores são temporários e uma validação
+        // pode falhar por azar (medido em 10/10/2026: o addon FenixHub abriu em
+        // 2 de 3 títulos numa rodada e em 1 de 3 na seguinte). Só desliga depois
+        // de três validações ruins seguidas — e nunca perde a nota que já tem.
+        const seguiaAtiva = anterior.ativo !== false && juntar.ativo === false;
+        if (seguiaAtiva) {
+            juntar.ativo = true;
+            juntar.nota = anterior.nota;
+            juntar.qualidade = juntar.qualidade || anterior.qualidade;
+            juntar.dublado = anterior.dublado;
+            juntar.falhasDeValidacao = (Number(anterior.falhasDeValidacao) || 0) + 1;
+            if (juntar.falhasDeValidacao >= 3) {
+                juntar.ativo = false;
+                juntar.motivo = `três validações seguidas sem abrir em dois títulos (${juntar.falhasDeValidacao})`;
+            }
+        } else if (juntar.ativo) {
+            juntar.falhasDeValidacao = 0;
+        }
         juntar.urlMovie = juntar.urlMovie || anterior.urlMovie || '';
         juntar.urlTv = juntar.urlTv || anterior.urlTv || '';
         juntar.tipos = [...new Set([...(anterior.tipos || []), ...(juntar.tipos || [])])];

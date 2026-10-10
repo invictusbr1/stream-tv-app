@@ -758,10 +758,23 @@ function criarCacador(opcoes = {}) {
     // Títulos fixos + os que os usuários tentaram assistir e não conseguiram.
     // É nesta segunda lista que uma fonte nova faz diferença de verdade.
     function amostrasDe(categoria) {
+        // PEDIDOS DO USUÁRIO vêm primeiro: quando alguém toca em "Pedir este
+        // título", a próxima rodada ataca exatamente aquele título.
+        const pedidos = opcoes.pedidos && typeof opcoes.pedidos.recentes === 'function'
+            ? opcoes.pedidos.recentes(categoria.tipo === 'movie' ? 'movie' : 'tv').map(item => ({
+                id: String(item.id),
+                tipo: item.tipo === 'tv' ? 'tv' : 'movie',
+                temporada: item.temporada || '1',
+                episodio: item.numero || '1',
+                titulo: item.titulo || String(item.id),
+                pedido: true,
+            }))
+            : [];
         const fixas = categoria.amostras || [];
         const dasFalhas = amostrasComFalhas(titulos, categoria.tipo === 'movie' ? 'movie' : 'tv');
-        const vistos = new Set(fixas.map(a => String(a.id)));
-        return [...fixas, ...dasFalhas.filter(a => !vistos.has(String(a.id)))];
+        const vistos = new Set();
+        const juntar = lista => lista.filter(a => { const k = String(a.id); if (vistos.has(k)) return false; vistos.add(k); return true; });
+        return [...juntar(pedidos), ...juntar(fixas), ...juntar(dasFalhas)];
     }
 
     // ---------------------------------------------------------- fichas
@@ -1023,9 +1036,10 @@ function criarCacador(opcoes = {}) {
             if (achado) fichas.push(achado.ficha);
         }
         const aprovadas = fichas.filter(f => f && f.ativo !== false);
-        if (aprovadas.length && publicarFichas) {
+        const ativas = perfilModulo.listar(pastaDados).filter(f => f.ativo !== false);
+        if (ativas.length && publicarFichas) {
             const publicado = await perfilModulo.publicar(pastaDados, tokenDoGithub()).catch(() => null);
-            registrar(`fichas publicadas no aviso de versão: ${aprovadas.length}${publicado && publicado.ok ? '' : ' (publicação pendente)'}`);
+            registrar(`fichas no ar: ${ativas.length}${aprovadas.length ? ' (nova nesta rodada)' : ''}${publicado && publicado.ok ? '' : ' — publicação pendente'}`);
         }
 
         // TV ao vivo tem régua e teste próprios.

@@ -18,6 +18,7 @@ const { criarAgente } = require('./agente.js');
 const { criarCacador } = require('./cacador.js');
 const { criarRegistro } = require('./titulos.js');
 const { criarPlacar } = require('./placar.js');
+const { criarPedidos } = require('./pedidos.js');
 const { criarRevisor } = require('./revisor.js');
 const { criarClienteApp } = require('./app-client.js');
 
@@ -76,10 +77,14 @@ const titulos = criarRegistro({ pastaDados: DADOS });
 // e falhas por fonte). Entra na nota do caçador e na ordem das fontes no app.
 const placar = criarPlacar({ arquivoEventos: ARQ_EVENTOS });
 placar.atualizar();
+// Pedidos do usuário ("Pedir este título"): entram na frente das amostras do
+// caçador na próxima rodada.
+const pedidos = criarPedidos({ pastaDados: DADOS });
 const cacador = criarCacador({
     pastaDados: DADOS,
     titulos,
     placar,
+    pedidos,
     registrar: mensagem => console.log('[cacador] ' + mensagem),
 });
 agente.iniciar();
@@ -248,6 +253,13 @@ app.post('/api/evento', (req, res) => {
     // Placar das fontes: só o relato que fala de fonte (abertura, confirmação ou
     // falha) mexe no placar — e, com ele, na ordem das fontes no aplicativo.
     if (['play', 'confirmacao', 'falha'].includes(evento.tipo)) marcarPlacarParaAtualizar();
+    // "Pedir este título": o pedido vai para a frente da fila do caçador.
+    if (evento.tipo === 'pedido') {
+        try {
+            const registro = pedidos.registrar({ ...evento, tipo: String(corpo.paraTv || '') === '1' ? 'tv' : 'movie', titulo: evento.titulo || '' });
+            if (registro) console.log('[central] pedido: ' + (registro.titulo || registro.id) + ' (' + registro.tipo + ')');
+        } catch { /* pedido é opcional */ }
+    }
     // Player que não abriu entra na fila do agente, que vai testar as fontes.
     if (evento.ok === false) agente.registrarFalha(evento);
     if (evento.dispositivo) {
@@ -511,6 +523,7 @@ async function gerarStatus() {
         cacadorAndamento: cacador.progresso ? cacador.progresso() : null,
         cacadorFila: cacador.fila ? cacador.fila() : null,
         placar: atualizarPlacarSePreciso(),
+        pedidos: pedidos.resumo(),
         fichas: (cacador.fichas ? cacador.fichas() : []).map(f => ({
             id: f.id, nome: f.nome, nota: f.nota, ativo: f.ativo !== false,
             tipos: f.tipos, qualidade: f.qualidade, dublado: f.dublado,
