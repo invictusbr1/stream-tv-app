@@ -2,7 +2,7 @@
  "ligado": true,
  "rodando": true,
  "rodadas": 1,
- "ultimaRodada": 1791589751491,
+ "ultimaRodada": 1791590926871,
  "proximaRodada": 0,
  "titulos": [
   {
@@ -549,7 +549,7 @@
  "cursor": 2,
  "semFonte": [],
  "ultimoResumo": {
-  "em": "2026-10-09T23:49:11.491Z",
+  "em": "2026-10-10T00:08:46.871Z",
   "testados": 2,
   "abriram": 2,
   "resultados": [
@@ -568,7 +568,7 @@
      },
      {
       "fonte": "watchplay",
-      "nota": 4.6,
+      "nota": 4,
       "idioma": "a fonte informa dublado",
       "qualidade": "720p"
      }
@@ -603,7 +603,7 @@
   "fontes": [
    {
     "id": "watchplay",
-    "acertos": 0,
+    "acertos": 1,
     "falhas": 0,
     "falhasSeguidas": 0,
     "castigada": false,
@@ -627,7 +627,7 @@
    },
    {
     "id": "pipoca",
-    "acertos": 2,
+    "acertos": 7,
     "falhas": 0,
     "falhasSeguidas": 0,
     "castigada": false,
@@ -661,7 +661,7 @@
  },
  "historico": [
   {
-   "em": "2026-10-09T23:49:11.491Z",
+   "em": "2026-10-10T00:08:46.871Z",
    "testados": 2,
    "abriram": 2,
    "resultados": [
@@ -680,7 +680,7 @@
       },
       {
        "fonte": "watchplay",
-       "nota": 4.6,
+       "nota": 4,
        "idioma": "a fonte informa dublado",
        "qualidade": "720p"
       }
@@ -715,7 +715,7 @@
    "fontes": [
     {
      "id": "watchplay",
-     "acertos": 0,
+     "acertos": 1,
      "falhas": 0,
      "falhasSeguidas": 0,
      "castigada": false,
@@ -739,7 +739,7 @@
     },
     {
      "id": "pipoca",
-     "acertos": 2,
+     "acertos": 7,
      "falhas": 0,
      "falhasSeguidas": 0,
      "castigada": false,
