@@ -1,0 +1,29 @@
+name: Verificar segredos
+on: [push, pull_request, workflow_dispatch]
+jobs:
+  verificar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verificar arquivos e conteúdo dos APKs
+        shell: python
+        run: |
+          import pathlib, re, zipfile, json
+          pattern = re.compile(rb'gsk_[A-Za-z0-9_-]{20,}|AIza[A-Za-z0-9_-]{20,}|ghp_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}')
+          failed = False
+          for path in pathlib.Path('.').rglob('*'):
+              if not path.is_file() or '.git' in path.parts or 'node_modules' in path.parts:
+                  continue
+              contents = [(str(path), path.read_bytes())]
+              if path.suffix.lower() == '.apk':
+                  with zipfile.ZipFile(path) as apk:
+                      contents += [(str(path) + ':' + n, apk.read(n)) for n in apk.namelist() if not n.endswith('/')]
+              for name, data in contents:
+                  found = bool(pattern.search(data))
+                  if name.endswith('/config.json'):
+                      cfg = json.loads(data)
+                      found |= any(cfg.get(k) for k in ('groqKey', 'geminiKey', 'GROQ_API_KEY', 'GEMINI_API_KEY'))
+                  if found:
+                      print('::error::Credencial detectada em ' + name + '. Valor oculto.')
+                      failed = True
+          raise SystemExit(1 if failed else 0)
