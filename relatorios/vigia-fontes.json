@@ -1,8 +1,8 @@
 {
  "ligado": true,
  "rodando": true,
- "rodadas": 2,
- "ultimaRodada": 1791592795090,
+ "rodadas": 4,
+ "ultimaRodada": 1791594235463,
  "proximaRodada": 0,
  "titulos": [
   {
@@ -546,64 +546,57 @@
    "tipo": "tv"
   }
  ],
- "cursor": 4,
- "semFonte": [],
+ "cursor": 8,
+ "semFonte": [
+  {
+   "id": "1228834",
+   "titulo": "The Fix",
+   "tipo": "movie",
+   "desde": "2026-10-10T00:51:48.064Z"
+  },
+  {
+   "id": "1101412",
+   "titulo": "A Queda 2: No Limite",
+   "tipo": "movie",
+   "desde": "2026-10-10T01:03:48.455Z"
+  },
+  {
+   "id": "1751701",
+   "titulo": "After Impact",
+   "tipo": "movie",
+   "desde": "2026-10-10T01:03:55.463Z"
+  }
+ ],
  "ultimoResumo": {
-  "em": "2026-10-10T00:39:55.090Z",
+  "em": "2026-10-10T01:03:55.463Z",
   "testados": 2,
-  "abriram": 2,
+  "abriram": 0,
   "resultados": [
    {
-    "id": "1368337",
-    "titulo": "A Odisseia",
+    "id": "1101412",
+    "titulo": "A Queda 2: No Limite",
     "tipo": "movie",
-    "ok": true,
-    "fonte": "watchplay",
-    "fontesTestadas": [
-     {
-      "fonte": "watchplay",
-      "nota": 4.6,
-      "idioma": "a fonte informa dublado",
-      "qualidade": "720p"
-     },
-     {
-      "fonte": "pipoca",
-      "nota": 4.35,
-      "idioma": "a fonte informa dublado",
-      "qualidade": "720p"
-     }
-    ],
-    "semDublado": false,
+    "ok": false,
+    "fonte": "",
+    "fontesTestadas": [],
+    "semDublado": true,
     "apenasOriginal": false
    },
    {
-    "id": "1291595",
-    "titulo": "Sobrenatural: Agora Entre Nós",
+    "id": "1751701",
+    "titulo": "After Impact",
     "tipo": "movie",
-    "ok": true,
-    "fonte": "watchplay",
-    "fontesTestadas": [
-     {
-      "fonte": "watchplay",
-      "nota": 4.6,
-      "idioma": "a fonte informa dublado",
-      "qualidade": "720p"
-     },
-     {
-      "fonte": "pipoca",
-      "nota": 4.05,
-      "idioma": "a fonte informa dublado",
-      "qualidade": "720p"
-     }
-    ],
-    "semDublado": false,
+    "ok": false,
+    "fonte": "",
+    "fontesTestadas": [],
+    "semDublado": true,
     "apenasOriginal": false
    }
   ],
   "fontes": [
    {
     "id": "watchplay",
-    "acertos": 3,
+    "acertos": 4,
     "falhas": 0,
     "falhasSeguidas": 0,
     "castigada": false,
@@ -660,6 +653,183 @@
   ]
  },
  "historico": [
+  {
+   "em": "2026-10-10T01:03:55.463Z",
+   "testados": 2,
+   "abriram": 0,
+   "resultados": [
+    {
+     "id": "1101412",
+     "titulo": "A Queda 2: No Limite",
+     "tipo": "movie",
+     "ok": false,
+     "fonte": "",
+     "fontesTestadas": [],
+     "semDublado": true,
+     "apenasOriginal": false
+    },
+    {
+     "id": "1751701",
+     "titulo": "After Impact",
+     "tipo": "movie",
+     "ok": false,
+     "fonte": "",
+     "fontesTestadas": [],
+     "semDublado": true,
+     "apenasOriginal": false
+    }
+   ],
+   "fontes": [
+    {
+     "id": "watchplay",
+     "acertos": 4,
+     "falhas": 0,
+     "falhasSeguidas": 0,
+     "castigada": false,
+     "ultimoMotivo": ""
+    },
+    {
+     "id": "pipoca-serie",
+     "acertos": 0,
+     "falhas": 0,
+     "falhasSeguidas": 0,
+     "castigada": false,
+     "ultimoMotivo": ""
+    },
+    {
+     "id": "mgeb",
+     "acertos": 0,
+     "falhas": 0,
+     "falhasSeguidas": 0,
+     "castigada": false,
+     "ultimoMotivo": ""
+    },
+    {
+     "id": "pipoca",
+     "acertos": 11,
+     "falhas": 0,
+     "falhasSeguidas": 0,
+     "castigada": false,
+     "ultimoMotivo": ""
+    },
+    {
+     "id": "fenix",
+     "acertos": 0,
+     "falhas": 0,
+     "falhasSeguidas": 0,
+     "castigada": false,
+     "ultimoMotivo": ""
+    },
+    {
+     "id": "vixsrc",
+     "acertos": 0,
+     "falhas": 0,
+     "falhasSeguidas": 0,
+     "castigada": false,
+     "ultimoMotivo": ""
+    },
+    {
+     "id": "vidsrc",
+     "acertos": 0,
+     "falhas": 0,
+     "falhasSeguidas": 0,
+     "castigada": false,
+     "ultimoMotivo": ""
+    }
+   ]
+  },
+  {
+   "em": "2026-10-10T00:51:49.038Z",
+   "testados": 2,
+   "abriram": 1,
+   "resultados": [
+    {
+     "id": "1228834",
+     "titulo": "The Fix",
+     "tipo": "movie",
+     "ok": false,
+     "fonte": "",
+     "fontesTestadas": [],
+     "semDublado": true,
+     "apenasOriginal": false
+    },
+    {
+     "id": "1377237",
+     "titulo": "Três Horas Para Viver",
+     "tipo": "movie",
+     "ok": true,
+     "fonte": "watchplay",
+     "fontesTestadas": [
+      {
+       "fonte": "watchplay",
+       "nota": 4.65,
+       "idioma": "a fonte informa dublado",
+       "qualidade": "720p"
+      }
+     ],
+     "semDublado": false,
+     "apenasOriginal": false
+    }
+   ],
+   "fontes": [
+    {
+     "id": "watchplay",
+     "acertos": 4,
+     "falhas": 0,
+     "falhasSeguidas": 0,
+     "castigada": false,
+     "ultimoMotivo": ""
+    },
+    {
+     "id": "pipoca-serie",
+     "acertos": 0,
+     "falhas": 0,
+     "falhasSeguidas": 0,
+     "castigada": false,
+     "ultimoMotivo": ""
+    },
+    {
+     "id": "mgeb",
+     "acertos": 0,
+     "falhas": 0,
+     "falhasSeguidas": 0,
+     "castigada": false,
+     "ultimoMotivo": ""
+    },
+    {
+     "id": "pipoca",
+     "acertos": 11,
+     "falhas": 0,
+     "falhasSeguidas": 0,
+     "castigada": false,
+     "ultimoMotivo": ""
+    },
+    {
+     "id": "fenix",
+     "acertos": 0,
+     "falhas": 0,
+     "falhasSeguidas": 0,
+     "castigada": false,
+     "ultimoMotivo": ""
+    },
+    {
+     "id": "vixsrc",
+     "acertos": 0,
+     "falhas": 0,
+     "falhasSeguidas": 0,
+     "castigada": false,
+     "ultimoMotivo": ""
+    },
+    {
+     "id": "vidsrc",
+     "acertos": 0,
+     "falhas": 0,
+     "falhasSeguidas": 0,
+     "castigada": false,
+     "ultimoMotivo": ""
+    }
+   ]
+  },
   {
    "em": "2026-10-10T00:39:55.090Z",
    "testados": 2,

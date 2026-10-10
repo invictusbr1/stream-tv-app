@@ -248,6 +248,11 @@ public final class MainActivity extends Activity {
                 String url = item.optString("file", "");
                 if (url.isEmpty()) continue;
                 if (url.startsWith("http://")) url = url.replaceFirst("http://", "https://").replace(":80/", "/");
+                // A MGEB às vezes devolve caminho com ".." no meio
+                // (ex.: mgeb.site/../cache/hls/...). Sem normalizar, o player e
+                // a conferência de entrega falham e o título não abre no
+                // aparelho — era o caso de várias minisséries e filmes.
+                url = url.replace("/../", "/").replace("/./", "/");
                 if (url.contains(".mp4")) { if (arquivo.isEmpty()) arquivo = url; }
                 else if (url.contains(".m3u8")) { if (playlist.isEmpty()) playlist = url; }
             }
