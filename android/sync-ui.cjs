@@ -31,6 +31,8 @@ const CSS_MEDIDAS="\n/* medidas-serie: o painel cabe na tela e nada corta nas la
 if(!html.includes("medidas-serie"))html=html.replace("</style>",CSS_MEDIDAS+"</style>");
 const CSS_AJ2="\n/* ajuste-final-2: sinopse dentro do painel e sem rótulo Continuar na lista */\n#series-dialog .episode-row{overflow:hidden!important}\n#series-dialog .episode-sinopse{max-width:100%!important;overflow-wrap:anywhere!important;word-break:normal!important}\n#series-dialog .series-body{overflow-x:hidden!important}\n#series-dialog .episode-play-btn .episode-play{display:none!important}\n";
 if(!html.includes("ajuste-final-2"))html=html.replace("</style>",CSS_AJ2+"</style>");
+const CSS_CAPAS="\n/* capas-sem-corte: poster inteiro (sem cortar) */\n.card img,#resultados .card img{object-fit:contain!important;height:auto!important;max-height:none!important;aspect-ratio:2/3;background:#0f131a}\nhtml.modo-tv .card img{height:auto!important;aspect-ratio:2/3;object-fit:contain!important}\n";
+if(!html.includes("capas-sem-corte"))html=html.replace("</style>",CSS_CAPAS+"</style>");
 fs.writeFileSync(path.join(assets,'index.html'),html);
 fs.copyFileSync(path.join(root,'playback.js'),path.join(assets,'playback.js'));
 // As legendas do aplicativo (arquivo local e busca na internet) seguem junto
