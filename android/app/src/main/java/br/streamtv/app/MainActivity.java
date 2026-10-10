@@ -198,6 +198,10 @@ public final class MainActivity extends Activity {
                 achado = texto.trim().replaceAll("^[\"']|[\"']$", "");
                 return achado.startsWith("http") ? achado : "";
             }
+            // O caçador pode gravar um passo de ENDEREÇO: em vez de ler a
+            // página, a ficha já traz o endereço que a fonte pede (aprendido
+            // pelo navegador escondido da central).
+            if ("endereco".equals(tipo)) return passo.optString("url", "");
             if ("json".equals(tipo)) {
                 Object atual = new JSONObject(texto);
                 for (String parte : passo.optString("caminho", "").split("\\.")) {
@@ -282,6 +286,11 @@ public final class MainActivity extends Activity {
                     JSONObject passo = passos.optJSONObject(i);
                     if (passo == null) break;
                     String achado = aplicarPasso(passo, atual, base);
+                    // Passo de endereço: o molde vem com {id}/{temporada}/
+                    // {episodio}/{imdb} e é preenchido aqui.
+                    if (achado.contains("{id}") || achado.contains("{temporada}") || achado.contains("{episodio}")) {
+                        achado = preencher(achado, id, temporada, episodio).replace("{imdb}", Uri.encode(imdb));
+                    }
                     if (achado.isEmpty()) { video = ""; break; }
                     boolean ultimo = i == passos.length() - 1;
                     if (ultimo) { video = achado; break; }
@@ -357,6 +366,10 @@ public final class MainActivity extends Activity {
     }
 
     private WebResourceResponse jsonMidia(String url, String tipo, String fonte) {
+        return jsonMidia(url, tipo, fonte, "pt-BR");
+    }
+
+    private WebResourceResponse jsonMidia(String url, String tipo, String fonte, String audio) {
         // Antes de entregar o endereço ao player, confere se ele realmente
         // devolve VÍDEO. As fontes trocam de servidor sem avisar (o PipocaCine
         // passou a devolver página de erro em 09/10/2026) e, sem esta
@@ -364,7 +377,7 @@ public final class MainActivity extends Activity {
         if (!entregaVideo(url, refererDaFonte(url))) return error(502);
         try {
             JSONObject result = new JSONObject();
-            result.put("url", url); result.put("audio", "pt-BR"); result.put("type", tipo); result.put("source", fonte);
+            result.put("url", url); result.put("audio", audio); result.put("type", tipo); result.put("source", fonte);
             return new WebResourceResponse("application/json", "UTF-8", 200, "OK", Collections.singletonMap("Cache-Control", "no-store"), new ByteArrayInputStream(result.toString().getBytes(StandardCharsets.UTF_8)));
         } catch (Exception e) { return error(502); }
     }
@@ -417,6 +430,54 @@ public final class MainActivity extends Activity {
             Uri uri = Uri.parse(url);
             if (!"https".equals(uri.getScheme()) || uri.getHost() == null || !uri.getHost().matches("[a-zA-Z0-9-]+\\.hclod\\.qzz\\.io") || uri.getPort() != -1 || uri.getUserInfo() != null || !uri.getPath().endsWith(".m3u8")) return error(502);
             return jsonMidia(url, "hls", "WatchPlay");
+        } catch (Exception e) { return error(502); }
+    }
+
+    // ------------------------------------------------------- segunda opção
+    // Quando NENHUMA fonte dublada tem o título, o aplicativo não pode ficar
+    // sem nada: a regra do projeto manda cair para alta definição limpa com
+    // legenda em português (mesmo caminho que o computador já usa). Medido em
+    // 10/10/2026 no Vixsrc: HLS em 1080p com faixa de legenda.
+    private String obter(String endereco, String referer, String accept) {
+        HttpsURLConnection conexao = null;
+        try {
+            conexao = (HttpsURLConnection) new URL(endereco).openConnection();
+            conexao.setConnectTimeout(10000); conexao.setReadTimeout(12000);
+            conexao.setInstanceFollowRedirects(true);
+            conexao.setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Mobile Safari/537.36");
+            conexao.setRequestProperty("Accept", accept);
+            conexao.setRequestProperty("Accept-Language", "pt-BR,pt;q=0.9,en;q=0.8");
+            if (referer != null && !referer.isEmpty()) {
+                conexao.setRequestProperty("Referer", referer);
+                conexao.setRequestProperty("Origin", "https://vixsrc.to");
+            }
+            if (conexao.getResponseCode() != 200) return null;
+            return lerTexto(conexao.getInputStream());
+        } catch (Exception e) { return null; }
+        finally { if (conexao != null) conexao.disconnect(); }
+    }
+
+    private WebResourceResponse vixsrcMidia(String tipo, String id, String temporada, String episodio) {
+        final String BASE = "https://vixsrc.to";
+        try {
+            String rota = "tv".equals(tipo) ? "/api/tv/" + id + "/" + temporada + "/" + episodio : "/api/movie/" + id;
+            String corpo = obter(BASE + rota, BASE, "application/json, text/javascript, */*; q=0.01");
+            if (corpo == null) return error(502);
+            Matcher src = Pattern.compile("\"src\"\\s*:\\s*\"([^\"]+)").matcher(corpo);
+            if (!src.find()) return error(502);
+            String pagina = obter(BASE + src.group(1), BASE + rota, "text/html,application/xhtml+xml,*/*");
+            if (pagina == null) return error(502);
+            Matcher token = Pattern.compile("token[\"']\\s*:\\s*[\"']([^\"']+)").matcher(pagina);
+            Matcher expires = Pattern.compile("expires[\"']\\s*:\\s*[\"']([^\"']+)").matcher(pagina);
+            Matcher playlist = Pattern.compile("url\\s*:\\s*[\"']([^\"']+)").matcher(pagina);
+            if (!token.find() || !expires.find() || !playlist.find()) return error(502);
+            if (Long.parseLong(expires.group(1)) * 1000L - 60000L < System.currentTimeMillis()) return error(502);
+            String separador = playlist.group(1).contains("?") ? "&" : "?";
+            String url = playlist.group(1) + separador + "token=" + token.group(1) + "&expires=" + expires.group(1) + "&h=1";
+            if (!enderecoSeguro(url)) return error(502);
+            // Áudio ORIGINAL: é assim que a interface entende que precisa
+            // procurar legenda em português (regra 3 do projeto).
+            return jsonMidia(url, "hls", "HD com legenda em português", "original");
         } catch (Exception e) { return error(502); }
     }
 
@@ -515,7 +576,10 @@ public final class MainActivity extends Activity {
         WebResourceResponse mgeb = mgebEpisodio(id, temporada, episodio);
         if (mgeb != null && mgeb.getStatusCode() == 200) return mgeb;
         // Fichas de fonte descobertas pelo caçador (fornecedores novos).
-        return perfilPlayback("tv", id, temporada, episodio);
+        WebResourceResponse ficha = perfilPlayback("tv", id, temporada, episodio);
+        if (ficha != null && ficha.getStatusCode() == 200) return ficha;
+        // Sem dublado: alta definição limpa com legenda em português.
+        return vixsrcMidia("tv", id, temporada, episodio);
     }
 
     // ---------------------------------------------------------------
@@ -682,7 +746,12 @@ public final class MainActivity extends Activity {
                     WebResourceResponse mgeb = mgebFilme(id);
                     if (mgeb != null && mgeb.getStatusCode() == 200) return mgeb;
                     // Fichas de fonte descobertas pelo caçador (fornecedores novos).
-                    return perfilPlayback("movie", id, null, null);
+                    WebResourceResponse ficha = perfilPlayback("movie", id, null, null);
+                    if (ficha != null && ficha.getStatusCode() == 200) return ficha;
+                    // Nada dublado? Segunda opção da regra: alta definição
+                    // limpa com legenda em português (antes o aparelho ficava
+                    // sem nada e o usuário via "nenhuma fonte").
+                    return vixsrcMidia("movie", id, null, null);
                 }
                 if (path != null && path.matches("/api/playback/serie/[0-9]{1,10}/[0-9]{1,3}/[1-9][0-9]{0,3}")) {
                     String[] partes = path.split("/");

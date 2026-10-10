@@ -5,7 +5,7 @@
 
 ## Última versão publicada
 
-- App: **2.13.46** (versionCode 376) — PC, APK do celular (`br.streamtv.app`),
+- App: **2.13.47** (versionCode 377) — PC, APK do celular (`br.streamtv.app`),
   APK da TV (`br.streamtv.app.tv`) e web. Manifesto conferido em 10/10/2026.
 - Central: **1.5.8** (fichas + placar real + caçada profunda + vetores novos +
   fila persistente + espião no navegador).
@@ -141,6 +141,19 @@ Rotas novas da central: `/api/placar`, `/api/perfis`, `/api/cacar/estado`
   (ajuste +0,39), PipocaCine 5/18 (‑0,67), FenixFlix 17/2 (+0,79).
 
 ## Pendências abertas
+
+0. **Cobertura de fonte no aparelho (feito em 2.13.47):** o celular/TV agora
+   também cai para a **segunda opção da regra** — alta definição limpa com
+   legenda em português (Vixsrc, portado para o Java do `MainActivity`) — quando
+   nenhuma fonte dublada tem o título. Antes, nesses títulos, o aparelho dizia
+   "nenhuma fonte" enquanto o computador abria legendado. Ordem no aparelho:
+   dublado (WatchPlay → PipocaCine → MGEB) → fichas do caçador → HD com legenda.
+   Medido no computador: 8/8 títulos populares abrem; nos títulos sem dublado o
+   computador tinha segunda opção e o aparelho não — agora tem.
+   Próximo item combinado com o usuário: **botão "Pedir este título"** (o pedido
+   entra na frente da fila do caçador) e depois os três fornecedores que faltam
+   destravar (PobreFlix com clique no servidor, Pomfy com passo de busca,
+   RedeCanais com passo POST).
 
 1. **Primeira ficha aprovada: FenixFlix (FenixHub), filme, dublado 1080p, nota
    7,2** — o addon do Stremio responde JSON com o vídeo; a ficha foi validada em
