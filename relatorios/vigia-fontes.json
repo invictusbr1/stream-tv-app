@@ -1,8 +1,8 @@
 {
  "ligado": true,
  "rodando": true,
- "rodadas": 3,
- "ultimaRodada": 1791596726865,
+ "rodadas": 5,
+ "ultimaRodada": 1791598171234,
  "proximaRodada": 0,
  "titulos": [
   {
@@ -546,40 +546,71 @@
    "tipo": "tv"
   }
  ],
- "cursor": 6,
+ "cursor": 10,
  "semFonte": [
   {
    "id": "1228834",
    "titulo": "The Fix",
    "tipo": "movie",
    "desde": "2026-10-10T01:45:24.980Z"
+  },
+  {
+   "id": "1101412",
+   "titulo": "A Queda 2: No Limite",
+   "tipo": "movie",
+   "desde": "2026-10-10T01:57:25.404Z"
+  },
+  {
+   "id": "1751701",
+   "titulo": "After Impact",
+   "tipo": "movie",
+   "desde": "2026-10-10T01:57:25.937Z"
   }
  ],
  "ultimoResumo": {
-  "em": "2026-10-10T01:45:26.865Z",
+  "em": "2026-10-10T02:09:31.234Z",
   "testados": 2,
-  "abriram": 1,
+  "abriram": 2,
   "resultados": [
    {
-    "id": "1228834",
-    "titulo": "The Fix",
-    "tipo": "movie",
-    "ok": false,
-    "fonte": "",
-    "fontesTestadas": [],
-    "semDublado": true,
-    "apenasOriginal": false
-   },
-   {
-    "id": "1377237",
-    "titulo": "Três Horas Para Viver",
+    "id": "1204680",
+    "titulo": "Coyote vs. Acme",
     "tipo": "movie",
     "ok": true,
     "fonte": "watchplay",
     "fontesTestadas": [
      {
       "fonte": "watchplay",
-      "nota": 4.65,
+      "nota": 4.6,
+      "idioma": "a fonte informa dublado",
+      "qualidade": "720p"
+     },
+     {
+      "fonte": "pipoca",
+      "nota": 4.35,
+      "idioma": "a fonte informa dublado",
+      "qualidade": "804p"
+     }
+    ],
+    "semDublado": false,
+    "apenasOriginal": false
+   },
+   {
+    "id": "460458",
+    "titulo": "Resident Evil: Bem-Vindo a Raccoon City",
+    "tipo": "movie",
+    "ok": true,
+    "fonte": "pipoca",
+    "fontesTestadas": [
+     {
+      "fonte": "pipoca",
+      "nota": 5.15,
+      "idioma": "faixa em português é a padrão do arquivo",
+      "qualidade": "720p"
+     },
+     {
+      "fonte": "watchplay",
+      "nota": 4.6,
       "idioma": "a fonte informa dublado",
       "qualidade": "720p"
      }
@@ -591,7 +622,7 @@
   "fontes": [
    {
     "id": "watchplay",
-    "acertos": 9,
+    "acertos": 10,
     "falhas": 0,
     "falhasSeguidas": 0,
     "castigada": false,
@@ -615,7 +646,7 @@
    },
    {
     "id": "pipoca",
-    "acertos": 13,
+    "acertos": 14,
     "falhas": 0,
     "falhasSeguidas": 0,
     "castigada": false,
@@ -648,6 +679,202 @@
   ]
  },
  "historico": [
+  {
+   "em": "2026-10-10T02:09:31.234Z",
+   "testados": 2,
+   "abriram": 2,
+   "resultados": [
+    {
+     "id": "1204680",
+     "titulo": "Coyote vs. Acme",
+     "tipo": "movie",
+     "ok": true,
+     "fonte": "watchplay",
+     "fontesTestadas": [
+      {
+       "fonte": "watchplay",
+       "nota": 4.6,
+       "idioma": "a fonte informa dublado",
+       "qualidade": "720p"
+      },
+      {
+       "fonte": "pipoca",
+       "nota": 4.35,
+       "idioma": "a fonte informa dublado",
+       "qualidade": "804p"
+      }
+     ],
+     "semDublado": false,
+     "apenasOriginal": false
+    },
+    {
+     "id": "460458",
+     "titulo": "Resident Evil: Bem-Vindo a Raccoon City",
+     "tipo": "movie",
+     "ok": true,
+     "fonte": "pipoca",
+     "fontesTestadas": [
+      {
+       "fonte": "pipoca",
+       "nota": 5.15,
+       "idioma": "faixa em português é a padrão do arquivo",
+       "qualidade": "720p"
+      },
+      {
+       "fonte": "watchplay",
+       "nota": 4.6,
+       "idioma": "a fonte informa dublado",
+       "qualidade": "720p"
+      }
+     ],
+     "semDublado": false,
+     "apenasOriginal": false
+    }
+   ],
+   "fontes": [
+    {
+     "id": "watchplay",
+     "acertos": 10,
+     "falhas": 0,
+     "falhasSeguidas": 0,
+     "castigada": false,
+     "ultimoMotivo": ""
+    },
+    {
+     "id": "pipoca-serie",
+     "acertos": 0,
+     "falhas": 0,
+     "falhasSeguidas": 0,
+     "castigada": false,
+     "ultimoMotivo": ""
+    },
+    {
+     "id": "mgeb",
+     "acertos": 0,
+     "falhas": 0,
+     "falhasSeguidas": 0,
+     "castigada": false,
+     "ultimoMotivo": ""
+    },
+    {
+     "id": "pipoca",
+     "acertos": 14,
+     "falhas": 0,
+     "falhasSeguidas": 0,
+     "castigada": false,
+     "ultimoMotivo": ""
+    },
+    {
+     "id": "fenix",
+     "acertos": 0,
+     "falhas": 0,
+     "falhasSeguidas": 0,
+     "castigada": false,
+     "ultimoMotivo": ""
+    },
+    {
+     "id": "vixsrc",
+     "acertos": 0,
+     "falhas": 0,
+     "falhasSeguidas": 0,
+     "castigada": false,
+     "ultimoMotivo": ""
+    },
+    {
+     "id": "vidsrc",
+     "acertos": 0,
+     "falhas": 0,
+     "falhasSeguidas": 0,
+     "castigada": false,
+     "ultimoMotivo": ""
+    }
+   ]
+  },
+  {
+   "em": "2026-10-10T01:57:25.937Z",
+   "testados": 2,
+   "abriram": 0,
+   "resultados": [
+    {
+     "id": "1101412",
+     "titulo": "A Queda 2: No Limite",
+     "tipo": "movie",
+     "ok": false,
+     "fonte": "",
+     "fontesTestadas": [],
+     "semDublado": true,
+     "apenasOriginal": false
+    },
+    {
+     "id": "1751701",
+     "titulo": "After Impact",
+     "tipo": "movie",
+     "ok": false,
+     "fonte": "",
+     "fontesTestadas": [],
+     "semDublado": true,
+     "apenasOriginal": false
+    }
+   ],
+   "fontes": [
+    {
+     "id": "watchplay",
+     "acertos": 9,
+     "falhas": 0,
+     "falhasSeguidas": 0,
+     "castigada": false,
+     "ultimoMotivo": ""
+    },
+    {
+     "id": "pipoca-serie",
+     "acertos": 0,
+     "falhas": 0,
+     "falhasSeguidas": 0,
+     "castigada": false,
+     "ultimoMotivo": ""
+    },
+    {
+     "id": "mgeb",
+     "acertos": 0,
+     "falhas": 0,
+     "falhasSeguidas": 0,
+     "castigada": false,
+     "ultimoMotivo": ""
+    },
+    {
+     "id": "pipoca",
+     "acertos": 13,
+     "falhas": 0,
+     "falhasSeguidas": 0,
+     "castigada": false,
+     "ultimoMotivo": ""
+    },
+    {
+     "id": "fenix",
+     "acertos": 0,
+     "falhas": 0,
+     "falhasSeguidas": 0,
+     "castigada": false,
+     "ultimoMotivo": ""
+    },
+    {
+     "id": "vixsrc",
+     "acertos": 0,
+     "falhas": 0,
+     "falhasSeguidas": 0,
+     "castigada": false,
+     "ultimoMotivo": ""
+    },
+    {
+     "id": "vidsrc",
+     "acertos": 0,
+     "falhas": 0,
+     "falhasSeguidas": 0,
+     "castigada": false,
+     "ultimoMotivo": ""
+    }
+   ]
+  },
   {
    "em": "2026-10-10T01:45:26.865Z",
    "testados": 2,

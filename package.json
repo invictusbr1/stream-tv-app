@@ -1,6 +1,6 @@
 {
   "name": "stream-tv",
-  "version": "2.13.39",
+  "version": "2.13.40",
   "description": "Conecta TV - catalogo, players e aplicativos (Android, Windows, iPhone)",
   "main": "launcher.js",
   "bin": "launcher.js",
@@ -37,7 +37,8 @@
       "vidsrc-source.js",
       "android/app/src/main/assets/catalog.js",
       "pwa/page.cjs",
-      "vixsrc-source.js"
+      "vixsrc-source.js",
+      "baixador.js"
     ],
     "assets": [
       "index.html",

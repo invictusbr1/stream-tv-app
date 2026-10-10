@@ -540,6 +540,81 @@ app.get('/api/playback/serie/:id/:season/:episode', async (req, res) => {
     }
 });
 
+// ============================================================
+// DOWNLOAD DE VERDADE DO EPISÓDIO — o botão ⤓ do painel da série grava o
+// arquivo no computador (Downloads\Conecta TV), usando exatamente a mesma
+// fonte dublada e sem anúncio que o player escolhe. O andamento é consultado
+// por /api/baixar/estado; no celular o download não existe (não há servidor).
+// ============================================================
+async function fonteParaBaixar({ tipo, id, temporada, episodio }) {
+    if (tipo === 'tv') {
+        const cookie = process.env.WATCHPLAY_COOKIE || LOCAL_CONFIG.watchplayCookie || '';
+        const alvo = { tipo: 'tv', tmdbId: id, temporada, episodio };
+        let escolhido = null;
+        if (process.env.AVALIADOR !== '0') {
+            const resultado = await require('./avaliador').escolherMelhor('dublado', alvo, { exceto: [] }).catch(() => null);
+            if (resultado) escolhido = require('./fontes-motor').prepararParaPlayer(resultado.escolhido);
+        }
+        if (!escolhido) escolhido = await require('./series-source').resolverEpisodio({ tmdbId: id, temporada, episodio, cookie, exceto: [] }).catch(() => null);
+        if (!escolhido) return null;
+        return {
+            url: escolhido.urlAplicativo || escolhido.url,
+            referer: escolhido.referer || '',
+            fonte: escolhido.fonte || '',
+        };
+    }
+    const motor = require('./fontes-motor');
+    const alvo = { tipo: 'movie', tmdbId: id };
+    let escolhido = null;
+    if (process.env.AVALIADOR !== '0') {
+        const resultado = await require('./avaliador').escolherMelhor('dublado', alvo, { exceto: [] }).catch(() => null);
+        if (resultado) escolhido = resultado.escolhido;
+    }
+    if (!escolhido) escolhido = await motor.escolher('dublado', alvo, { exceto: [] });
+    if (!escolhido) return null;
+    const pronto = motor.prepararParaPlayer(escolhido);
+    return {
+        url: pronto.urlAplicativo || pronto.url,
+        referer: escolhido.referer || '',
+        fonte: escolhido.fonte || '',
+    };
+}
+
+app.get('/api/baixar', async (req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    const baixador = require('./baixador');
+    const tipo = req.query.tipo === 'tv' ? 'tv' : 'movie';
+    const id = String(req.query.id || '');
+    if (!/^\d{1,10}$/.test(id)) return res.status(400).json({ erro: 'identificador inválido' });
+    const temporada = /^\d{1,3}$/.test(String(req.query.temporada || '')) ? String(req.query.temporada) : '1';
+    const episodio = /^[1-9]\d{0,3}$/.test(String(req.query.episodio || '')) ? String(req.query.episodio) : '1';
+    const titulo = String(req.query.titulo || '').slice(0, 80);
+    try {
+        const fonte = await fonteParaBaixar({ tipo, id, temporada, episodio });
+        if (!fonte || !fonte.url) return res.status(502).json({ erro: 'Nenhuma fonte dublada sem anúncio está disponível para baixar agora.' });
+        const rotulo = tipo === 'tv'
+            ? `${titulo || 'Episódio'} T${temporada}E${episodio}`
+            : (titulo || `Filme ${id}`);
+        const trabalho = await baixador.iniciar(fonte.url, {
+            rotulo,
+            referer: fonte.referer,
+            id: `${tipo}-${id}-${temporada}-${episodio}`,
+        });
+        return res.json({ ok: true, fonte: fonte.fonte, ...trabalho });
+    } catch (erro) {
+        return res.status(502).json({ erro: 'Não foi possível preparar o download agora.' });
+    }
+});
+
+app.get('/api/baixar/estado', (req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    res.json(require('./baixador').estado(String(req.query.id || '')));
+});
+
+app.get('/api/baixar/cancelar', (req, res) => {
+    res.json({ ok: require('./baixador').cancelar(String(req.query.id || '')) });
+});
+
 // ------------------------------------------------------------
 // CONVERSÃO DE ARQUIVO — para provedores que entregam MKV com som que o
 // navegador não toca. O vídeo é copiado (sem perda) e o áudio vira AAC.

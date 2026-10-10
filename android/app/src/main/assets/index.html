@@ -158,6 +158,14 @@ html.modo-tv .card img{height:auto!important;aspect-ratio:2/3;object-fit:contain
 #resultados .grid{gap:14px!important;padding-top:6px!important}
 html.modo-tv #resultados .grid{grid-template-columns:repeat(auto-fill,minmax(180px,1fr))!important;gap:22px!important}
 
+/* baixar-final: botão ⤓ ao lado do "assistido", na lista de episódios */
+#series-dialog .episode-row{position:relative!important}
+#series-dialog .episode-row .episode-baixar{position:absolute!important;top:12px!important;right:62px!important;width:40px!important;height:40px!important;border-radius:50%!important;background:#1b2230!important;border:1px solid #ffffff1c!important;color:#c7d2e2!important;font-size:18px!important;line-height:1!important;display:grid!important;place-items:center!important;cursor:pointer}
+#series-dialog .episode-row .episode-baixar:hover{background:#26303f!important;color:#fff!important}
+#series-dialog .episode-row .episode-info{padding-right:114px!important}
+html.modo-tv #series-dialog .episode-row .episode-baixar{top:14px!important;right:76px!important;width:52px!important;height:52px!important;font-size:22px!important}
+html.modo-tv #series-dialog .episode-row .episode-info{padding-right:140px!important}
+
 /* tv-leve: interface de 10 pés com menos efeitos (TV box não engasga) */
 html.modo-tv *{backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
 html.modo-tv .card,html.modo-tv .card img,html.modo-tv .poster-row{transition:none!important;scroll-snap-type:none!important}
@@ -430,8 +438,8 @@ body{padding-bottom:76px}
 
 <button class="primary" id="direct-resume" hidden onclick="StreamPlayback.play()">▶ Reproduzir</button><div id="loading" role="status" aria-live="polite"><div class="spinner"></div><div id="load-msg"></div><div id="load-sub"></div><div id="acoes-erro" hidden><button class="primary" onclick="tentarNovamente()">Tentar novamente</button><button class="quiet" onclick="abrirOpcoes()">Ver opções</button></div></div></div>
 <div class="scrim" id="opcoes" hidden onclick="if(event.target===this) fecharOpcoes()"><aside class="options" role="dialog" aria-modal="true" aria-labelledby="options-title"><div class="options-head"><h2 id="options-title">Fontes e ajustes</h2><button class="icon-btn" id="options-close" onclick="fecharOpcoes()" aria-label="Fechar">×</button></div><p id="options-status" class="options-status">O aplicativo escolhe a fonte sozinho e troca de fonte quando uma não inicia.</p><div class="options-label">Fontes</div><div id="fontes"></div><button class="quiet retry" id="proxima" onclick="proximaFonte()">Tentar a próxima automaticamente</button><p class="regras-fontes">Só entram fontes dubladas, sem anúncio e em HD. Quando o título não tem dublagem em nenhuma fonte, o aplicativo abre a alta definição com legenda em português — e avisa na tela.</p></aside></div></section></section>
-<script src="/catalog.js?v1791596746679"></script><script src="/android.js?v1791596746679"></script>
-<script src="/vidsrc-source.js?v1791596746679"></script>
+<script src="/catalog.js?v1791597956375"></script><script src="/android.js?v1791597956375"></script>
+<script src="/vidsrc-source.js?v1791597956375"></script>
 <script>
 const API = '/api';
 let players=[],playerRequest=null,playerTimer=null,playerVersion=0,fonteAtual=-1,filmeAtual=null,ultimoFoco=null,fontesParaPular=[];
@@ -526,6 +534,49 @@ el('loading').classList.remove('vis');el('source-help').hidden=false;};frame.one
 function falhaFonte(){pararFrame();const next=players.findIndex((p,i)=>(p.dub||(filmeAtual?.episode&&p.optional&&!p.directory))&&p.funcionou&&!p.manual&&!tentadas.has(i));if(next>=0)return carregarFonte(next,Boolean(filmeAtual?.episode));mostrarErro('Não foi possível abrir uma opção dublada.','Escolha outra fonte ou tente novamente mais tarde.');abrirOpcoes();}
 function proximaFonte(){const next=players.findIndex((p,i)=>i!==fonteAtual&&p.funcionou&&!p.manual&&!p.directory&&!tentadas.has(i));if(next>=0){const candidata=players[next];lembrarFonte(candidata.nome);return carregarFonte(next,true);}mostrarErro('Todas as fontes foram tentadas.','Toque em uma fonte da lista ou tente novamente mais tarde.');abrirOpcoes();}
 function mostrarStatus(texto){const alvo=el('player-status');if(alvo)alvo.textContent=texto||'';}
+
+// Download de verdade do episódio (botão ⤓ do painel da série). O computador
+// grava o arquivo em Downloads\Conecta TV com a mesma fonte dublada sem
+// anúncio do player; o celular avisa que o download é feito no computador.
+function avisoDeDownload(texto,esconderDepois){
+    let caixa=document.getElementById('baixar-aviso');
+    if(!caixa){caixa=document.createElement('div');caixa.id='baixar-aviso';caixa.className='toast';caixa.hidden=true;caixa.style.maxWidth='90vw';document.body.append(caixa);}
+    // Com o painel da série aberto, o aviso precisa ficar dentro dele: o fundo
+    // escurecido do painel cobre tudo o que está fora.
+    const dentro=document.querySelector('dialog[open]');
+    if(dentro&&caixa.parentElement!==dentro)dentro.append(caixa);
+    else if(!dentro&&caixa.parentElement!==document.body)document.body.append(caixa);
+    const conteudo=caixa.querySelector('span')||document.createElement('span');
+    conteudo.textContent=texto;if(!conteudo.parentNode)caixa.append(conteudo);
+    caixa.hidden=false;clearTimeout(avisoDeDownload.controle);
+    if(esconderDepois)avisoDeDownload.controle=setTimeout(()=>{caixa.hidden=true;},esconderDepois);
+    return caixa;
+}
+window.StreamBaixar=async function(filme,episodio,temporada){
+    if(!filme||!episodio)return;
+    const rotulo=`${filme.titulo||'Episódio'} T${temporada}E${episodio.number}`;
+    avisoDeDownload(`Baixando ${rotulo}… 0%`);
+    const acompanhar=async id=>{
+        const estado=await fetch(`/api/baixar/estado?id=${encodeURIComponent(id)}`).then(r=>r.json()).catch(()=>null);
+        if(!estado){avisoDeDownload(`Não consegui falar com o computador para baixar ${rotulo}.`,9000);return;}
+        if(estado.erro){avisoDeDownload(`Não foi possível baixar ${rotulo}: ${estado.erro}`,12000);return;}
+        if(estado.pronto||estado.progresso>=100){avisoDeDownload(`${rotulo} baixado em ${estado.pasta||'Downloads\\Conecta TV'}`,15000);return;}
+        avisoDeDownload(`Baixando ${rotulo}… ${estado.progresso||0}%`);
+        setTimeout(()=>acompanhar(id),2500);
+    };
+    try{
+        const endereco=`/api/baixar?tipo=tv&id=${encodeURIComponent(filme.id)}&temporada=${encodeURIComponent(temporada)}&episodio=${encodeURIComponent(episodio.number)}&titulo=${encodeURIComponent(filme.titulo||'')}`;
+        const resposta=await fetch(endereco);
+        const dados=await resposta.json().catch(()=>null);
+        if(!resposta.ok||!dados||!dados.id){
+            avisoDeDownload((dados&&dados.erro)||`Não foi possível baixar ${rotulo} agora.`,12000);
+            return;
+        }
+        acompanhar(dados.id);
+    }catch{
+        avisoDeDownload('O download é feito pelo computador do Conecta TV. No celular, assista pelo próprio aplicativo.',12000);
+    }
+};
 function mostrarFerramentas(){const ferramentas=el('player-tools');if(ferramentas)ferramentas.hidden=false;window.StreamChrome?.wake();}
 function fonteMemoria(){try{return JSON.parse(localStorage.getItem('streamtv-fontes-boas')||'{}');}catch{return {};}}
 function lembrarFonte(nome){if(!nome)return;try{const memoria=fonteMemoria();memoria[filmeAtual?.episode?'serie':'filme']=nome;localStorage.setItem('streamtv-fontes-boas',JSON.stringify(memoria));}catch{}}
@@ -597,7 +648,7 @@ async function alternarFullHd(){if(!filmeAtual||filmeAtual.episode)return;const 
 function fechar(){if(fonteAtual>=0&&players[fonteAtual])lembrarFonte(players[fonteAtual].nome);window.StreamExitFullscreen?.();++playerVersion;playerRequest?.abort();pararFrame();if(document.fullscreenElement)document.exitFullscreen().catch(()=>{});el('player').classList.remove('expanded');fecharOpcoes(false);el('player').classList.remove('ativo');el('loading').classList.remove('vis');el('abrir-externo')?.removeAttribute('href');players=[];fonteAtual=-1;document.body.style.overflow='';ultimoFoco?.focus();window.StreamPersonal?.render();}
 document.addEventListener('keydown',e=>{if(!el('player').classList.contains('ativo'))return;if(e.key==='Escape'){e.preventDefault();if(!el('opcoes').hidden)fecharOpcoes();else fechar();}if(e.key==='Tab'&&!el('opcoes').hidden){const nodes=[...el('opcoes').querySelectorAll('button:not(:disabled),select,a[href],summary')].filter(n=>n.getClientRects().length);const first=nodes[0],last=nodes[nodes.length-1];if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus();}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus();}}});
 carregarRankings();
-</script><script src="/hls.min.js?v1791596746679"></script><script src="/playback.js?v1791596746679"></script><script src="/library.js?v1791596746679"></script><script src="/personal.js?v1791596746679"></script><script src="/auth.js?v1791596746679"></script><script src="/jarvis.js?v1791596746679"></script><script src="/acesso.js?v1791596746679"></script><script src="/legendas.js?v1791596746679"></script>
+</script><script src="/hls.min.js?v1791597956375"></script><script src="/playback.js?v1791597956375"></script><script src="/library.js?v1791597956375"></script><script src="/personal.js?v1791597956375"></script><script src="/auth.js?v1791597956375"></script><script src="/jarvis.js?v1791597956375"></script><script src="/acesso.js?v1791597956375"></script><script src="/legendas.js?v1791597956375"></script>
 <div id="update-aviso" class="toast" hidden><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" style="fill:none;stroke:#ff5566;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round"><path d="M12 4v10"></path><path d="M8 10.5l4 4 4-4"></path><path d="M5 19h14"></path></svg><strong>Nova versão disponível</strong><span>Atualize sem perder o histórico.</span><a href="/check-updates">Atualizar</a><button class="fechar" aria-label="Fechar aviso" onclick="document.getElementById('update-aviso').hidden=true">×</button></div>
 <script>
 (function(){
