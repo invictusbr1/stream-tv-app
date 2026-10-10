@@ -31,6 +31,12 @@
     }
 
     let cacheConfig = null;
+    // Código do público (vem do arquivo de endereço que o aparelho consulta).
+    let codigoDoArquivo = '';
+    async function codigoDoAcesso() {
+        const config = await lerConfig();
+        return String(config.acessoCodigo || config.codigo || codigoDoArquivo || '').trim();
+    }
     async function lerConfig() {
         if (cacheConfig) return cacheConfig;
         try {
@@ -56,6 +62,10 @@
                     const atual = await fetch(config.descoberta + '?t=' + Date.now(), { cache: 'no-store' }).then(r => r.ok ? r.json() : null);
                     const publico = String((atual && atual.endereco) || '').replace(/\/$/, '');
                     if (publico && !lista.includes(publico)) lista.push(publico);
+                    // O código do público vem no mesmo arquivo: assim o relato
+                    // chega mesmo quando o endereço mudou (túnel novo) e o
+                    // aparelho ainda não tem crachá naquele endereço.
+                    if (atual && atual.codigo) codigoDoArquivo = String(atual.codigo).slice(0, 60);
                 } catch { /* sem internet ou arquivo fora do ar */ }
             }
             return lista;
@@ -81,6 +91,7 @@
             aparelho: dados.aparelho || aparelho(),
             dispositivo: identificador(),
             versao: extra?.versao || await versaoDoApp(),
+            codigo: await codigoDoAcesso(),
             app: (await lerConfig()).app || (navigator.userAgent && /StreamTVAndroid/.test(navigator.userAgent) ? 'android' : 'web'),
             plataforma: (navigator.platform || '').slice(0, 40),
             navegador: (navigator.userAgent || '').slice(0, 160),
@@ -109,6 +120,7 @@
             aparelho: dados?.aparelho || aparelho(),
             dispositivo: identificador(),
             versao: evento?.versao || await versaoDoApp(),
+            codigo: await codigoDoAcesso(),
             app: (await lerConfig()).app || (navigator.userAgent && /StreamTVAndroid/.test(navigator.userAgent) ? 'android' : 'web'),
             navegador: (navigator.userAgent || '').slice(0, 160),
             ...evento

@@ -213,6 +213,17 @@ function criarPortao(opcoes = {}) {
             return next();
         }
         if (isento(req.path)) return next();
+        // Aparelho que apresenta o CÓDIGO do público é atendido na hora: o
+        // relato pode chegar por um endereço novo (túnel fixo, rede de fora) e
+        // não pode se perder só porque o crachá antigo era de outro endereço.
+        // Vale apenas para status (os relatos são de uso, sem dado sensível).
+        const informado = String(req.body?.codigo || req.query?.codigo || req.headers['x-conecta-codigo'] || '').trim();
+        if (informado && informado === codigo) {
+            if (req.body?.dispositivo) {
+                req.dispositivoAutorizado = { dispositivo: String(req.body.dispositivo).slice(0, 40), nome: String(req.body.nome || '').slice(0, 60) };
+            }
+            return next();
+        }
         const aceitaHtml = String(req.headers.accept || '').includes('text/html');
         if (aceitaHtml && !req.path.startsWith('/api/')) return res.status(401).type('html').send(paginaDeEntrada({ erro: '' }));
         return res.status(401).json({ error: 'Este aplicativo é privado. Informe o código de acesso.' });
