@@ -16,7 +16,7 @@ const path = require('path');
 const axios = require('axios');
 const motor = require('../fontes-motor');
 const midia = require('../midia-proxy');
-const { verificarIdioma } = require('./verificar-midia');
+const { verificarIdioma, sondagemRapida } = require('./verificar-midia');
 const { tocarNoNavegador } = require('./verificar-navegador');
 const varredor = require('./varredor');
 
@@ -197,6 +197,100 @@ function categoriaDe(id) {
     return CATEGORIAS.find(c => c.id === id) || CATEGORIAS[0];
 }
 
+// ---------------------------------------------------------------- achar o vídeo
+// O que separa "site interessante" de "fonte usável" é descobrir COMO aquele
+// fornecedor entrega o vídeo. Estas funções leem a página e acham o endereço
+// do vídeo (ou o player embutido, quando o vídeo só aparece lá dentro).
+const FORMAS_DE_VIDEO = [
+    { nome: 'chave de arquivo', padrao: /file\s*[:=]\s*["']([^"']+\.(?:m3u8|mp4)[^"']*)["']/i },
+    { nome: 'fonte do player', padrao: /source\s*[:=]\s*["']([^"']+\.(?:m3u8|mp4)[^"']*)["']/i },
+    { nome: 'endereço solto', padrao: /["'](https?:\/\/[^"']+\.(?:m3u8|mp4)[^"']*)["']/i },
+    { nome: 'endereço relativo', padrao: /["'](\/[^"']+\.m3u8[^"']*)["']/i },
+];
+
+function acharVideoNaPagina(html) {
+    const texto = String(html || '').replace(/\\\//g, '/');
+    for (const forma of FORMAS_DE_VIDEO) {
+        const achado = forma.padrao.exec(texto);
+        if (achado && achado[1]) return { url: achado[1].replace(/\\\//g, '/'), como: forma.nome };
+    }
+    return null;
+}
+
+function acharPlayerNaPagina(html) {
+    const achado = /<iframe[^>]+src\s*=\s*["']([^"']+)["']/i.exec(String(html || ''));
+    if (!achado) return '';
+    const endereco = achado[1];
+    if (!/^https?:|^\/\//.test(endereco)) return '';
+    const host = (/(?:\/\/)([^/]+)/.exec(endereco) || [])[1] || '';
+    if (host && /(google|gstatic|cloudflare|jsdelivr|unpkg|facebook|twitter|whatsapp|disqus|histats|doubleclick|youtube)/i.test(host)) return '';
+    return endereco;
+}
+
+// Mede um endereço de vídeo de verdade: reprodução no navegador + idioma.
+// A leitura barata (ffprobe/lista) vem primeiro; a transcrição por IA só entra
+// quando ela não consegue responder — é o que deixa o caçador rápido.
+async function medirVideo(url, { referer = '', nome = 'candidata', titulo = 'título de teste', tipoTitulo = 'movie' } = {}) {
+    const sonda = await sondagemRapida(url, referer).catch(() => null);
+    if (sonda && !sonda.viva) return { detalhes: { tocou: false, semRobo: false, qualidade: '—', ms: 0, popups: 0, anuncios: [], idioma: 'indefinido', idiomaEvidencia: '', avisoAudio: '', amostra: titulo, url }, motivo: 'o endereço não devolveu vídeo' };
+    const tipo = /\.m3u8(\?|$)/i.test(url) ? 'hls' : 'file';
+    const reproducao = await tocarNoNavegador(url, { referer, tipo, segundos: 20 }).catch(() => null);
+    let prova = null;
+    if (sonda && sonda.dublado !== null) {
+        prova = { idioma: sonda.dublado ? 'pt' : 'outro', evidencia: sonda.evidencia || '', avisoAudio: '' };
+    } else {
+        prova = await verificarIdioma({
+            url, referer, tipo: tipoTitulo,
+            fonteId: 'candidata-' + String(nome).replace(/\W+/g, '-').slice(0, 24),
+            amostra: { id: 'tt-' + String(nome).replace(/\W+/g, '').slice(0, 12), titulo },
+            chaveIa: chaveDaIA(), registrar: () => {},
+        }).catch(() => null);
+    }
+    const detalhes = {
+        tocou: Boolean(reproducao && reproducao.tocou),
+        semRobo: Boolean(reproducao && reproducao.semRobo),
+        qualidade: reproducao && reproducao.altura ? reproducao.altura + 'p' : (sonda && sonda.altura ? sonda.altura + 'p' : '—'),
+        altura: (reproducao && reproducao.altura) || (sonda && sonda.altura) || 0,
+        ms: reproducao ? reproducao.ms : sonda ? sonda.ms : 0,
+        popups: reproducao && reproducao.popups ? reproducao.popups.length : 0,
+        anuncios: reproducao && reproducao.anuncios ? reproducao.anuncios : [],
+        idioma: prova ? prova.idioma : 'indefinido',
+        idiomaEvidencia: prova ? prova.evidencia : '',
+        avisoAudio: prova && prova.avisoAudio ? prova.avisoAudio : '',
+        amostra: titulo,
+        url,
+    };
+    let motivo = '';
+    if (!detalhes.tocou && detalhes.semRobo) motivo = '';
+    else if (!detalhes.tocou) motivo = 'o vídeo não abriu no navegador' + (reproducao && reproducao.erro ? ' (' + reproducao.erro + ')' : '');
+    else if (detalhes.avisoAudio) motivo = detalhes.avisoAudio;
+    else if ((detalhes.anuncios || []).length || detalhes.popups) motivo = `abriu, mas chamou rede de anúncio (${(detalhes.anuncios || []).join(', ') || 'pop-up'})`;
+    return { detalhes, motivo };
+}
+
+// Títulos que os usuários tentaram assistir e não conseguiram — a melhor pista
+// que existe: é onde uma fonte nova faz diferença de verdade.
+function amostrasComFalhas(titulos, tipo, limite = 3) {
+    if (!titulos || typeof titulos.comProblema !== 'function') return [];
+    try {
+        return titulos.comProblema(60)
+            .filter(item => (tipo === 'movie' ? item.tipo !== 'tv' : item.tipo === 'tv'))
+            // Só quem realmente falhou: título sem falha não é "caso a resolver".
+            .filter(item => (Number(item.falhas) || 0) > 0)
+            .sort((a, b) => (Number(b.falhasSeguidas) || 0) - (Number(a.falhasSeguidas) || 0) || (Number(b.falhas) || 0) - (Number(a.falhas) || 0))
+            .slice(0, limite)
+            .map(item => ({
+                id: String(item.id),
+                tipo: item.tipo === 'tv' ? 'tv' : 'movie',
+                temporada: item.temporada || '1',
+                episodio: item.numero || '1',
+                titulo: item.titulo || String(item.id),
+                dasFalhas: true,
+                falhas: Number(item.falhas) || 0,
+            }));
+    } catch { return []; }
+}
+
 // ---------------------------------------------------------------- padrão do app
 // É o mínimo que uma fonte precisa para entrar (ou continuar) no Conecta TV.
 // Tudo que ficar abaixo disso é descartado ou fica como segunda opção.
@@ -276,9 +370,9 @@ async function testarFonte(fonte, amostra, tipo) {
     };
 }
 
-function notaDoFornecedor(medidas) {
+function notaDoFornecedor(medidas, ajusteReal = 0) {
     const validas = medidas.filter(m => !m.pulada);
-    if (!validas.length) return { nota: 0, detalhes: { testes: 0, sucessos: 0, taxaSucesso: 0, dublados: 0, melhorQualidade: '—', latenciaMedia: 0 } };
+    if (!validas.length) return { nota: 0, detalhes: { testes: 0, sucessos: 0, taxaSucesso: 0, dublados: 0, melhorQualidade: '—', latenciaMedia: 0, pontos: { real: ajusteReal } } };
     const sucesso = validas.filter(m => m.ok);
     const taxa = sucesso.length / validas.length;
     // Dublado com prova: quando o verificador ouviu o áudio, a resposta dele
@@ -305,7 +399,11 @@ function notaDoFornecedor(medidas) {
     // receberia vídeo sem som.
     const comAvisoDeAudio = sucesso.filter(m => m.avisoAudio).length;
     const desconto = comAvisoDeAudio ? Math.min(1.5, comAvisoDeAudio * 0.75) : 0;
-    const nota = Math.max(0, Math.min(10, pSucesso + pDublado + pSemAnuncio + pQualidade + pVelocidade - desconto));
+    // O placar real (o que aconteceu com quem usa o aplicativo) também entra:
+    // fonte que falha na vida real não pode continuar no topo só porque abriu
+    // no laboratório.
+    const pReal = Number(ajusteReal) || 0;
+    const nota = Math.max(0, Math.min(10, pSucesso + pDublado + pSemAnuncio + pQualidade + pVelocidade - desconto + pReal));
     return {
         nota: Math.round(nota * 10) / 10,
         detalhes: {
@@ -319,10 +417,11 @@ function notaDoFornecedor(medidas) {
             semAnuncio: comAnuncio ? 'anúncio encontrado' : 'sem anúncio',
             melhorQualidade: melhorAltura ? melhorAltura + 'p' : '—',
             latenciaMedia: latencia,
+            real: Math.round(pReal * 10) / 10,
             pontos: {
                 sucesso: Math.round(pSucesso * 10) / 10, dublado: Math.round(pDublado * 10) / 10,
                 semAnuncio: pSemAnuncio, qualidade: Math.round(pQualidade * 10) / 10,
-                velocidade: Math.round(pVelocidade * 10) / 10
+                velocidade: Math.round(pVelocidade * 10) / 10, real: Math.round(pReal * 10) / 10
             }
         }
     };
@@ -550,6 +649,17 @@ async function medirListaDeCanais(lista) {
 function criarCacador(opcoes = {}) {
     const pastaDados = opcoes.pastaDados;
     const registrar = typeof opcoes.registrar === 'function' ? opcoes.registrar : () => {};
+    // Títulos que falharam com quem usa o aplicativo (registro da central).
+    const titulos = opcoes.titulos || null;
+    // Placar real (relatos dos aparelhos) usado na nota de cada fonte.
+    const placar = opcoes.placar || null;
+    // Fichas de fonte: onde ficam, como validar e como publicar.
+    const perfilModulo = require('./perfis');
+    // Só publica no GitHub quando isso faz sentido (nos testes, não publica).
+    const publicarFichas = opcoes.publicarFichas !== false;
+    const listasDoApp = (() => {
+        try { return require('../listas-tv').LISTAS.map(l => l.url); } catch { return []; }
+    })();
     const arquivo = path.join(pastaDados, 'fontes.json');
     const arquivoHistorico = path.join(pastaDados, 'fontes-historico.json');
     let rodando = false;
@@ -618,6 +728,11 @@ function criarCacador(opcoes = {}) {
         }
         return registro;
     }
+    // Token do GitHub: usado pelo varredor e para publicar as fichas.
+    function tokenDoGithub() {
+        try { return fs.readFileSync(path.join(require('os').homedir(), '.streamtv', 'github-token.txt'), 'utf8').trim(); } catch { return ''; }
+    }
+
     function salvarHistorico() { gravarHistorico(); }
     function historicoCompleto() {
         return Object.values(historico)
@@ -625,32 +740,199 @@ function criarCacador(opcoes = {}) {
             .sort((a, b) => String(b.descoberto).localeCompare(String(a.descoberto)));
     }
 
-    async function cacarCategoria(categoria) {
+    // ---------------------------------------------------------- andamento
+    // O painel mostra o que o caçador está fazendo agora (e quanto falta),
+    // inclusive na caçada profunda, que demora bem mais.
+    let progresso = null;
+    function marcar(etapa, feitos = 0, total = 0) {
+        progresso = {
+            categoria: categoriaAtual, etapa, feitos, total,
+            iniciadoEm: progresso && progresso.iniciadoEm ? progresso.iniciadoEm : Date.now(),
+            em: new Date().toISOString(),
+        };
+    }
+
+    // ---------------------------------------------------------- amostras
+    // Títulos fixos + os que os usuários tentaram assistir e não conseguiram.
+    // É nesta segunda lista que uma fonte nova faz diferença de verdade.
+    function amostrasDe(categoria) {
+        const fixas = categoria.amostras || [];
+        const dasFalhas = amostrasComFalhas(titulos, categoria.tipo === 'movie' ? 'movie' : 'tv');
+        const vistos = new Set(fixas.map(a => String(a.id)));
+        return [...fixas, ...dasFalhas.filter(a => !vistos.has(String(a.id)))];
+    }
+
+    // ---------------------------------------------------------- fichas
+    // Transforma uma página medida em FICHA de fonte: acha o vídeo dentro dela
+    // (ou dentro do player embutido), mede de verdade, monta a ficha e valida
+    // em títulos que não serviram de exemplo. Só ficha aprovada é publicada.
+    async function descobrirFicha(candidata, amostra, categoria) {
+        try {
+            // Quando o mapa do site já revelou o molde, é ele que manda: o
+            // endereço de teste é montado com o título da amostra.
+            const comTitulo = texto => String(texto || '')
+                .replace('{id}', String(amostra.id))
+                .replace('{temporada}', String(amostra.temporada || 1))
+                .replace('{episodio}', String(amostra.episodio || 1));
+            const enderecoPagina = candidata.molde ? comTitulo(candidata.molde) : candidata.url;
+            const html = await perfilModulo.buscarTexto(enderecoPagina, '');
+            let video = acharVideoNaPagina(html);
+            let htmlDoVideo = html;
+            if (!video) {
+                const player = acharPlayerNaPagina(html);
+                if (!player) return null;
+                const endereco = player.startsWith('//') ? 'https:' + player : new URL(player, enderecoPagina).toString();
+                htmlDoVideo = await perfilModulo.buscarTexto(endereco, enderecoPagina).catch(() => '');
+                video = acharVideoNaPagina(htmlDoVideo);
+                if (!video) return null;
+            }
+            const alvo = amostra.tipo === 'tv'
+                ? { tipo: 'tv', tmdbId: String(amostra.id), temporada: String(amostra.temporada || 1), episodio: String(amostra.episodio || 1) }
+                : { tipo: 'movie', tmdbId: String(amostra.id) };
+            const medido = await medirVideo(video.url, { referer: enderecoPagina, nome: candidata.nome, titulo: amostra.titulo, tipoTitulo: categoria.tipo });
+            const d = medido.detalhes;
+            if (!d.tocou && !d.semRobo) return null;                       // não abriu
+            if (d.avisoAudio) return null;                                 // sairia mudo
+            if ((d.anuncios || []).length || d.popups) return null;        // tem anúncio
+            if (d.idioma === 'outro') return null;                        // idioma errado na 1ª regra
+            const ficha = perfilModulo.inferirDePagina({
+                candidata: {
+                    ...candidata, alvo,
+                    url: candidata.molde || candidata.url,
+                    dublado: d.idioma === 'pt',
+                    qualidade: d.qualidade,
+                    motivo: `vídeo ${d.qualidade} ${d.idioma === 'pt' ? 'com áudio em português' : 'sem idioma confirmado'} · encontrado em ${video.como}`,
+                },
+                html: htmlDoVideo,
+                video: video.url,
+            });
+            if (!ficha) return null;
+            const provas = (categoria.amostras || []).filter(a => String(a.id) !== String(amostra.id)).slice(0, 3);
+            const avaliacao = await perfilModulo.validar(ficha, provas, { registrar });
+            const registro = perfilModulo.registrarFicha(pastaDados, ficha, avaliacao, { descobertoEm: new Date().toISOString(), canal: categoria.id });
+            const abriram = (avaliacao.provas || []).filter(p => p.ok).length;
+            if (avaliacao.aprovada) {
+                registrar(`FICHA APROVADA: ${registro.nome} — nota ${registro.nota}, ${registro.tipos.join('/')}, ${registro.qualidade || 'qualidade não medida'}`);
+                marcar(`ficha aprovada: ${registro.nome}`, 0, 0);
+            } else {
+                registrar(`ficha ${ficha.nome}: abriu em ${abriram} de ${(avaliacao.provas || []).length} títulos — fica desligada`);
+            }
+            return { ficha: registro, avaliacao };
+        } catch { return null; }
+    }
+
+    // Ficha de addon do Stremio (o endereço responde JSON com os vídeos).
+    async function descobrirFichaDeAddon(candidata, amostra, categoria) {
+        try {
+            const detalhes = candidata.detalhes || {};
+            if (!/^tt\d+$/.test(String(detalhes.imdb || '')) && !/tt\d+/.test(String(candidata.url))) return null;
+            const imdb = String(detalhes.imdb || (/tt\d+/.exec(String(candidata.url)) || [''])[0]);
+            const ficha = perfilModulo.inferirDeStremio({ candidata: { ...candidata, alvo: { tipo: categoria.tipo === 'movie' ? 'movie' : 'tv' } }, imdbServico: imdb });
+            if (!ficha) return null;
+            ficha.dublado = Boolean(detalhes.dublado);
+            const provas = (categoria.amostras || []).filter(a => String(a.id) !== String(amostra.id)).slice(0, 3);
+            const avaliacao = await perfilModulo.validar(ficha, provas, { registrar });
+            const registro = perfilModulo.registrarFicha(pastaDados, ficha, avaliacao, { descobertoEm: new Date().toISOString(), canal: categoria.id });
+            if (avaliacao.aprovada) registrar(`FICHA APROVADA (addon): ${registro.nome} — nota ${registro.nota}`);
+            return { ficha: registro, avaliacao };
+        } catch { return null; }
+    }
+
+    async function cacarCategoria(categoria, rodada = {}) {
+        const profundo = Boolean(rodada.profundo);
+        const amostras = amostrasDe(categoria);
+        marcar(`medindo ${categoria.nome}`, 0, 0);
         const candidatas = [];
-        for (const c of categoria.candidatas || []) candidatas.push(await conferirCandidata(c));
+        const largura = profundo ? 40 : 10;
+        for (const c of (categoria.candidatas || []).slice(0, largura)) candidatas.push(await conferirCandidata(c));
         // Candidatos achados pelo varredor (addons do Stremio, GitHub e o
         // código dos sites) — entram na mesma avaliação das outras fontes.
         try {
             const achados = await candidatosVarridos();
-            for (const nova of achados.slice(0, 10)) {
+            marcar(`candidatas do varredor (${categoria.nome})`, 0, Math.min(achados.length, largura));
+            for (const nova of achados.slice(0, largura)) {
                 if (candidatas.some(c => c.url === nova.url)) continue;
                 candidatas.push(await conferirCandidata(nova));
             }
         } catch { /* sem varredura nesta rodada */ }
 
+        // FICHAS: aqui o caçador deixa de só listar e passa a ABRIR a fonte no
+        // aplicativo. Procura o vídeo dentro das páginas medidas e, quando acha,
+        // valida a ficha em títulos que não foram usados como exemplo.
+        const alvoDasFichas = amostras[0];
+        const pontuarPagina = c => {
+            const url = String(c.url || '');
+            let pontos = 0;
+            if (/\/\{id\}|(filme|filmes|movie|movies|serie|series|watch|assistir|tv|embed)\//i.test(url)) pontos += 3;
+            if (/\d{3,9}/.test(url)) pontos += 1;
+            if (c.molde) pontos += 3;
+            if (/(descartada|não entregue|player só abre)/i.test(String(c.motivo || ''))) pontos += 1;
+            return pontos;
+        };
+        const paginas = candidatas
+            .filter(c => c && c.url && !c.noApp
+                && !/\.(m3u8|mp4|mkv|webm)(\?|$)/i.test(c.url)
+                && !/\.json(\?|$)/i.test(c.url))
+            .sort((a, b) => pontuarPagina(b) - pontuarPagina(a));
+        const limiteDeFichas = profundo ? 14 : 3;
+        const fichas = [];
+        let tentativaDeFicha = 0;
+        for (const candidata of paginas.slice(0, limiteDeFichas)) {
+            tentativaDeFicha += 1;
+            marcar(`procurando o vídeo em ${candidata.nome}`, tentativaDeFicha, Math.min(paginas.length, limiteDeFichas));
+            registrar(`ficha: abrindo ${candidata.nome} (${String(candidata.url).slice(0, 60)})`);
+            const achado = await descobrirFicha(candidata, alvoDasFichas, categoria);
+            if (achado) fichas.push(achado.ficha);
+        }
+        // Addons do Stremio: o endereço já devolve o vídeo em JSON.
+        for (const candidata of candidatas.filter(c => /\/stream\/|\.json(\?|$)/i.test(c.url)).slice(0, profundo ? 10 : 3)) {
+            marcar(`conferindo o addon ${candidata.nome}`, fichas.length, limiteDeFichas);
+            const achado = await descobrirFichaDeAddon(candidata, alvoDasFichas, categoria);
+            if (achado) fichas.push(achado.ficha);
+        }
+        const aprovadas = fichas.filter(f => f && f.ativo !== false);
+        if (aprovadas.length && publicarFichas) {
+            const publicado = await perfilModulo.publicar(pastaDados, tokenDoGithub()).catch(() => null);
+            registrar(`fichas publicadas no aviso de versão: ${aprovadas.length}${publicado && publicado.ok ? '' : ' (publicação pendente)'}`);
+        }
+
         // TV ao vivo tem régua e teste próprios.
         if (categoria.id === 'tv-online') {
             const ranking = [];
-            // As listas do iptv-org ainda NÃO estão dentro do aplicativo: entram
-            // como candidatas fortes, com a nota medida.
-            for (const lista of categoria.listas || []) {
+            const listas = [...(categoria.listas || [])];
+            // Listas novas (descobertas pelo varredor) entram como candidatas.
+            for (const achado of (await candidatosVarridos().catch(() => []))) {
+                if (!/\.m3u8?(\?|$)/i.test(achado.url)) continue;
+                if (listas.some(l => l.url === achado.url)) continue;
+                listas.push({ nome: achado.nome || 'Lista descoberta', url: achado.url, semAnuncio: true });
+            }
+            let feitas = 0;
+            for (const lista of listas) {
+                marcar(`medindo a lista ${lista.nome}`, feitas++, listas.length);
                 const medida = await medirListaDeCanais(lista);
-                ranking.push({ ...medida, noApp: false });
+                // Lista que JÁ está no aplicativo não é "novidade": entra como
+                // mantida, com a nota medida (antes aparecia como fonte nova
+                // nota 10 sem decisão nenhuma).
+                const jaNoApp = listasDoApp.includes(lista.url);
+                ranking.push({ ...medida, noApp: jaNoApp });
             }
             for (const item of ranking) item.avaliacao = avaliarPromocao(item);
             for (const item of ranking) aplicarEvolucao(categoria.id, item);
             salvarHistorico();
             ranking.sort((a, b) => b.nota - a.nota);
+            // Lista nova aprovada (nota alta, sem anúncio, canais respondendo)
+            // é gravada para o aplicativo aceitar sem mexer no código.
+            const novasBoas = ranking.filter(i => !i.noApp && (i.avaliacao || {}).decisao === 'promover');
+            if (novasBoas.length) {
+                for (const item of novasBoas) {
+                    perfilModulo.registrarLista(pastaDados, {
+                        id: String(item.nome || 'lista').toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 40),
+                        nome: item.nome, url: item.id, nota: item.nota,
+                    });
+                }
+                if (publicarFichas) await perfilModulo.publicar(pastaDados, tokenDoGithub()).catch(() => null);
+                registrar(`listas de canais novas publicadas: ${novasBoas.map(i => i.nome).join(', ')}`);
+            }
             // Fontes do aplicativo saem da lista principal (elas já estão no
             // sistema) e ficam só no resumo de "mantidas".
             const doApp = ranking.filter(i => i.noApp);
@@ -663,17 +945,33 @@ function criarCacador(opcoes = {}) {
         }
 
         const ranking = [];
-        for (const fonte of motor.FONTES) {
+        // Fontes fixas do aplicativo + as fichas já aprovadas pelo caçador.
+        const fontesMedidas = typeof motor.fontesAtivas === 'function' ? motor.fontesAtivas() : motor.FONTES;
+        let medidaAtual = 0;
+        for (const fonte of fontesMedidas) {
+            marcar(`medindo a fonte ${fonte.nome}`, medidaAtual++, fontesMedidas.length);
             const medidas = [];
-            for (const amostra of categoria.amostras) {
+            for (const amostra of amostras) {
                 const medida = await testarFonte(fonte, amostra, categoria.tipo).catch(() => null);
                 if (medida) medidas.push(medida);
             }
             // Prova de idioma: ouve até dois títulos que abriram e confere se a
             // voz está mesmo em português (a fonte pode mentir no rótulo).
             const chaveDeIa = chaveDaIA();
-            if (chaveDeIa) {
-                for (const medida of medidas.filter(m => m.ok && m.url && m.amostraChave).slice(0, 2)) {
+            for (const medida of medidas.filter(m => m.ok && m.url).slice(0, 2)) {
+                // Leitura barata primeiro (faixas do arquivo + o que a lista de
+                // reprodução declara): só gasta IA quando ela não responde.
+                const sonda = await sondagemRapida(medida.url, medida.referer).catch(() => null);
+                if (sonda && sonda.dublado !== null) {
+                    medida.idioma = sonda.dublado ? 'pt' : 'outro';
+                    medida.idiomaEvidencia = sonda.evidencia || '';
+                    medida.altura = medida.altura || sonda.altura || 0;
+                    if (sonda.altura && !medida.resolucao) medida.resolucao = sonda.altura + 'p';
+                    registrar(`${fonte.nome}: ${medida.amostra} → ${sonda.dublado ? 'português' : 'outro idioma'} (${sonda.ms} ms, sem gastar IA)`);
+                    continue;
+                }
+                if (!chaveDeIa) continue;
+                if (medida.amostraChave) {
                     const ouvido = await verificarIdioma({
                         url: medida.url, referer: medida.referer, tipo: categoria.tipo,
                         amostra: medida.amostraChave, fonteId: fonte.id, chaveIa: chaveDeIa,
@@ -687,16 +985,20 @@ function criarCacador(opcoes = {}) {
                     }
                 }
             }
-            const { nota, detalhes } = notaDoFornecedor(medidas);
-            // Toda fonte do motor já está dentro do aplicativo.
-            ranking.push({ id: fonte.id, nome: fonte.nome, papel: fonte.papel, nota, detalhes, medidas, noApp: true });
+            // O placar real (relatos dos aparelhos) entra na nota: fonte que
+            // falha com quem assiste não fica no topo só porque abriu aqui.
+            const ajusteReal = placar && typeof placar.ajuste === 'function' ? placar.ajuste(fonte.id) : 0;
+            const { nota, detalhes } = notaDoFornecedor(medidas, ajusteReal);
+            // Toda fonte do motor já está dentro do aplicativo (inclusive as
+            // fichas: elas vieram do próprio caçador e já foram publicadas).
+            ranking.push({ id: fonte.id, nome: fonte.nome, papel: fonte.papel, nota, detalhes, medidas, noApp: true, perfil: Boolean(fonte.perfil) });
         }
         for (const item of ranking) item.avaliacao = avaliarPromocao(item);
         for (const item of ranking) aplicarEvolucao(categoria.id, item);
         salvarHistorico();
         ranking.sort((a, b) => b.nota - a.nota);
         // Confere que nenhuma medida veio de título de outra categoria.
-        const esperados = new Set(categoria.amostras.map(a => a.titulo));
+        const esperados = new Set(amostras.map(a => a.titulo));
         for (const item of ranking) {
             for (const medida of item.medidas || []) {
                 if (!esperados.has(medida.amostra)) medida.foraDaCategoria = true;
@@ -712,31 +1014,44 @@ function criarCacador(opcoes = {}) {
         };
     }
 
-    async function cacar(qual = 'filme') {
+    async function cacar(qual = 'filme', opcoesRodada = {}) {
         if (rodando) return { rodando: true };
         rodando = true;
         categoriaAtual = qual;
+        progresso = { categoria: qual, etapa: 'começando', feitos: 0, total: 0, iniciadoEm: Date.now(), em: new Date().toISOString() };
         try {
             const anteriores = ultimo() || { porCategoria: {} };
             const porCategoria = { ...(anteriores.porCategoria || {}) };
             const alvos = qual === 'todas' ? CATEGORIAS : [categoriaDe(qual)];
-            for (const categoria of alvos) porCategoria[categoria.id] = await cacarCategoria(categoria);
+            for (const categoria of alvos) porCategoria[categoria.id] = await cacarCategoria(categoria, { profundo: Boolean(opcoesRodada.profundo) });
             const saida = {
                 atualizadoEm: new Date().toISOString(),
                 regra: 'dublado (3) + sem anúncio (2) + qualidade HD/Full HD (2) + sucesso (2) + velocidade (1) — na TV ao vivo: canais (3) + sem anúncio (2) + qualidade (2) + resposta (2) + velocidade (1)',
+                // O placar real e as fichas dão o contexto de cada rodada.
+                placar: placar && typeof placar.resumo === 'function' ? placar.resumo() : [],
+                fichas: perfilModulo.listar(pastaDados).map(f => ({ id: f.id, nome: f.nome, nota: f.nota, ativo: f.ativo !== false, tipos: f.tipos, qualidade: f.qualidade, dublado: f.dublado })),
+                ultimaRodada: { profunda: Boolean(opcoesRodada.profundo), em: new Date().toISOString() },
                 porCategoria
             };
             fs.mkdirSync(pastaDados, { recursive: true });
             fs.writeFileSync(arquivo, JSON.stringify(saida, null, 1));
             return saida;
-        } finally { rodando = false; categoriaAtual = ''; }
+        } finally { rodando = false; categoriaAtual = ''; progresso = null; }
     }
 
     function ultimo() {
         try { return JSON.parse(fs.readFileSync(arquivo, 'utf8')); } catch { return null; }
     }
 
-    return { cacar, ultimo, rodando: () => rodando, categoriaAtual: () => categoriaAtual, CATEGORIAS, historico: historicoCompleto };
+    return {
+        cacar, ultimo, rodando: () => rodando, categoriaAtual: () => categoriaAtual,
+        progresso: () => progresso, historico: historicoCompleto, CATEGORIAS,
+        fichas: () => perfilModulo.listar(pastaDados),
+    };
 }
 
-module.exports = { criarCacador, notaDoFornecedor, avaliarPromocao, CATEGORIAS, PADRAO_APP, medirListaDeCanais, chaveDaIA };
+module.exports = {
+    criarCacador, notaDoFornecedor, avaliarPromocao, CATEGORIAS, PADRAO_APP, medirListaDeCanais, chaveDaIA,
+    // Usados pelos testes: escolha das amostras que vieram de falhas reais.
+    amostrasComFalhas, acharVideoNaPagina, acharPlayerNaPagina,
+};

@@ -17,6 +17,7 @@ const identidade = require('./identidade.js');
 const { criarAgente } = require('./agente.js');
 const { criarCacador } = require('./cacador.js');
 const { criarRegistro } = require('./titulos.js');
+const { criarPlacar } = require('./placar.js');
 const { criarRevisor } = require('./revisor.js');
 const { criarClienteApp } = require('./app-client.js');
 
@@ -69,9 +70,18 @@ fs.mkdirSync(DADOS, { recursive: true });
 // Agente de investigação (descobre por qual fonte o título que falhou abre) e
 // caçador de fornecedores (dá nota de 0 a 10 para cada fonte).
 const agente = criarAgente({ pastaDados: DADOS, appUrl: APP_URL, codigoApp: APP_CODIGO });
-const cacador = criarCacador({ pastaDados: DADOS, registrar: mensagem => console.log('[cacador] ' + mensagem) });
 // Histórico de qualidade por título (alimentado pelos eventos do aplicativo).
 const titulos = criarRegistro({ pastaDados: DADOS });
+// Placar real: o que acontece com quem usa o aplicativo (aberturas, confirmações
+// e falhas por fonte). Entra na nota do caçador e na ordem das fontes no app.
+const placar = criarPlacar({ arquivoEventos: ARQ_EVENTOS });
+placar.atualizar();
+const cacador = criarCacador({
+    pastaDados: DADOS,
+    titulos,
+    placar,
+    registrar: mensagem => console.log('[cacador] ' + mensagem),
+});
 agente.iniciar();
 // Revisor automático: pega os títulos com problema e manda o agente testar as
 // fontes de novo, guardando a solução encontrada.
@@ -106,6 +116,34 @@ function gravarJson(arquivo, dados) {
 }
 function anotarEvento(evento) {
     try { fs.appendFileSync(ARQ_EVENTOS, JSON.stringify(evento) + '\n'); } catch { /* disco cheio ou sem permissão */ }
+}
+
+// O placar é lido do arquivo de relatos: a conta é refeita no máximo a cada
+// minuto (para não reler o arquivo a cada evento) e fica guardada junto das
+// fichas, que o aplicativo lê na mesma máquina.
+let placarSujo = false;
+let ultimoPlacar = 0;
+let ultimaPublicacao = 0;
+function marcarPlacarParaAtualizar() { placarSujo = true; }
+function atualizarPlacarSePreciso(forcar = false) {
+    if (!forcar && !placarSujo && Date.now() - ultimoPlacar < 60000) return placar.resumo();
+    placarSujo = false;
+    ultimoPlacar = Date.now();
+    const tabela = placar.atualizar();
+    try {
+        const fichas = require('./perfis');
+        fichas.gravarPlacar(DADOS, tabela);
+        // Publica no GitHub de vez em quando (o celular não vê o disco deste
+        // computador): fichas novas publicam na hora, o placar a cada 2 horas.
+        if (Date.now() - ultimaPublicacao > 2 * 60 * 60 * 1000) {
+            ultimaPublicacao = Date.now();
+            fichas.publicar(DADOS, tokenDoGithub()).catch(() => {});
+        }
+    } catch { /* o placar é opcional */ }
+    return tabela;
+}
+function tokenDoGithub() {
+    try { return fs.readFileSync(path.join(require('os').homedir(), '.streamtv', 'github-token.txt'), 'utf8').trim(); } catch { return ''; }
 }
 function lerEventos(limite = 4000) {
     try {
@@ -181,6 +219,9 @@ app.post('/api/evento', (req, res) => {
         numero: texto(corpo.numero, 4),
         titulo: texto(corpo.titulo, 120),
         fonte: texto(corpo.fonte, 40),
+        // Identificador da fonte (ex.: watchplay, pipoca, vixsrc, ficha do
+        // caçador): é o que liga o relato do aparelho ao placar das fontes.
+        fonteId: texto(corpo.fonteId, 40),
         audio: texto(corpo.audio, 20),
         resolucao: texto(corpo.resolucao, 20),
         taxa: texto(corpo.taxa, 20),
@@ -204,6 +245,9 @@ app.post('/api/evento', (req, res) => {
     anotarEvento(evento);
     // Histórico por título (qualidade medida, escolha e falhas).
     try { titulos.registrar(evento); } catch { /* o evento já foi anotado */ }
+    // Placar das fontes: só o relato que fala de fonte (abertura, confirmação ou
+    // falha) mexe no placar — e, com ele, na ordem das fontes no aplicativo.
+    if (['play', 'confirmacao', 'falha'].includes(evento.tipo)) marcarPlacarParaAtualizar();
     // Player que não abriu entra na fila do agente, que vai testar as fontes.
     if (evento.ok === false) agente.registrarFalha(evento);
     if (evento.dispositivo) {
@@ -262,11 +306,43 @@ app.post('/api/investigar', exigirChave, async (req, res) => {
 app.post('/api/cacar', exigirChave, (req, res) => {
     if (cacador.rodando()) return res.json({ ok: true, rodando: true });
     const categoria = texto(req.body?.categoria, 20) || 'todas';
-    cacador.cacar(categoria).catch(() => {});
-    res.json({ ok: true, iniciado: true, categoria, aviso: 'a busca leva alguns minutos; o painel se atualiza sozinho' });
+    // Caçada profunda: varre muito mais candidatas, procura o vídeo dentro das
+    // páginas e tenta virar ficha — demora bem mais e gasta mais rede.
+    const profundo = req.body?.profundo === true || req.body?.profundo === 'sim';
+    cacador.cacar(categoria, { profundo }).catch(() => {});
+    res.json({
+        ok: true, iniciado: true, categoria, profundo,
+        aviso: profundo
+            ? 'caçada profunda: leva bastante tempo (varre páginas e valida fichas); o painel mostra o andamento'
+            : 'a busca leva alguns minutos; o painel se atualiza sozinho',
+    });
 });
 
 app.get('/api/fontes', exigirChave, (req, res) => res.json(cacador.ultimo() || { ranking: [], candidatas: [], atualizadoEm: null }));
+
+// Andamento da caçada (o que está sendo medido agora).
+app.get('/api/cacar/estado', exigirChave, (req, res) => res.json({
+    rodando: cacador.rodando(),
+    categoria: cacador.categoriaAtual(),
+    andamento: cacador.progresso ? cacador.progresso() : null,
+}));
+
+// Placar real das fontes (relatos dos aparelhos).
+app.get('/api/placar', exigirChave, (req, res) => {
+    const tabela = atualizarPlacarSePreciso(Boolean(req.query.forcar));
+    res.json({ atualizadoEm: new Date().toISOString(), fontes: tabela, problematicas: placar.problematicas() });
+});
+
+// Fichas de fonte aprovadas pelo caçador (e as listas de canais novas).
+app.get('/api/perfis', exigirChave, (req, res) => {
+    const fichas = require('./perfis');
+    const dados = fichas.ler(DADOS);
+    res.json({
+        atualizadoEm: dados.atualizadoEm,
+        perfis: dados.perfis.map(p => ({ ...p, provas: (p.provas || []).slice(0, 3) })),
+        listasTv: dados.listasTv,
+    });
+});
 
 // Qualidade por título (histórico medido pelo aplicativo).
 app.get('/api/titulos', exigirChave, (req, res) => {
@@ -432,6 +508,14 @@ async function gerarStatus() {
         fontesCacadas: cacador.ultimo(),
         cacadorRodando: cacador.rodando(),
         cacadorCategoria: cacador.categoriaAtual(),
+        cacadorAndamento: cacador.progresso ? cacador.progresso() : null,
+        placar: atualizarPlacarSePreciso(),
+        fichas: (cacador.fichas ? cacador.fichas() : []).map(f => ({
+            id: f.id, nome: f.nome, nota: f.nota, ativo: f.ativo !== false,
+            tipos: f.tipos, qualidade: f.qualidade, dublado: f.dublado,
+            origem: f.origem, evidencia: (f.evidencia || '').slice(0, 120),
+            provas: (f.provas || []).filter(p => p.ok).length,
+        })),
         // Qualidade por título: o que o avaliador escolheu e o que o player
         // mediu de verdade (altura, taxa, áudio) — histórico curto por título.
         titulos: { total: titulos.total(), lista: titulos.resumo(12) },

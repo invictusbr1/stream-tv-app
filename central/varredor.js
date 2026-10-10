@@ -41,6 +41,10 @@ function sinaisDeAnuncio(texto) {
 const ADDONS = [
     { nome: 'FenixFlix (FenixHub)', base: 'https://fenixflix.fenixhub.online' },
     { nome: 'Zeus (Baby Beamup)', base: 'https://398fe185fed6-zeus.baby-beamup.club/v1-p2yn-q3j-a3-mb' },
+    // Bases públicas que aparecem nas listas da comunidade. Cada uma é testada
+    // com títulos reais antes de virar fonte — e vira FICHA quando funciona.
+    { nome: 'Cinemeta (metadados)', base: 'https://v3-cinemeta.strem.io' },
+    { nome: 'OpenSubtitles (legendas)', base: 'https://opensubtitles-v3.strem.io' },
 ];
 
 // Títulos de teste para os addons (códigos IMDb).
@@ -55,6 +59,10 @@ const SITES = [
     { nome: 'BRFlix', url: 'https://brflix.lat/' },
     { nome: 'BetterFlix', url: 'https://betterflix.lol/' },
     { nome: 'PinguimCinema', url: 'https://pinguimcinema.space/' },
+    { nome: 'SuperFlix', url: 'https://superflixapi.monster/' },
+    { nome: 'StreamBetter', url: 'https://streambetter.shop/' },
+    { nome: 'RedeCanais', url: 'https://redecanais20.lat/' },
+    { nome: 'PobreFlix', url: 'https://pobreflixhd.sbs/' },
 ];
 
 function comPrazo(promessa, ms = TEMPO) {
@@ -63,6 +71,22 @@ function comPrazo(promessa, ms = TEMPO) {
 
 function marcasDeDublado(texto) {
     return /dublado|dual[ -]?áudio|dual[ -]?audio|🇧🇷|pt-?br|portugu/i.test(String(texto || ''));
+}
+
+// Hosts dos agregadores que o caçador já conhece (das categorias do caçador):
+// entram na leitura do mapa do site, porque é neles que os títulos ficam.
+// Assim o caçador descobre o MOLDE do endereço e consegue medir de verdade.
+function dominiosConhecidos() {
+    try {
+        const categorias = require('./cacador').CATEGORIAS || [];
+        const hosts = [];
+        for (const categoria of categorias) {
+            for (const candidata of categoria.candidatas || []) {
+                try { hosts.push(new URL(candidata.url).hostname.replace(/^www\./, '')); } catch { /* sem url */ }
+            }
+        }
+        return hosts;
+    } catch { return []; }
 }
 
 // ---------------------------------------------------------------- addons
@@ -74,6 +98,10 @@ async function varrerAddons(registrar = () => {}) {
             const resposta = await comPrazo(axios.get(addon.base + caminho, { headers: { 'User-Agent': UA }, timeout: 15000, validateStatus: s => s < 500 }).catch(() => null));
             const streams = resposta && resposta.data && Array.isArray(resposta.data.streams) ? resposta.data.streams : [];
             if (!streams.length) continue;
+            // O endereço do próprio addon (com o código IMDb) também é guardado:
+            // é dele que sai a FICHA do addon (o molde que serve para qualquer
+            // título), não só o link daquele filme de teste.
+            const enderecoAddon = addon.base + caminho;
             for (const stream of streams.slice(0, 3)) {
                 if (!stream.url) continue;
                 achados.push({
@@ -81,12 +109,80 @@ async function varrerAddons(registrar = () => {}) {
                     url: stream.url,
                     origem: 'addon do Stremio',
                     tituloTeste: amostra.titulo,
+                    addonBase: addon.base,
+                    addonNome: addon.nome,
+                    detalhes: { imdb: amostra.id.split(':')[0], tipo: amostra.tipo },
                     dublado: marcasDeDublado(`${stream.title || ''} ${stream.name || ''}`),
                     motivoEsperado: (stream.title || '').replace(/\n/g, ' ').slice(0, 80) || 'stream de addon público',
                 });
             }
+            // Candidato do addon em si (para a ficha) — sem repetir.
+            achados.push({
+                nome: addon.nome,
+                url: enderecoAddon,
+                origem: 'addon do Stremio',
+                tituloTeste: amostra.titulo,
+                detalhes: { imdb: amostra.id.split(':')[0], tipo: amostra.tipo },
+                dublado: true,
+                motivoEsperado: 'endereço do addon: responde JSON com os vídeos',
+            });
         }
         registrar(`addon ${addon.nome}: ${achados.filter(a => a.nome.startsWith(addon.nome)).length} stream(s)`);
+    }
+    return achados;
+}
+
+// ---------------------------------------------------------------- mapa do site
+// Todo agregador publica um mapa dos seus endereços (sitemap.xml). Desse mapa
+// sai o MOLDE de como o site pede um título — e com um título real na mão o
+// caçador consegue medir a fonte de verdade (foi assim que o mapa de um
+// fornecedor revelou 15.600 endereços).
+const PALAVRAS_DE_TITULO = /(filme|filmes|movie|movies|serie|series|tv|watch|assistir|ver|embed|player|anime|dorama)/i;
+
+function moldeDoEndereco(url) {
+    let texto = String(url || '').split('?')[0].split('#')[0];
+    if (!PALAVRAS_DE_TITULO.test(texto)) return '';
+    texto = texto.replace(/\/(\d{3,9})\/(\d{1,3})\/(\d{1,3})(?=\/|$)/, '/{id}/{temporada}/{episodio}');
+    if (!/\{id\}/.test(texto)) texto = texto.replace(/\/(\d{3,9})(?=\/|$)/, '/{id}');
+    return /\{id\}/.test(texto) ? texto : '';
+}
+
+async function varrerSitemaps(dominios = [], registrar = () => {}) {
+    const achados = [];
+    for (const dominio of dominios.slice(0, 8)) {
+        try {
+            const raiz = `https://${dominio.replace(/^https?:\/\//, '').replace(/\/.*$/, '')}`;
+            const primeiro = await comPrazo(axios.get(`${raiz}/sitemap.xml`, { headers: { 'User-Agent': UA }, timeout: 15000, responseType: 'text', maxRedirects: 4, validateStatus: s => s < 500 }).catch(() => null), 16000);
+            let xml = String((primeiro && primeiro.data) || '');
+            if (!/<urlset|<sitemapindex/i.test(xml)) continue;
+            // Mapa de mapas: entra nos primeiros filhos.
+            if (/<sitemapindex/i.test(xml)) {
+                const filhos = [...xml.matchAll(/<loc>([^<]+)<\/loc>/g)].map(m => m[1]).slice(0, 3);
+                const partes = [];
+                for (const filho of filhos) {
+                    const resposta = await comPrazo(axios.get(filho, { headers: { 'User-Agent': UA }, timeout: 15000, responseType: 'text', maxRedirects: 3, validateStatus: s => s < 500 }).catch(() => null), 16000);
+                    if (resposta && resposta.data) partes.push(String(resposta.data));
+                }
+                xml = partes.join('\n') || xml;
+            }
+            const enderecos = [...xml.matchAll(/<loc>([^<]+)<\/loc>/g)].map(m => m[1]).slice(0, 4000);
+            const moldes = new Set();
+            for (const endereco of enderecos) {
+                const molde = moldeDoEndereco(endereco);
+                if (molde) moldes.add(molde);
+                if (moldes.size >= 3) break;
+            }
+            for (const molde of moldes) {
+                achados.push({
+                    nome: `${dominio} (mapa do site)`,
+                    url: molde.replace('{id}', '27205').replace('{temporada}', '1').replace('{episodio}', '1'),
+                    molde,
+                    origem: 'mapa do site',
+                    motivoEsperado: `o site publica o endereço dos títulos (${molde})`,
+                });
+            }
+            if (moldes.size) registrar(`${dominio}: mapa do site revelou ${moldes.size} molde(s) de endereço`);
+        } catch { /* tenta o próximo domínio */ }
     }
     return achados;
 }
@@ -97,6 +193,12 @@ async function varrerGithub(token = '', registrar = () => {}) {
         'stremio addon portuguese streams',
         'stremio addon dublado',
         'embed api filmes series streaming',
+        'assistir filmes dublados api',
+        'embed providers brasileiro streaming',
+        'streaming api dublado portugues embed',
+        'iptv brasil lista m3u atualizada',
+        'filmes online dublado catalog',
+        'site filmes dublados player',
     ];
     const achados = [];
     for (const termo of consultas) {
@@ -149,6 +251,12 @@ async function varrerCodigoGithub(token = '', registrar = () => {}) {
         '"vidsrc" "embed" extension:json',
         '"embed" "m3u8" "dublado" extension:json',
         '"embedProviders" OR "embed_providers" extension:js',
+        '"embed/movie/" language:JavaScript',
+        '"embed/tv/" language:JavaScript',
+        '"m3u8" "tmdb" language:JavaScript',
+        '"file" "m3u8" language:PHP',
+        '"stream/movie/tt" extension:js',
+        '"manifest.json" "catalogs" "streams" extension:js',
     ];
     const achados = [];
     for (const termo of consultas) {
@@ -221,7 +329,20 @@ async function varrerTudo({ token = '', registrar = () => {} } = {}) {
         varrerCodigoGithub(token, registrar).catch(() => []),
         varrerSites(registrar).catch(() => []),
     ]);
-    return [...addons, ...github, ...codigo, ...sites];
+    // Com os domínios já descobertos, o mapa do site (sitemap.xml) revela o
+    // MOLDE do endereço de cada título — é assim que uma página desconhecida
+    // vira uma ficha de fonte testável com títulos de verdade.
+    // Domínios para o mapa do site: os que apareceram nas descobertas MAIS os
+    // próprios sites agregadores conhecidos (é neles que os títulos ficam).
+    const dominios = [...new Set([
+        ...SITES.map(site => { try { return new URL(site.url).hostname.replace(/^www\./, ''); } catch { return ''; } }),
+        ...codigo.map(item => { try { return new URL(item.url).hostname.replace(/^www\./, ''); } catch { return ''; } }),
+        ...sites.map(item => { try { return new URL(item.url).hostname.replace(/^www\./, ''); } catch { return ''; } }),
+        ...dominiosConhecidos(),
+    ].filter(Boolean))]
+        .filter(dominio => !DOMINIOS_CONHECIDOS.test(dominio));
+    const sitemaps = await varrerSitemaps(dominios, registrar).catch(() => []);
+    return [...addons, ...github, ...codigo, ...sites, ...sitemaps];
 }
 
-module.exports = { varrerTudo, varrerAddons, varrerGithub, varrerCodigoGithub, varrerSites, marcasDeDublado, sinaisDeAnuncio, extrairDominios, REDES_DE_ANUNCIO, ADDONS, SITES };
+module.exports = { varrerTudo, varrerAddons, varrerGithub, varrerCodigoGithub, varrerSites, varrerSitemaps, moldeDoEndereco, marcasDeDublado, sinaisDeAnuncio, extrairDominios, REDES_DE_ANUNCIO, ADDONS, SITES };

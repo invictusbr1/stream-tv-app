@@ -17,6 +17,8 @@
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
+const perfisMotor = require('./perfis-motor');
+const perfisLocais = require('./perfis-locais');
 
 const TEMPO_FONTE = 14000;      // limite por fonte
 const VALIDADE_ACERTO = 40 * 60 * 1000;  // lembra o acerto por 40 minutos
@@ -297,18 +299,74 @@ const FONTES = [
 
 // Ordem do momento: papel primeiro, depois peso, depois saúde da fonte.
 // Fontes que não valem para aquele tipo de título (filme x série) nem entram.
+// ------------------------------------------------------- fichas do caçador
+// Fornecedor descoberto e aprovado pelo caçador entra aqui como fonte normal:
+// a ficha diz como pedir o vídeo, e ele passa a competir com as fontes fixas.
+// Quem manda na posição é a nota medida (e o placar real, quando existe).
+function placarReal() {
+    try {
+        const publicado = require('./perfis-locais');
+        const tabela = typeof publicado.placar === 'function' ? publicado.placar() : [];
+        const mapa = new Map();
+        for (const linha of Array.isArray(tabela) ? tabela : []) if (linha && linha.id) mapa.set(String(linha.id), Number(linha.ajuste) || 0);
+        return mapa;
+    } catch { return new Map(); }
+}
+
+function fontesDePerfil() {
+    let lista = [];
+    try { lista = perfisLocais.perfis(); } catch { lista = []; }
+    return perfisMotor.perfisValidos(lista).map(perfil => {
+        const nota = Number(perfil.nota) || 0;
+        const soOriginal = perfil.dublado === false;
+        return {
+            id: String(perfil.id),
+            nome: perfil.nome || perfil.id,
+            papel: soOriginal ? 'hd' : 'dublado',
+            // A nota do caçador vira posição: 0..10 → 60..90 pontos de peso.
+            peso: 60 + nota * 3,
+            perfil: true,
+            seAplica: alvo => perfisMotor.serve(perfil, alvo, null),
+            resolver: alvo => perfisMotor.resolver(perfil, alvo, { buscar: buscarPagina }),
+        };
+    });
+}
+
+// Leitura da página do fornecedor descoberto (mesmas regras do caçador: só
+// https, com referenciador, com limite de tamanho).
+async function buscarPagina(endereco, referer = '') {
+    const axios = require('axios');
+    const resposta = await axios.get(endereco, {
+        timeout: 15000, responseType: 'text', maxRedirects: 4,
+        maxContentLength: 3 * 1024 * 1024, validateStatus: s => s < 400,
+        headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
+            ...(referer ? { Referer: referer } : {}),
+        },
+    });
+    return String(resposta.data || '');
+}
+
+function fontesAtivas() {
+    return [...FONTES, ...fontesDePerfil()];
+}
+
 function ordem(papel, alvo) {
     const agora = Date.now();
-    return FONTES
+    const reais = placarReal();
+    return fontesAtivas()
         .filter(f => f.papel === papel)
         .filter(f => !alvo || !f.seAplica || f.seAplica(alvo))
         .map(f => {
             const s = estadoDaFonte(f.id);
             const castigada = s.castigoAte > agora ? 1 : 0;
             const taxa = s.acertos / Math.max(1, s.acertos + s.falhas);
+            // O placar real (relatos dos aparelhos) mexe na posição: fonte que
+            // falha com quem assiste desce, fonte que funciona sobe.
+            const real = (reais.get(String(f.id)) || 0) * 10;
             // Menor nota vem primeiro. A regra do produto manda (peso): a fonte
             // que acabou de falhar vai para o fim e o histórico só desempata.
-            return { fonte: f, nota: (castigada ? 1000 : 0) - f.peso - taxa * 5 };
+            return { fonte: f, nota: (castigada ? 1000 : 0) - f.peso - taxa * 5 - real };
         })
         .sort((a, b) => a.nota - b.nota)
         .map(item => item.fonte);
@@ -406,7 +464,7 @@ async function escolher(papel, alvo, opcoes = {}) {
 }
 
 function estado() {
-    return FONTES.map(f => {
+    return fontesAtivas().map(f => {
         const s = estadoDaFonte(f.id);
         return {
             id: f.id,
@@ -455,7 +513,7 @@ function esquecerAcertos() {
 function registrarFalha(fonteId, motivo, chaveTitulo) {
     const id = String(fonteId || '').trim();
     if (!id) return false;
-    if (!FONTES.some(fonte => fonte.id === id)) return false;
+    if (!fontesAtivas().some(fonte => fonte.id === id)) return false;
     anotarFalha(id, motivo || 'a reprodução não abriu');
     if (chaveTitulo) semTitulo.set(`${chaveTitulo}|${id}`, Date.now() + VALIDADE_SEM_TITULO);
     return true;
@@ -485,4 +543,4 @@ function anotarEscolha(papel, alvo, dados) {
     acertos.set(chave, { dados: { ...dados }, expira: Date.now() + validade });
 }
 
-module.exports = { escolher, filaDeFontes, prepararParaPlayer, estado, FONTES, enderecoWatchPlay, reiniciarParaTeste, esquecerAcertos, registrarFalha, registrarSucesso, anotarEscolha, chaveDoTitulo, alvoDoEvento, lerIdiomasVerificados, esquecerIdiomas };
+module.exports = { escolher, filaDeFontes, prepararParaPlayer, estado, FONTES, fontesAtivas, fontesDePerfil, enderecoWatchPlay, reiniciarParaTeste, esquecerAcertos, registrarFalha, registrarSucesso, anotarEscolha, chaveDoTitulo, alvoDoEvento, lerIdiomasVerificados, esquecerIdiomas };

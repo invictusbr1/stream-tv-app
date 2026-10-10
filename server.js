@@ -1333,6 +1333,18 @@ try {
     });
 } catch (erro) { console.log('[vigia] não ligou: ' + erro.message); }
 
+// Fichas de fonte do caçador da central: busca a lista publicada no início e a
+// cada 6 horas — é o que faz uma fonte nova aprovada aparecer no aplicativo sem
+// atualizar nada. Sem internet, segue com a cópia que veio dentro do programa.
+try {
+    const fichas = require('./perfis-locais');
+    const buscarFichas = () => fichas.atualizar()
+        .then(r => { if (r && r.mudou) console.log(`[fichas] ${r.perfis} fonte(s) aprovadas pelo caçador`); })
+        .catch(() => {});
+    buscarFichas();
+    setInterval(buscarFichas, 6 * 60 * 60 * 1000);
+} catch (erro) { console.log('[fichas] não ligou: ' + erro.message); }
+
 if (Number(PORTA_ESCOLHIDA) !== Number(PORT)) console.log(`A porta ${PORT} já estava em uso (outra instância aberta). Usando a porta ${PORTA_ESCOLHIDA}.`);
 app.listen(PORTA_ESCOLHIDA, '0.0.0.0', () => {
     const privado = ip => /^192\.168\./.test(ip) || /^10\./.test(ip) || /^172\.(1[6-9]|2\d|3[01])\./.test(ip);

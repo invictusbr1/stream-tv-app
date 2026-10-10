@@ -164,6 +164,84 @@ async function faixasDeAudio(url, referer = '') {
     };
 }
 
+// ---------------------------------------------------------------- leitura barata
+// Estas duas leituras respondem "esta fonte tem áudio em português?" SEM gastar
+// IA e quase sem tempo. É o que permite ao caçador testar dez vezes mais
+// candidatas: só as que passam por aqui (ou ficam sem resposta) vão para a
+// transcrição, que é a parte cara.
+
+function textoDe(url, referer = '', limite = 300000) {
+    return axios.get(url, {
+        timeout: 12000,
+        responseType: 'text',
+        maxRedirects: 4,
+        maxContentLength: limite,
+        validateStatus: s => s < 400,
+        headers: { 'User-Agent': UA, ...(referer ? { Referer: referer } : {}) },
+    }).then(r => String(r.data || ''));
+}
+
+// Numa lista de reprodução (HLS) a própria lista diz o idioma do áudio:
+// "#EXT-X-MEDIA:TYPE=AUDIO,LANGUAGE=\"pt\",NAME=\"Português\"" — ou o nome do
+// grupo ("Dublado", "Dub", "PT-BR"). Isso responde idioma sem abrir o arquivo.
+function idiomaNaLista(texto) {
+    if (typeof texto !== 'string' || !/#EXTM3U/i.test(texto)) return null;
+    const trechos = [];
+    for (const linha of texto.split(/\r?\n/)) {
+        if (!/^#EXT-X-MEDIA/i.test(linha)) continue;
+        if (!/TYPE=AUDIO/i.test(linha)) continue;
+        trechos.push(linha);
+    }
+    const procurado = (trechos.length ? trechos : texto.split(/\r?\n/)).join(' ').toLowerCase();
+    const portugues = /language="(pt|por|pob)[^"]*"|name="[^"]*(portugu|dublad|dub|pt-br|brasil)[^"]*"|group-id="[^"]*(portugu|dublad|dub|pt-br)[^"]*"/i;
+    const outro = /language="(en|eng|es|spa|ja|jpn|ko|kor|zh|chi|fr|fra|de|deu|it|ita|tr|tur|hi|hin|ar|ara)[^"]*"/i;
+    if (portugues.test(procurado)) return { idioma: 'pt', evidencia: 'a lista de reprodução declara faixa de áudio em português' };
+    if (outro.test(procurado)) {
+        const achado = outro.exec(procurado);
+        return { idioma: 'outro', evidencia: `a lista de reprodução declara áudio em "${achado[1]}"` };
+    }
+    return null;
+}
+
+// Sondagem rápida: a fonte está viva? qual resolução? qual idioma pelo arquivo?
+// Junta o ffprobe (que já leva poucos segundos) com a leitura da lista.
+async function sondagemRapida(url, referer = '') {
+    const inicio = Date.now();
+    const saida = { viva: false, ms: 0, container: '', altura: 0, idiomas: [], dublado: null, evidencia: '' };
+    if (!url) return saida;
+    const ehLista = /\.m3u8(\?|$)/i.test(url);
+    try {
+        if (ehLista) {
+            const texto = await textoDe(url, referer);
+            if (/#EXTM3U/i.test(texto)) {
+                saida.viva = true;
+                const prova = idiomaNaLista(texto);
+                if (prova) { saida.dublado = prova.idioma === 'pt'; saida.evidencia = prova.evidencia; saida.idiomas = [prova.idioma === 'pt' ? 'por' : 'outro']; }
+            }
+        }
+    } catch { /* segue para o ffprobe */ }
+    try {
+        const faixas = await faixasDeAudio(url, referer);
+        if (faixas) {
+            saida.viva = true;
+            saida.container = faixas.container;
+            saida.altura = faixas.imagem.altura || 0;
+            saida.idiomas = faixas.faixas.map(f => f.idioma).filter(Boolean);
+            const pt = faixas.faixas.find(f => /^pt|por/.test(f.idioma));
+            const outraPadrao = faixas.faixas.find(f => f.padrao && !/^pt|por/.test(f.idioma));
+            if (pt && (pt.padrao || !outraPadrao)) {
+                saida.dublado = true;
+                saida.evidencia = saida.evidencia || `faixa de áudio em português${pt.padrao ? ' (padrão do arquivo)' : ''}`;
+            } else if (!pt && outraPadrao) {
+                saida.dublado = false;
+                saida.evidencia = saida.evidencia || `a faixa padrão do arquivo é "${outraPadrao.idioma || 'outro idioma'}"`;
+            }
+        }
+    } catch { /* sem ffprobe: fica só a resposta da lista */ }
+    saida.ms = Date.now() - inicio;
+    return saida;
+}
+
 // O navegador toca o vídeo, mas nem sempre o áudio: EAC3/AC3 dentro de MKV,
 // por exemplo, sai mudo (medido no fornecedor FenixFlix em 08/10/2026).
 function audioTocaNoNavegador(container, codec) {
@@ -271,6 +349,16 @@ async function verificarIdioma({ url, referer = '', tipo = 'movie', amostra, fon
             }
         }
         if (!resultado || resultado.idioma === 'indefinido') {
+            // Lista de reprodução (HLS): muitas vezes a própria lista declara o
+            // idioma do áudio. Sai bem mais barato que ouvir o trecho.
+            if (/\.m3u8(\?|$)/i.test(url)) {
+                try {
+                    const prova = idiomaNaLista(await textoDe(url, referer));
+                    if (prova) resultado = { ...prova, origem: 'lista' };
+                } catch { /* sem a lista: tenta ouvir */ }
+            }
+        }
+        if (!resultado || resultado.idioma === 'indefinido') {
             registrar(`ouvindo um trecho de ${amostra.titulo || 'título'} para confirmar o idioma…`);
             // Numa lista de reprodução (HLS) o ffmpeg precisa "correr" até o
             // ponto escolhido — por isso ali o trecho é mais no começo; em
@@ -312,4 +400,6 @@ module.exports = {
     garantirFerramentas, faixasDeAudio, ouvirIdioma, verificarIdioma,
     parecePortugues, extrairDoZip, chaveDoTitulo, lerCache, gravarCache, limparCache, audioTocaNoNavegador,
     arquivoCache, PASTA,
+    // Leitura barata (sem IA): usada pelo caçador para triar candidatas.
+    idiomaNaLista, sondagemRapida, textoDe,
 };

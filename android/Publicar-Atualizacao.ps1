@@ -40,10 +40,25 @@ else {
 function Enviar-Arquivo([string]$caminho, [string]$tipo) {
     $arquivoNome = Split-Path $caminho -Leaf
     foreach ($asset in $existente.assets) {
-        if ($asset.name -eq $arquivoNome) { Invoke-RestMethod -Uri "https://api.github.com/repos/$repo/releases/assets/$($asset.id)" -Headers $headers -Method Delete | Out-Null }
+        if ($asset.name -eq $arquivoNome) {
+            # Apagar o arquivo antigo é limpeza: se ele já não existe (404), segue.
+            try { Invoke-RestMethod -Uri "https://api.github.com/repos/$repo/releases/assets/$($asset.id)" -Headers $headers -Method Delete | Out-Null } catch { }
+        }
     }
     $destino = "https://uploads.github.com/repos/$repo/releases/$($existente.id)/assets?name=$arquivoNome"
-    Invoke-RestMethod -Uri $destino -Headers $headers -Method Post -InFile $caminho -ContentType $tipo | Out-Null
+    # O envio de arquivo grande (o instalador do computador) pode cair no meio:
+    # tenta de novo até três vezes antes de desistir.
+    $enviado = $false
+    for ($tentativa = 1; $tentativa -le 3 -and -not $enviado; $tentativa++) {
+        try {
+            Invoke-RestMethod -Uri $destino -Headers $headers -Method Post -InFile $caminho -ContentType $tipo | Out-Null
+            $enviado = $true
+        } catch {
+            if ($tentativa -eq 3) { throw }
+            Write-Output "Reenviando $arquivoNome (tentativa $($tentativa + 1))…"
+            Start-Sleep -Seconds 5
+        }
+    }
     Write-Output "Enviado: $arquivoNome"
 }
 

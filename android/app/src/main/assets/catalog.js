@@ -65,8 +65,29 @@
             { id: 'clima', nome: 'Previsão do tempo', url: 'https://iptv-org.github.io/iptv/categories/weather.m3u', nota: 7.5 }
         ];
         const canaisTvCache = new Map();
+        // Listas aprovadas pelo caçador chegam pelo arquivo de fichas (o mesmo
+        // do computador): entram junto das listas do aplicativo, sem versão nova.
+        async function listasComFichas(signal) {
+            const base = typeof root.StreamListasTv !== 'undefined' && root.StreamListasTv
+                ? root.StreamListasTv.LISTAS
+                : LISTAS_TV;
+            try {
+                const resposta = await fetcher('/perfis.json', { signal });
+                if (!resposta.ok) return base;
+                const dados = await resposta.json();
+                const juntas = [...base];
+                const vistos = new Set(base.map(l => l.id));
+                for (const lista of (dados && dados.listasTv) || []) {
+                    if (!lista || !lista.url || !lista.id || vistos.has(lista.id)) continue;
+                    vistos.add(lista.id);
+                    juntas.push({ id: lista.id, nome: lista.nome || lista.id, url: lista.url, nota: Number(lista.nota) || 0 });
+                }
+                return juntas.sort((a, b) => (Number(b.nota) || 0) - (Number(a.nota) || 0));
+            } catch { return base; }
+        }
         async function canaisTv(idLista, signal) {
-            const lista = LISTAS_TV.find(l => l.id === idLista) || LISTAS_TV[0];
+            const listas = await listasComFichas(signal).catch(() => LISTAS_TV);
+            const lista = listas.find(l => l.id === idLista) || listas[0];
             const salvo = canaisTvCache.get(lista.id);
             if (salvo && salvo.ate > Date.now()) return salvo.canais;
             const resposta = await fetcher(lista.url, { signal });
@@ -122,7 +143,7 @@
                 else data=await tmdb(`discover/${kind}`,params,signal);
                 return {items:(data.results||[]).filter(x=>!x.media_type||['movie','tv'].includes(x.media_type)).map(x=>movie({...x,media_type:x.media_type||kind})),page:data.page||page,pages:Math.min(data.total_pages||1,500)};
             }
-            if(url.pathname==='/api/tv/listas'){return {listas:LISTAS_TV.map(l=>({id:l.id,nome:l.nome,nota:l.nota,url:l.url}))};}
+            if(url.pathname==='/api/tv/listas'){const listas=await listasComFichas(signal).catch(()=>LISTAS_TV);return {listas:listas.map(l=>({id:l.id,nome:l.nome,nota:l.nota,url:l.url}))};}
             if(url.pathname==='/api/tv/canais'){return {canais:await canaisTv(url.searchParams.get('lista')||'brasil', signal)};}
             if(url.pathname==='/api/tv/categorias'){
                 const canais=await canaisTv(url.searchParams.get('lista')||'brasil', signal);

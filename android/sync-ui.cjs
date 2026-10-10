@@ -13,7 +13,7 @@ const CHAVE_JARVIS=(()=>{
 let html=fs.readFileSync(path.join(root,'index.html'),'utf8').replace(/\r\n/g,'\n');
 function replace(before,after){if(!html.includes(before))throw Error('UI adapter no longer matches: '+before);html=html.replace(before,after);}
 replace("async function lerJson(url,signal){const r=await fetch(url,{signal});if(!r.ok)throw Error('Indisponível');return r.json();}","async function lerJson(url,signal){if(url.startsWith('/api/playback/')){const r=await fetch(url,{signal});if(!r.ok)throw Error('Indisponível');return r.json();}return (await androidCatalog).request(url,signal);}");
-replace('<script>\n','<script src="/catalog.js"></script><script src="/android.js"></script>\n<script>\n');
+replace('<script>\n','<script src="/listas-tv.js"></script><script src="/catalog.js"></script><script src="/android.js"></script>\n<script>\n');
 replace('<script>\n','<script src="/vidsrc-source.js"></script>\n<script>\n');
 // O link de "fonte com anúncios" saiu da interface; se algum dia voltar a
 // existir, o Android abre dentro da própria janela.
@@ -77,3 +77,13 @@ fs.copyFileSync(path.join(root,'jarvis.js'),path.join(assets,'jarvis.js'));
 fs.copyFileSync(path.join(root,'acesso.js'),path.join(assets,'acesso.js'));
 fs.copyFileSync(path.join(root,'fontes.json'),path.join(assets,'fontes.json'));
 fs.copyFileSync(path.join(root,'legendas.js'),path.join(assets,'legendas.js'));
+// Listas de canais ao vivo e fichas de fonte: o aparelho usa os mesmos arquivos
+// do computador (as fichas publicadas pela central chegam por cima depois).
+fs.copyFileSync(path.join(root,'listas-tv.js'),path.join(assets,'listas-tv.js'));
+try {
+  const fichas = fs.readFileSync(path.join(root,'perfis.json'),'utf8');
+  JSON.parse(fichas);
+  fs.writeFileSync(path.join(assets,'perfis.json'),fichas);
+} catch {
+  fs.writeFileSync(path.join(assets,'perfis.json'),JSON.stringify({atualizadoEm:'',perfis:[],listasTv:[],placar:[]},null,1));
+}

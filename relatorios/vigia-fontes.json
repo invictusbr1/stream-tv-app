@@ -1,8 +1,8 @@
 {
  "ligado": true,
  "rodando": true,
- "rodadas": 5,
- "ultimaRodada": 1791598171234,
+ "rodadas": 12,
+ "ultimaRodada": 1791603212783,
  "proximaRodada": 0,
  "titulos": [
   {
@@ -546,7 +546,7 @@
    "tipo": "tv"
   }
  ],
- "cursor": 10,
+ "cursor": 24,
  "semFonte": [
   {
    "id": "1228834",
@@ -565,52 +565,75 @@
    "titulo": "After Impact",
    "tipo": "movie",
    "desde": "2026-10-10T01:57:25.937Z"
+  },
+  {
+   "id": "1294189",
+   "titulo": "The Mongoose",
+   "tipo": "movie",
+   "desde": "2026-10-10T02:21:32.290Z"
+  },
+  {
+   "id": "1712451",
+   "titulo": "Resident Dead",
+   "tipo": "movie",
+   "desde": "2026-10-10T02:33:31.365Z"
+  },
+  {
+   "id": "1248832",
+   "titulo": "Digger",
+   "tipo": "movie",
+   "desde": "2026-10-10T02:33:32.013Z"
+  },
+  {
+   "id": "1599191",
+   "titulo": "Renegade Immortal: Batalha dos Imortais",
+   "tipo": "movie",
+   "desde": "2026-10-10T02:45:25.153Z"
+  },
+  {
+   "id": "1339274",
+   "titulo": "No dejes a los niños solos",
+   "tipo": "movie",
+   "desde": "2026-10-10T03:21:32.562Z"
+  },
+  {
+   "id": "1283515",
+   "titulo": "Verity",
+   "tipo": "movie",
+   "desde": "2026-10-10T03:21:34.697Z"
+  },
+  {
+   "id": "1556321",
+   "titulo": "ธี่หยด: สมิงเขาขวาง",
+   "tipo": "movie",
+   "desde": "2026-10-10T03:33:31.431Z"
   }
  ],
  "ultimoResumo": {
-  "em": "2026-10-10T02:09:31.234Z",
+  "em": "2026-10-10T03:33:32.783Z",
   "testados": 2,
-  "abriram": 2,
+  "abriram": 1,
   "resultados": [
    {
-    "id": "1204680",
-    "titulo": "Coyote vs. Acme",
+    "id": "1556321",
+    "titulo": "ธี่หยด: สมิงเขาขวาง",
+    "tipo": "movie",
+    "ok": false,
+    "fonte": "",
+    "fontesTestadas": [],
+    "semDublado": true,
+    "apenasOriginal": false
+   },
+   {
+    "id": "977942",
+    "titulo": "O Rebelde",
     "tipo": "movie",
     "ok": true,
     "fonte": "watchplay",
     "fontesTestadas": [
      {
       "fonte": "watchplay",
-      "nota": 4.6,
-      "idioma": "a fonte informa dublado",
-      "qualidade": "720p"
-     },
-     {
-      "fonte": "pipoca",
-      "nota": 4.35,
-      "idioma": "a fonte informa dublado",
-      "qualidade": "804p"
-     }
-    ],
-    "semDublado": false,
-    "apenasOriginal": false
-   },
-   {
-    "id": "460458",
-    "titulo": "Resident Evil: Bem-Vindo a Raccoon City",
-    "tipo": "movie",
-    "ok": true,
-    "fonte": "pipoca",
-    "fontesTestadas": [
-     {
-      "fonte": "pipoca",
-      "nota": 5.15,
-      "idioma": "faixa em português é a padrão do arquivo",
-      "qualidade": "720p"
-     },
-     {
-      "fonte": "watchplay",
-      "nota": 4.6,
+      "nota": 4.65,
       "idioma": "a fonte informa dublado",
       "qualidade": "720p"
      }
@@ -622,7 +645,7 @@
   "fontes": [
    {
     "id": "watchplay",
-    "acertos": 10,
+    "acertos": 11,
     "falhas": 0,
     "falhasSeguidas": 0,
     "castigada": false,
@@ -646,7 +669,7 @@
    },
    {
     "id": "pipoca",
-    "acertos": 14,
+    "acertos": 19,
     "falhas": 0,
     "falhasSeguidas": 0,
     "castigada": false,
@@ -654,7 +677,7 @@
    },
    {
     "id": "fenix",
-    "acertos": 0,
+    "acertos": 1,
     "falhas": 0,
     "falhasSeguidas": 0,
     "castigada": false,
@@ -662,8 +685,8 @@
    },
    {
     "id": "vixsrc",
-    "acertos": 0,
-    "falhas": 0,
+    "acertos": 1,
+    "falhas": 8,
     "falhasSeguidas": 0,
     "castigada": false,
     "ultimoMotivo": ""
@@ -679,6 +702,686 @@
   ]
  },
  "historico": [
+  {
+   "em": "2026-10-10T03:33:32.783Z",
+   "testados": 2,
+   "abriram": 1,
+   "resultados": [
+    {
+     "id": "1556321",
+     "titulo": "ธี่หยด: สมิงเขาขวาง",
+     "tipo": "movie",
+     "ok": false,
+     "fonte": "",
+     "fontesTestadas": [],
+     "semDublado": true,
+     "apenasOriginal": false
+    },
+    {
+     "id": "977942",
+     "titulo": "O Rebelde",
+     "tipo": "movie",
+     "ok": true,
+     "fonte": "watchplay",
+     "fontesTestadas": [
+      {
+       "fonte": "watchplay",
+       "nota": 4.65,
+       "idioma": "a fonte informa dublado",
+       "qualidade": "720p"
+      }
+     ],
+     "semDublado": false,
+     "apenasOriginal": false
+    }
+   ],
+   "fontes": [
+    {
+     "id": "watchplay",
+     "acertos": 11,
+     "falhas": 0,
+     "falhasSeguidas": 0,
+     "castigada": false,
+     "ultimoMotivo": ""
+    },
+    {
+     "id": "pipoca-serie",
+     "acertos": 0,
+     "falhas": 0,
+     "falhasSeguidas": 0,
+     "castigada": false,
+     "ultimoMotivo": ""
+    },
+    {
+     "id": "mgeb",
+     "acertos": 0,
+     "falhas": 0,
+     "falhasSeguidas": 0,
+     "castigada": false,
+     "ultimoMotivo": ""
+    },
+    {
+     "id": "pipoca",
+     "acertos": 19,
+     "falhas": 0,
+     "falhasSeguidas": 0,
+     "castigada": false,
+     "ultimoMotivo": ""
+    },
+    {
+     "id": "fenix",
+     "acertos": 1,
+     "falhas": 0,
+     "falhasSeguidas": 0,
+     "castigada": false,
+     "ultimoMotivo": ""
+    },
+    {
+     "id": "vixsrc",
+     "acertos": 1,
+     "falhas": 8,
+     "falhasSeguidas": 0,
+     "castigada": false,
+     "ultimoMotivo": ""
+    },
+    {
+     "id": "vidsrc",
+     "acertos": 0,
+     "falhas": 0,
+     "falhasSeguidas": 0,
+     "castigada": false,
+     "ultimoMotivo": ""
+    }
+   ]
+  },
+  {
+   "em": "2026-10-10T03:21:34.697Z",
+   "testados": 2,
+   "abriram": 0,
+   "resultados": [
+    {
+     "id": "1339274",
+     "titulo": "No dejes a los niños solos",
+     "tipo": "movie",
+     "ok": false,
+     "fonte": "",
+     "fontesTestadas": [],
+     "semDublado": true,
+     "apenasOriginal": false
+    },
+    {
+     "id": "1283515",
+     "titulo": "Verity",
+     "tipo": "movie",
+     "ok": false,
+     "fonte": "",
+     "fontesTestadas": [],
+     "semDublado": true,
+     "apenasOriginal": true
+    }
+   ],
+   "fontes": [
+    {
+     "id": "watchplay",
+     "acertos": 10,
+     "falhas": 0,
+     "falhasSeguidas": 0,
+     "castigada": false,
+     "ultimoMotivo": ""
+    },
+    {
+     "id": "pipoca-serie",
+     "acertos": 0,
+     "falhas": 0,
+     "falhasSeguidas": 0,
+     "castigada": false,
+     "ultimoMotivo": ""
+    },
+    {
+     "id": "mgeb",
+     "acertos": 0,
+     "falhas": 0,
+     "falhasSeguidas": 0,
+     "castigada": false,
+     "ultimoMotivo": ""
+    },
+    {
+     "id": "pipoca",
+     "acertos": 19,
+     "falhas": 0,
+     "falhasSeguidas": 0,
+     "castigada": false,
+     "ultimoMotivo": ""
+    },
+    {
+     "id": "fenix",
+     "acertos": 1,
+     "falhas": 0,
+     "falhasSeguidas": 0,
+     "castigada": false,
+     "ultimoMotivo": ""
+    },
+    {
+     "id": "vixsrc",
+     "acertos": 1,
+     "falhas": 8,
+     "falhasSeguidas": 0,
+     "castigada": false,
+     "ultimoMotivo": ""
+    },
+    {
+     "id": "vidsrc",
+     "acertos": 0,
+     "falhas": 0,
+     "falhasSeguidas": 0,
+     "castigada": false,
+     "ultimoMotivo": ""
+    }
+   ]
+  },
+  {
+   "em": "2026-10-10T03:09:31.033Z",
+   "testados": 2,
+   "abriram": 2,
+   "resultados": [
+    {
+     "id": "1032863",
+     "titulo": "A Hipótese do Amor",
+     "tipo": "movie",
+     "ok": true,
+     "fonte": "pipoca",
+     "fontesTestadas": [
+      {
+       "fonte": "pipoca",
+       "nota": 5.15,
+       "idioma": "faixa em português é a padrão do arquivo",
+       "qualidade": "1038p"
+      },
+      {
+       "fonte": "watchplay",
+       "nota": 4.6,
+       "idioma": "a fonte informa dublado",
+       "qualidade": "720p"
+      }
+     ],
+     "semDublado": false,
+     "apenasOriginal": false
+    },
+    {
+     "id": "1288445",
+     "titulo": "Código: Vingança",
+     "tipo": "movie",
+     "ok": true,
+     "fonte": "fenix",
+     "fontesTestadas": [
+      {
+       "fonte": "fenix",
+       "nota": 4.85,
+       "idioma": "a fonte informa dublado",
+       "qualidade": "720p"
+      },
+      {
+       "fonte": "pipoca",
+       "nota": 4.65,
+       "idioma": "a fonte informa dublado",
+       "qualidade": "960p"
+      },
+      {
+       "fonte": "watchplay",
+       "nota": 4.6,
+       "idioma": "a fonte informa dublado",
+       "qualidade": "720p"
+      }
+     ],
+     "semDublado": false,
+     "apenasOriginal": false
+    }
+   ],
+   "fontes": [
+    {
+     "id": "watchplay",
+     "acertos": 10,
+     "falhas": 0,
+     "falhasSeguidas": 0,
+     "castigada": false,
+     "ultimoMotivo": ""
+    },
+    {
+     "id": "pipoca-serie",
+     "acertos": 0,
+     "falhas": 0,
+     "falhasSeguidas": 0,
+     "castigada": false,
+     "ultimoMotivo": ""
+    },
+    {
+     "id": "mgeb",
+     "acertos": 0,
+     "falhas": 0,
+     "falhasSeguidas": 0,
+     "castigada": false,
+     "ultimoMotivo": ""
+    },
+    {
+     "id": "pipoca",
+     "acertos": 19,
+     "falhas": 0,
+     "falhasSeguidas": 0,
+     "castigada": false,
+     "ultimoMotivo": ""
+    },
+    {
+     "id": "fenix",
+     "acertos": 1,
+     "falhas": 0,
+     "falhasSeguidas": 0,
+     "castigada": false,
+     "ultimoMotivo": ""
+    },
+    {
+     "id": "vixsrc",
+     "acertos": 0,
+     "falhas": 4,
+     "falhasSeguidas": 4,
+     "castigada": false,
+     "ultimoMotivo": "sem resposta"
+    },
+    {
+     "id": "vidsrc",
+     "acertos": 0,
+     "falhas": 0,
+     "falhasSeguidas": 0,
+     "castigada": false,
+     "ultimoMotivo": ""
+    }
+   ]
+  },
+  {
+   "em": "2026-10-10T02:57:33.414Z",
+   "testados": 2,
+   "abriram": 2,
+   "resultados": [
+    {
+     "id": "1232569",
+     "titulo": "Pinóquio: Maldição de Madeira",
+     "tipo": "movie",
+     "ok": true,
+     "fonte": "pipoca",
+     "fontesTestadas": [
+      {
+       "fonte": "pipoca",
+       "nota": 4.35,
+       "idioma": "a fonte informa dublado",
+       "qualidade": "720p"
+      }
+     ],
+     "semDublado": false,
+     "apenasOriginal": false
+    },
+    {
+     "id": "1339713",
+     "titulo": "Obsessão",
+     "tipo": "movie",
+     "ok": true,
+     "fonte": "pipoca",
+     "fontesTestadas": [
+      {
+       "fonte": "pipoca",
+       "nota": 5.65,
+       "idioma": "faixa em português é a padrão do arquivo",
+       "qualidade": "1080p medido"
+      },
+      {
+       "fonte": "watchplay",
+       "nota": 4.6,
+       "idioma": "a fonte informa dublado",
+       "qualidade": "720p"
+      }
+     ],
+     "semDublado": false,
+     "apenasOriginal": false
+    }
+   ],
+   "fontes": [
+    {
+     "id": "watchplay",
+     "acertos": 10,
+     "falhas": 0,
+     "falhasSeguidas": 0,
+     "castigada": false,
+     "ultimoMotivo": ""
+    },
+    {
+     "id": "pipoca-serie",
+     "acertos": 0,
+     "falhas": 0,
+     "falhasSeguidas": 0,
+     "castigada": false,
+     "ultimoMotivo": ""
+    },
+    {
+     "id": "mgeb",
+     "acertos": 0,
+     "falhas": 0,
+     "falhasSeguidas": 0,
+     "castigada": false,
+     "ultimoMotivo": ""
+    },
+    {
+     "id": "pipoca",
+     "acertos": 18,
+     "falhas": 0,
+     "falhasSeguidas": 0,
+     "castigada": false,
+     "ultimoMotivo": ""
+    },
+    {
+     "id": "fenix",
+     "acertos": 0,
+     "falhas": 0,
+     "falhasSeguidas": 0,
+     "castigada": false,
+     "ultimoMotivo": ""
+    },
+    {
+     "id": "vixsrc",
+     "acertos": 0,
+     "falhas": 4,
+     "falhasSeguidas": 4,
+     "castigada": false,
+     "ultimoMotivo": "sem resposta"
+    },
+    {
+     "id": "vidsrc",
+     "acertos": 0,
+     "falhas": 0,
+     "falhasSeguidas": 0,
+     "castigada": false,
+     "ultimoMotivo": ""
+    }
+   ]
+  },
+  {
+   "em": "2026-10-10T02:45:28.299Z",
+   "testados": 2,
+   "abriram": 1,
+   "resultados": [
+    {
+     "id": "1599191",
+     "titulo": "Renegade Immortal: Batalha dos Imortais",
+     "tipo": "movie",
+     "ok": false,
+     "fonte": "",
+     "fontesTestadas": [],
+     "semDublado": true,
+     "apenasOriginal": false
+    },
+    {
+     "id": "1084244",
+     "titulo": "Toy Story 5",
+     "tipo": "movie",
+     "ok": true,
+     "fonte": "pipoca",
+     "fontesTestadas": [
+      {
+       "fonte": "pipoca",
+       "nota": 4.65,
+       "idioma": "a fonte informa dublado",
+       "qualidade": "720p"
+      },
+      {
+       "fonte": "watchplay",
+       "nota": 4.6,
+       "idioma": "a fonte informa dublado",
+       "qualidade": "720p"
+      }
+     ],
+     "semDublado": false,
+     "apenasOriginal": false
+    }
+   ],
+   "fontes": [
+    {
+     "id": "watchplay",
+     "acertos": 10,
+     "falhas": 0,
+     "falhasSeguidas": 0,
+     "castigada": false,
+     "ultimoMotivo": ""
+    },
+    {
+     "id": "pipoca-serie",
+     "acertos": 0,
+     "falhas": 0,
+     "falhasSeguidas": 0,
+     "castigada": false,
+     "ultimoMotivo": ""
+    },
+    {
+     "id": "mgeb",
+     "acertos": 0,
+     "falhas": 0,
+     "falhasSeguidas": 0,
+     "castigada": false,
+     "ultimoMotivo": ""
+    },
+    {
+     "id": "pipoca",
+     "acertos": 16,
+     "falhas": 0,
+     "falhasSeguidas": 0,
+     "castigada": false,
+     "ultimoMotivo": ""
+    },
+    {
+     "id": "fenix",
+     "acertos": 0,
+     "falhas": 0,
+     "falhasSeguidas": 0,
+     "castigada": false,
+     "ultimoMotivo": ""
+    },
+    {
+     "id": "vixsrc",
+     "acertos": 0,
+     "falhas": 4,
+     "falhasSeguidas": 4,
+     "castigada": false,
+     "ultimoMotivo": "sem resposta"
+    },
+    {
+     "id": "vidsrc",
+     "acertos": 0,
+     "falhas": 0,
+     "falhasSeguidas": 0,
+     "castigada": false,
+     "ultimoMotivo": ""
+    }
+   ]
+  },
+  {
+   "em": "2026-10-10T02:33:32.013Z",
+   "testados": 2,
+   "abriram": 0,
+   "resultados": [
+    {
+     "id": "1712451",
+     "titulo": "Resident Dead",
+     "tipo": "movie",
+     "ok": false,
+     "fonte": "",
+     "fontesTestadas": [],
+     "semDublado": true,
+     "apenasOriginal": false
+    },
+    {
+     "id": "1248832",
+     "titulo": "Digger",
+     "tipo": "movie",
+     "ok": false,
+     "fonte": "",
+     "fontesTestadas": [],
+     "semDublado": true,
+     "apenasOriginal": false
+    }
+   ],
+   "fontes": [
+    {
+     "id": "watchplay",
+     "acertos": 10,
+     "falhas": 0,
+     "falhasSeguidas": 0,
+     "castigada": false,
+     "ultimoMotivo": ""
+    },
+    {
+     "id": "pipoca-serie",
+     "acertos": 0,
+     "falhas": 0,
+     "falhasSeguidas": 0,
+     "castigada": false,
+     "ultimoMotivo": ""
+    },
+    {
+     "id": "mgeb",
+     "acertos": 0,
+     "falhas": 0,
+     "falhasSeguidas": 0,
+     "castigada": false,
+     "ultimoMotivo": ""
+    },
+    {
+     "id": "pipoca",
+     "acertos": 15,
+     "falhas": 0,
+     "falhasSeguidas": 0,
+     "castigada": false,
+     "ultimoMotivo": ""
+    },
+    {
+     "id": "fenix",
+     "acertos": 0,
+     "falhas": 0,
+     "falhasSeguidas": 0,
+     "castigada": false,
+     "ultimoMotivo": ""
+    },
+    {
+     "id": "vixsrc",
+     "acertos": 0,
+     "falhas": 4,
+     "falhasSeguidas": 4,
+     "castigada": false,
+     "ultimoMotivo": "sem resposta"
+    },
+    {
+     "id": "vidsrc",
+     "acertos": 0,
+     "falhas": 0,
+     "falhasSeguidas": 0,
+     "castigada": false,
+     "ultimoMotivo": ""
+    }
+   ]
+  },
+  {
+   "em": "2026-10-10T02:21:36.874Z",
+   "testados": 2,
+   "abriram": 1,
+   "resultados": [
+    {
+     "id": "1294189",
+     "titulo": "The Mongoose",
+     "tipo": "movie",
+     "ok": false,
+     "fonte": "",
+     "fontesTestadas": [],
+     "semDublado": true,
+     "apenasOriginal": false
+    },
+    {
+     "id": "1101383",
+     "titulo": "O Fim da Rua",
+     "tipo": "movie",
+     "ok": true,
+     "fonte": "pipoca",
+     "fontesTestadas": [
+      {
+       "fonte": "pipoca",
+       "nota": 4.65,
+       "idioma": "a fonte informa dublado",
+       "qualidade": "870p"
+      },
+      {
+       "fonte": "watchplay",
+       "nota": 4.6,
+       "idioma": "a fonte informa dublado",
+       "qualidade": "720p"
+      }
+     ],
+     "semDublado": false,
+     "apenasOriginal": false
+    }
+   ],
+   "fontes": [
+    {
+     "id": "watchplay",
+     "acertos": 10,
+     "falhas": 0,
+     "falhasSeguidas": 0,
+     "castigada": false,
+     "ultimoMotivo": ""
+    },
+    {
+     "id": "pipoca-serie",
+     "acertos": 0,
+     "falhas": 0,
+     "falhasSeguidas": 0,
+     "castigada": false,
+     "ultimoMotivo": ""
+    },
+    {
+     "id": "mgeb",
+     "acertos": 0,
+     "falhas": 0,
+     "falhasSeguidas": 0,
+     "castigada": false,
+     "ultimoMotivo": ""
+    },
+    {
+     "id": "pipoca",
+     "acertos": 15,
+     "falhas": 0,
+     "falhasSeguidas": 0,
+     "castigada": false,
+     "ultimoMotivo": ""
+    },
+    {
+     "id": "fenix",
+     "acertos": 0,
+     "falhas": 0,
+     "falhasSeguidas": 0,
+     "castigada": false,
+     "ultimoMotivo": ""
+    },
+    {
+     "id": "vixsrc",
+     "acertos": 0,
+     "falhas": 4,
+     "falhasSeguidas": 4,
+     "castigada": true,
+     "ultimoMotivo": "sem resposta"
+    },
+    {
+     "id": "vidsrc",
+     "acertos": 0,
+     "falhas": 0,
+     "falhasSeguidas": 0,
+     "castigada": false,
+     "ultimoMotivo": ""
+    }
+   ]
+  },
   {
    "em": "2026-10-10T02:09:31.234Z",
    "testados": 2,

@@ -112,11 +112,28 @@ code{background:#ffffff10;padding:2px 6px;border-radius:6px;font-size:12.5px}
       <section class="bloco">
         <h2>Fornecedores (nota 0 a 10) <small id="fontes-quando"></small></h2>
         <div class="categorias" id="categorias"></div>
-        <div style="padding:10px 14px 0"><button class="botao" id="botao-cacar">Rodar o caçador nesta categoria</button></div>
+        <div style="padding:10px 14px 0;display:flex;gap:10px;flex-wrap:wrap">
+          <button class="botao" id="botao-cacar">Rodar o caçador nesta categoria</button>
+          <button class="botao" id="botao-profunda" title="Varre muito mais fornecedores, procura o vídeo dentro das páginas e valida fichas de fonte">Caçada profunda</button>
+        </div>
+        <p class="mini" id="cacador-andamento" style="padding:8px 14px 0"></p>
         <table><thead><tr><th>Fonte</th><th>Nota</th><th>Destino</th><th id="coluna-extra">Dublado</th><th>Qualidade</th><th>Resposta</th></tr></thead>
         <tbody id="linha-fontes-cacadas"></tbody></table>
         <div id="fontes-candidatas" class="mini"></div>
         <div id="fontes-descobertas" class="mini"></div>
+      </section>
+      <section class="bloco">
+        <h2>Fichas de fonte aprovadas <small>abrem no app sem versão nova</small></h2>
+        <p class="mini" style="padding:0 14px 6px">Quando o caçador descobre COMO pedir o vídeo de um fornecedor, ele grava uma ficha (endereço por título + regra de leitura) e valida em títulos que não serviram de exemplo. As aprovadas entram no aplicativo na hora, no computador e no celular.</p>
+        <table><thead><tr><th>Fonte</th><th>Nota</th><th>Tipos</th><th>Qualidade</th><th>Provas</th></tr></thead>
+        <tbody id="linha-fichas"></tbody></table>
+        <div id="fichas-nota" class="mini"></div>
+      </section>
+      <section class="bloco">
+        <h2>Placar real das fontes <small>o que aconteceu com quem assiste</small></h2>
+        <p class="mini" style="padding:0 14px 6px">Abertura, confirmação de que o vídeo tocou e falha em cada aparelho. O placar entra na nota do caçador e na ordem das fontes dentro do aplicativo.</p>
+        <table><thead><tr><th>Fonte</th><th>Aberturas</th><th>Falhas</th><th>Falhas seguidas</th><th>Ajuste</th><th>Último motivo</th></tr></thead>
+        <tbody id="linha-placar"></tbody></table>
       </section>
       <section class="bloco">
         <h2>Agente de investigação <small id="agente-resumo"></small></h2>
@@ -295,6 +312,48 @@ function pintar(dados) {
       botao.textContent = 'Buscando… (alguns minutos)';
       await fetch('/api/cacar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ categoria: categoriaAtual }) }).catch(() => {});
     };
+    const profunda = el('botao-profunda');
+    profunda.disabled = Boolean(dados.cacadorRodando);
+    profunda.onclick = async () => {
+      if (!confirm('Caçada profunda: varre muito mais fornecedores, abre páginas para achar o vídeo e valida fichas. Pode levar bastante tempo e usa mais internet. Continuar?')) return;
+      profunda.disabled = true;
+      profunda.textContent = 'Caçada profunda em andamento…';
+      await fetch('/api/cacar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ categoria: categoriaAtual, profundo: true }) }).catch(() => {});
+    };
+    const andamento = dados.cacadorAndamento;
+    el('cacador-andamento').innerHTML = andamento
+      ? '<b style="color:#e0b64d">Agora:</b> ' + escapar(andamento.etapa || 'trabalhando') +
+        (andamento.total ? ' <span class="fraco">(' + (andamento.feitos || 0) + ' de ' + andamento.total + ')</span>' : '')
+      : (dados.cacadorRodando ? '<b style="color:#e0b64d">Caçador rodando…</b>' : '');
+
+    // -------------------------------------------------- fichas de fonte
+    const fichas = dados.fichas || [];
+    el('linha-fichas').innerHTML = fichas.length ? fichas.map(f => {
+      const classe = f.nota >= 7 ? 'alta' : f.nota >= 4 ? 'media' : 'baixa';
+      const tipos = (f.tipos || []).map(t => t === 'tv' ? 'séries' : 'filmes').join(' · ');
+      return `<tr>
+        <td class="nome">${escapar(f.nome)} ${f.ativo ? selo('no app', 'bom') : selo('desligada', 'ruim')}<br><span class="fraco" style="font-size:10.5px">${escapar(f.origem || '')} · ${escapar((f.evidencia || '').slice(0, 90))}</span></td>
+        <td><span class="nota ${classe}">${String(f.nota == null ? '—' : f.nota).replace('.', ',')}</span></td>
+        <td class="fraco">${escapar(tipos || '—')}${f.dublado ? ' <span class="selo on">dublado</span>' : ''}</td>
+        <td class="fraco">${escapar(f.qualidade || '—')}</td>
+        <td class="fraco">${f.provas || 0} título(s)</td>
+      </tr>`;
+    }).join('') : '<tr><td colspan="5" class="vazio">Nenhuma ficha aprovada ainda. A caçada profunda é quem descobre e valida as primeiras.</td></tr>';
+    el('fichas-nota').innerHTML = '<span class="fraco">O computador e o celular leem o mesmo arquivo publicado; a lista de canais ao vivo aprovada entra junto.</span>';
+
+    // -------------------------------------------------- placar real
+    const placar = dados.placar || [];
+    el('linha-placar').innerHTML = placar.length ? placar.map(p => {
+      const cor = p.ajuste > 0 ? '#2fd07a' : p.ajuste < 0 ? '#ff6b6b' : '#8d97a8';
+      return `<tr>
+        <td class="nome">${escapar(p.nome || p.id)}<br><span class="fraco" style="font-size:10.5px">${escapar(p.id)}</span></td>
+        <td class="fraco">${p.aberturas || 0}${p.confirmacoes ? ' <span class="fraco">(' + p.confirmacoes + ' confirmadas)</span>' : ''}</td>
+        <td class="fraco">${p.falhas || 0}${p.taxaFalha ? ' <span class="fraco">· ' + p.taxaFalha + '%</span>' : ''}</td>
+        <td class="fraco">${p.falhasSeguidas || 0}</td>
+        <td style="color:${cor}"><b>${p.ajuste > 0 ? '+' : ''}${String(p.ajuste).replace('.', ',')}</b></td>
+        <td class="fraco" style="max-width:320px">${escapar((p.ultimoMotivo || '').slice(0, 90))}</td>
+      </tr>`;
+    }).join('') : '<tr><td colspan="6" class="vazio">Ainda sem relatos de fonte. O placar aparece assim que os aparelhos começarem a assistir.</td></tr>';
 
     const ranking = (cacadas && cacadas.ranking) || [];
     el('linha-fontes-cacadas').innerHTML = ranking.length ? ranking.map(f => {

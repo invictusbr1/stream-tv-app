@@ -12,6 +12,8 @@ android/.gradle/
 *.log
 android/app/src/main/assets/config.json
 android/app/src/tv/assets/config.json
+android/app/src/main/assets/perfis.json
+android/app/src/main/assets/listas-tv.js
 acessos.json
 Legendas/
 
