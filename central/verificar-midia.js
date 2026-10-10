@@ -228,7 +228,11 @@ async function sondagemRapida(url, referer = '') {
             saida.altura = faixas.imagem.altura || 0;
             saida.idiomas = faixas.faixas.map(f => f.idioma).filter(Boolean);
             const pt = faixas.faixas.find(f => /^pt|por/.test(f.idioma));
-            const outraPadrao = faixas.faixas.find(f => f.padrao && !/^pt|por/.test(f.idioma));
+            // Faixa marcada como "und" (indefinida) NÃO prova que o áudio é de
+            // outro idioma: só uma faixa com idioma declarado e diferente do
+            // português conta como contradição.
+            const declarado = idioma => Boolean(idioma) && idioma !== 'und' && !/^pt|por/.test(idioma);
+            const outraPadrao = faixas.faixas.find(f => f.padrao && declarado(f.idioma));
             if (pt && (pt.padrao || !outraPadrao)) {
                 saida.dublado = true;
                 saida.evidencia = saida.evidencia || `faixa de áudio em português${pt.padrao ? ' (padrão do arquivo)' : ''}`;

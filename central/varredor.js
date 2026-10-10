@@ -52,6 +52,13 @@ const AMOSTRAS_ADDON = [
     { tipo: 'movie', id: 'tt0352248', titulo: 'A Luta pela Esperança' },
     { tipo: 'series', id: 'tt0903747:1:1', titulo: 'Breaking Bad 1x1' },
     { tipo: 'movie', id: 'tt31192372', titulo: 'A Queda 2' },
+    // Títulos muito comuns nas listas dubladas: servem de amostra para medir o
+    // addon e, depois, para VALIDAR a ficha em títulos que ele realmente tem.
+    { tipo: 'movie', id: 'tt0111161', titulo: 'Um Sonho de Liberdade' },
+    { tipo: 'movie', id: 'tt1375666', titulo: 'A Origem' },
+    { tipo: 'movie', id: 'tt0468569', titulo: 'Batman: O Cavaleiro das Trevas' },
+    { tipo: 'series', id: 'tt0944947:1:1', titulo: 'Game of Thrones 1x1' },
+    { tipo: 'series', id: 'tt4574334:1:1', titulo: 'Stranger Things 1x1' },
 ];
 
 // Sites agregadores para ler o código e descobrir quais players usam.
@@ -92,16 +99,22 @@ function dominiosConhecidos() {
 // ---------------------------------------------------------------- addons
 async function varrerAddons(registrar = () => {}) {
     const achados = [];
+    // Os links de cada filme de teste são só exemplos (valem uma vez). O que
+    // interessa é o ENDEREÇO DO ADDON, porque dele sai o molde que serve para
+    // qualquer título — por isso ele vem PRIMEIRO na lista de candidatas.
+    const endpoints = [];
+    // Um candidato por addon E por tipo (filme/série), com a lista dos títulos
+    // em que aquele addon realmente devolveu vídeo — é o que valida a ficha.
+    const porAddon = new Map();
     for (const addon of ADDONS) {
         for (const amostra of AMOSTRAS_ADDON) {
             const caminho = amostra.tipo === 'movie' ? `/stream/movie/${amostra.id}.json` : `/stream/series/${amostra.id}.json`;
             const resposta = await comPrazo(axios.get(addon.base + caminho, { headers: { 'User-Agent': UA }, timeout: 15000, validateStatus: s => s < 500 }).catch(() => null));
             const streams = resposta && resposta.data && Array.isArray(resposta.data.streams) ? resposta.data.streams : [];
             if (!streams.length) continue;
-            // O endereço do próprio addon (com o código IMDb) também é guardado:
-            // é dele que sai a FICHA do addon (o molde que serve para qualquer
-            // título), não só o link daquele filme de teste.
-            const enderecoAddon = addon.base + caminho;
+            const chave = `${addon.base}|${amostra.tipo}`;
+            const registro = porAddon.get(chave) || { addon, tipo: amostra.tipo, confirmados: [], primeira: amostra, dublado: false };
+            if (!registro.confirmados.includes(amostra.id)) registro.confirmados.push(amostra.id);
             for (const stream of streams.slice(0, 3)) {
                 if (!stream.url) continue;
                 achados.push({
@@ -115,21 +128,32 @@ async function varrerAddons(registrar = () => {}) {
                     dublado: marcasDeDublado(`${stream.title || ''} ${stream.name || ''}`),
                     motivoEsperado: (stream.title || '').replace(/\n/g, ' ').slice(0, 80) || 'stream de addon público',
                 });
+                if (marcasDeDublado(`${stream.title || ''} ${stream.name || ''}`)) registro.dublado = true;
             }
-            // Candidato do addon em si (para a ficha) — sem repetir.
-            achados.push({
-                nome: addon.nome,
-                url: enderecoAddon,
-                origem: 'addon do Stremio',
-                tituloTeste: amostra.titulo,
-                detalhes: { imdb: amostra.id.split(':')[0], tipo: amostra.tipo },
-                dublado: true,
-                motivoEsperado: 'endereço do addon: responde JSON com os vídeos',
-            });
+            porAddon.set(chave, registro);
         }
         registrar(`addon ${addon.nome}: ${achados.filter(a => a.nome.startsWith(addon.nome)).length} stream(s)`);
     }
-    return achados;
+    // Candidato do próprio addon (é dele que sai a ficha, não o link do filme).
+    for (const registro of porAddon.values()) {
+        const caminho = registro.tipo === 'movie'
+            ? `/stream/movie/${registro.primeira.id}.json`
+            : `/stream/series/${registro.primeira.id}.json`;
+        endpoints.push({
+            nome: registro.addon.nome,
+            url: registro.addon.base + caminho,
+            origem: 'addon do Stremio',
+            tituloTeste: registro.primeira.titulo,
+            detalhes: {
+                imdb: registro.primeira.id.split(':')[0],
+                tipo: registro.tipo,
+                confirmados: registro.confirmados,
+            },
+            dublado: registro.dublado,
+            motivoEsperado: `o addon entrega vídeo em ${registro.confirmados.length} título(s) testado(s)`,
+        });
+    }
+    return [...endpoints, ...achados];
 }
 
 // ---------------------------------------------------------------- mapa do site

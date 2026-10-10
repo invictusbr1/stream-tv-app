@@ -825,12 +825,42 @@ function criarCacador(opcoes = {}) {
     async function descobrirFichaDeAddon(candidata, amostra, categoria) {
         try {
             const detalhes = candidata.detalhes || {};
-            if (!/^tt\d+$/.test(String(detalhes.imdb || '')) && !/tt\d+/.test(String(candidata.url))) return null;
+            const tipoAddon = categoria.tipo === 'movie' ? 'movie' : 'series';
+            // Só usa a amostra do TIPO certo: antes uma amostra de série virava
+            // molde de filme e a ficha nascia torta (foi o caso do FenixHub).
+            if (detalhes.tipo && detalhes.tipo !== tipoAddon) return null;
             const imdb = String(detalhes.imdb || (/tt\d+/.exec(String(candidata.url)) || [''])[0]);
-            const ficha = perfilModulo.inferirDeStremio({ candidata: { ...candidata, alvo: { tipo: categoria.tipo === 'movie' ? 'movie' : 'tv' } }, imdbServico: imdb });
+            if (!/^tt\d+$/.test(imdb)) return null;
+            const corte = String(candidata.url).indexOf('/stream/');
+            if (corte < 0) return null;
+            const baseDoAddon = String(candidata.url).slice(0, corte);
+            const modelo = tipoAddon === 'movie'
+                ? `${baseDoAddon}/stream/movie/{imdb}.json`
+                : `${baseDoAddon}/stream/series/{imdb}:{temporada}:{episodio}.json`;
+            const ficha = perfilModulo.inferirDeStremio({
+                candidata: { ...candidata, alvo: { tipo: categoria.tipo === 'movie' ? 'movie' : 'tv' } },
+                imdbServico: imdb,
+                modelo,
+            });
             if (!ficha) return null;
             ficha.dublado = Boolean(detalhes.dublado);
-            const provas = (categoria.amostras || []).filter(a => String(a.id) !== String(amostra.id)).slice(0, 3);
+            // Valida nos títulos em que ESTE addon devolveu vídeo (mais os
+            // fixos, como reserva): assim uma fonte de catálogo pequeno não é
+            // recusada só porque não tem os títulos de amostra do aplicativo.
+            const confirmados = Array.isArray(detalhes.confirmados) ? detalhes.confirmados : [];
+            // PRIMEIRO os títulos que o addon realmente tem (é com eles que a
+            // ficha é validada); os títulos fixos do aplicativo entram depois,
+            // só como reserva. Antes vinha na ordem contrária e a ficha era
+            // recusada por testar títulos que o addon não tem.
+            const provas = [
+                ...confirmados.filter(id => String(id) !== String(amostra.id)).map(id => ({
+                    id: String(id).split(':')[0],
+                    temporada: String(id).split(':')[1] || '1',
+                    episodio: String(id).split(':')[2] || '1',
+                    titulo: `título ${id} (o addon tem)`,
+                })),
+                ...(categoria.amostras || []).filter(a => String(a.id) !== String(amostra.id)),
+            ].slice(0, 4);
             const avaliacao = await perfilModulo.validar(ficha, provas, { registrar });
             const registro = perfilModulo.registrarFicha(pastaDados, ficha, avaliacao, { descobertoEm: new Date().toISOString(), canal: categoria.id });
             if (avaliacao.aprovada) registrar(`FICHA APROVADA (addon): ${registro.nome} — nota ${registro.nota}`);
@@ -845,10 +875,15 @@ function criarCacador(opcoes = {}) {
         const candidatas = [];
         const largura = profundo ? 40 : 10;
         for (const c of (categoria.candidatas || []).slice(0, largura)) candidatas.push(await conferirCandidata(c));
+        // Guarda o que o varredor descobriu (imdb, tipo e os títulos em que o
+        // addon devolveu vídeo): a medição não carrega esses dados, e sem eles
+        // a ficha do addon era validada em títulos que ele nem tem.
+        let doVarredor = [];
         // Candidatos achados pelo varredor (addons do Stremio, GitHub e o
         // código dos sites) — entram na mesma avaliação das outras fontes.
         try {
             const achados = await candidatosVarridos();
+            doVarredor = achados;
             marcar(`candidatas do varredor (${categoria.nome})`, 0, Math.min(achados.length, largura));
             for (const nova of achados.slice(0, largura)) {
                 if (candidatas.some(c => c.url === nova.url)) continue;
@@ -885,9 +920,17 @@ function criarCacador(opcoes = {}) {
             if (achado) fichas.push(achado.ficha);
         }
         // Addons do Stremio: o endereço já devolve o vídeo em JSON.
+        const originais = new Map(doVarredor.map(c => [c.url, c]));
         for (const candidata of candidatas.filter(c => /\/stream\/|\.json(\?|$)/i.test(c.url)).slice(0, profundo ? 10 : 3)) {
             marcar(`conferindo o addon ${candidata.nome}`, fichas.length, limiteDeFichas);
-            const achado = await descobrirFichaDeAddon(candidata, alvoDasFichas, categoria);
+            const original = originais.get(candidata.url) || {};
+            const completa = {
+                ...original,
+                ...candidata,
+                detalhes: { ...(original.detalhes || {}), ...(candidata.detalhes || {}) },
+            };
+            registrar(`ficha: conferindo o addon ${candidata.nome} (${candidata.url.slice(0, 70)})`);
+            const achado = await descobrirFichaDeAddon(completa, alvoDasFichas, categoria);
             if (achado) fichas.push(achado.ficha);
         }
         const aprovadas = fichas.filter(f => f && f.ativo !== false);

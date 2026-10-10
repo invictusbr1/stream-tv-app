@@ -5,7 +5,7 @@
 
 ## Última versão publicada
 
-- App: **2.13.42** (versionCode 372) — PC, APK do celular (`br.streamtv.app`),
+- App: **2.13.43** (versionCode 373) — PC, APK do celular (`br.streamtv.app`),
   APK da TV (`br.streamtv.app.tv`) e web. Manifesto conferido em 10/10/2026.
 - Central: **1.5.7** (painel com fichas + placar real + caçada profunda).
 - Manifesto: `invictusbr1/stream-tv-atualizacoes` / `latest.json` (app, TV e
@@ -106,30 +106,42 @@ Rotas novas da central: `/api/placar`, `/api/perfis`, `/api/cacar/estado`
 
 - Caçada de filmes completa em 7,7 minutos: 67 candidatas do varredor, fontes do
   app medidas com triagem barata, placar real aplicado nas notas.
-- Nenhuma ficha aprovada NESTA rodada (honesto): os sites testados não
-  entregaram vídeo dublado sem anúncio de forma direta — o SuperFlix pede
-  verificação (Cloudflare Turnstile), o PobreFlix usa id próprio (não o do
-  TMDB) e o RedeCanais usa o id do TMDB mas carrega o player por chamada
-  interna (não está no HTML). O caçador continua procurando sozinho e ativará a
-  primeira ficha que passar na validação.
+- **Primeira ficha aprovada**: FenixFlix (FenixHub), filme, dublado 1080p, nota
+  7,2 (validada em dois títulos do próprio addon). Os sites de página testados
+  não passaram: o SuperFlix pede verificação (Cloudflare Turnstile), o PobreFlix
+  usa id próprio (não o do TMDB) e o RedeCanais usa o id do TMDB mas carrega o
+  player por chamada interna (não está no HTML).
 - Placar real já com dados: WatchPlay 23 aberturas/11 confirmações/10 falhas
   (ajuste +0,39), PipocaCine 5/18 (‑0,67), FenixFlix 17/2 (+0,79).
 
 ## Pendências abertas
 
-1. **Primeira ficha aprovada** — o mecanismo está pronto e testado, mas ainda
-   não achou um fornecedor que passe na régua. Próximos alvos: páginas que
-   entregam o vídeo no próprio HTML e addons do Stremio com faixa em português.
-   Acompanhar em `/api/perfis` e no painel (bloco "Fichas de fonte aprovadas").
-2. **Sites com chamada interna (ex.: RedeCanais)** — o player só aparece depois
+1. **Primeira ficha aprovada: FenixFlix (FenixHub), filme, dublado 1080p, nota
+   7,2** — o addon do Stremio responde JSON com o vídeo; a ficha foi validada em
+   dois títulos que ele tem ("Um Sonho de Liberdade": faixa de áudio em
+   português, padrão do arquivo; e "Batman: O Cavaleiro das Trevas": 2160p).
+   O endereço vem em `http://` e o caçador o promove para `https://` (o mesmo
+   servidor responde nos dois; medido em 10/10/2026). É esta ficha que abre no
+   computador e no celular sem versão nova — conferir em `/api/perfis` e no
+   bloco "Fichas de fonte aprovadas" do painel.
+   O que faltava para ela passar: (a) usar o MOLDE certo por tipo (antes uma
+   amostra de série virava molde de filme), (b) validar nos títulos que o addon
+   realmente tem em vez dos títulos fixos do aplicativo, (c) mandar o
+   identificador IMDb para a validação e (d) pôr os ENDEREÇOS dos addons antes
+   dos links soltos na lista de candidatas (os links avulsos ocupavam as
+   primeiras vagas e o endereço nem era testado).
+2. **Ficha de SÉRIE do mesmo addon** — as chamadas de série devolveram vídeo em
+   1 de 3 títulos na hora da validação (os endereços são temporários). Fica
+   pendente até o caçador pegar uma janela com dois títulos abrindo.
+3. **Sites com chamada interna (ex.: RedeCanais)** — o player só aparece depois
    de uma chamada do site. Para cobrir isso a ficha precisa de um passo de API
    (buscar um segundo endereço e ler o campo) — é o próximo aumento de força.
-3. **Instalar o APK da TV na TV box**: o pacote `br.streamtv.app.tv` sai em cada
+4. **Instalar o APK da TV na TV box**: o pacote `br.streamtv.app.tv` sai em cada
    versão, mas a Xiaomi TV Box ainda usa o APK do celular.
-4. **Atualização no celular — confirmar no aparelho**: o aparelho "111" estava
+5. **Atualização no celular — confirmar no aparelho**: o aparelho "111" estava
    em 2.13.27; o resultado de cada conferência vai para a central (evento
    `tipo=atualizacao`, campo `motivo`).
-5. **Download no celular**: hoje o download de verdade é no computador
+6. **Download no celular**: hoje o download de verdade é no computador
    (`baixador.js` → `Downloads\Conecta TV`, MP4 com áudio português).
 
 ## Regras do produto (não negociáveis)

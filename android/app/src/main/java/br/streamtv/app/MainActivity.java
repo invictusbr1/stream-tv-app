@@ -259,6 +259,9 @@ public final class MainActivity extends Activity {
                     atual = seguinte;
                     base = achado;
                 }
+                // Fornecedor que entrega http://: o app exige https (o WebView
+                // bloqueia a mistura). O mesmo endereço costuma servir em https.
+                if (video.startsWith("http://")) video = "https://" + video.substring("http://".length());
                 if (video.isEmpty() || !enderecoSeguro(video)) continue;
                 String tipoMidia = video.matches("(?i).*\\.m3u8(\\?.*)?$") ? "hls" : "file";
                 WebResourceResponse resposta = jsonMidia(video, tipoMidia, ficha.optString("nome", "Fonte nova"));

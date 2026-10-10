@@ -76,9 +76,15 @@ test('recusa endereço inseguro (http, rede interna, localhost)', async () => {
     assert.equal(perfis.ehEnderecoSeguro('https://192.168.0.10/x'), false);
     assert.equal(perfis.ehEnderecoSeguro('https://localhost/x'), false);
     assert.equal(perfis.ehEnderecoSeguro('https://exemplo.test/x'), true);
+    // Fornecedor que só entrega http:// tem o endereço promovido para https://
+    // (o aplicativo exige https) — foi o caso do addon FenixHub, medido em
+    // 10/10/2026: o mesmo endereço responde em https e toca em português.
     const buscar = async () => '<script>file:"http://exemplo.test/v.m3u8"</script>';
     const pronto = await perfis.resolver(ficha, { tipo: 'movie', tmdbId: '1' }, { buscar });
-    assert.equal(pronto, null);
+    assert.equal(pronto.url, 'https://exemplo.test/v.m3u8');
+    // Endereço de rede interna continua fora, mesmo depois da promoção.
+    const interno = async () => '<script>file:"http://192.168.0.10/v.m3u8"</script>';
+    assert.equal(await perfis.resolver(ficha, { tipo: 'movie', tmdbId: '1' }, { buscar: interno }), null);
 });
 
 test('a ficha de filme não é usada para episódio (e a ordem é pela nota)', () => {

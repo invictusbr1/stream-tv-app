@@ -158,11 +158,16 @@ async function resolver(perfil, alvo, { buscar, referer = '' } = {}) {
         // O resultado intermediário é outra página: busca e continua.
         let seguinte = achado;
         if (!/^https?:/i.test(seguinte)) { try { seguinte = new URL(seguinte, base).toString(); } catch { return null; } }
+        if (/^http:\/\//i.test(seguinte)) seguinte = seguinte.replace(/^http:\/\//i, 'https://');
         if (!ehEnderecoSeguro(seguinte)) return null;
         try { texto = String(await buscar(seguinte, base) || ''); } catch { return null; }
         if (!texto) return null;
     }
     if (!/^https?:/i.test(video)) { try { video = new URL(video, base).toString(); } catch { return null; } }
+    // Alguns fornecedores entregam o endereço em http:// e o aplicativo exige
+    // https (o WebView bloqueia mistura de protocolo). O mesmo endereço resolve
+    // em https na maioria dos casos; a validação confirma antes de ativar.
+    if (/^http:\/\//i.test(video)) video = video.replace(/^http:\/\//i, 'https://');
     if (!ehEnderecoSeguro(video)) return null;
     return {
         url: video,

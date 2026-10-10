@@ -8,6 +8,9 @@ const fs = require('fs');
 const path = require('path');
 
 const ARQUIVO = path.join(__dirname, 'perfis.json');
+// A central escreve as fichas dela aqui (é o mesmo computador): assim uma fonte
+// aprovada aparece no aplicativo na hora, sem esperar a publicação.
+const ARQUIVO_CENTRAL = path.join(__dirname, 'central', 'dados', 'perfis.json');
 const PUBLICADO = 'https://raw.githubusercontent.com/invictusbr1/stream-tv-atualizacoes/main/perfis.json';
 const VALIDADE = 30 * 60 * 1000;
 
@@ -15,15 +18,20 @@ let memoria = null;
 let lidoEm = 0;
 
 function lerArquivo() {
-    try {
-        const dados = JSON.parse(fs.readFileSync(ARQUIVO, 'utf8'));
-        return {
-            atualizadoEm: dados.atualizadoEm || '',
-            perfis: Array.isArray(dados.perfis) ? dados.perfis : [],
-            listasTv: Array.isArray(dados.listasTv) ? dados.listasTv : [],
-            placar: Array.isArray(dados.placar) ? dados.placar : [],
-        };
-    } catch { return { atualizadoEm: '', perfis: [], listasTv: [], placar: [] }; }
+    const juntar = (caminho, base) => {
+        try {
+            const dados = JSON.parse(fs.readFileSync(caminho, 'utf8'));
+            const perfis = new Map(base.perfis.map(p => [p.id, p]));
+            for (const perfil of Array.isArray(dados.perfis) ? dados.perfis : []) perfis.set(perfil.id, { ...(perfis.get(perfil.id) || {}), ...perfil });
+            return {
+                atualizadoEm: dados.atualizadoEm || base.atualizadoEm,
+                perfis: [...perfis.values()],
+                listasTv: [...new Map([...base.listasTv, ...(Array.isArray(dados.listasTv) ? dados.listasTv : [])].map(l => [l.id || l.url, l])).values()],
+                placar: Array.isArray(dados.placar) && dados.placar.length ? dados.placar : base.placar,
+            };
+        } catch { return base; }
+    };
+    return juntar(ARQUIVO_CENTRAL, juntar(ARQUIVO, { atualizadoEm: '', perfis: [], listasTv: [], placar: [] }));
 }
 
 function conteudo() {

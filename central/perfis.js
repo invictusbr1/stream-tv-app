@@ -148,10 +148,10 @@ function inferirDePagina({ candidata, html, video }) {
 }
 
 // Ficha de addon do Stremio: o endereço responde JSON com a lista de vídeos.
-function inferirDeStremio({ candidata, imdbServico }) {
+function inferirDeStremio({ candidata, imdbServico, modelo: modeloPronto }) {
     const url = String(candidata.url || '');
     const alvo = candidata.alvo || {};
-    const modelo = modeloDeUrl(url, { ...alvo, imdb: imdbServico || alvo.imdb });
+    const modelo = modeloPronto || modeloDeUrl(url, { ...alvo, imdb: imdbServico || alvo.imdb });
     if (!/\{imdb\}/.test(modelo)) return null;
     const anuncios = varredor.sinaisDeAnuncio(JSON.stringify(candidata.detalhes || {}));
     if (anuncios.length) return null;
@@ -187,9 +187,13 @@ async function buscarTexto(endereco, referer = '') {
 async function validar(ficha, amostras, { buscar = buscarTexto, registrar = () => {} } = {}) {
     const provas = [];
     for (const amostra of amostras.slice(0, 3)) {
+        // Addons do Stremio são pedidos pelo CÓDIGO IMDb. Quando a amostra já é
+        // um código (tt123…), ele vale como o próprio identificador — sem isso
+        // o endereço saía com o campo vazio e a ficha era recusada por engano.
+        const imdb = amostra.imdb || (/^tt\d+$/.test(String(amostra.id)) ? String(amostra.id) : '');
         const alvo = amostra.tipo === 'tv'
-            ? { tipo: 'tv', tmdbId: String(amostra.id), temporada: String(amostra.temporada || 1), episodio: String(amostra.episodio || 1), imdb: amostra.imdb || '' }
-            : { tipo: 'movie', tmdbId: String(amostra.id), imdb: amostra.imdb || '' };
+            ? { tipo: 'tv', tmdbId: String(amostra.id), temporada: String(amostra.temporada || 1), episodio: String(amostra.episodio || 1), imdb }
+            : { tipo: 'movie', tmdbId: String(amostra.id), imdb };
         const pronto = await motor.resolver(ficha, alvo, { buscar }).catch(() => null);
         if (!pronto) { provas.push({ amostra: amostra.titulo, ok: false, motivo: 'não achei o vídeo' }); continue; }
         const sonda = await sondagemRapida(pronto.url, pronto.referer).catch(() => null);
