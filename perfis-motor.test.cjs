@@ -100,3 +100,30 @@ test('a ficha de filme não é usada para episódio (e a ordem é pela nota)', (
 test('ficha inativa é ignorada', () => {
     assert.deepEqual(perfis.perfisValidos([{ id: 'a', ativo: true }, { id: 'b', ativo: false }]).map(p => p.id), ['a']);
 });
+
+// O caçador aprendeu (com o navegador escondido) que alguns sites só entregam o
+// vídeo por uma chamada interna. Nesses casos a ficha começa por um passo de
+// ENDEREÇO: não precisa ler a página do título, vai direto no endereço certo.
+test('ficha com passo de endereço vai direto na chamada do site', async () => {
+    const ficha = {
+        id: 'site-interno',
+        nome: 'Site interno',
+        tipos: ['movie'],
+        urlMovie: 'https://site.test/filme/{id}',
+        referer: 'https://site.test/',
+        passos: [
+            { tipo: 'endereco', url: 'https://site.test/__play/{id}.json' },
+            { tipo: 'regex', padrao: '"file"\\s*:\\s*"([^"]+)"', grupo: 1, juntarComBase: true },
+        ],
+    };
+    const pedidos = [];
+    const buscar = async endereco => {
+        pedidos.push(endereco);
+        if (endereco === 'https://site.test/__play/27205.json') return '{"file":"https://cdn.test/v.m3u8"}';
+        if (endereco === 'https://site.test/filme/27205') throw new Error('não deveria pedir a página');
+        throw new Error('endereço inesperado: ' + endereco);
+    };
+    const pronto = await perfis.resolver(ficha, { tipo: 'movie', tmdbId: '27205' }, { buscar });
+    assert.deepEqual(pedidos, ['https://site.test/__play/27205.json'], 'pediu só a chamada interna');
+    assert.equal(pronto.url, 'https://cdn.test/v.m3u8');
+});

@@ -6,8 +6,8 @@ android {
         applicationId 'br.streamtv.app'
         minSdk 23
         targetSdk 35
-    versionCode 375
-    versionName '2.13.45'
+    versionCode 376
+    versionName '2.13.46'
     }
     // Dois aplicativos saem do mesmo código: o do celular e o da TV. O da TV tem
     // pacote próprio (br.streamtv.app.tv), abre sempre na interface de 10 pés

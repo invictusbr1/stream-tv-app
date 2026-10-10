@@ -188,4 +188,80 @@ async function tocarNoNavegador(url, { referer = '', tipo = 'hls', segundos = 25
     }
 }
 
-module.exports = { tocarNoNavegador, acharNavegador, REDES_DE_ANUNCIO, erroDoRobo };
+// ---------------------------------------------------------------- espião
+// O "cão de caça": abre a página do fornecedor no navegador escondido e fica
+// olhando o que ELA pede. É assim que o caçador descobre o endereço que o site
+// usa para entregar o vídeo quando isso não aparece no HTML (caso do
+// RedeCanais, medido em 10/10/2026: o player só carrega por chamada interna).
+//
+// Devolve:
+//   videos  — endereços de vídeo (.m3u8/.mp4) que a página pediu;
+//   api     — chamadas cujo corpo traz um endereço de vídeo (com o corpo, para
+//             o caçador aprender a regra de leitura);
+//   pedidos — todos os endereços pedidos pela página (para achar o padrão).
+async function espionarPagina(url, { referer = '', segundos = 18, registrar = () => {} } = {}) {
+    const puppeteer = carregarPuppeteer();
+    const navegador = acharNavegador();
+    if (!puppeteer || !navegador) { ultimoErroDoRobo = 'sem navegador disponível'; return { ok: false, erro: ultimoErroDoRobo, videos: [], api: [], pedidos: [] }; }
+    let aberto = null;
+    const videos = new Set();
+    const api = [];
+    const pedidos = new Set();
+        const chamadas = [];
+    try {
+        aberto = await puppeteer.launch({
+            executablePath: navegador,
+            headless: 'new',
+            args: ['--no-sandbox', '--disable-dev-shm-usage', '--disable-gpu', '--mute-audio', '--autoplay-policy=no-user-gesture-required'],
+        });
+        const pag = await aberto.newPage();
+        await pag.setUserAgent(UA);
+        await pag.setViewport({ width: 1280, height: 720 });
+        pag.on('request', pedido => {
+            try {
+                const alvo = pedido.url();
+                pedidos.add(alvo.slice(0, 300));
+                if (/\.(m3u8|mp4)(\?|$)/i.test(alvo)) videos.add(alvo.slice(0, 500));
+                // Guarda COMO a página pediu (método, corpo e referenciador):
+                // é isso que a ficha precisa repetir depois.
+                const metodo = pedido.method();
+                if (metodo !== 'GET' || /player|play|api|embed|stream|videos?|source|episodio|assistir/i.test(alvo)) {
+                    const registro = { url: alvo.slice(0, 400), metodo, corpo: String(pedido.postData() || '').slice(0, 800) };
+                    if (!chamadas.some(c => c.url === registro.url && c.metodo === registro.metodo)) chamadas.push(registro);
+                }
+            } catch { /* endereço estranho */ }
+        });
+        // Respostas que trazem um endereço de vídeo no corpo (JSON de player).
+        pag.on('response', async resposta => {
+            try {
+                const alvo = resposta.url();
+                if (/\.(m3u8|mp4)(\?|$)/i.test(alvo)) { videos.add(alvo.slice(0, 500)); return; }
+                const tipo = String((resposta.headers() || {})['content-type'] || '');
+                if (api.length >= 8) return;
+                if (!/json|text|javascript/i.test(tipo)) return;
+                const corpo = await resposta.text().catch(() => '');
+                if (!corpo || corpo.length > 400000) return;
+                const interessante = /\.(m3u8|mp4)/i.test(corpo) || /player|play|api|embed|stream|source|videos?/i.test(alvo);
+                if (interessante) api.push({ url: alvo.slice(0, 400), corpo: corpo.slice(0, 200000) });
+            } catch { /* resposta já foi */ }
+        });
+        registrar('abrindo a página no navegador escondido para ver o que ela pede…');
+        await pag.goto(url, { waitUntil: 'domcontentloaded', timeout: 25000, referer: referer || undefined }).catch(() => {});
+        // Alguns players só carregam depois de um clique no "play".
+        await pag.evaluate(`(() => {
+            const alvos = [...document.querySelectorAll('button, .play, [class*=play], #play, [id*=play]')].slice(0, 4);
+            for (const item of alvos) { try { item.click(); } catch (e) { /* segue */ } }
+            const video = document.querySelector('video');
+            if (video) { try { video.play(); } catch (e) { /* segue */ } }
+        })()`).catch(() => {});
+        await new Promise(resolve => setTimeout(resolve, Math.max(4, segundos) * 1000));
+        return { ok: true, videos: [...videos].slice(0, 10), api: api.slice(0, 12), chamadas: chamadas.slice(0, 20), pedidos: [...pedidos].slice(0, 120) };
+    } catch (erro) {
+        ultimoErroDoRobo = String(erro.message).slice(0, 120);
+        return { ok: false, erro: ultimoErroDoRobo, videos: [...videos], api, chamadas, pedidos: [...pedidos] };
+    } finally {
+        if (aberto) await aberto.close().catch(() => {});
+    }
+}
+
+module.exports = { tocarNoNavegador, espionarPagina, acharNavegador, REDES_DE_ANUNCIO, erroDoRobo };

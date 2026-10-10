@@ -17,7 +17,7 @@ const axios = require('axios');
 const motor = require('../fontes-motor');
 const midia = require('../midia-proxy');
 const { verificarIdioma, sondagemRapida } = require('./verificar-midia');
-const { tocarNoNavegador } = require('./verificar-navegador');
+const { tocarNoNavegador, espionarPagina } = require('./verificar-navegador');
 const varredor = require('./varredor');
 
 // A chave da IA (Whisper) vem do ambiente, da configuração da central ou do
@@ -657,6 +657,8 @@ function criarCacador(opcoes = {}) {
     const perfilModulo = require('./perfis');
     // Só publica no GitHub quando isso faz sentido (nos testes, não publica).
     const publicarFichas = opcoes.publicarFichas !== false;
+    // Fila persistente: o caçador não recomeça do zero a cada rodada.
+    const fila = require('./fila').criarFila({ pastaDados });
     const listasDoApp = (() => {
         try { return require('../listas-tv').LISTAS.map(l => l.url); } catch { return []; }
     })();
@@ -822,6 +824,65 @@ function criarCacador(opcoes = {}) {
     }
 
     // Ficha de addon do Stremio (o endereço responde JSON com os vídeos).
+    // ------------------------------------------------ cão de caça (espião)
+    // Para o site que só entrega o vídeo por JavaScript, o caçador abre a
+    // página no navegador ESCONDIDO e olha o que ela pede. Quando alguma
+    // resposta traz o endereço do vídeo, é dela que sai a ficha — sem abrir
+    // nada para o usuário e sem adivinhar.
+    async function descobrirFichaPeloEspiao(candidata, amostra, categoria) {
+        try {
+            const comTitulo = texto => String(texto || '')
+                .replace('{id}', String(amostra.id))
+                .replace('{temporada}', String(amostra.temporada || 1))
+                .replace('{episodio}', String(amostra.episodio || 1));
+            const endereco = candidata.molde ? comTitulo(candidata.molde) : candidata.url;
+            const espiao = await espionarPagina(endereco, { referer: endereco, segundos: 16, registrar });
+            if (!espiao || !espiao.ok) return null;
+            const provas = [];
+            for (const achado of espiao.api || []) {
+                const video = acharVideoNaPagina(achado.corpo);
+                if (video && video.url) provas.push({ endpoint: achado.url, video: video.url, corpo: achado.corpo });
+            }
+            if (!provas.length) {
+                // Fica registrado o que a página pediu: é assim que se descobre o
+                // próximo passo (ex.: RedeCanais pede POST em /__siteplay/start).
+                const interessantes = (espiao.chamadas || []).filter(c => c.metodo !== 'GET').map(c => c.metodo + ' ' + c.url).slice(0, 3);
+                registrar(`espião em ${candidata.nome}: nenhum vídeo direto${interessantes.length ? ' (chamadas: ' + interessantes.join(' | ') + ')' : ''}`);
+                return null;
+            }
+            const prova = provas[0];
+            const moldeEndpoint = perfilModulo.modeloDeUrl(prova.endpoint, {
+                tmdbId: String(amostra.id).split(':')[0],
+                temporada: String(amostra.temporada || 1),
+                episodio: String(amostra.episodio || 1),
+            });
+            if (!/\{id\}/.test(moldeEndpoint)) return null;
+            const padrao = perfilModulo.padraoPara(prova.corpo, prova.video);
+            if (!padrao) return null;
+            const moldeOriginal = candidata.molde || candidata.url;
+            const ficha = {
+                id: String(candidata.nome || 'espiado').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'espiado',
+                nome: candidata.nome || 'Fonte descoberta pelo espião',
+                nota: 0,
+                dublado: Boolean(candidata.dublado),
+                qualidade: candidata.qualidade || '',
+                tipos: [categoria.tipo === 'movie' ? 'movie' : 'tv'],
+                referer: (() => { try { return new URL(moldeOriginal).origin + '/'; } catch { return ''; } })(),
+                origem: 'espiao',
+                ativo: false,
+                medidoEm: new Date().toISOString(),
+                evidencia: `o site pediu ${prova.endpoint} e a resposta trazia o vídeo`,
+                passos: [{ tipo: 'regex', padrao, grupo: 1, juntarComBase: true }],
+                ...(categoria.tipo === 'movie' ? { urlMovie: moldeEndpoint } : { urlTv: moldeEndpoint }),
+            };
+            const provasDeValidacao = (categoria.amostras || []).filter(a => String(a.id) !== String(amostra.id)).slice(0, 3);
+            const avaliacao = await perfilModulo.validar(ficha, provasDeValidacao, { registrar });
+            const registro = perfilModulo.registrarFicha(pastaDados, ficha, avaliacao, { descobertoEm: new Date().toISOString(), canal: categoria.id });
+            if (avaliacao.aprovada) registrar(`FICHA APROVADA (espião): ${registro.nome} — nota ${registro.nota}, ${registro.tipos.join('/')}`);
+            return { ficha: registro, avaliacao };
+        } catch { return null; }
+    }
+
     async function descobrirFichaDeAddon(candidata, amostra, categoria) {
         try {
             const detalhes = candidata.detalhes || {};
@@ -884,12 +945,32 @@ function criarCacador(opcoes = {}) {
         try {
             const achados = await candidatosVarridos();
             doVarredor = achados;
+            // Tudo o que o varredor achou entra na fila persistente: o que não
+            // der tempo nesta rodada é testado nas próximas.
+            const novosNaFila = fila.enfileirar(achados);
+            if (novosNaFila) registrar(`fila: ${novosNaFila} candidata(s) guardadas para as próximas rodadas`);
             marcar(`candidatas do varredor (${categoria.nome})`, 0, Math.min(achados.length, largura));
             for (const nova of achados.slice(0, largura)) {
                 if (candidatas.some(c => c.url === nova.url)) continue;
                 candidatas.push(await conferirCandidata(nova));
             }
         } catch { /* sem varredura nesta rodada */ }
+        // Candidatas que ficaram esperando nas rodadas anteriores entram agora
+        // (com castigo por domínio: quem insiste em falhar descansa).
+        const daFila = fila.proximos(profundo ? 6 : 2);
+        for (const candidata of daFila) {
+            if (candidatas.some(c => c.url === candidata.url)) continue;
+            const medida = await conferirCandidata(candidata).catch(() => null);
+            candidatas.push(medida || candidata);
+            // Anota o resultado na fila (e castiga o domínio que só dá erro).
+            const direto = /\.(m3u8|mp4|mkv|webm)(\?|$)/i.test(candidata.url);
+            fila.anotar(candidata.url, {
+                estado: medida ? medida.situacao : 'sem-resposta',
+                aprovada: Boolean(medida && medida.situacao === 'promover'),
+                motivo: medida ? medida.motivo : 'sem resposta',
+                erroDeDominio: !direto && (!medida || medida.situacao === 'descartada'),
+            });
+        }
 
         // FICHAS: aqui o caçador deixa de só listar e passa a ABRIR a fonte no
         // aplicativo. Procura o vídeo dentro das páginas medidas e, quando acha,
@@ -917,6 +998,14 @@ function criarCacador(opcoes = {}) {
             marcar(`procurando o vídeo em ${candidata.nome}`, tentativaDeFicha, Math.min(paginas.length, limiteDeFichas));
             registrar(`ficha: abrindo ${candidata.nome} (${String(candidata.url).slice(0, 60)})`);
             const achado = await descobrirFicha(candidata, alvoDasFichas, categoria);
+            if (achado) fichas.push(achado.ficha);
+        }
+        // O espião entra só onde a leitura direta da página não deu ficha: é o
+        // caminho para os sites que só montam o player por JavaScript.
+        const quantosEspiao = profundo ? 3 : 1;
+        for (const candidata of paginas.slice(0, quantosEspiao)) {
+            marcar(`espionando ${candidata.nome} no navegador escondido`, fichas.length, quantosEspiao);
+            const achado = await descobrirFichaPeloEspiao(candidata, alvoDasFichas, categoria);
             if (achado) fichas.push(achado.ficha);
         }
         // Addons do Stremio: o endereço já devolve o vídeo em JSON.
@@ -1090,6 +1179,7 @@ function criarCacador(opcoes = {}) {
         cacar, ultimo, rodando: () => rodando, categoriaAtual: () => categoriaAtual,
         progresso: () => progresso, historico: historicoCompleto, CATEGORIAS,
         fichas: () => perfilModulo.listar(pastaDados),
+        fila: () => fila.resumo(),
     };
 }
 

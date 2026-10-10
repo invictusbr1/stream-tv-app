@@ -366,7 +366,11 @@ async function varrerTudo({ token = '', registrar = () => {} } = {}) {
     ].filter(Boolean))]
         .filter(dominio => !DOMINIOS_CONHECIDOS.test(dominio));
     const sitemaps = await varrerSitemaps(dominios, registrar).catch(() => []);
-    return [...addons, ...github, ...codigo, ...sites, ...sitemaps];
+    // Vetores invisíveis: o arquivo da internet (formatos de endereço que o
+    // site já usou), canais públicos e listas guardadas em arquivos. Cada um é
+    // opcional — se um cair, os outros seguem.
+    const vetores = await require('./vetores').varrerVetores({ dominios, token, registrar }).catch(() => []);
+    return [...addons, ...github, ...codigo, ...sites, ...sitemaps, ...vetores];
 }
 
 module.exports = { varrerTudo, varrerAddons, varrerGithub, varrerCodigoGithub, varrerSites, varrerSitemaps, moldeDoEndereco, marcasDeDublado, sinaisDeAnuncio, extrairDominios, REDES_DE_ANUNCIO, ADDONS, SITES };

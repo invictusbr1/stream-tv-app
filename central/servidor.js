@@ -509,6 +509,7 @@ async function gerarStatus() {
         cacadorRodando: cacador.rodando(),
         cacadorCategoria: cacador.categoriaAtual(),
         cacadorAndamento: cacador.progresso ? cacador.progresso() : null,
+        cacadorFila: cacador.fila ? cacador.fila() : null,
         placar: atualizarPlacarSePreciso(),
         fichas: (cacador.fichas ? cacador.fichas() : []).map(f => ({
             id: f.id, nome: f.nome, nota: f.nota, ativo: f.ativo !== false,

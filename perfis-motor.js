@@ -78,8 +78,11 @@ function desescaparBarra(valor) {
 
 // Aplica UM passo de leitura sobre um texto.
 function aplicarPasso(passo, texto, base) {
-    if (!passo || !texto) return '';
+    if (!passo) return '';
     const tipo = String(passo.tipo || 'regex');
+    // Passo de endereço não depende de texto nenhum: a ficha já sabe o molde.
+    if (tipo === 'endereco') return String(passo.url || '');
+    if (!texto) return '';
     if (tipo === 'json') return valorNoCaminho(texto, passo.caminho);
     if (tipo === 'texto') {
         // A fonte entrega o endereço cru (às vezes dentro de aspas).
@@ -145,12 +148,19 @@ async function resolver(perfil, alvo, { buscar, referer = '' } = {}) {
     const base = perfil.referer || endereco;
     const passos = Array.isArray(perfil.passos) && perfil.passos.length ? perfil.passos : [REGRA_PADRAO];
     let texto = '';
-    try { texto = String(await buscar(endereco, referer || perfil.referer || '') || ''); }
-    catch { return null; }
-    if (!texto) return null;
+    // Quando o primeiro passo é de ENDEREÇO, a ficha já sabe para onde ir: não
+    // precisa baixar a página do título antes (economiza uma requisição).
+    if (String(passos[0].tipo || 'regex') !== 'endereco') {
+        try { texto = String(await buscar(endereco, referer || perfil.referer || '') || ''); }
+        catch { return null; }
+        if (!texto) return null;
+    }
     let video = '';
     for (let i = 0; i < passos.length; i++) {
         const passo = passos[i];
+        // Passo de endereço já traz o molde da chamada: aqui ele é preenchido
+        // com o título (filme/episódio) antes de ser usado.
+        if (passo && passo.tipo === 'endereco') passo.url = preencher(passo.url, alvo);
         const achado = aplicarPasso(passo, texto, base);
         if (!achado) return null;
         const ultimo = i === passos.length - 1;

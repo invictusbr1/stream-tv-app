@@ -5,9 +5,10 @@
 
 ## Última versão publicada
 
-- App: **2.13.45** (versionCode 375) — PC, APK do celular (`br.streamtv.app`),
+- App: **2.13.46** (versionCode 376) — PC, APK do celular (`br.streamtv.app`),
   APK da TV (`br.streamtv.app.tv`) e web. Manifesto conferido em 10/10/2026.
-- Central: **1.5.7** (painel com fichas + placar real + caçada profunda).
+- Central: **1.5.8** (fichas + placar real + caçada profunda + vetores novos +
+  fila persistente + espião no navegador).
 - Manifesto: `invictusbr1/stream-tv-atualizacoes` / `latest.json` (app, TV e
   instalador) e `perfis.json` (fichas de fonte + listas de canais + placar).
 - 171 testes passam (`npm test`).
@@ -85,6 +86,31 @@ aplicativo**. Como funciona hoje:
 Rotas novas da central: `/api/placar`, `/api/perfis`, `/api/cacar/estado`
 (todas pedem a chave do painel).
 
+### O que deixou o caçador mais forte (central 1.5.8, 10/10/2026)
+
+1. **Fila persistente** (`central/fila.js`): nada mais se perde entre rodadas.
+   Toda candidata achada entra na fila, é tentada em lotes pequenos e volta
+   exatamente onde parou. Domínio que só dá erro fica **castigado** (6h; 24h se
+   insistir) — trabalha o tempo todo, sem martelar ninguém.
+2. **Vetores invisíveis** (`central/vetores.js`):
+   - **arquivo da internet (Wayback/CDX)** — revela os formatos de endereço que
+     o site já publicou (medido: `pobreflixhd.sbs/filme...`, `brflix.lat/tmdb-cached/...`);
+   - **canais públicos do Telegram** (pré-visualização web) — pega domínio
+     citado em post; a lista de canais é configurável (a lista testada não
+     rendeu: os canais não existiam);
+   - **listas guardadas em arquivos públicos** (GitHub) — domínios citados;
+   - Common Crawl e crt.sh (certificados) ficam implementados e voltam sozinhos
+     quando responderem (na medição: fora do ar / 502).
+3. **Cão de caça (espião no navegador escondido)** — abre a página do fornecedor
+   e OLHA O QUE ELA PEDE (endereço, método, corpo e resposta). Se alguma
+   resposta traz o vídeo, o caçador monta a ficha sozinho. Medido no RedeCanais:
+   descobriu `POST /__siteplay/start` (com um `handle` da página) e o host do
+   vídeo (warezcdn) — ver pendência 3 abaixo.
+4. **Passo de endereço na ficha** — o formato agora aceita "vá direto nesta
+   chamada" (`{tipo:'endereco', url:...}`), no computador (`perfis-motor.js`) e
+   no aparelho (`MainActivity`). É o que permite usar o que o espião descobriu
+   sem precisar ler a página do título.
+
 ## Telas: onde cada uma é desenhada (importante!)
 
 - **Navegador/PC**: `index.html` + `library.js` do projeto.
@@ -139,9 +165,15 @@ Rotas novas da central: `/api/placar`, `/api/perfis`, `/api/cacar/estado`
 2. **Ficha de SÉRIE do mesmo addon** — as chamadas de série devolveram vídeo em
    1 de 3 títulos na hora da validação (os endereços são temporários). Fica
    pendente até o caçador pegar uma janela com dois títulos abrindo.
-3. **Sites com chamada interna (ex.: RedeCanais)** — o player só aparece depois
-   de uma chamada do site. Para cobrir isso a ficha precisa de um passo de API
-   (buscar um segundo endereço e ler o campo) — é o próximo aumento de força.
+3. **Passo POST na ficha (ex.: RedeCanais)** — o espião já achou o caminho
+   (`POST /__siteplay/start` com `{"handle": "ph_…"}` tirado da página, que
+   devolve o player em `warezcdn.sbs`). Falta a ficha saber fazer POST com corpo
+   (hoje ela só faz GET). É o próximo aumento de força — com ele, sites que só
+   montam o player por JavaScript passam a virar fonte.
+   O teste é direto: `push` no caçador e ver se a ficha abre em dois títulos.
+4. **Placar de vetores** — contar qual vetor (GitHub, arquivo da internet,
+   espião, mapa do site…) rendeu ficha aprovada e investir mais nele. Hoje o
+   caçador roda todos com o mesmo peso.
 4. **Instalar o APK da TV na TV box**: o pacote `br.streamtv.app.tv` sai em cada
    versão, mas a Xiaomi TV Box ainda usa o APK do celular.
 5. **Atualização no celular — confirmar no aparelho**: o aparelho "111" estava
