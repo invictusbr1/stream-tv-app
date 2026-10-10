@@ -386,7 +386,10 @@ public final class MainActivity extends Activity {
         if (url == null) return null;
         if (url.contains("nixplay") || url.contains("pipocacine")) return "https://pipocacine.lat/";
         if (url.contains("hclod.qzz.io")) return "https://watchplay.shop/";
-        if (url.contains("mgeb") || url.contains("solo-latino") || url.contains("97bf1") || url.contains("playercdn")) return "https://mgeb.top/";
+        // O MGEB entrega o arquivo por CDs próprios (123pelicula, delivery-limit…).
+        // Sem o referenciador certo o CDN recusa e o aparelho mostrava "nenhuma
+        // fonte" mesmo com o vídeo resolvido — foi o caso do One Piece.
+        if (url.contains("mgeb") || url.contains("solo-latino") || url.contains("97bf1") || url.contains("playercdn") || url.contains("123pelicula") || url.contains("delivery-limit")) return "https://mgeb.top/";
         if (url.contains("vixsrc") || url.contains("mistyreef")) return "https://vixsrc.to/";
         return null;
     }
