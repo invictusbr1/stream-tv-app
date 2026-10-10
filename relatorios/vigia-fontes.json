@@ -1,8 +1,8 @@
 {
  "ligado": true,
  "rodando": true,
- "rodadas": 5,
- "ultimaRodada": 1791594955731,
+ "rodadas": 1,
+ "ultimaRodada": 1791595354830,
  "proximaRodada": 0,
  "titulos": [
   {
@@ -356,11 +356,6 @@
    "tipo": "tv"
   },
   {
-   "id": "285322",
-   "titulo": "Profundezas",
-   "tipo": "tv"
-  },
-  {
    "id": "288673",
    "titulo": "Carrie, a Estranha",
    "tipo": "tv"
@@ -371,13 +366,13 @@
    "tipo": "tv"
   },
   {
-   "id": "289423",
-   "titulo": "Um Choque de Amor",
+   "id": "285322",
+   "titulo": "Profundezas",
    "tipo": "tv"
   },
   {
-   "id": "293610",
-   "titulo": "Doctor X: A Máfia do Jaleco Branco",
+   "id": "289423",
+   "titulo": "Um Choque de Amor",
    "tipo": "tv"
   },
   {
@@ -386,13 +381,8 @@
    "tipo": "tv"
   },
   {
-   "id": "255752",
-   "titulo": "Hotel Assombrado",
-   "tipo": "tv"
-  },
-  {
-   "id": "320909",
-   "titulo": "Firefly Wedding",
+   "id": "293610",
+   "titulo": "Doctor X: A Máfia do Jaleco Branco",
    "tipo": "tv"
   },
   {
@@ -401,13 +391,43 @@
    "tipo": "tv"
   },
   {
-   "id": "196322",
-   "titulo": "Matéria Escura",
+   "id": "255752",
+   "titulo": "Hotel Assombrado",
    "tipo": "tv"
   },
   {
    "id": "284580",
    "titulo": "A Certain Dark Item",
+   "tipo": "tv"
+  },
+  {
+   "id": "313630",
+   "titulo": "Eternally Yours",
+   "tipo": "tv"
+  },
+  {
+   "id": "196322",
+   "titulo": "Matéria Escura",
+   "tipo": "tv"
+  },
+  {
+   "id": "320909",
+   "titulo": "Firefly Wedding",
+   "tipo": "tv"
+  },
+  {
+   "id": "290856",
+   "titulo": "Marshals: Uma História de Yellowstone",
+   "tipo": "tv"
+  },
+  {
+   "id": "294446",
+   "titulo": "美人余",
+   "tipo": "tv"
+  },
+  {
+   "id": "213375",
+   "titulo": "VisionQuest",
    "tipo": "tv"
   },
   {
@@ -421,28 +441,8 @@
    "tipo": "tv"
   },
   {
-   "id": "258165",
-   "titulo": "A Leste do Éden",
-   "tipo": "tv"
-  },
-  {
-   "id": "294446",
-   "titulo": "美人余",
-   "tipo": "tv"
-  },
-  {
    "id": "45790",
    "titulo": "JoJo's Bizarre Adventure",
-   "tipo": "tv"
-  },
-  {
-   "id": "313630",
-   "titulo": "Eternally Yours",
-   "tipo": "tv"
-  },
-  {
-   "id": "200777",
-   "titulo": "The Iceblade Sorcerer Shall Rule the World",
    "tipo": "tv"
   },
   {
@@ -546,71 +546,52 @@
    "tipo": "tv"
   }
  ],
- "cursor": 10,
- "semFonte": [
-  {
-   "id": "1228834",
-   "titulo": "The Fix",
-   "tipo": "movie",
-   "desde": "2026-10-10T00:51:48.064Z"
-  },
-  {
-   "id": "1101412",
-   "titulo": "A Queda 2: No Limite",
-   "tipo": "movie",
-   "desde": "2026-10-10T01:03:48.455Z"
-  },
-  {
-   "id": "1751701",
-   "titulo": "After Impact",
-   "tipo": "movie",
-   "desde": "2026-10-10T01:03:55.463Z"
-  }
- ],
+ "cursor": 2,
+ "semFonte": [],
  "ultimoResumo": {
-  "em": "2026-10-10T01:15:55.731Z",
+  "em": "2026-10-10T01:22:34.830Z",
   "testados": 2,
   "abriram": 2,
   "resultados": [
    {
-    "id": "1204680",
-    "titulo": "Coyote vs. Acme",
+    "id": "969681",
+    "titulo": "Homem-Aranha: Um Novo Dia",
     "tipo": "movie",
     "ok": true,
-    "fonte": "watchplay",
+    "fonte": "pipoca",
     "fontesTestadas": [
+     {
+      "fonte": "pipoca",
+      "nota": 4.85,
+      "idioma": "faixa em português é a padrão do arquivo",
+      "qualidade": "800p"
+     },
      {
       "fonte": "watchplay",
       "nota": 4.6,
       "idioma": "a fonte informa dublado",
       "qualidade": "720p"
-     },
-     {
-      "fonte": "pipoca",
-      "nota": 4.35,
-      "idioma": "a fonte informa dublado",
-      "qualidade": "804p"
      }
     ],
     "semDublado": false,
     "apenasOriginal": false
    },
    {
-    "id": "460458",
-    "titulo": "Resident Evil: Bem-Vindo a Raccoon City",
+    "id": "1423191",
+    "titulo": "Resident Evil",
     "tipo": "movie",
     "ok": true,
-    "fonte": "watchplay",
+    "fonte": "pipoca",
     "fontesTestadas": [
      {
-      "fonte": "watchplay",
-      "nota": 4.6,
+      "fonte": "pipoca",
+      "nota": 4.65,
       "idioma": "a fonte informa dublado",
       "qualidade": "720p"
      },
      {
-      "fonte": "pipoca",
-      "nota": 4.05,
+      "fonte": "watchplay",
+      "nota": 4,
       "idioma": "a fonte informa dublado",
       "qualidade": "720p"
      }
@@ -646,7 +627,7 @@
    },
    {
     "id": "pipoca",
-    "acertos": 11,
+    "acertos": 13,
     "falhas": 0,
     "falhasSeguidas": 0,
     "castigada": false,
@@ -680,49 +661,49 @@
  },
  "historico": [
   {
-   "em": "2026-10-10T01:15:55.731Z",
+   "em": "2026-10-10T01:22:34.830Z",
    "testados": 2,
    "abriram": 2,
    "resultados": [
     {
-     "id": "1204680",
-     "titulo": "Coyote vs. Acme",
+     "id": "969681",
+     "titulo": "Homem-Aranha: Um Novo Dia",
      "tipo": "movie",
      "ok": true,
-     "fonte": "watchplay",
+     "fonte": "pipoca",
      "fontesTestadas": [
+      {
+       "fonte": "pipoca",
+       "nota": 4.85,
+       "idioma": "faixa em português é a padrão do arquivo",
+       "qualidade": "800p"
+      },
       {
        "fonte": "watchplay",
        "nota": 4.6,
        "idioma": "a fonte informa dublado",
        "qualidade": "720p"
-      },
-      {
-       "fonte": "pipoca",
-       "nota": 4.35,
-       "idioma": "a fonte informa dublado",
-       "qualidade": "804p"
       }
      ],
      "semDublado": false,
      "apenasOriginal": false
     },
     {
-     "id": "460458",
-     "titulo": "Resident Evil: Bem-Vindo a Raccoon City",
+     "id": "1423191",
+     "titulo": "Resident Evil",
      "tipo": "movie",
      "ok": true,
-     "fonte": "watchplay",
+     "fonte": "pipoca",
      "fontesTestadas": [
       {
-       "fonte": "watchplay",
-       "nota": 4.6,
+       "fonte": "pipoca",
+       "nota": 4.65,
        "idioma": "a fonte informa dublado",
        "qualidade": "720p"
       },
       {
-       "fonte": "pipoca",
-       "nota": 4.05,
+       "fonte": "watchplay",
+       "nota": 4,
        "idioma": "a fonte informa dublado",
        "qualidade": "720p"
       }
@@ -758,406 +739,7 @@
     },
     {
      "id": "pipoca",
-     "acertos": 11,
-     "falhas": 0,
-     "falhasSeguidas": 0,
-     "castigada": false,
-     "ultimoMotivo": ""
-    },
-    {
-     "id": "fenix",
-     "acertos": 0,
-     "falhas": 0,
-     "falhasSeguidas": 0,
-     "castigada": false,
-     "ultimoMotivo": ""
-    },
-    {
-     "id": "vixsrc",
-     "acertos": 0,
-     "falhas": 0,
-     "falhasSeguidas": 0,
-     "castigada": false,
-     "ultimoMotivo": ""
-    },
-    {
-     "id": "vidsrc",
-     "acertos": 0,
-     "falhas": 0,
-     "falhasSeguidas": 0,
-     "castigada": false,
-     "ultimoMotivo": ""
-    }
-   ]
-  },
-  {
-   "em": "2026-10-10T01:03:55.463Z",
-   "testados": 2,
-   "abriram": 0,
-   "resultados": [
-    {
-     "id": "1101412",
-     "titulo": "A Queda 2: No Limite",
-     "tipo": "movie",
-     "ok": false,
-     "fonte": "",
-     "fontesTestadas": [],
-     "semDublado": true,
-     "apenasOriginal": false
-    },
-    {
-     "id": "1751701",
-     "titulo": "After Impact",
-     "tipo": "movie",
-     "ok": false,
-     "fonte": "",
-     "fontesTestadas": [],
-     "semDublado": true,
-     "apenasOriginal": false
-    }
-   ],
-   "fontes": [
-    {
-     "id": "watchplay",
-     "acertos": 4,
-     "falhas": 0,
-     "falhasSeguidas": 0,
-     "castigada": false,
-     "ultimoMotivo": ""
-    },
-    {
-     "id": "pipoca-serie",
-     "acertos": 0,
-     "falhas": 0,
-     "falhasSeguidas": 0,
-     "castigada": false,
-     "ultimoMotivo": ""
-    },
-    {
-     "id": "mgeb",
-     "acertos": 0,
-     "falhas": 0,
-     "falhasSeguidas": 0,
-     "castigada": false,
-     "ultimoMotivo": ""
-    },
-    {
-     "id": "pipoca",
-     "acertos": 11,
-     "falhas": 0,
-     "falhasSeguidas": 0,
-     "castigada": false,
-     "ultimoMotivo": ""
-    },
-    {
-     "id": "fenix",
-     "acertos": 0,
-     "falhas": 0,
-     "falhasSeguidas": 0,
-     "castigada": false,
-     "ultimoMotivo": ""
-    },
-    {
-     "id": "vixsrc",
-     "acertos": 0,
-     "falhas": 0,
-     "falhasSeguidas": 0,
-     "castigada": false,
-     "ultimoMotivo": ""
-    },
-    {
-     "id": "vidsrc",
-     "acertos": 0,
-     "falhas": 0,
-     "falhasSeguidas": 0,
-     "castigada": false,
-     "ultimoMotivo": ""
-    }
-   ]
-  },
-  {
-   "em": "2026-10-10T00:51:49.038Z",
-   "testados": 2,
-   "abriram": 1,
-   "resultados": [
-    {
-     "id": "1228834",
-     "titulo": "The Fix",
-     "tipo": "movie",
-     "ok": false,
-     "fonte": "",
-     "fontesTestadas": [],
-     "semDublado": true,
-     "apenasOriginal": false
-    },
-    {
-     "id": "1377237",
-     "titulo": "Três Horas Para Viver",
-     "tipo": "movie",
-     "ok": true,
-     "fonte": "watchplay",
-     "fontesTestadas": [
-      {
-       "fonte": "watchplay",
-       "nota": 4.65,
-       "idioma": "a fonte informa dublado",
-       "qualidade": "720p"
-      }
-     ],
-     "semDublado": false,
-     "apenasOriginal": false
-    }
-   ],
-   "fontes": [
-    {
-     "id": "watchplay",
-     "acertos": 4,
-     "falhas": 0,
-     "falhasSeguidas": 0,
-     "castigada": false,
-     "ultimoMotivo": ""
-    },
-    {
-     "id": "pipoca-serie",
-     "acertos": 0,
-     "falhas": 0,
-     "falhasSeguidas": 0,
-     "castigada": false,
-     "ultimoMotivo": ""
-    },
-    {
-     "id": "mgeb",
-     "acertos": 0,
-     "falhas": 0,
-     "falhasSeguidas": 0,
-     "castigada": false,
-     "ultimoMotivo": ""
-    },
-    {
-     "id": "pipoca",
-     "acertos": 11,
-     "falhas": 0,
-     "falhasSeguidas": 0,
-     "castigada": false,
-     "ultimoMotivo": ""
-    },
-    {
-     "id": "fenix",
-     "acertos": 0,
-     "falhas": 0,
-     "falhasSeguidas": 0,
-     "castigada": false,
-     "ultimoMotivo": ""
-    },
-    {
-     "id": "vixsrc",
-     "acertos": 0,
-     "falhas": 0,
-     "falhasSeguidas": 0,
-     "castigada": false,
-     "ultimoMotivo": ""
-    },
-    {
-     "id": "vidsrc",
-     "acertos": 0,
-     "falhas": 0,
-     "falhasSeguidas": 0,
-     "castigada": false,
-     "ultimoMotivo": ""
-    }
-   ]
-  },
-  {
-   "em": "2026-10-10T00:39:55.090Z",
-   "testados": 2,
-   "abriram": 2,
-   "resultados": [
-    {
-     "id": "1368337",
-     "titulo": "A Odisseia",
-     "tipo": "movie",
-     "ok": true,
-     "fonte": "watchplay",
-     "fontesTestadas": [
-      {
-       "fonte": "watchplay",
-       "nota": 4.6,
-       "idioma": "a fonte informa dublado",
-       "qualidade": "720p"
-      },
-      {
-       "fonte": "pipoca",
-       "nota": 4.35,
-       "idioma": "a fonte informa dublado",
-       "qualidade": "720p"
-      }
-     ],
-     "semDublado": false,
-     "apenasOriginal": false
-    },
-    {
-     "id": "1291595",
-     "titulo": "Sobrenatural: Agora Entre Nós",
-     "tipo": "movie",
-     "ok": true,
-     "fonte": "watchplay",
-     "fontesTestadas": [
-      {
-       "fonte": "watchplay",
-       "nota": 4.6,
-       "idioma": "a fonte informa dublado",
-       "qualidade": "720p"
-      },
-      {
-       "fonte": "pipoca",
-       "nota": 4.05,
-       "idioma": "a fonte informa dublado",
-       "qualidade": "720p"
-      }
-     ],
-     "semDublado": false,
-     "apenasOriginal": false
-    }
-   ],
-   "fontes": [
-    {
-     "id": "watchplay",
-     "acertos": 3,
-     "falhas": 0,
-     "falhasSeguidas": 0,
-     "castigada": false,
-     "ultimoMotivo": ""
-    },
-    {
-     "id": "pipoca-serie",
-     "acertos": 0,
-     "falhas": 0,
-     "falhasSeguidas": 0,
-     "castigada": false,
-     "ultimoMotivo": ""
-    },
-    {
-     "id": "mgeb",
-     "acertos": 0,
-     "falhas": 0,
-     "falhasSeguidas": 0,
-     "castigada": false,
-     "ultimoMotivo": ""
-    },
-    {
-     "id": "pipoca",
-     "acertos": 11,
-     "falhas": 0,
-     "falhasSeguidas": 0,
-     "castigada": false,
-     "ultimoMotivo": ""
-    },
-    {
-     "id": "fenix",
-     "acertos": 0,
-     "falhas": 0,
-     "falhasSeguidas": 0,
-     "castigada": false,
-     "ultimoMotivo": ""
-    },
-    {
-     "id": "vixsrc",
-     "acertos": 0,
-     "falhas": 0,
-     "falhasSeguidas": 0,
-     "castigada": false,
-     "ultimoMotivo": ""
-    },
-    {
-     "id": "vidsrc",
-     "acertos": 0,
-     "falhas": 0,
-     "falhasSeguidas": 0,
-     "castigada": false,
-     "ultimoMotivo": ""
-    }
-   ]
-  },
-  {
-   "em": "2026-10-10T00:28:56.134Z",
-   "testados": 2,
-   "abriram": 2,
-   "resultados": [
-    {
-     "id": "969681",
-     "titulo": "Homem-Aranha: Um Novo Dia",
-     "tipo": "movie",
-     "ok": true,
-     "fonte": "pipoca",
-     "fontesTestadas": [
-      {
-       "fonte": "pipoca",
-       "nota": 4.85,
-       "idioma": "faixa em português é a padrão do arquivo",
-       "qualidade": "800p"
-      },
-      {
-       "fonte": "watchplay",
-       "nota": 4.3,
-       "idioma": "a fonte informa dublado",
-       "qualidade": "720p"
-      }
-     ],
-     "semDublado": false,
-     "apenasOriginal": false
-    },
-    {
-     "id": "1423191",
-     "titulo": "Resident Evil",
-     "tipo": "movie",
-     "ok": true,
-     "fonte": "pipoca",
-     "fontesTestadas": [
-      {
-       "fonte": "pipoca",
-       "nota": 4.65,
-       "idioma": "a fonte informa dublado",
-       "qualidade": "720p"
-      },
-      {
-       "fonte": "watchplay",
-       "nota": 4.6,
-       "idioma": "a fonte informa dublado",
-       "qualidade": "720p"
-      }
-     ],
-     "semDublado": false,
-     "apenasOriginal": false
-    }
-   ],
-   "fontes": [
-    {
-     "id": "watchplay",
-     "acertos": 1,
-     "falhas": 0,
-     "falhasSeguidas": 0,
-     "castigada": false,
-     "ultimoMotivo": ""
-    },
-    {
-     "id": "pipoca-serie",
-     "acertos": 0,
-     "falhas": 0,
-     "falhasSeguidas": 0,
-     "castigada": false,
-     "ultimoMotivo": ""
-    },
-    {
-     "id": "mgeb",
-     "acertos": 0,
-     "falhas": 0,
-     "falhasSeguidas": 0,
-     "castigada": false,
-     "ultimoMotivo": ""
-    },
-    {
-     "id": "pipoca",
-     "acertos": 11,
+     "acertos": 13,
      "falhas": 0,
      "falhasSeguidas": 0,
      "castigada": false,
