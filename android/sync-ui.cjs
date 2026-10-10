@@ -33,6 +33,8 @@ const CSS_AJ2="\n/* ajuste-final-2: sinopse dentro do painel e sem rótulo Conti
 if(!html.includes("ajuste-final-2"))html=html.replace("</style>",CSS_AJ2+"</style>");
 const CSS_CAPAS="\n/* capas-sem-corte: poster inteiro (sem cortar) */\n.card img,#resultados .card img{object-fit:contain!important;height:auto!important;max-height:none!important;aspect-ratio:2/3;background:#0f131a}\nhtml.modo-tv .card img{height:auto!important;aspect-ratio:2/3;object-fit:contain!important}\n";
 if(!html.includes("capas-sem-corte"))html=html.replace("</style>",CSS_CAPAS+"</style>");
+const CSS_BUSCA="\n/* capa-busca: pôster inteiro nos resultados da busca */\n#resultados .card img,#resultados img,#resultados .capa{width:92px!important;height:138px!important;object-fit:contain!important;background:#0f131a!important;border-radius:10px}\nhtml.modo-tv #resultados .card img,html.modo-tv #resultados img{width:150px!important;height:225px!important}\n";
+if(!html.includes("capa-busca"))html=html.replace("</style>",CSS_BUSCA+"</style>");
 fs.writeFileSync(path.join(assets,'index.html'),html);
 fs.copyFileSync(path.join(root,'playback.js'),path.join(assets,'playback.js'));
 // As legendas do aplicativo (arquivo local e busca na internet) seguem junto
