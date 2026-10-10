@@ -6,7 +6,7 @@
     <uses-feature android:name="android.software.leanback" android:required="false" />
     <application android:hardwareAccelerated="true" android:label="Conecta TV" android:icon="@drawable/app_icon" android:banner="@drawable/tv_banner"
         android:theme="@android:style/Theme.Material.NoActionBar" android:allowBackup="false" android:fullBackupContent="false" android:dataExtractionRules="@xml/data_extraction_rules" android:usesCleartextTraffic="false" android:supportsRtl="true">
-        <provider android:name=".UpdateProvider" android:authorities="br.streamtv.app.updates" android:exported="false" android:grantUriPermissions="true"><grant-uri-permission android:path="/update.apk" /></provider>
+        <provider android:name=".UpdateProvider" android:authorities="${applicationId}.updates" android:exported="false" android:grantUriPermissions="true"><grant-uri-permission android:path="/update.apk" /></provider>
         <activity android:name=".MainActivity" android:exported="true" android:configChanges="orientation|screenSize|keyboardHidden|smallestScreenSize" android:windowSoftInputMode="adjustResize">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

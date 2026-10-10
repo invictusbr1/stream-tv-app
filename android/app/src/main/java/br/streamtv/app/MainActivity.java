@@ -67,7 +67,8 @@ public final class MainActivity extends Activity {
         // Nesse caso a interface abre em modo TV (letras e capas maiores, foco
         // para o controle remoto). No telefone nada muda.
         boolean temToque = getPackageManager().hasSystemFeature(android.content.pm.PackageManager.FEATURE_TOUCHSCREEN);
-        main.loadUrl(temToque ? HOME : HOME + "?canal=tv");
+        // O aplicativo da TV (pacote próprio) abre sempre na interface de 10 pés.
+        main.loadUrl(BuildConfig.TV || !temToque ? HOME + "?canal=tv" : HOME);
         updater = new AppUpdater(this);
         main.postDelayed(() -> { if (!isFinishing() && !isDestroyed()) updater.check(false); }, 4000);
         if (Build.VERSION.SDK_INT >= 33) getOnBackInvokedDispatcher().registerOnBackInvokedCallback(0, this::back);
@@ -75,6 +76,11 @@ public final class MainActivity extends Activity {
 
     private boolean local(Uri uri) {
         return "https".equals(uri.getScheme()) && HOST.equals(uri.getHost()) && uri.getPort() == -1 && uri.getUserInfo() == null;
+    }
+
+    /** Entrega à interface o resultado da consulta de atualização feita pelo Java. */
+    void relatarAtualizacao(String chamada) {
+        if (main != null) main.evaluateJavascript(chamada, null);
     }
 
     private WebResourceResponse error(int code) {

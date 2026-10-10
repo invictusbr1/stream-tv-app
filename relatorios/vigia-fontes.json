@@ -1,8 +1,8 @@
 {
  "ligado": true,
  "rodando": true,
- "rodadas": 1,
- "ultimaRodada": 1791595354830,
+ "rodadas": 3,
+ "ultimaRodada": 1791596726865,
  "proximaRodada": 0,
  "titulos": [
   {
@@ -546,52 +546,40 @@
    "tipo": "tv"
   }
  ],
- "cursor": 2,
- "semFonte": [],
+ "cursor": 6,
+ "semFonte": [
+  {
+   "id": "1228834",
+   "titulo": "The Fix",
+   "tipo": "movie",
+   "desde": "2026-10-10T01:45:24.980Z"
+  }
+ ],
  "ultimoResumo": {
-  "em": "2026-10-10T01:22:34.830Z",
+  "em": "2026-10-10T01:45:26.865Z",
   "testados": 2,
-  "abriram": 2,
+  "abriram": 1,
   "resultados": [
    {
-    "id": "969681",
-    "titulo": "Homem-Aranha: Um Novo Dia",
+    "id": "1228834",
+    "titulo": "The Fix",
     "tipo": "movie",
-    "ok": true,
-    "fonte": "pipoca",
-    "fontesTestadas": [
-     {
-      "fonte": "pipoca",
-      "nota": 4.85,
-      "idioma": "faixa em português é a padrão do arquivo",
-      "qualidade": "800p"
-     },
-     {
-      "fonte": "watchplay",
-      "nota": 4.6,
-      "idioma": "a fonte informa dublado",
-      "qualidade": "720p"
-     }
-    ],
-    "semDublado": false,
+    "ok": false,
+    "fonte": "",
+    "fontesTestadas": [],
+    "semDublado": true,
     "apenasOriginal": false
    },
    {
-    "id": "1423191",
-    "titulo": "Resident Evil",
+    "id": "1377237",
+    "titulo": "Três Horas Para Viver",
     "tipo": "movie",
     "ok": true,
-    "fonte": "pipoca",
+    "fonte": "watchplay",
     "fontesTestadas": [
      {
-      "fonte": "pipoca",
-      "nota": 4.65,
-      "idioma": "a fonte informa dublado",
-      "qualidade": "720p"
-     },
-     {
       "fonte": "watchplay",
-      "nota": 4,
+      "nota": 4.65,
       "idioma": "a fonte informa dublado",
       "qualidade": "720p"
      }
@@ -603,7 +591,7 @@
   "fontes": [
    {
     "id": "watchplay",
-    "acertos": 6,
+    "acertos": 9,
     "falhas": 0,
     "falhasSeguidas": 0,
     "castigada": false,
@@ -660,6 +648,209 @@
   ]
  },
  "historico": [
+  {
+   "em": "2026-10-10T01:45:26.865Z",
+   "testados": 2,
+   "abriram": 1,
+   "resultados": [
+    {
+     "id": "1228834",
+     "titulo": "The Fix",
+     "tipo": "movie",
+     "ok": false,
+     "fonte": "",
+     "fontesTestadas": [],
+     "semDublado": true,
+     "apenasOriginal": false
+    },
+    {
+     "id": "1377237",
+     "titulo": "Três Horas Para Viver",
+     "tipo": "movie",
+     "ok": true,
+     "fonte": "watchplay",
+     "fontesTestadas": [
+      {
+       "fonte": "watchplay",
+       "nota": 4.65,
+       "idioma": "a fonte informa dublado",
+       "qualidade": "720p"
+      }
+     ],
+     "semDublado": false,
+     "apenasOriginal": false
+    }
+   ],
+   "fontes": [
+    {
+     "id": "watchplay",
+     "acertos": 9,
+     "falhas": 0,
+     "falhasSeguidas": 0,
+     "castigada": false,
+     "ultimoMotivo": ""
+    },
+    {
+     "id": "pipoca-serie",
+     "acertos": 0,
+     "falhas": 0,
+     "falhasSeguidas": 0,
+     "castigada": false,
+     "ultimoMotivo": ""
+    },
+    {
+     "id": "mgeb",
+     "acertos": 0,
+     "falhas": 0,
+     "falhasSeguidas": 0,
+     "castigada": false,
+     "ultimoMotivo": ""
+    },
+    {
+     "id": "pipoca",
+     "acertos": 13,
+     "falhas": 0,
+     "falhasSeguidas": 0,
+     "castigada": false,
+     "ultimoMotivo": ""
+    },
+    {
+     "id": "fenix",
+     "acertos": 0,
+     "falhas": 0,
+     "falhasSeguidas": 0,
+     "castigada": false,
+     "ultimoMotivo": ""
+    },
+    {
+     "id": "vixsrc",
+     "acertos": 0,
+     "falhas": 0,
+     "falhasSeguidas": 0,
+     "castigada": false,
+     "ultimoMotivo": ""
+    },
+    {
+     "id": "vidsrc",
+     "acertos": 0,
+     "falhas": 0,
+     "falhasSeguidas": 0,
+     "castigada": false,
+     "ultimoMotivo": ""
+    }
+   ]
+  },
+  {
+   "em": "2026-10-10T01:33:34.487Z",
+   "testados": 2,
+   "abriram": 2,
+   "resultados": [
+    {
+     "id": "1368337",
+     "titulo": "A Odisseia",
+     "tipo": "movie",
+     "ok": true,
+     "fonte": "watchplay",
+     "fontesTestadas": [
+      {
+       "fonte": "watchplay",
+       "nota": 4.6,
+       "idioma": "a fonte informa dublado",
+       "qualidade": "720p"
+      },
+      {
+       "fonte": "pipoca",
+       "nota": 4.35,
+       "idioma": "a fonte informa dublado",
+       "qualidade": "720p"
+      }
+     ],
+     "semDublado": false,
+     "apenasOriginal": false
+    },
+    {
+     "id": "1291595",
+     "titulo": "Sobrenatural: Agora Entre Nós",
+     "tipo": "movie",
+     "ok": true,
+     "fonte": "watchplay",
+     "fontesTestadas": [
+      {
+       "fonte": "watchplay",
+       "nota": 4.6,
+       "idioma": "a fonte informa dublado",
+       "qualidade": "720p"
+      },
+      {
+       "fonte": "pipoca",
+       "nota": 4.35,
+       "idioma": "a fonte informa dublado",
+       "qualidade": "800p"
+      }
+     ],
+     "semDublado": false,
+     "apenasOriginal": false
+    }
+   ],
+   "fontes": [
+    {
+     "id": "watchplay",
+     "acertos": 8,
+     "falhas": 0,
+     "falhasSeguidas": 0,
+     "castigada": false,
+     "ultimoMotivo": ""
+    },
+    {
+     "id": "pipoca-serie",
+     "acertos": 0,
+     "falhas": 0,
+     "falhasSeguidas": 0,
+     "castigada": false,
+     "ultimoMotivo": ""
+    },
+    {
+     "id": "mgeb",
+     "acertos": 0,
+     "falhas": 0,
+     "falhasSeguidas": 0,
+     "castigada": false,
+     "ultimoMotivo": ""
+    },
+    {
+     "id": "pipoca",
+     "acertos": 13,
+     "falhas": 0,
+     "falhasSeguidas": 0,
+     "castigada": false,
+     "ultimoMotivo": ""
+    },
+    {
+     "id": "fenix",
+     "acertos": 0,
+     "falhas": 0,
+     "falhasSeguidas": 0,
+     "castigada": false,
+     "ultimoMotivo": ""
+    },
+    {
+     "id": "vixsrc",
+     "acertos": 0,
+     "falhas": 0,
+     "falhasSeguidas": 0,
+     "castigada": false,
+     "ultimoMotivo": ""
+    },
+    {
+     "id": "vidsrc",
+     "acertos": 0,
+     "falhas": 0,
+     "falhasSeguidas": 0,
+     "castigada": false,
+     "ultimoMotivo": ""
+    }
+   ]
+  },
   {
    "em": "2026-10-10T01:22:34.830Z",
    "testados": 2,

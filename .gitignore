@@ -11,6 +11,7 @@ android/.gradle/
 *.zip
 *.log
 android/app/src/main/assets/config.json
+android/app/src/tv/assets/config.json
 acessos.json
 Legendas/
 

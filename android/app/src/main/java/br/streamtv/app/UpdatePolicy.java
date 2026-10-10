@@ -8,6 +8,14 @@ import java.util.Set;
 final class UpdatePolicy {
     static final String REPOSITORY = "invictusbr1/stream-tv-atualizacoes";
     static final String FEED = "https://raw.githubusercontent.com/" + REPOSITORY + "/main/latest.json";
+    // O mesmo manifesto é procurado em mais de um endereço: se uma operadora ou
+    // rede doméstica bloqueia um deles, o aviso de atualização continua chegando.
+    static final String[] FEEDS = {
+        FEED,
+        "https://github.com/" + REPOSITORY + "/raw/main/latest.json",
+        "https://cdn.jsdelivr.net/gh/" + REPOSITORY + "@main/latest.json",
+        "https://invictusbr1.github.io/stream-tv-app/latest.json"
+    };
     static final long MAX_BYTES = 100L * 1024 * 1024;
     static boolean secure(String value) {
         try { URI u=new URI(value); return "https".equals(u.getScheme()) && u.getUserInfo()==null && u.getPort()==-1 && u.getFragment()==null; }
