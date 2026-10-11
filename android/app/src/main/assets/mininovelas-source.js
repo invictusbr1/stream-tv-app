@@ -1,6 +1,7 @@
 (function (root) {
     'use strict';
     const fornecedores = [
+        { id: 'doraminhatv', nome: 'Doraminhas TV', site: 'https://doraminhatv.com.br/', conector: true, destaque: 'https://doraminhatv.com.br/serie/peao-descartado-o-incomparavel-rei-dragao-rs6a82c99340ac06f38d00f8b2' },
         { id: 'reelshort', nome: 'ReelShort', site: 'https://www.reelshort.com/pt', conector: true },
         { id: 'dramabox', nome: 'DramaBox', site: 'https://www.dramaboxdb.com/pt', conector: true },
         { id: 'dramawave', nome: 'DramaWave', site: 'https://www.mydramawave.com/', conector: false },
@@ -12,7 +13,15 @@
     function paginaPermitida(valor) {
         try {
             const u = new URL(valor);
-            if (u.protocol !== 'https:' || u.port || u.username || u.password || u.search || u.hash) return false;
+            if (u.protocol !== 'https:' || u.port || u.username || u.password || u.hash) return false;
+            if (u.hostname === 'doraminhatv.com.br') {
+                if (u.pathname === '/api/hoshiyomi') {
+                    const q = u.searchParams, keys = [...q.keys()], tipo = q.get('p');
+                    return keys.length === new Set(keys).size && keys.every(k => ['p','lang','id','ep'].includes(k)) && q.get('lang') === 'pt' && /^[a-f0-9]{24}$/.test(q.get('id') || '') && ((tipo === 'reelshort/detail' && keys.length === 3) || (tipo === 'reelshort/episode' && keys.length === 4 && /^[1-9][0-9]{0,3}$/.test(q.get('ep') || '')));
+                }
+                return !u.search && /^\/(?:serie\/[a-z0-9-]+-rs[a-f0-9]{24})?$/.test(u.pathname);
+            }
+            if (u.search) return false;
             if (u.hostname === 'www.reelshort.com') return /^\/(?:pt\/?|(?:pt\/)?(?:episodes\/(?:[a-z0-9-]|%[a-fA-F0-9]{2})+|full-episodes\/(?:[a-z0-9-]|%[a-fA-F0-9]{2})+(?:\/[1-9][0-9]?)?))$/.test(u.pathname);
             if (u.hostname === 'www.dramaboxdb.com') return /^\/(?:pt\/?|(?:pt\/)?movie\/[0-9]{1,20}\/[a-z0-9-]+)$/.test(u.pathname);
             if (u.hostname === 'netshort.com') return /^\/(?:pt\/?|(?:pt\/)?episode\/[a-z0-9-]+)$/.test(u.pathname);
@@ -36,7 +45,39 @@
         if (!objetos.length) throw Error('O fornecedor mudou o formato do catálogo.');
         return objetos;
     }
+    function doraApi(livro, numero) {
+        const q = new URLSearchParams({ p: numero ? 'reelshort/episode' : 'reelshort/detail', lang:'pt', id:String(livro) });
+        if (numero) q.set('ep',String(numero));
+        const url = 'https://doraminhatv.com.br/api/hoshiyomi?' + q;
+        if (!paginaPermitida(url)) throw Error('Episódio inválido.');
+        return url;
+    }
+    function textoHtml(texto) { return String(texto || '').replace(/&quot;/g,'"').replace(/&#39;|&apos;/g,"'").replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>'); }
+    function catalogoDora(html) {
+        const items = [], vistos = new Set();
+        const inserir = (pagina,titulo,capa,sinopse) => {
+            try { pagina = new URL(pagina,'https://doraminhatv.com.br').href; } catch { return; }
+            const livro = new URL(pagina).pathname.match(/-rs([a-f0-9]{24})$/)?.[1];
+            if (!livro || !paginaPermitida(pagina) || vistos.has(livro) || !titulo) return;
+            vistos.add(livro);items.push({id:'doraminhatv:'+livro,fornecedor:'doraminhatv',titulo:textoHtml(titulo),capa:textoHtml(capa),sinopse:textoHtml(sinopse),pagina:doraApi(livro)});
+        };
+        for (const m of String(html).matchAll(/<a\b[^>]*href="([^"<>]+)"[^>]*>([\s\S]*?)<\/a>/g)) {
+            const img = m[2].match(/<img\b[^>]*>/)?.[0] || '';
+            inserir(m[1],img.match(/\balt="([^"]+)"/)?.[1],img.match(/\bsrc="([^"]+)"/)?.[1],'');
+        }
+        for (const m of String(html).matchAll(/<script\b[^>]*type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/g)) {
+            try { const d = JSON.parse(m[1]); if (d['@type'] === 'TVSeries') inserir(d.url,d.name,d.image,d.description); } catch {}
+        }
+        return items;
+    }
+    function episodioDora(html, esperado) {
+        const d = JSON.parse(html), numero = Number(d.number);
+        const url = [d.hlsUrl,d.videoUrl].find(u => midiaPermitida('doraminhatv',u));
+        const livre = d.locked === false && Number.isInteger(numero) && numero > 0 && (!esperado || numero === Number(esperado)) && midiaPermitida('doraminhatv',url);
+        return { numero, titulo:`Episódio ${numero}`, disponivel:livre, url:livre ? url : null, tipo: /\.m3u8(?:\?|$)/i.test(url || '') ? 'hls' : 'file', audio:'Não confirmado' };
+    }
     function catalogo(id, html) {
+        if (id === 'doraminhatv') return catalogoDora(html);
         const p = id === 'netshort' ? dadosNetShort(html) : dados(html), vistos = new Set(), items = [];
         const origem = id === 'reelshort' ? 'https://www.reelshort.com' : id === 'netshort' ? 'https://netshort.com' : 'https://www.dramaboxdb.com';
         const links = [...String(html).matchAll(/\bhref="([^"<>]+)"/g)].map(m => {
@@ -63,11 +104,16 @@
             const u = new URL(valor);
             if (u.protocol !== 'https:' || u.username || u.password || u.port) return false;
             if (id === 'netshort') return u.hostname === 'cfcdn.netshort.com' && u.searchParams.get('mime_type') === 'video_mp4';
-            const dominio = id === 'reelshort' ? 'crazymaplestudios.com' : 'dramaboxdb.com';
+            const dominio = ['reelshort','doraminhatv'].includes(id) ? 'crazymaplestudios.com' : 'dramaboxdb.com';
             return u.hostname.endsWith('.' + dominio) && /\.(?:mp4|m3u8)$/i.test(u.pathname);
         } catch { return false; }
     }
     function episodios(id, html, contexto = {}) {
+        if (id === 'doraminhatv') {
+            const d = JSON.parse(html);
+            if (!Array.isArray(d.episodes) || !/^[a-f0-9]{24}$/.test(String(d.id || ''))) return [];
+            return d.episodes.filter(e => Number.isInteger(Number(e.number)) && Number(e.number) > 0).map(e => ({ numero:Number(e.number),titulo:`Episódio ${e.number}`,disponivel:e.locked === false,pagina:doraApi(d.id,e.number),url:null,audio:'Não confirmado' }));
+        }
         if (id === 'netshort') {
             let info = null, livro = null;
             function visitar(x) {
@@ -119,7 +165,7 @@
         if (!r.ok) throw Error('O fornecedor não respondeu agora.');
         return r.text();
     }
-    const api = { fornecedores, paginaPermitida, midiaPermitida, dados, dadosNetShort, catalogo, episodios, indiceReelShort, buscarPagina };
+    const api = { fornecedores, paginaPermitida, midiaPermitida, dados, dadosNetShort, catalogo, episodios, indiceReelShort, episodioDora, buscarPagina };
     if (typeof module !== 'undefined' && module.exports) module.exports = api;
     else root.StreamMininovelasSource = api;
 })(typeof window !== 'undefined' ? window : globalThis);

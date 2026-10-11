@@ -51,3 +51,19 @@ test('lista ReelShort usa links publicados, ignora trailer e nao libera capitulo
  const h=page({web_prohibit:0,data:{book_id:'book',chapter_list:chapters,lang:'pt'}})+chapters.map(c=>`<a href="/pt/episodes/episode-${c.serial_number}-novela-book-${c.chapter_id}">Ep</a>`).join('');
  const eps=s.episodios('reelshort',h,{limite:3});assert.deepEqual(eps.map(e=>e.numero),[1,2,3]);assert.deepEqual(eps.map(e=>e.disponivel),[true,true,false]);assert(eps.every(e=>e.url===null));assert(s.episodios('reelshort',h).every(e=>!e.disponivel));
 });
+
+
+test('Doraminhas aceita somente consultas publicas limitadas e rejeita proxy, credenciais e duplicatas',()=>{
+ const u='https://doraminhatv.com.br/api/hoshiyomi?p=reelshort%2Fepisode&lang=pt&id=6a82c99340ac06f38d00f8b2&ep=2';assert(s.paginaPermitida(u));
+ for(const v of [u+'&ep=3',u+'&url=http://localhost',u.replace('ep=2','ep=0'),u.replace('reelshort%2Fepisode','auth%2Flogin'),u.replace('https://','http://'),u.replace('doraminhatv.com.br','doraminhatv.com.br.evil.test')])assert.equal(s.paginaPermitida(v),false,v);
+});
+test('Doraminhas preserva bloqueio e confere numero e dominio do episodio recebido',()=>{
+ const d={number:2,locked:false,hlsUrl:'https://v-mps.crazymaplestudios.com/public.m3u8'};
+ assert(s.episodioDora(JSON.stringify(d),2).disponivel);
+ for(const v of [{...d,locked:true},{...d,locked:undefined},{...d,number:3},{...d,hlsUrl:'https://localhost/private.m3u8'}])assert.equal(s.episodioDora(JSON.stringify(v),2).url,null);
+ const eps=s.episodios('doraminhatv',JSON.stringify({id:'6a82c99340ac06f38d00f8b2',episodes:[{number:1,locked:false},{number:2,locked:true},{number:3}]}));assert.deepEqual(eps.map(e=>e.disponivel),[true,false,false]);assert(eps.every(e=>e.url===null));
+});
+
+test('Doraminhas escolhe video absoluto validado quando hlsUrl aponta para proxy relativo',()=>{
+ const e=s.episodioDora(JSON.stringify({number:2,locked:false,hlsUrl:'/api/reelshort/hls',videoUrl:'https://v-mps.crazymaplestudios.com/public.m3u8'}),2);assert.equal(e.disponivel,true);assert.equal(e.tipo,'hls');assert.equal(e.url,'https://v-mps.crazymaplestudios.com/public.m3u8');
+});

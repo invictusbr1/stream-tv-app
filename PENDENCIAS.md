@@ -270,3 +270,7 @@ A agenda ESPN não identifica o programa exibido no canal Premiere1. Removido o 
 ## Mininovelas — integração inicial
 Categoria própria com ReelShort e DramaBox, dados públicos e episódios liberados no player interno. Interface e leitura nativa Android alinhadas; compilação Java aprovada. Caçador ganha categoria short-drama sem usar IDs TMDB, mede prévias e não promove catálogo completo a partir de uma amostra. NetShort, ShortMax, DramaWave e FreeReels continuam pendentes de reprodução validada; Sua Novela aguarda link do usuário. Testes: 208 aprovados e vídeos verticais reais de dois fornecedores reproduzidos em navegador. Não publicado nem instalado nos aparelhos nesta etapa.
 
+
+## Doraminhas TV — 2.13.64
+
+Seleção ReelShort do catálogo público integrada, com o título enviado pelo usuário em destaque. Lista de episódios e reprodução interna; a liberação é conferida novamente ao abrir cada episódio, sem cookies ou conta do fornecedor. Episódio 2 de Peão Descartado, O Incomparável Rei Dragão reproduzido em 1080 × 1920 na interface de teste. Caçador da central registra testes da fonte. Nenhuma afirmação de catálogo completo ou dublagem verificada.

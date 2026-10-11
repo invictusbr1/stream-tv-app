@@ -862,11 +862,22 @@ public final class MainActivity extends Activity {
         boolean reel = "www.reelshort.com".equals(host) && caminho != null && caminho.matches("/(pt/?|(pt/)?(episodes/([a-z0-9-]|%[a-fA-F0-9]{2})+|full-episodes/([a-z0-9-]|%[a-fA-F0-9]{2})+(/[1-9][0-9]?)?))");
         boolean box = "www.dramaboxdb.com".equals(host) && caminho != null && caminho.matches("/(pt/?|(pt/)?movie/[0-9]{1,20}/[a-z0-9-]+)");
         boolean net = "netshort.com".equals(host) && caminho != null && caminho.matches("/(pt/?|(pt/)?episode/[a-z0-9-]+)");
-        if (!"https".equals(destino.getScheme()) || destino.getPort() != -1 || destino.getUserInfo() != null || destino.getQuery() != null || destino.getFragment() != null || !(reel || box || net)) return error(400);
+        boolean dora = "doraminhatv.com.br".equals(host) && caminho != null && destino.getQuery() == null && caminho.matches("/((serie/[a-z0-9-]+-rs[a-f0-9]{24})?)");
+        boolean doraApi = false;
+        if ("doraminhatv.com.br".equals(host) && "/api/hoshiyomi".equals(caminho)) {
+            java.util.Set<String> nomes = destino.getQueryParameterNames();
+            String tipo = destino.getQueryParameter("p"), livro = destino.getQueryParameter("id"), numero = destino.getQueryParameter("ep");
+            boolean parametros = destino.getEncodedQuery() != null && destino.getEncodedQuery().split("&", -1).length == nomes.size();
+            for (String nome : nomes) if (!java.util.Arrays.asList("p","lang","id","ep").contains(nome)) parametros = false;
+            doraApi = parametros && "pt".equals(destino.getQueryParameter("lang")) && livro != null && livro.matches("[a-f0-9]{24}")
+                && (("reelshort/detail".equals(tipo) && nomes.size() == 3) || ("reelshort/episode".equals(tipo) && nomes.size() == 4 && numero != null && numero.matches("[1-9][0-9]{0,3}")));
+        }
+        if (!"https".equals(destino.getScheme()) || destino.getPort() != -1 || destino.getUserInfo() != null || (destino.getQuery() != null && !doraApi) || destino.getFragment() != null || !(reel || box || net || dora || doraApi)) return error(400);
         HttpsURLConnection conexao = null;
         try {
             conexao = (HttpsURLConnection) new URL(alvo).openConnection();
-            conexao.setConnectTimeout(15000); conexao.setReadTimeout(15000);
+            conexao.setConnectTimeout(15000); conexao.setReadTimeout((dora || doraApi) ? 50000 : 15000);
+            if (dora || doraApi) conexao.setRequestProperty("Referer", "https://doraminhatv.com.br/");
             conexao.setInstanceFollowRedirects(false);
             conexao.setRequestProperty("User-Agent", "Mozilla/5.0");
             int status = conexao.getResponseCode();

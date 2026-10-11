@@ -2,7 +2,7 @@
 window.StreamMininovelas = (() => {
     let geracao = 0, fornecedor = 'dramabox';
     const source = window.StreamMininovelasSource;
-    const fetcher = (url) => fetch(url, { signal: timeoutSignal(20000) });
+    const fetcher = (url) => fetch(url, { signal: timeoutSignal(url.includes('doraminhatv') ? 65000 : 20000) });
     const grid = () => el('grid');
     async function open() {
         window.StreamLibrary?.cancel?.();
@@ -28,7 +28,10 @@ window.StreamMininovelas = (() => {
         try {
             const html = await source.buscarPagina(f.site, fetcher);
             if (token !== geracao || !document.querySelector('[data-cat="short-drama"].ativo')) return;
-            const items = source.catalogo(f.id, html);
+            let items = source.catalogo(f.id, html);
+            if (f.destaque) {
+                try { const destaque = source.catalogo(f.id,await source.buscarPagina(f.destaque,fetcher)); if (token !== geracao) return; items = [...destaque,...items.filter(i => !destaque.some(d => d.id === i.id))]; } catch {}
+            }
             aviso.textContent = items.length ? 'Episódios públicos disponíveis. Outros podem exigir acesso no fornecedor. Idioma informado por episódio.' : 'O catálogo não respondeu no formato esperado. Tente novamente mais tarde.';
             items.forEach(item => {
                 const b = document.createElement('button'); b.className = 'card'; b.type = 'button';
@@ -50,6 +53,7 @@ window.StreamMininovelas = (() => {
         grid().append(voltar,resumo,estado);
         try {
             let html = await source.buscarPagina(item.pagina, fetcher), indice = null;
+            if (item.fornecedor === 'doraminhatv') { const d = JSON.parse(html); if ('doraminhatv:' + d.id !== item.id) throw Error('O fornecedor retornou outro título.'); }
             if (item.fornecedor === 'reelshort') {
                 indice = source.indiceReelShort(item.pagina, html);
                 if (String(indice.livro) !== String(item.id).slice('reelshort:'.length)) throw Error('O fornecedor retornou outra mininovela.');
@@ -76,10 +80,14 @@ window.StreamMininovelas = (() => {
                     b.disabled = true; nota.textContent = 'Carregando…';
                     try {
                         const pagina = await source.buscarPagina(ep.pagina, fetcher);
-                        const dados = source.dados(pagina);
-                        if (String(dados.data?.book_id) !== String(indice.livro)) throw Error('Episódio de outra mininovela.');
-                        const confirmado = source.episodios('reelshort',pagina).find(e => e.numero === ep.numero);
-                        if (!confirmado?.disponivel) throw Error('Este episódio não está liberado pelo ReelShort.');
+                        let confirmado;
+                        if (item.fornecedor === 'doraminhatv') confirmado = source.episodioDora(pagina,ep.numero);
+                        else {
+                            const dados = source.dados(pagina);
+                            if (String(dados.data?.book_id) !== String(indice.livro)) throw Error('Episódio de outra mininovela.');
+                            confirmado = source.episodios('reelshort',pagina).find(e => e.numero === ep.numero);
+                        }
+                        if (!confirmado?.disponivel) throw Error('Este episódio não está liberado pelo fornecedor.');
                         if (token !== geracao || !document.querySelector('[data-cat="short-drama"].ativo')) return;
                         tocar(item,confirmado);
                     } catch (e) { if (token === geracao) estado.textContent = e.message; }

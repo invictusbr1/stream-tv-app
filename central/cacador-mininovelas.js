@@ -10,8 +10,9 @@ async function cacarMininovelas({ buscar = require('../mininovelas-http').buscar
             const items = source.catalogo(f.id, await buscar(f.site));
             for (const item of items.slice(0, 2)) {
                 try {
-                    const ep = source.episodios(f.id, await buscar(item.pagina)).find(e => e.disponivel);
-                    if (!ep) { provas.push({ titulo:item.titulo, tocou:false, motivo:'Nenhum episódio público liberado' }); continue; }
+                    let ep = source.episodios(f.id, await buscar(item.pagina)).find(e => e.disponivel);
+                    if (ep?.pagina && f.id === 'doraminhatv') ep = source.episodioDora(await buscar(ep.pagina),ep.numero);
+                    if (!ep || !ep.disponivel || !ep.url) { provas.push({ titulo:item.titulo, tocou:false, motivo:'Nenhum episódio público liberado' }); continue; }
                     const medida = await tocar(ep.url, { tipo:ep.tipo || (/\.mp4(?:\?|$)/i.test(ep.url) ? 'file':'hls'), segundos:12 });
                     provas.push({ titulo:item.titulo, episodio:ep.numero, tocou:medida.tocou === true, altura:medida.altura || 0, idiomaInformado:ep.audio, motivo:medida.erro || '' });
                 } catch { provas.push({ titulo:item.titulo, tocou:false, motivo:'Página do episódio indisponível' }); }

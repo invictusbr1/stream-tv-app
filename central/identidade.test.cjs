@@ -45,7 +45,7 @@ test('o caçador separa mininovelas das cinco categorias TMDB e TV', () => {
     const ids = CATEGORIAS.map(c => c.id);
     assert.deepEqual(ids, ['filme', 'serie', 'anime', 'dorama', 'tv-online', 'short-drama']);
     for (const categoria of CATEGORIAS) {
-        if (categoria.id === 'short-drama') { assert.equal(categoria.fornecedores.length, 7); continue; }
+        if (categoria.id === 'short-drama') { assert.equal(categoria.fornecedores.length, 8); continue; }
         assert.ok((categoria.candidatas || []).length >= 3, categoria.id + ' precisa de candidatas');
         if (categoria.id === 'tv-online') assert.ok(categoria.listas.length >= 5, 'a TV ao vivo precisa de várias listas');
         else assert.ok(categoria.amostras.length >= 6, categoria.id + ' precisa de pelo menos 6 títulos de teste');
