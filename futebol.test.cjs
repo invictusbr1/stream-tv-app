@@ -14,9 +14,21 @@ test('agenda não oferece o canal fixo como transmissão de uma partida sem vín
  vm.runInNewContext(fs.readFileSync(require.resolve('./futebol'),'utf8'),{window,document,Intl,Date,URL,AbortController,setInterval,clearInterval});
  await window.StreamFutebol.load();
  const flatten=n=>[n,...n.children.flatMap(flatten)];
- assert.equal(flatten(ids['futebol-jogos']).some(n=>n.tag==='button'),false);
+ assert.deepEqual(flatten(ids['futebol-jogos']).filter(n=>n.tag==='button').map(n=>n.textContent),['Ver canais de futebol','Ver canais de futebol','Ver canais de futebol']);
  assert.ok(flatten(ids['futebol-jogos']).some(n=>n.textContent.includes('Transmissão neste app não confirmada')));
- window.StreamFutebol.sources({home:'São Paulo',away:'Vitória'});
- assert.equal(ids['futebol-fontes-titulo'].textContent,'Canais de futebol');
- assert.match(ids['futebol-fontes-nota'].textContent,/não estão vinculados/);
+ await window.StreamFutebol.sources({home:'São Paulo',away:'Vitória'});
+ assert.equal(ids['futebol-fontes-titulo'].textContent,'São Paulo × Vitória · Canais de futebol');
+ assert.match(ids['futebol-fontes-nota'].textContent,/não confirma/);
+});
+
+test('canais correspondem ao nome exato da programação sem misturar ESPN e ESPN 2',()=>{
+ const list=[{nome:'ESPN HD',grupo:'sports',url:'https://example.test/1.m3u8'},{nome:'ESPN 2',grupo:'sports',url:'https://example.test/2.m3u8'},{nome:'Premiere 1',grupo:'sports',url:'https://example.test/3.m3u8'}];
+ assert.deepEqual(agenda.matchingChannels({channels:['ESPN']},list).map(c=>c.nome),['ESPN HD']);
+ assert.deepEqual(agenda.matchingChannels({channels:[]},list),[]);
+ assert.deepEqual(agenda.matchingChannels({channels:['Premiere']},list),[]);
+ assert.deepEqual(agenda.sportChannels([{nome:'ESPN',url:'javascript:alert(1)'},{nome:'Notícias',url:'https://example.test/a'}]),[]);
+});
+test('programação estrangeira e nomes sem região não atribuem um canal brasileiro ao jogo',()=>{
+ const [g]=agenda.normalize({events:[{id:'1',date:'2026-10-11T21:00Z',competitions:[{competitors:[{homeAway:'home',team:{displayName:'A'}},{homeAway:'away',team:{displayName:'B'}}],broadcasts:[{names:['ESPN']}],geoBroadcasts:[{region:'us',media:{shortName:'ESPN'}},{region:'br',media:{shortName:'SporTV'}}]}]}]},'bra.1');
+ assert.deepEqual(g.channels,['SporTV']);
 });
