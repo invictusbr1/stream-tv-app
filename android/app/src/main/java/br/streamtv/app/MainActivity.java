@@ -859,7 +859,7 @@ public final class MainActivity extends Activity {
         if (alvo == null || alvo.length() > 1000) return error(400);
         Uri destino = Uri.parse(alvo);
         String host = destino.getHost(), caminho = destino.getEncodedPath();
-        boolean reel = "www.reelshort.com".equals(host) && caminho != null && caminho.matches("/(pt/?|(pt/)?episodes/([a-z0-9-]|%[a-fA-F0-9]{2})+)");
+        boolean reel = "www.reelshort.com".equals(host) && caminho != null && caminho.matches("/(pt/?|(pt/)?(episodes/([a-z0-9-]|%[a-fA-F0-9]{2})+|full-episodes/([a-z0-9-]|%[a-fA-F0-9]{2})+(/[1-9][0-9]?)?))");
         boolean box = "www.dramaboxdb.com".equals(host) && caminho != null && caminho.matches("/(pt/?|(pt/)?movie/[0-9]{1,20}/[a-z0-9-]+)");
         boolean net = "netshort.com".equals(host) && caminho != null && caminho.matches("/(pt/?|(pt/)?episode/[a-z0-9-]+)");
         if (!"https".equals(destino.getScheme()) || destino.getPort() != -1 || destino.getUserInfo() != null || destino.getQuery() != null || destino.getFragment() != null || !(reel || box || net)) return error(400);

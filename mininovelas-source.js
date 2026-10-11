@@ -13,7 +13,7 @@
         try {
             const u = new URL(valor);
             if (u.protocol !== 'https:' || u.port || u.username || u.password || u.search || u.hash) return false;
-            if (u.hostname === 'www.reelshort.com') return /^\/(?:pt\/?|(?:pt\/)?episodes\/(?:[a-z0-9-]|%[a-fA-F0-9]{2})+)$/.test(u.pathname);
+            if (u.hostname === 'www.reelshort.com') return /^\/(?:pt\/?|(?:pt\/)?(?:episodes\/(?:[a-z0-9-]|%[a-fA-F0-9]{2})+|full-episodes\/(?:[a-z0-9-]|%[a-fA-F0-9]{2})+(?:\/[1-9][0-9]?)?))$/.test(u.pathname);
             if (u.hostname === 'www.dramaboxdb.com') return /^\/(?:pt\/?|(?:pt\/)?movie\/[0-9]{1,20}\/[a-z0-9-]+)$/.test(u.pathname);
             if (u.hostname === 'netshort.com') return /^\/(?:pt\/?|(?:pt\/)?episode\/[a-z0-9-]+)$/.test(u.pathname);
         } catch {}
@@ -67,7 +67,7 @@
             return u.hostname.endsWith('.' + dominio) && /\.(?:mp4|m3u8)$/i.test(u.pathname);
         } catch { return false; }
     }
-    function episodios(id, html) {
+    function episodios(id, html, contexto = {}) {
         if (id === 'netshort') {
             let info = null, livro = null;
             function visitar(x) {
@@ -88,11 +88,30 @@
             return { numero: Number(c.index) + 1, titulo: `Episódio ${Number(c.index) + 1}`, disponivel: liberado && midiaPermitida(id, url), url: liberado && midiaPermitida(id, url) ? url : null, audio: p.bookInfo?.language || 'Não confirmado' };
         });
         if (id === 'reelshort') {
-            const d = p.data || {}, numero = Number(d.serial_number);
+            const d = p.data || {};
+            if (Array.isArray(d.chapter_list)) {
+                const links = [...String(html).matchAll(/\bhref="([^"<>]+)"/g)].map(m => { try { return new URL(m[1].replace(/&amp;/g, '&'), 'https://www.reelshort.com').href; } catch { return ''; } }).filter(paginaPermitida);
+                return d.chapter_list.filter(c => Number(c.serial_number) > 0).map(c => {
+                    const numero = Number(c.serial_number), pagina = links.find(u => new URL(u).pathname.endsWith('-' + d.book_id + '-' + c.chapter_id));
+                    return { numero, titulo: `Episódio ${numero}`, disponivel: p.web_prohibit === 0 && numero < Number(contexto.limite) && Boolean(pagina), pagina, url: null, audio: d.lang || 'Não confirmado', capa: c.video_pic || '', sinopse: c.desc || '' };
+                }).sort((a,b) => a.numero-b.numero);
+            }
+            const numero = Number(d.serial_number);
             const livre = p.web_prohibit === 0 && numero > 0 && Number(d.paid_start) > numero;
             return [{ numero, titulo: `Episódio ${numero}`, disponivel: livre && midiaPermitida(id, d.video_url), url: livre && midiaPermitida(id, d.video_url) ? d.video_url : null, audio: d.lang || 'Não confirmado' }];
         }
         return [];
+    }
+    function indiceReelShort(pagina, html) {
+        const p = dados(html), d = p.data || {}, u = new URL(pagina);
+        if (!paginaPermitida(pagina) || u.hostname !== 'www.reelshort.com') throw Error('Índice inválido.');
+        if (Array.isArray(d.chapter_list)) return { pagina, livro: d.book_id, total: Number(d.chapter_count), limite: null, proxima: paginaPermitida(p.nextPageLink) ? p.nextPageLink : null, anterior: paginaPermitida(p.prevPageLink) ? p.prevPageLink : null };
+        const final = '-' + d.chapter_id;
+        if (!u.pathname.endsWith(final) || !u.pathname.includes('-' + d.book_id + '-')) throw Error('Índice não identificado.');
+        const slug = u.pathname.split('/').pop().slice(0, -final.length).replace(/^(?:episode-[0-9]+|trailer)-/, '');
+        const destino = new URL('/pt/full-episodes/' + slug, u.origin).href;
+        if (!paginaPermitida(destino)) throw Error('Índice inválido.');
+        return { pagina: destino, livro: d.book_id, limite: Number(d.paid_start), total: Number(d.chapter_count) };
     }
     async function buscarPagina(url, fetcher) {
         if (!paginaPermitida(url)) throw Error('Página não permitida.');
@@ -100,7 +119,7 @@
         if (!r.ok) throw Error('O fornecedor não respondeu agora.');
         return r.text();
     }
-    const api = { fornecedores, paginaPermitida, midiaPermitida, dados, dadosNetShort, catalogo, episodios, buscarPagina };
+    const api = { fornecedores, paginaPermitida, midiaPermitida, dados, dadosNetShort, catalogo, episodios, indiceReelShort, buscarPagina };
     if (typeof module !== 'undefined' && module.exports) module.exports = api;
     else root.StreamMininovelasSource = api;
 })(typeof window !== 'undefined' ? window : globalThis);

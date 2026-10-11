@@ -40,3 +40,14 @@ test('NetShort lê apenas JSON público e não libera episódio com preço ou bl
     assert.throws(() => s.dadosNetShort('<script>self.__next_f.push(executar())</script>'));
     assert.equal(s.fornecedores.find(f => f.id === 'netshort').conector,false);
 });
+const page=p=>`<script id="__NEXT_DATA__">${JSON.stringify({props:{pageProps:p}})}</script>`;
+test('ReelShort identifica indice paginado do mesmo livro e conserva limite gratuito',()=>{
+ const p='https://www.reelshort.com/pt/episodes/episode-2-novela-book-chapter';const info=s.indiceReelShort(p,page({data:{book_id:'book',chapter_id:'chapter',paid_start:4,chapter_count:12}}));assert.equal(info.pagina,'https://www.reelshort.com/pt/full-episodes/novela-book');assert.equal(info.limite,4);
+ const next='https://www.reelshort.com/pt/full-episodes/novela-book/2';assert.equal(s.indiceReelShort(info.pagina,page({data:{book_id:'book',chapter_list:[],chapter_count:12},nextPageLink:next})).proxima,next);
+ assert.equal(s.paginaPermitida(next+'/extra'),false);assert.equal(s.paginaPermitida(next+'?url=http://localhost'),false);
+});
+test('lista ReelShort usa links publicados, ignora trailer e nao libera capitulos pagos ou sem confirmacao',()=>{
+ const chapters=[{serial_number:0,chapter_id:'trailer'},{serial_number:1,chapter_id:'c1'},{serial_number:2,chapter_id:'c2'},{serial_number:3,chapter_id:'c3'}];
+ const h=page({web_prohibit:0,data:{book_id:'book',chapter_list:chapters,lang:'pt'}})+chapters.map(c=>`<a href="/pt/episodes/episode-${c.serial_number}-novela-book-${c.chapter_id}">Ep</a>`).join('');
+ const eps=s.episodios('reelshort',h,{limite:3});assert.deepEqual(eps.map(e=>e.numero),[1,2,3]);assert.deepEqual(eps.map(e=>e.disponivel),[true,true,false]);assert(eps.every(e=>e.url===null));assert(s.episodios('reelshort',h).every(e=>!e.disponivel));
+});

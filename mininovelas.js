@@ -43,17 +43,57 @@ window.StreamMininovelas = (() => {
         grid().replaceChildren();
         const voltar = document.createElement('button'); voltar.className = 'quiet'; voltar.textContent = '‹ Voltar às mininovelas'; voltar.onclick = open;
         const estado = document.createElement('p'); estado.style.gridColumn = '1 / -1'; estado.textContent = 'Buscando episódios…';
-        el('resultados-titulo').textContent = item.titulo; grid().append(voltar, estado);
+        el('resultados-titulo').textContent = item.titulo;
+        const resumo = document.createElement('div'); resumo.style.cssText = 'grid-column:1/-1;display:flex;gap:18px;align-items:flex-start;margin:10px 0';
+        if (/^https:\/\//.test(item.capa)) { const img = document.createElement('img'); img.src = item.capa; img.alt = ''; img.style.cssText = 'width:85px!important;height:125px!important;min-width:85px!important;max-width:85px!important;object-fit:cover!important;border-radius:10px;flex-shrink:0'; resumo.append(img); }
+        const descricao = document.createElement('p'); descricao.textContent = item.sinopse || 'Escolha abaixo o episódio que deseja assistir.'; descricao.style.cssText = 'margin:0;color:#bdc8d7;line-height:1.5;font-size:14px;max-width:650px;min-width:0;overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:5;-webkit-box-orient:vertical;overflow:hidden'; resumo.append(descricao);
+        grid().append(voltar,resumo,estado);
         try {
-            const html = await source.buscarPagina(item.pagina, fetcher);
+            let html = await source.buscarPagina(item.pagina, fetcher), indice = null;
+            if (item.fornecedor === 'reelshort') {
+                indice = source.indiceReelShort(item.pagina, html);
+                if (String(indice.livro) !== String(item.id).slice('reelshort:'.length)) throw Error('O fornecedor retornou outra mininovela.');
+                if (indice.pagina !== item.pagina) {
+                    estado.textContent = 'Carregando a lista de episódios…';
+                    html = await source.buscarPagina(indice.pagina, fetcher);
+                    if (String(source.dados(html).data?.book_id) !== String(indice.livro)) throw Error('O fornecedor retornou outra mininovela.');
+                    const navegacao = source.indiceReelShort(indice.pagina, html);
+                    indice = { ...navegacao, limite: indice.limite };
+                } else indice.limite = item.reelLimite;
+            }
             if (token !== geracao || !document.querySelector('[data-cat="short-drama"].ativo')) return;
-            const eps = source.episodios(item.fornecedor, html);
-            estado.textContent = ['reelshort','netshort'].includes(item.fornecedor) ? 'Prévia pública. Catálogo completo de episódios ainda em análise.' : 'Escolha um episódio. Episódios bloqueados permanecem indisponíveis.';
+            const eps = source.episodios(item.fornecedor, html, { limite: indice?.limite });
+            estado.textContent = indice ? `${indice.total} episódios · os liberados podem ser assistidos aqui. Os demais exigem acesso no ReelShort.` : 'Escolha um episódio. Episódios bloqueados permanecem indisponíveis.';
+            const lista = document.createElement('div'); lista.style.cssText = 'grid-column:1/-1;display:grid;grid-template-columns:repeat(auto-fit,minmax(105px,1fr));gap:12px';
+            grid().append(lista);
             eps.forEach(ep => {
-                const b = document.createElement('button'); b.className = 'quiet'; b.type = 'button'; b.disabled = !ep.disponivel;
-                b.textContent = ep.titulo + (ep.disponivel ? ' · áudio: ' + ep.audio : ' · indisponível');
-                b.onclick = () => tocar(item, ep); grid().append(b);
+                const b = document.createElement('button'); b.type = 'button'; b.disabled = !ep.disponivel;
+                b.style.cssText = 'padding:16px 10px;border-radius:12px;background:#222b39;color:#fff;border:1px solid #ffffff20;text-align:left;min-height:78px;opacity:' + (ep.disponivel ? '1' : '.5');
+                const titulo = document.createElement('strong'); titulo.textContent = `Episódio ${ep.numero}`;
+                const nota = document.createElement('small'); nota.style.cssText = 'display:block;margin-top:8px;color:#aebed0'; nota.textContent = ep.disponivel ? '▶ Assistir' : 'Bloqueado no fornecedor'; b.append(titulo,nota);
+                b.onclick = async () => {
+                    if (!ep.pagina) return tocar(item,ep);
+                    b.disabled = true; nota.textContent = 'Carregando…';
+                    try {
+                        const pagina = await source.buscarPagina(ep.pagina, fetcher);
+                        const dados = source.dados(pagina);
+                        if (String(dados.data?.book_id) !== String(indice.livro)) throw Error('Episódio de outra mininovela.');
+                        const confirmado = source.episodios('reelshort',pagina).find(e => e.numero === ep.numero);
+                        if (!confirmado?.disponivel) throw Error('Este episódio não está liberado pelo ReelShort.');
+                        if (token !== geracao || !document.querySelector('[data-cat="short-drama"].ativo')) return;
+                        tocar(item,confirmado);
+                    } catch (e) { if (token === geracao) estado.textContent = e.message; }
+                    finally { b.disabled = false; nota.textContent = '▶ Assistir'; }
+                }; lista.append(b);
             });
+            if (indice) {
+                const paginas = document.createElement('div'); paginas.style.cssText = 'grid-column:1/-1;display:flex;gap:12px;flex-wrap:wrap';
+                for (const [titulo,pagina] of [['‹ Anteriores',indice.anterior],['Próximos ›',indice.proxima]]) {
+                    if (!pagina) continue;
+                    const b = document.createElement('button'); b.className = 'quiet'; b.textContent = titulo;
+                    b.onclick = () => detalhes({ ...item, pagina, reelLimite: indice.limite }); paginas.append(b);
+                } grid().append(paginas);
+            }
             if (!eps.length) estado.textContent = 'Nenhum episódio público identificado agora.';
         } catch (e) { if (token === geracao) estado.textContent = e.message; }
     }
