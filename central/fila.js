@@ -38,7 +38,9 @@ function criarFila({ pastaDados } = {}) {
                     .sort((a, b) => Number(a.v.adicionadoEm || 0) - Number(b.v.adicionadoEm || 0));
                 for (const item of ordenados.slice(0, chaves.length - MAX_ITENS)) delete dados.itens[item.k];
             }
-            fs.writeFileSync(arquivo, JSON.stringify(dados, null, 1));
+            const temporario = arquivo + '.tmp';
+            fs.writeFileSync(temporario, JSON.stringify(dados, null, 1));
+            fs.renameSync(temporario, arquivo);
         } catch { /* disco cheio: segue só na memória */ }
     }
 
@@ -47,10 +49,10 @@ function criarFila({ pastaDados } = {}) {
     }
 
     // Quantas falhas seguidas aquele domínio já acumulou.
-    function castigoDoDominio(dominio) {
+    function dominioDisponivel(dominio, agora) {
         const chave = `dominio:${dominio}`;
         const registro = dados.itens[chave];
-        return registro ? Number(registro.falhas) || 0 : 0;
+        return !registro || Number(registro.falhas || 0) < 3 || Number(registro.proxima || 0) <= agora;
     }
 
     function enfileirar(candidatas = []) {
@@ -58,6 +60,10 @@ function criarFila({ pastaDados } = {}) {
         let novos = 0;
         for (const candidata of candidatas) {
             if (!candidata || !candidata.url) continue;
+            try {
+                const endereco = new URL(candidata.url);
+                if (!['https:', 'http:'].includes(endereco.protocol) || endereco.username || endereco.password) continue;
+            } catch { continue; }
             if (dados.itens[candidata.url]) continue;
             dados.itens[candidata.url] = {
                 url: candidata.url,
@@ -82,9 +88,25 @@ function criarFila({ pastaDados } = {}) {
         const agora = Date.now();
         const lista = Object.values(dados.itens)
             .filter(item => item && item.url && item.estado !== 'resolvida' && Number(item.proxima || 0) <= agora)
-            .filter(item => castigoDoDominio(dominioDe(item.url)) < 6)
+            .filter(item => dominioDisponivel(dominioDe(item.url), agora))
             .sort((a, b) => (Number(a.tentativas) || 0) - (Number(b.tentativas) || 0) || Number(a.adicionadoEm || 0) - Number(b.adicionadoEm || 0));
-        return lista.slice(0, quantidade).map(item => ({
+        // Alterna os domínios: um site com milhares de URLs não ocupa toda a rodada.
+        const grupos = new Map();
+        for (const item of lista) {
+            const dominio = dominioDe(item.url);
+            if (!grupos.has(dominio)) grupos.set(dominio, []);
+            grupos.get(dominio).push(item);
+        }
+        const escolhidos = [];
+        const limite = Math.max(0, Math.min(MAX_ITENS, Math.floor(Number(quantidade) || 0)));
+        while (escolhidos.length < limite && grupos.size) {
+            for (const [dominio, itens] of grupos) {
+                escolhidos.push(itens.shift());
+                if (!itens.length) grupos.delete(dominio);
+                if (escolhidos.length >= limite) break;
+            }
+        }
+        return escolhidos.map(item => ({
             nome: item.nome, url: item.url, molde: item.molde, origem: item.origem, motivoEsperado: item.motivoEsperado,
         }));
     }
@@ -107,6 +129,7 @@ function criarFila({ pastaDados } = {}) {
             }
         }
         const dominio = dominioDe(url);
+        if (dominio && resultado.aprovada) delete dados.itens[`dominio:${dominio}`];
         if (dominio && resultado.erroDeDominio) {
             const chave = `dominio:${dominio}`;
             const registro = dados.itens[chave] || { falhas: 0, adicionadoEm: Date.now() };
@@ -124,9 +147,9 @@ function criarFila({ pastaDados } = {}) {
         const agora = Date.now();
         return {
             total: itens.length,
-            esperando: itens.filter(([, v]) => Number(v.proxima || 0) <= agora).length,
+            esperando: itens.filter(([, v]) => Number(v.proxima || 0) <= agora && dominioDisponivel(dominioDe(v.url), agora)).length,
             resolvidas: Object.values(dados.itens).filter(v => v && v.estado === 'resolvida').length,
-            castigadas: Object.entries(dados.itens).filter(([chave]) => chave.startsWith('dominio:')).length,
+            castigadas: Object.entries(dados.itens).filter(([chave, v]) => chave.startsWith('dominio:') && Number(v.falhas || 0) >= 3 && Number(v.proxima || 0) > agora).length,
         };
     }
 

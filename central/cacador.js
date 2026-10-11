@@ -163,6 +163,8 @@ const CATEGORIAS = [
     }
 ];
 
+CATEGORIAS.push({ id: 'short-drama', nome: 'Mininovelas', tipo: 'short-drama', fornecedores: require('../mininovelas-source').fornecedores });
+
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36';
 const TEMPO = 20000;
 
@@ -183,8 +185,11 @@ function fonteJaImplementada(nome, url) {
     return JA_NO_APP.find(item => item.dominios.some(d => alvo.includes(d)) || procurado.includes(item.nome.toLowerCase())) || null;
 }
 
-function comPrazo(promessa, ms) {
-    return Promise.race([promessa, new Promise(resolve => setTimeout(() => resolve({ __tempo: true }), ms))]);
+async function comPrazo(promessa, ms) {
+    let timer;
+    try {
+        return await Promise.race([promessa, new Promise(resolve => { timer = setTimeout(() => resolve({ __tempo: true }), ms); })]);
+    } finally { clearTimeout(timer); }
 }
 function ehDublado(valor) {
     return /pt-br|ptbr|portugu|dubl/i.test(String(valor || ''));
@@ -581,14 +586,7 @@ async function medirListaDeCanais(lista) {
         const resposta = await fetch(lista.url, { headers: { 'User-Agent': UA }, signal: AbortSignal.timeout(30000) });
         if (!resposta.ok) throw new Error('http ' + resposta.status);
         const texto = await resposta.text();
-        const linhas = texto.split('\n').map(l => l.trim());
-        const canais = [];
-        for (let i = 0; i < linhas.length; i++) {
-            if (!/^#EXTINF/i.test(linhas[i])) continue;
-            const nome = (linhas[i].match(/,(.*)$/) || [])[1] || 'canal';
-            const endereco = linhas[i + 1];
-            if (endereco && !endereco.startsWith('#')) canais.push({ nome: nome.trim().slice(0, 60), url: endereco });
-        }
+        const canais = require('../listas-tv').parseM3u(texto, lista.id || 'esportes');
         const msLista = Date.now() - inicio;
 
         // Testa alguns canais de verdade (respondem? qual qualidade?).
@@ -603,7 +601,7 @@ async function medirListaDeCanais(lista) {
                 const r = await fetch(canal.url, { headers: { 'User-Agent': UA }, signal: AbortSignal.timeout(12000) });
                 const corpo = await r.text().catch(() => '');
                 tempoTotal += Date.now() - t0;
-                if (r.ok && corpo.length > 40) {
+                if (r.ok && /^\s*#EXTM3U/m.test(corpo) && /#EXT(?:INF|-X-STREAM-INF)/.test(corpo)) {
                     responderam++;
                     const alturas = [...corpo.matchAll(/RESOLUTION=\d+x(\d+)/gi)].map(m => Number(m[1]));
                     const altura = alturas.length ? Math.max(...alturas) : 0;
@@ -772,9 +770,7 @@ function criarCacador(opcoes = {}) {
             : [];
         const fixas = categoria.amostras || [];
         const dasFalhas = amostrasComFalhas(titulos, categoria.tipo === 'movie' ? 'movie' : 'tv');
-        const vistos = new Set();
-        const juntar = lista => lista.filter(a => { const k = String(a.id); if (vistos.has(k)) return false; vistos.add(k); return true; });
-        return [...juntar(pedidos), ...juntar(fixas), ...juntar(dasFalhas)];
+        return juntarAmostras(categoria.tipo, pedidos, dasFalhas, fixas);
     }
 
     // ---------------------------------------------------------- fichas
@@ -943,6 +939,7 @@ function criarCacador(opcoes = {}) {
     }
 
     async function cacarCategoria(categoria, rodada = {}) {
+        if (categoria.id === 'short-drama') return require('./cacador-mininovelas').cacarMininovelas({ registrar });
         const profundo = Boolean(rodada.profundo);
         const amostras = amostrasDe(categoria);
         marcar(`medindo ${categoria.nome}`, 0, 0);
@@ -963,16 +960,22 @@ function criarCacador(opcoes = {}) {
             const novosNaFila = fila.enfileirar(achados);
             if (novosNaFila) registrar(`fila: ${novosNaFila} candidata(s) guardadas para as próximas rodadas`);
             marcar(`candidatas do varredor (${categoria.nome})`, 0, Math.min(achados.length, largura));
-            for (const nova of achados.slice(0, largura)) {
-                if (candidatas.some(c => c.url === nova.url)) continue;
-                candidatas.push(await conferirCandidata(nova));
-            }
+            // As descobertas são medidas pela fila abaixo: testar o começo da
+            // varredura aqui repetia URLs e ignorava os intervalos por domínio.
         } catch { /* sem varredura nesta rodada */ }
         // Candidatas que ficaram esperando nas rodadas anteriores entram agora
         // (com castigo por domínio: quem insiste em falhar descansa).
-        const daFila = fila.proximos(profundo ? 6 : 2);
+        const daFila = fila.proximos(largura);
         for (const candidata of daFila) {
-            if (candidatas.some(c => c.url === candidata.url)) continue;
+            const existente = candidatas.find(c => c.url === candidata.url);
+            if (existente) {
+                fila.anotar(candidata.url, {
+                    estado: existente.situacao || 'tentada',
+                    aprovada: existente.situacao === 'promover',
+                    motivo: existente.motivo || 'já medida nesta rodada',
+                });
+                continue;
+            }
             const medida = await conferirCandidata(candidata).catch(() => null);
             candidatas.push(medida || candidata);
             // Anota o resultado na fila (e castiga o domínio que só dá erro).
@@ -981,7 +984,7 @@ function criarCacador(opcoes = {}) {
                 estado: medida ? medida.situacao : 'sem-resposta',
                 aprovada: Boolean(medida && medida.situacao === 'promover'),
                 motivo: medida ? medida.motivo : 'sem resposta',
-                erroDeDominio: !direto && (!medida || medida.situacao === 'descartada'),
+                erroDeDominio: !direto && falhaDeDominio(medida),
             });
         }
 
@@ -1011,15 +1014,22 @@ function criarCacador(opcoes = {}) {
             marcar(`procurando o vídeo em ${candidata.nome}`, tentativaDeFicha, Math.min(paginas.length, limiteDeFichas));
             registrar(`ficha: abrindo ${candidata.nome} (${String(candidata.url).slice(0, 60)})`);
             const achado = await descobrirFicha(candidata, alvoDasFichas, categoria);
-            if (achado) fichas.push(achado.ficha);
+            if (achado) {
+                fichas.push(achado.ficha);
+                if (achado.ficha && achado.ficha.ativo !== false) fila.anotar(candidata.url, { aprovada: true });
+            }
         }
         // O espião entra só onde a leitura direta da página não deu ficha: é o
         // caminho para os sites que só montam o player por JavaScript.
         const quantosEspiao = profundo ? 3 : 1;
-        for (const candidata of paginas.slice(0, quantosEspiao)) {
+        const semFicha = paginas.filter(c => !fichas.some(f => f && f.ativo !== false && f.nome === c.nome));
+        for (const candidata of semFicha.slice(0, quantosEspiao)) {
             marcar(`espionando ${candidata.nome} no navegador escondido`, fichas.length, quantosEspiao);
             const achado = await descobrirFichaPeloEspiao(candidata, alvoDasFichas, categoria);
-            if (achado) fichas.push(achado.ficha);
+            if (achado) {
+                fichas.push(achado.ficha);
+                if (achado.ficha && achado.ficha.ativo !== false) fila.anotar(candidata.url, { aprovada: true });
+            }
         }
         // Addons do Stremio: o endereço já devolve o vídeo em JSON.
         const originais = new Map(doVarredor.map(c => [c.url, c]));
@@ -1033,7 +1043,10 @@ function criarCacador(opcoes = {}) {
             };
             registrar(`ficha: conferindo o addon ${candidata.nome} (${candidata.url.slice(0, 70)})`);
             const achado = await descobrirFichaDeAddon(completa, alvoDasFichas, categoria);
-            if (achado) fichas.push(achado.ficha);
+            if (achado) {
+                fichas.push(achado.ficha);
+                if (achado.ficha && achado.ficha.ativo !== false) fila.anotar(candidata.url, { aprovada: true });
+            }
         }
         const aprovadas = fichas.filter(f => f && f.ativo !== false);
         const ativas = perfilModulo.listar(pastaDados).filter(f => f.ativo !== false);
@@ -1197,8 +1210,28 @@ function criarCacador(opcoes = {}) {
     };
 }
 
+// Episódios diferentes são problemas diferentes. Pedidos e falhas recentes
+// têm prioridade, mantendo uma única amostra por filme ou episódio.
+function falhaDeDominio(medida) {
+    // Página acessível sem o título, idioma errado ou anúncio não prova queda
+    // do domínio inteiro. Só indisponibilidade de rede pausa suas outras URLs.
+    return !medida || (Number(medida.status) === 0 && medida.situacao === 'descartada');
+}
+
+function juntarAmostras(tipo, ...listas) {
+    const vistos = new Set();
+    return listas.flat().filter(a => {
+        if (!a || !/^\d+$/.test(String(a.id || ''))) return false;
+        const chave = tipo === 'movie' ? String(a.id)
+            : [a.id, a.temporada || '1', a.episodio || '1'].join(':');
+        if (vistos.has(chave)) return false;
+        vistos.add(chave);
+        return true;
+    });
+}
+
 module.exports = {
     criarCacador, notaDoFornecedor, avaliarPromocao, CATEGORIAS, PADRAO_APP, medirListaDeCanais, chaveDaIA,
     // Usados pelos testes: escolha das amostras que vieram de falhas reais.
-    amostrasComFalhas, acharVideoNaPagina, acharPlayerNaPagina,
+    falhaDeDominio, juntarAmostras, amostrasComFalhas, acharVideoNaPagina, acharPlayerNaPagina, comPrazo,
 };

@@ -130,9 +130,9 @@ test('a TV ao vivo funciona no aparelho com as listas públicas', async () => {
     const canais = await catalogo.request('/api/tv/canais?lista=brasil');
     assert.equal(canais.canais.length, 2, 'só canais com endereço seguro entram');
     assert.equal(canais.canais[0].nome, 'ESPN Brasil');
-    assert.equal(canais.canais[0].grupo, 'Sports');
+    assert.equal(canais.canais[0].grupo, 'sports');
 
     const categorias = await catalogo.request('/api/tv/categorias?lista=brasil');
-    assert.deepEqual(categorias.categorias.map((c) => c.nome).sort(), ['News', 'Sports']);
-    assert.equal(categorias.categorias.find((c) => c.nome === 'News').total, 1);
+    assert.deepEqual(categorias.categorias.map((c) => c.nome).sort(), ['news', 'sports']);
+    assert.equal(categorias.categorias.find((c) => c.nome === 'news').total, 1);
 });

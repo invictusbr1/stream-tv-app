@@ -19,12 +19,15 @@
         function movie(f) {
             // Nomes de gênero em português, usados no destaque da tela inicial.
             const GENEROS = {28:'Ação',12:'Aventura',16:'Animação',35:'Comédia',80:'Crime',99:'Documentário',18:'Drama',10751:'Família',14:'Fantasia',36:'História',27:'Terror',10402:'Música',9648:'Mistério',10749:'Romance',878:'Ficção científica',10770:'Cinema TV',53:'Suspense',10752:'Guerra',37:'Faroeste',10759:'Ação e aventura',10762:'Infantil',10763:'Notícias',10764:'Reality show',10765:'Ficção científica e fantasia',10766:'Novela',10767:'Talk show',10768:'Guerra e política'};
+            const tv = Boolean(root.document?.documentElement.classList.contains('modo-tv'));
+            const posterSize = tv ? 'w342' : 'w500';
+            const backdropSize = tv && root.innerWidth < 1280 ? 'w780' : 'w1280';
             const generos = (f.genre_ids || []).map(id => GENEROS[id]).filter(Boolean).slice(0, 3);
             return { id: f.id, tipo: f.media_type==='tv'||(!f.title&&f.name)?'tv':'movie', titulo: f.title || f.name || 'Sem título', sinopse: f.overview || '',
                 nota: f.vote_average ? Number(f.vote_average).toFixed(1) : 'N/A',
                 ano: (f.release_date || f.first_air_date || '').slice(0, 4),
-                capa: f.poster_path ? `https://image.tmdb.org/t/p/w500${f.poster_path}` : '',
-                fundo: f.backdrop_path ? `https://image.tmdb.org/t/p/w1280${f.backdrop_path}` : '',
+                capa: f.poster_path ? `https://image.tmdb.org/t/p/${posterSize}${f.poster_path}` : '',
+                fundo: f.backdrop_path ? `https://image.tmdb.org/t/p/${backdropSize}${f.backdrop_path}` : '',
                 generos };
         }
         async function discover(params, signal) {
@@ -92,17 +95,8 @@
             if (salvo && salvo.ate > Date.now()) return salvo.canais;
             const resposta = await fetcher(lista.url, { signal });
             if (!resposta.ok) throw new Error('Lista de canais indisponível');
-            const linhas = String(await resposta.text()).split('\n').map(l => l.trim());
-            const canais = [];
-            for (let i = 0; i < linhas.length; i++) {
-                if (!/^#EXTINF/i.test(linhas[i])) continue;
-                const endereco = linhas[i + 1];
-                if (!endereco || endereco.startsWith('#') || !/^https:\/\//i.test(endereco)) continue;
-                const nome = ((linhas[i].match(/,(.*)$/) || [])[1] || 'Canal').replace(/\s*\[[^\]]*\]/g, '').trim().slice(0, 70);
-                const logo = (linhas[i].match(/tvg-logo="([^"]*)"/i) || [])[1] || '';
-                const grupo = (linhas[i].match(/group-title="([^"]*)"/i) || [])[1] || '';
-                canais.push({ nome, logo: /^https:\/\//i.test(logo) ? logo : '', grupo: grupo.slice(0, 40), url: endereco, lista: lista.id });
-            }
+            const parser = root.StreamListasTv || (typeof require === 'function' ? require('../../../../../listas-tv') : null);
+            const canais = parser.parseM3u(await resposta.text(), lista.id);
             canaisTvCache.set(lista.id, { canais, ate: Date.now() + 30 * 60 * 1000 });
             return canais;
         }

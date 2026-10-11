@@ -279,7 +279,7 @@ function pintar(dados) {
   // -------------------------------------------------- caçador de fornecedores
   const CATEGORIAS = [
     ['filme', 'Filmes'], ['serie', 'Séries'], ['anime', 'Animes'],
-    ['dorama', 'Doramas e novelas'], ['tv-online', 'TV ao vivo']
+    ['dorama', 'Doramas e novelas'], ['tv-online', 'TV ao vivo'], ['short-drama', 'Mininovelas']
   ];
   const porCategoria = (dados.fontesCacadas && dados.fontesCacadas.porCategoria) || {};
   let categoriaAtual = localStorage.getItem('central-categoria') || 'filme';
@@ -404,7 +404,7 @@ function pintar(dados) {
   const ag = dados.investigacoes || { lista: [] };
   el('agente-resumo').textContent = `${ag.resolvidos || 0} resolvidos · ${ag.pendentes || 0} em análise · ${ag.semSolucao || 0} sem solução`;
   el('linha-investigacoes').innerHTML = (ag.lista || []).length ? ag.lista.map(i => {
-    const situacao = i.estado === 'resolvido' ? selo('resolvido', 'on') : i.estado === 'sem solucao' ? selo('sem solução', 'ruim') : selo('testando', 'medio');
+    const situacao = i.estado === 'resolvido' ? selo('resolvido', 'on') : i.estado === 'sem solucao' ? selo('sem solução', 'ruim') : i.estado === 'aguardando confirmacao' ? selo('aguardando reprodução no aparelho', 'medio') : selo('testando', 'medio');
     const onde = i.solucao ? `${escapar(i.solucao.caminho)} · ${escapar(i.solucao.fonte || '')}${i.solucao.audio === 'pt-BR' ? ' · dublado' : ''}` : '—';
     return `<tr><td>${escapar(i.titulo || '—')}</td><td>${situacao}</td><td class="fraco">${onde}</td><td class="fraco">${i.tentativas}</td></tr>`;
   }).join('') : '<tr><td colspan="4" class="vazio">Nenhuma falha registrada até agora — nada para o agente investigar.</td></tr>';

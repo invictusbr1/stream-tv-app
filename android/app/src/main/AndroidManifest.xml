@@ -4,6 +4,7 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
     <uses-feature android:name="android.software.leanback" android:required="false" />
+    <queries><package android:name="com.google.android.youtube.tv" /><package android:name="com.google.android.youtube" /></queries>
     <application android:hardwareAccelerated="true" android:label="Conecta TV" android:icon="@drawable/app_icon" android:banner="@drawable/tv_banner"
         android:theme="@android:style/Theme.Material.NoActionBar" android:allowBackup="false" android:fullBackupContent="false" android:dataExtractionRules="@xml/data_extraction_rules" android:usesCleartextTraffic="false" android:supportsRtl="true">
         <provider android:name=".UpdateProvider" android:authorities="${applicationId}.updates" android:exported="false" android:grantUriPermissions="true"><grant-uri-permission android:path="/update.apk" /></provider>

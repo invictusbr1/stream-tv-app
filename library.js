@@ -96,7 +96,7 @@ function closeSeries(){++seriesSequence;seasonRequest?.abort();el('series-dialog
    if(pontos)[...pontos.children].forEach((b,i)=>b.setAttribute('aria-current',String(i===destaqueAtual)));
    window.StreamPersonal?.remember(f);
  }
- function agendarDestaque(){clearTimeout(destaqueTimer);destaqueTimer=setTimeout(()=>{if(el('player').classList.contains('ativo')||document.hidden||el('hero').hidden)return agendarDestaque();mostrarDestaque(destaqueAtual+1);agendarDestaque();},7000);}
+ function agendarDestaque(){clearTimeout(destaqueTimer);if(document.documentElement.classList.contains("modo-tv"))return;destaqueTimer=setTimeout(()=>{if(el('player').classList.contains('ativo')||document.hidden||el('hero').hidden)return agendarDestaque();mostrarDestaque(destaqueAtual+1);agendarDestaque();},7000);}
  function montarDestaques(filmes,series){
    const misturados=[];const limite=Math.max((filmes||[]).length,(series||[]).length);
    for(let i=0;i<limite&&misturados.length<6;i++){
@@ -171,7 +171,7 @@ function closeSeries(){++seriesSequence;seasonRequest?.abort();el('series-dialog
   renderizar(lista);
  }
  ligarArrasteDestaque();
- return {reabrir,open,browse,search,home,closeSeries,favorites,destaqueAtivo,mostrarDestaque};
+ return {reabrir,open,browse,search,home,closeSeries,favorites,destaqueAtivo,mostrarDestaque,cancel:()=>{++sequence;}};
 })();
 // One inactivity clock controls both the title bar and bottom controls, including TV key events.
 window.StreamChrome=(()=>{

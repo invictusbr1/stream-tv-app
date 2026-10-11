@@ -96,7 +96,7 @@ revisor.iniciar();
 // novas, alternando as categorias. O varredor (addons do Stremio, GitHub e o
 // código dos agregadores) alimenta a lista de candidatas, e cada uma é MEDIDA
 // (reprodução + idioma + anúncio) antes de entrar no ranking.
-const CATEGORIAS_CACADAS = ['filme', 'serie', 'dorama', 'anime', 'tv-online'];
+const CATEGORIAS_CACADAS = ['filme', 'serie', 'dorama', 'anime', 'tv-online', 'short-drama'];
 let voltaDaCacada = 0;
 function cacadaAutomatica() {
     try {
@@ -262,6 +262,7 @@ app.post('/api/evento', (req, res) => {
     }
     // Player que não abriu entra na fila do agente, que vai testar as fontes.
     if (evento.ok === false) agente.registrarFalha(evento);
+    if (evento.tipo === 'confirmacao') agente.registrarConfirmacao(evento);
     if (evento.dispositivo) {
         const lista = lerJson(ARQ_DISPOSITIVOS, {});
         const anterior = lista[evento.dispositivo];

@@ -109,7 +109,14 @@ for ($tentativa = 1; $tentativa -le 6; $tentativa++) {
     if ($publicado -and [int]$publicado.versionCode -eq $versionCode) { break }
 }
 if (-not $publicado -or [int]$publicado.versionCode -ne $versionCode) {
-    throw "O manifesto publicado não confere com a versão $versionCode. Confira https://github.com/$repo/blob/main/latest.json"
+    # O CDN raw pode manter a versão anterior por cinco minutos. Confere o
+    # conteúdo efetivamente gravado, sem tratar esse atraso como envio falho.
+    $gravado = Invoke-RestMethod -Uri "https://api.github.com/repos/$repo/contents/latest.json?ref=main" -Headers $headers -Method Get
+    $publicado = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($gravado.content)) | ConvertFrom-Json
+    if ([int]$publicado.versionCode -ne $versionCode -or $publicado.sha256 -ne $feed.sha256 -or ($ApkTvPath -and $publicado.apkTvSha256 -ne $feed.apkTvSha256) -or ($ExePath -and $publicado.exeSha256 -ne $feed.exeSha256)) {
+        throw "O manifesto gravado não confere com a versão $versionCode. Confira https://github.com/$repo/blob/main/latest.json"
+    }
+    Write-Output 'Manifesto gravado e hashes conferidos; o cache do aviso automatico ainda pode mostrar a versao anterior.'
 }
 if ($ApkTvPath -and -not $publicado.apkTvUrl) { throw 'O manifesto publicado ficou sem o endereço do APK da TV.' }
 

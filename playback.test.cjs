@@ -18,6 +18,26 @@ function harness(userAgent='Test'){
  context.StreamPlayback=window.StreamPlayback;el('opcoes').hidden=true;el('direct-controls').children=[el('direct-back'),el('direct-toggle'),el('direct-forward')];
  return {context,window,doc,key(key){let prevented=false;handlers.keydown({key,preventDefault(){prevented=true;},stopPropagation(){}});return prevented;},controller:window.StreamPlayback,el,Hls,timers,failures:()=>failures,fetch(fn){fetchImpl=fn;}};
 }
+
+test('live broadcasts show AO VIVO without a false movie duration or seek controls',async()=>{
+ const s=harness();s.fetch(async()=>({url,audio:'fonte',live:true}));
+ const p=s.controller.start(0,1,new AbortController().signal,'/api/tv/la18hd',null,true);await new Promise(setImmediate);
+ const v=s.el('direct-video');v.currentTime=30;v.duration=45;v.fire('timeupdate');
+ assert.equal(s.el('direct-time').textContent,'AO VIVO');
+ for(const id of ['direct-progress','direct-back','direct-forward','menu-speed-btn'])assert.equal(s.el(id).hidden,true);
+ s.controller.seek(10);assert.equal(v.currentTime,30);
+ s.controller.stop();await p;
+});
+
+test('opening a movie after live TV restores seek controls and duration',async()=>{
+ const s=harness();s.fetch(async()=>({url,audio:'fonte',live:true}));
+ const live=s.controller.start(0,1,new AbortController().signal,'/api/tv/la18hd',null,true);await new Promise(setImmediate);s.controller.stop();await live;
+ s.fetch(async()=>({url,audio:'pt-BR'}));const movie=s.controller.start(238,1,new AbortController().signal);await new Promise(setImmediate);
+ const v=s.el('direct-video');v.currentTime=30;v.duration=120;v.fire('timeupdate');
+ assert.equal(s.el('direct-time').textContent,'0:30 / 2:00');
+ for(const id of ['direct-progress','direct-back','direct-forward','menu-speed-btn'])assert.equal(s.el(id).hidden,false);
+ s.controller.seek(10);assert.equal(v.currentTime,40);s.controller.stop();await movie;
+});
 test('selects highest actual rendition and Portuguese audio; stop resolves a pending start',async()=>{const s=harness();const p=s.controller.start(238,1,new AbortController().signal);await new Promise(setImmediate);s.Hls.instance.emit('manifest');assert.equal(s.Hls.instance.currentLevel,1);assert.equal(s.Hls.instance.audioTrack,0);s.controller.stop();assert.equal(await p,false);assert.equal(s.timers.size,0);});
 test('rejects explicitly non-Portuguese audio renditions',async()=>{const s=harness();const p=s.controller.start(238,1,new AbortController().signal);await new Promise(setImmediate);s.Hls.instance.audioTracks=[{lang:'en',name:'English'}];s.Hls.instance.emit('manifest');assert.equal(await p,false);assert.equal(s.controller.isActive(),false);});
 test('late metadata response cannot recreate a video after stop',async()=>{const s=harness();let resolve;s.fetch(()=>new Promise(r=>resolve=r));const p=s.controller.start(238,1,new AbortController().signal);s.controller.stop();resolve({url,audio:'pt-BR'});assert.equal(await p,false);assert.equal(s.controller.isActive(),false);});

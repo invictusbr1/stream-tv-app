@@ -28,6 +28,10 @@ function criarAgente(opcoes = {}) {
     let rodando = false;
 
     try { casos = JSON.parse(fs.readFileSync(arquivoCasos, 'utf8')) || {}; } catch { casos = {}; }
+    // Resultados antigos eram baseados só em URLs, sem prova de reprodução.
+    for (const caso of Object.values(casos)) {
+        if (caso.estado === 'resolvido' && !caso.confirmadoEm) caso.estado = 'aguardando confirmacao';
+    }
     function gravar() { try { fs.mkdirSync(pastaDados, { recursive: true }); fs.writeFileSync(arquivoCasos, JSON.stringify(casos, null, 1)); } catch { /* sem disco */ } }
 
     function chaveDe(alvo) {
@@ -107,9 +111,12 @@ function criarAgente(opcoes = {}) {
         caso.ultimaTentativa = new Date().toISOString();
         caso.motivo = motivo || caso.motivo;
         const resultado = await testarFontes(alvo);
+        if (casos[chave] && casos[chave] !== caso) return casos[chave];
         caso.historico = [...(caso.historico || []).slice(-5), { em: caso.ultimaTentativa, ok: resultado.ok, ms: resultado.ms, tentativas: resultado.tentativas }];
-        if (resultado.ok) {
+        if (caso.confirmadoEm) {
             caso.estado = 'resolvido';
+        } else if (resultado.ok) {
+            caso.estado = 'aguardando confirmacao';
             caso.solucao = {
                 fonte: resultado.escolhida.fonte || resultado.escolhida.caminho,
                 caminho: resultado.escolhida.caminho,
@@ -138,7 +145,7 @@ function criarAgente(opcoes = {}) {
         };
         if (alvo.tipo === 'tv' && !/^[1-9]\d{0,3}$/.test(alvo.episodio)) return null;
         const chave = chaveDe(alvo);
-        if (casos[chave] && casos[chave].estado === 'resolvido') return casos[chave];
+        // Uma falha nova reabre mesmo um caso anteriormente confirmado.
         casos[chave] = {
             chave, alvo, titulo: alvo.titulo, motivo: String(evento.motivo || 'player não abriu').slice(0, 120),
             tentativas: 0, estado: 'pendente', criadoEm: new Date().toISOString(), historico: []
@@ -147,6 +154,22 @@ function criarAgente(opcoes = {}) {
         // Investiga na hora, sem travar quem chamou.
         investigar(alvo, casos[chave].motivo).catch(() => {});
         return casos[chave];
+    }
+
+    function registrarConfirmacao(evento = {}) {
+        if (evento.tipo !== 'confirmacao' || evento.ok === false) return null;
+        const id=String(evento.id || '');
+        if (!/^\d{1,10}$/.test(id)) return null;
+        const match=/T(\d+)\s*E(\d+)/i.exec(String(evento.episodio || ''));
+        const temporada=String(evento.temporada || (match && match[1]) || '');
+        const episodio=String(evento.numero || (match && match[2]) || '');
+        const chave=temporada && episodio ? 'tv:'+id+':'+temporada+':'+episodio : 'movie:'+id;
+        const caso=casos[chave];
+        if (!caso) return null;
+        caso.estado='resolvido';
+        caso.confirmadoEm=String(evento.em || new Date().toISOString());
+        caso.solucao={fonte:evento.fonte || '',fonteId:evento.fonteId || '',audio:evento.audio || '',resolucao:evento.resolucao || '',prova:'reprodução confirmada pelo aparelho'};
+        gravar(); return caso;
     }
 
     // Casos que ainda merecem nova tentativa.
@@ -182,7 +205,8 @@ function criarAgente(opcoes = {}) {
         const lista = Object.values(casos).sort((a, b) => String(b.ultimaTentativa || b.criadoEm).localeCompare(String(a.ultimaTentativa || a.criadoEm)));
         return {
             total: lista.length,
-            pendentes: lista.filter(c => c.estado === 'pendente').length,
+            pendentes: lista.filter(c => c.estado === 'pendente' || c.estado === 'aguardando confirmacao').length,
+            aguardandoConfirmacao: lista.filter(c => c.estado === 'aguardando confirmacao').length,
             resolvidos: lista.filter(c => c.estado === 'resolvido').length,
             semSolucao: lista.filter(c => c.estado === 'sem solucao').length,
             lista: lista.slice(0, 20).map(c => ({
@@ -197,7 +221,7 @@ function criarAgente(opcoes = {}) {
         };
     }
 
-    return { registrarFalha, investigar, ciclo, iniciar, resumo, pendentes, testarFontes };
+    return { registrarConfirmacao, registrarFalha, investigar, ciclo, iniciar, resumo, pendentes, testarFontes };
 }
 
 module.exports = { criarAgente };

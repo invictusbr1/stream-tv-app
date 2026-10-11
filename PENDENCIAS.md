@@ -5,6 +5,15 @@
 
 ## Última versão publicada
 
+### Correções locais do navegador — 10/10/2026
+
+- Atualizado o executável instalado a partir do código local 2.13.60 para que Futebol no navegador use a mesma interface do APK: banner, jogos ao vivo e cartões sem placares.
+- Corrigida a barra do player para larguras pequenas, com botões em linhas e tempo sem quebra. Conferida em 320px, 360px e paisagem 740px.
+- Transmissões com `live:true` mostram `AO VIVO` e ocultam avanço/retrocesso, barra de posição e velocidade; abrir um filme depois restaura os controles normais.
+- Alterações aplicadas em `index.html`, `playback.js` e nas cópias de assets Android. Dois testes de regressão acrescentados em `playback.test.cjs`; 201 testes passaram.
+- Executável local recompilado sem embutir `config.local.json`; configurações permanecem externas. Executável anterior preservado no workspace desta conversa.
+- Esta correção local não publica nova release nem envia as alterações existentes da pasta de trabalho ao GitHub. A correção de credenciais do Jarvis dos PRs de segurança continua sendo uma tarefa separada de implantação.
+
 - App: **2.13.47** (versionCode 377) — PC, APK do celular (`br.streamtv.app`),
   APK da TV (`br.streamtv.app.tv`) e web. Manifesto conferido em 10/10/2026.
 - Central: **1.5.8** (fichas + placar real + caçada profunda + vetores novos +
@@ -208,3 +217,56 @@ Rotas novas da central: `/api/placar`, `/api/perfis`, `/api/cacar/estado`
 - **Central 1.5.7**: agente (investiga falhas), revisor (30 min), caçador
   (6h por categoria, com fichas, placar e caçada profunda) e varredor
   (addons do Stremio + GitHub + código dos sites + mapa dos sites).
+
+## Estudo do projeto — 10/10/2026
+
+- Código e manifesto local em 2.13.57 (versionCode 387); a indicação 2.13.47 acima é histórica.
+- Suíte executada neste estudo: 194 testes passaram, zero falhas.
+- Na inspeção: app na porta 3000, central na 4100; fila com 127 candidatas e duas fichas desativadas.
+- Diagnóstico salvo em C:\Users\tikto\Documents\Codex\2026-10-10\es\outputs\ESTUDO-STREAM-TV.md.
+- Pontos para corrigir: aprovação final sem exigir toda a regra de idioma/HD/legenda; diferenças de seleção de fichas PC/Android; mutação do molde em perfis-motor.resolver; passos POST ainda ausentes; eventos sem vínculo por sessão.
+- Apenas estudo e testes: nenhuma fonte ou versão publicada e nenhuma mudança na lógica.
+
+
+- Teste LA18HD (10/10/2026): player premiere1 reproduziu imagem no Chrome por cerca de 70 s entre medições, sem erro reportado; resolução 1024x576, abaixo de HD. Candidata, sem aprovação/publicação. TV box e áudio não verificados. Relatório: C:\Users\tikto\Documents\Codex\2026-10-10\es\outputs\TESTE-LA18HD.md.
+
+
+## Integração LA18HD — 10/10/2026
+- Versão local 2.13.58, versionCode 388; não publicada no manifesto automático.
+- Windows instalado e reiniciado em C:\Users\tikto\Conecta TV. Backup anterior preservado na pasta work desta tarefa.
+- TV ao vivo → Mais opções de futebol → LA18HD · Premiere, opcional em 576p conforme interesse expresso do usuário.
+- Resolve a URL temporária por abertura, sem executar scripts da página do fornecedor. Windows via HLS proxy; Android via interceptação nativa independente do PC.
+- 196 testes passam. Decodificação real 120 s sem erros; player integrado ativo por mais de 130 s. Imagem 1024x576, H.264/AAC; amostra de áudio 12 s em português.
+- EXE e APKs celular/TV compilados. Análise Android e assinaturas verificadas. Endpoint do EXE instalado autenticado e funcional.
+- Sem aparelho Android conectado: reprodução física ainda pendente. Não comprova cobertura de Premier League/Copa do Brasil nem estabilidade por uma partida inteira.
+- Entregas e relatório: C:\Users\tikto\Documents\Codex\2026-10-10\es\outputs.
+
+- Publicação autorizada e executada: release v2.13.58 com EXE e dois APKs enviados. latest.json confirmado pela API e URL do commit em 2.13.58/388; três hashes SHA256 conferidos. Cache do endereço main temporariamente retornava 2.13.57 (max-age 300); script apresentou falha nessa conferência apesar do commit correto.
+
+- Conferência após publicação: baixados os três arquivos do release v2.13.58 e comparados SHA256 com os builds locais; todos idênticos. APKs confirmados por aapt: celular br.streamtv.app, TV br.streamtv.app.tv, versão 2.13.58/388; ambos contêm botão LA18HD, endpoint e rótulo 576p. API latest.json correta; endereço raw main ainda retornava cache 2.13.57 nesta conferência.
+
+## Futebol e correção Android — 2.13.59 (10/10/2026)
+- Relato do usuário: LA18HD não abriu no celular. Encontrada causa: enderecoSeguro rejeitava :443 explícito, usado pelo CDN. Corrigido com La18Source.httpsPort; teste Java de regressão aprovado.
+- Página Futebol exclusiva no menu/gaveta: agenda ESPN de Premier League, Brasileirão e Copa do Brasil (slug bra.copa_do_brazil), data, filtro campeonato/ao vivo, placar, horários Brasília e transmissão quando informada. Atualiza a cada minuto; não inventa vínculo jogo→fornecedor.
+- 198 testes aprovados; build/lint/assinaturas Android celular/TV aprovados; APKs 2.13.59/389 verificados. Reprodução browser 576p ativa >36s; sem Android físico conectado.
+- Windows instalado, hash idêntico; página e endpoint de agenda autenticados verificados no instalado.
+- Publicados EXE + dois APKs v2.13.59; hashes/tamanhos do GitHub conferidos e manifesto público 2.13.59/389 confirmado pelo publicador.
+- Relatório e captura em outputs desta tarefa: FUTEBOL-2.13.59.md e futebol-2.13.59.png.
+- Publicador agora confere manifesto gravado e hashes pela API caso o CDN raw esteja atrasado, em vez de reportar falso envio falho.
+
+## Correção de interface — 2.13.60 (10/10/2026)
+- Pedido explícito: Futebol separado de TV; somente ao vivos, sem placares, banner em destaque e foco na transmissão. TV única com busca, sem abas/categorias/seletor de listas.
+- Implementado banner ilustrado de estádio com CTA direto Premiere; jogos live com escudos e opções de transmissão, sem inventar vínculo jogo→canal. Removidos resultados, placares e seleção de data/liga.
+- TV usa lista brasileira única. Corrigida dependência de busca inexistente no Windows; busca Globo validada.
+- 199 testes aprovados; Android celular/TV build/lint/assinaturas aprovados e interface final conferida nos APKs. EXE contém interface e busca finais. Teste visual no servidor do projeto; reprodução pelo banner 21s, 1024x576, sem erro.
+- Publicados três arquivos v2.13.60 com hashes do GitHub conferidos; manifesto gravado 2.13.60/390. Cache raw pode atrasar aviso. Windows instalado permanece na versão anterior; atualização disponível.
+- Usuário vai enviar link Futmax para testar alternativa. Não integrado ainda. Aparelho Android físico não conectado.
+- Captura e relatório: outputs/futebol-2.13.60.png e FUTEBOL-2.13.60.md.
+
+### Agenda e transmissão — 10/10/2026
+A agenda ESPN não identifica o programa exibido no canal Premiere1. Removido o botão por partida que abria canais genéricos e identificado o caráter informativo da agenda. Nome de partida na transmissão depende de programação confirmada do fornecedor; não fixar nomes de times. Fonte e assets Android alinhados. Quatro testes de futebol aprovados, incluindo regressão da associação incorreta.
+
+
+## Mininovelas — integração inicial
+Categoria própria com ReelShort e DramaBox, dados públicos e episódios liberados no player interno. Interface e leitura nativa Android alinhadas; compilação Java aprovada. Caçador ganha categoria short-drama sem usar IDs TMDB, mede prévias e não promove catálogo completo a partir de uma amostra. NetShort, ShortMax, DramaWave e FreeReels continuam pendentes de reprodução validada; Sua Novela aguarda link do usuário. Testes: 208 aprovados e vídeos verticais reais de dois fornecedores reproduzidos em navegador. Não publicado nem instalado nos aparelhos nesta etapa.
+
