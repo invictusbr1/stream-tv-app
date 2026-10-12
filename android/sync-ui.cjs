@@ -35,6 +35,7 @@ html=html.replace('</head>','<link rel="stylesheet" href="/tv.css?v=2.13.53">\n<
 html=require('./phone-ui.cjs').phonePage(html);
 fs.writeFileSync(path.join(assets,'index.html'),html);
 fs.copyFileSync(path.join(root,'playback.js'),path.join(assets,'playback.js'));
+fs.copyFileSync(path.join(root,'reproducao-sessao.js'),path.join(assets,'reproducao-sessao.js'));
 fs.copyFileSync(path.join(root,'futebol.js'),path.join(assets,'futebol.js'));
 for(const name of ['mininovelas.js','mininovelas-source.js'])fs.copyFileSync(path.join(root,name),path.join(assets,name));
 // As legendas do aplicativo (arquivo local e busca na internet) seguem junto

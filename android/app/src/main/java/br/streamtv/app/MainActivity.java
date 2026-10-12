@@ -1025,7 +1025,7 @@ public final class MainActivity extends Activity {
                 }
                 String name = "/".equals(path) ? "index.html" : path.substring(1);
                 // Only the bundled public assets can be served; no arbitrary file paths.
-                if (!name.matches("(?:index\\.html|assistir\\.html|tv\\.css|personal\\.js|library\\.js|auth\\.js|jarvis\\.js|acesso\\.js|legendas\\.js|fontes\\.json|catalog\\.js|android\\.js|config\\.json|playback\\.js|hls\\.min\\.js|vidsrc-source\\.js|listas-tv\\.js|futebol\\.js|mininovelas\\.js|mininovelas-source\\.js|perfis\\.json)")) return error(404);
+                if (!name.matches("(?:index\\.html|assistir\\.html|tv\\.css|personal\\.js|library\\.js|auth\\.js|jarvis\\.js|acesso\\.js|legendas\\.js|fontes\\.json|catalog\\.js|android\\.js|config\\.json|playback\\.js|reproducao-sessao\\.js|hls\\.min\\.js|vidsrc-source\\.js|listas-tv\\.js|futebol\\.js|mininovelas\\.js|mininovelas-source\\.js|perfis\\.json)")) return error(404);
                 try {
                     String mime = name.endsWith(".html") ? "text/html" : name.endsWith(".css") ? "text/css" : name.endsWith(".js") ? "text/javascript" : "application/json";
                     return new WebResourceResponse(mime, "UTF-8", 200, "OK", Collections.singletonMap("Cache-Control", "no-store"), getAssets().open(name));

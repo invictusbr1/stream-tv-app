@@ -30,7 +30,7 @@ test('a central guarda quem entrou, o que assistiu e mostra os números', async 
     fs.mkdirSync(path.join(pasta, 'dados'), { recursive: true });
     const filho = spawn(process.execPath, [path.join(__dirname, 'servidor.js')], {
         cwd: pasta,
-        env: { ...process.env, PORT: String(PORTA), CENTRAL_KEY: CHAVE, CENTRAL_TOKEN: TOKEN, CENTRAL_DADOS: path.join(pasta, 'dados') },
+        env: { ...process.env, NODE_ENV: 'test', PORT: String(PORTA), CENTRAL_KEY: CHAVE, CENTRAL_TOKEN: TOKEN, CENTRAL_DADOS: path.join(pasta, 'dados') },
         stdio: 'ignore'
     });
     try {

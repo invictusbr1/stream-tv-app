@@ -15,6 +15,62 @@ function setup(){
  return {get,timers,run:s=>vm.runInContext(s,ctx),fetch(fn){fetchImpl=fn;},timeout(){const pair=[...timers].find(([id,t])=>t.ms===15000);assert(pair);timers.delete(pair[0]);pair[1].fn();}};
 }
 const sources=[{nome:'A',dub:true,funcionou:true,url:'https://a.example/movie',urlCompatibilidade:'/assistir/238/1'},{nome:'B',dub:true,funcionou:true,url:'https://b.example/movie',urlCompatibilidade:'/assistir/238/2'},{nome:'Legendado',dub:false,funcionou:true,url:'https://c.example/movie'}];
+
+function playbackRecuperavel(s){
+ s.fetch(async()=>({ok:true,json:async()=>({players:sources})}));
+ s.run(`var aberturas=[],opcoesAtuais=null,estadoFake={};window.StreamPlayback=StreamPlayback={stop(){},estado(){return estadoFake;},isActive(){return true;},async start(...args){const caminho=args[3]||'';const id=caminho.includes('mgeb')?'fenix':caminho.includes('watchplay')?'mgeb':'watchplay';estadoFake={fonteId:id,audio:'Dublado',posicao:args[7]?.posicao||0};aberturas.push({args,id});opcoesAtuais=args[7];return true;}};`);
+}
+
+test('recuperação exclui a fonte que parou e mantém ponto, sessão e limite de trocas',async()=>{
+ const s=setup();playbackRecuperavel(s);await s.run("abrirPlayer(238,'Filme')");
+ s.run('var primeira=opcoesAtuais');
+ assert.equal(s.run("primeira.onInterrupted({fonteId:'watchplay',audio:'Dublado',posicao:127.5})"),true);
+ assert.equal(s.run("primeira.onInterrupted({fonteId:'watchplay',audio:'Dublado',posicao:127.5})"),false,'evento repetido não cria outra busca');
+ await new Promise(setImmediate);
+ assert.equal(s.run('aberturas.length'),2);assert.match(s.run('aberturas[1].args[3]'),/exceto=watchplay/);assert.equal(s.run('aberturas[1].args[7].posicao'),127.5);
+ assert.equal(s.run("opcoesAtuais.onInterrupted({fonteId:'mgeb',audio:'Dublado',posicao:180})"),true);await new Promise(setImmediate);
+ assert.equal(s.run('aberturas.length'),3);assert.match(decodeURIComponent(s.run('aberturas[2].args[3]')),/exceto=watchplay,mgeb/);
+ assert.equal(s.run("opcoesAtuais.onInterrupted({fonteId:'fenix',audio:'Dublado',posicao:190})"),false,'duas trocas automáticas por abertura evitam loop');
+ assert.equal(s.run('aberturas.length'),3);
+});
+
+test('fechar e trocar episódio invalidam os callbacks da sessão anterior',async()=>{
+ const s=setup();playbackRecuperavel(s);await s.run("abrirPlayer(1399,'Episódio',{season:2,number:4})");s.run('var antiga=opcoesAtuais');
+ await s.run("abrirPlayer(1399,'Outro episódio',{season:2,number:5})");
+ assert.equal(s.run("antiga.onInterrupted({fonteId:'watchplay',audio:'Dublado',posicao:100})"),false);s.run('var atual=opcoesAtuais;fechar()');
+ assert.equal(s.run("atual.onInterrupted({fonteId:'watchplay',audio:'Dublado',posicao:100})"),false);assert.equal(s.run('aberturas.length'),2);
+});
+
+test('uma fonte escolhida manualmente cancela recuperação anterior pendente',async()=>{
+ const s=setup();playbackRecuperavel(s);await s.run("abrirPlayer(238,'Filme')");await new Promise(setImmediate);s.run('var antiga=opcoesAtuais;carregarFonte(0,true)');
+ assert.equal(s.run("antiga.onInterrupted({fonteId:'watchplay',audio:'Dublado',posicao:100})"),false);assert.equal(s.get('frame').src,sources[0].url);assert.equal(s.run('aberturas.length'),1);
+});
+
+test('a recuperação de episódio dublado não autoriza uma troca silenciosa de idioma',async()=>{
+ const s=setup();playbackRecuperavel(s);await s.run("abrirPlayer(1399,'Episódio',{season:2,number:4})");
+ assert.equal(s.run('aberturas[0].args[5]'),true,'mantém o comportamento da abertura original de série');
+ s.run("opcoesAtuais.onInterrupted({fonteId:'watchplay',audio:'Dublado',posicao:100})");await new Promise(setImmediate);
+ assert.equal(s.run('aberturas[1].args[5]'),false);assert.match(s.run('aberturas[1].args[3]'),/serie\/1399\/2\/4/);
+});
+
+test('resposta Full HD antiga não toca nem reabre o player depois de fechar',async()=>{
+ const s=setup();playbackRecuperavel(s);await s.run("abrirPlayer(238,'Filme')");await new Promise(setImmediate);
+ let resolver;s.fetch(()=>new Promise(resolve=>resolver=resolve));const pendente=s.run('alternarFullHd()');s.run('fechar()');
+ resolver({ok:true,json:async()=>({ok:true,urlAplicativo:'/api/hls?u=filme',fonteId:'vixsrc'})});await pendente;
+ assert.equal(s.run('aberturas.length'),1);assert.equal(s.get('player').classList.contains('ativo'),false);
+});
+
+test('botão Full HD identifica fornecedor para permitir recuperação posterior',async()=>{
+ const s=setup();playbackRecuperavel(s);await s.run("abrirPlayer(238,'Filme')");await new Promise(setImmediate);
+ s.fetch(async()=>({ok:true,json:async()=>({ok:true,urlAplicativo:'/api/hls?u=filme',fonteId:'vixsrc'})}));await s.run('alternarFullHd()');
+ assert.equal(s.run('aberturas.at(-1).args[6].id'),'vixsrc');
+});
+
+test('abrir canal declara transmissão ao vivo e elimina o título de filme anterior',async()=>{
+ const s=setup();playbackRecuperavel(s);await s.run("abrirPlayer(238,'Filme')");
+ await s.run("tocarCanal({nome:'Canal',url:'https://canal.example/master.m3u8'})");
+ assert.equal(s.run('filmeAtual'),null);assert.equal(s.run('aberturas.at(-1).args[6].live'),true);
+});
 test('only dub candidates; detected failure advances once, then opens options without looping',async()=>{const s=setup();s.fetch(async()=>({ok:true,json:async()=>({players:sources})}));await s.run("abrirPlayer(238,'Filme')");assert.equal(s.run('players.length'),2);assert.equal(s.get('opcoes').hidden,true);assert.equal(s.get('frame').src,sources[0].url);const stale=s.get('frame').onload;s.timeout();assert.equal(s.get('frame').src,sources[1].url);stale();assert(s.get('loading').classList.contains('vis'));s.timeout();assert.equal(s.get('opcoes').hidden,false);assert(s.get('loading').classList.contains('erro'));assert.equal(s.get('frame').src,'about:blank');assert.equal(s.timers.size,0);});
 test('loaded iframe is not interrupted by an assumed playback deadline',async()=>{const s=setup();s.fetch(async()=>({ok:true,json:async()=>({players:sources})}));await s.run("abrirPlayer(238,'Filme')");s.get('frame').onload();assert.equal(s.timers.size,0);assert.equal(s.get('frame').src,sources[0].url);assert(!s.get('loading').classList.contains('vis'));});
 test('close cancels stale source response and stale load events',async()=>{const s=setup();let resolve;s.fetch(()=>new Promise(r=>resolve=r));const pending=s.run("abrirPlayer(238,'Filme')");s.run('fechar()');resolve({ok:true,json:async()=>({players:sources})});await pending;assert.equal(s.run('players.length'),0);assert.equal(s.get('frame').src,'about:blank');assert(!s.get('player').classList.contains('ativo'));assert.equal(s.timers.size,0);});

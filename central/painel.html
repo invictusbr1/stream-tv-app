@@ -61,6 +61,12 @@ tbody tr:hover{background:#ffffff06}
 .erro-topo{margin:0 0 16px;background:#3a1717;border:1px solid #ff6b6b44;color:#ffd0d0;border-radius:12px;padding:12px 14px;font-size:13px;display:none}
 .rodape{color:var(--fraco);font-size:12px;text-align:center;padding:8px 0 30px}
 code{background:#ffffff10;padding:2px 6px;border-radius:6px;font-size:12.5px}
+.reproducao-sessao{border-top:1px solid var(--borda)}
+.reproducao-sessao:first-child{border-top:0}
+.reproducao-sessao summary{cursor:pointer;padding:12px 16px}
+.reproducao-sessao summary .fraco{font-size:12px;margin-left:8px}
+.reproducao-tabela{overflow-x:auto}
+.reproducao-motivo{display:block;white-space:normal;max-width:280px;font-size:12px;margin-top:4px}
 </style>
 </head>
 <body>
@@ -93,6 +99,11 @@ code{background:#ffffff10;padding:2px 6px;border-radius:6px;font-size:12.5px}
         <h2>Últimas sessões <small>o que abriu, por qual fonte e se deu certo</small></h2>
         <table><thead><tr><th>Quando</th><th>Quem</th><th>Título</th><th>Fonte</th><th>Áudio</th><th>Qualidade</th><th>Resultado</th></tr></thead>
         <tbody id="linha-eventos"></tbody></table>
+      </section>
+      <section class="bloco">
+        <h2>Reprodução por tentativa <small id="reproducao-total"></small></h2>
+        <p class="mini" id="reproducao-nota">Tempo até a primeira imagem, travamentos e troca de fonte. Fechar uma reprodução não conta como falha de fornecedor.</p>
+        <div id="reproducao-sessoes"></div>
       </section>
       <section class="bloco">
         <h2>Qualidade por título <small id="titulos-total"></small></h2>
@@ -177,12 +188,49 @@ function quando(minutos) {
 // O resultado na tela é honesto: só diz "abriu" quando há fonte registrada,
 // e diz "não abriu" para qualquer relato de falha.
 function resultado(e) {
+  if (e.tipo === 'reproducao') return resultadoReproducao(e.resultado);
   if (e.ok === false || e.tipo === 'falha') return selo('não abriu', 'ruim');
   if (e.tipo === 'confirmacao') return selo('tocou de verdade', 'on');
   if (!e.fonte) return selo('sem confirmação', 'medio');
   return selo('abriu', 'on');
 }
+function resultadoReproducao(valor) {
+  const rotulos = { abriu: ['tocou', 'on'], falhou: ['falhou', 'ruim'], fechou: ['encerrado', 'off'], concluiu: ['concluído', 'on'], trocou: ['fonte substituída', 'medio'], aguardando: ['aguardando imagem', 'medio'] };
+  const [rotulo, classe] = rotulos[valor] || rotulos.aguardando;
+  return selo(rotulo, classe);
+}
+function tempoMedido(ms) { return ms === null || ms === undefined ? '—' : (Number(ms) / 1000).toLocaleString('pt-BR', { maximumFractionDigits: 1 }) + ' s'; }
+function posicaoMedida(segundos) {
+  if (segundos === null || segundos === undefined) return '—';
+  const n = Math.max(0, Math.floor(Number(segundos) || 0));
+  return Math.floor(n / 60) + ':' + String(n % 60).padStart(2, '0');
+}
+function pintarReproducao(dados) {
+  const diagnostico = dados.reproducaoDiagnostico || { sessoes: [] };
+  const alvo = el('reproducao-sessoes');
+  const abertas = new Set([...alvo.querySelectorAll('details[open]')].map(d => d.dataset.sessao));
+  const primeiraVez = !alvo.children.length;
+  const sessoes = diagnostico.sessoes || [];
+  const total = diagnostico.total || 0;
+  el('reproducao-total').textContent = `${total} ${total === 1 ? 'sessão' : 'sessões'} no histórico`;
+  el('reproducao-nota').textContent = diagnostico.persistenciaErro || 'Tempo até a primeira imagem, travamentos e troca de fonte. Fechar uma reprodução não conta como falha de fornecedor.';
+  alvo.innerHTML = sessoes.length ? sessoes.map((s, indice) => {
+    const chave = `${s.dispositivo || ''}:${s.sessao}`;
+    const aberto = abertas.has(chave) || primeiraVez && indice === 0;
+    const recuperacoes = s.recuperacoes ? ` · ${s.recuperacoes} ${s.recuperacoes === 1 ? 'recuperação' : 'recuperações'}` : '';
+    const em = new Date(s.atualizadoEm || '').toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+    return `<details class="reproducao-sessao" data-sessao="${escapar(chave)}"${aberto ? ' open' : ''}>
+      <summary><span class="nome">${escapar(s.titulo || 'Título sem nome')}</span> ${resultadoReproducao(s.resultado)}<br>
+      <span class="fraco">${escapar(s.nome || 'Anônimo')} · ${escapar(s.aparelho || s.app || 'Aparelho')} · ${escapar(em)}${escapar(recuperacoes)}</span></summary>
+      <div class="reproducao-tabela"><table><thead><tr><th>Tentativa</th><th>Fonte</th><th>Primeira imagem</th><th>Travamentos</th><th>Posição</th><th>Qualidade</th><th>Resultado / motivo</th></tr></thead><tbody>
+      ${(s.tentativas || []).map(t => `<tr><td>${t.tentativa}</td><td>${escapar(t.fonte || t.fonteId || 'sem fonte')}</td>
+      <td>${tempoMedido(t.tempoAberturaMs)}</td><td>${t.travamentos || 0} · ${tempoMedido(t.tempoTravadoMs || 0)}</td>
+      <td>${posicaoMedida(t.posicao)}</td><td>${escapar(t.resolucao || 'sem medição')}</td><td>${resultadoReproducao(t.resultado)}${t.motivo ? `<span class="fraco reproducao-motivo">${escapar(t.motivo)}</span>` : ''}</td></tr>`).join('')}
+      </tbody></table></div></details>`;
+  }).join('') : '<p class="vazio">As próximas reproduções dos aplicativos atualizados aparecerão aqui por sessão e tentativa.</p>';
+}
 function pintar(dados) {
+  pintarReproducao(dados);
   const r = dados.resumo;
   el('cartoes').innerHTML = [
     ['pessoas', r.pessoas, 'pessoas cadastradas'],

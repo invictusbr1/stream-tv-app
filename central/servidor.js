@@ -21,6 +21,7 @@ const { criarPlacar } = require('./placar.js');
 const { criarPedidos } = require('./pedidos.js');
 const { criarRevisor } = require('./revisor.js');
 const { criarClienteApp } = require('./app-client.js');
+const { criarDiagnostico, normalizarEvento, textoSeguro, identificador } = require('./diagnostico-playback.js');
 
 const app = express();
 const PORTA = Number(process.env.PORT || process.env.CENTRAL_PORT || 4100);
@@ -73,6 +74,7 @@ fs.mkdirSync(DADOS, { recursive: true });
 const agente = criarAgente({ pastaDados: DADOS, appUrl: APP_URL, codigoApp: APP_CODIGO });
 // Histórico de qualidade por título (alimentado pelos eventos do aplicativo).
 const titulos = criarRegistro({ pastaDados: DADOS });
+const reproducao = criarDiagnostico({ pastaDados: DADOS });
 // Placar real: o que acontece com quem usa o aplicativo (aberturas, confirmações
 // e falhas por fonte). Entra na nota do caçador e na ordem das fontes no app.
 const placar = criarPlacar({ arquivoEventos: ARQ_EVENTOS });
@@ -146,6 +148,7 @@ function atualizarPlacarSePreciso(forcar = false) {
     return tabela;
 }
 function tokenDoGithub() {
+    if (process.env.NODE_ENV === 'test') return '';
     try { return fs.readFileSync(path.join(require('os').homedir(), '.streamtv', 'github-token.txt'), 'utf8').trim(); } catch { return ''; }
 }
 function lerEventos(limite = 4000) {
@@ -207,6 +210,8 @@ app.post('/api/acesso', (req, res) => {
 app.post('/api/evento', (req, res) => {
     if (TOKEN_APPS && String(req.headers['x-central'] || '') !== TOKEN_APPS) return res.status(401).json({ error: 'token da central inválido' });
     const corpo = req.body || {};
+    const medidas = normalizarEvento(corpo);
+    if (corpo.tipo === 'reproducao' && (!medidas || !medidas.resultado)) return res.status(400).json({ error: 'informe sessão, tentativa e resultado válidos' });
     const evento = {
         em: new Date().toISOString(),
         tipo: texto(corpo.tipo, 24) || 'sessao',
@@ -224,7 +229,7 @@ app.post('/api/evento', (req, res) => {
         fonte: texto(corpo.fonte, 40),
         // Identificador da fonte (ex.: watchplay, pipoca, vixsrc, ficha do
         // caçador): é o que liga o relato do aparelho ao placar das fontes.
-        fonteId: texto(corpo.fonteId, 40),
+        fonteId: identificador(corpo.fonteId, 40),
         audio: texto(corpo.audio, 20),
         resolucao: texto(corpo.resolucao, 20),
         taxa: texto(corpo.taxa, 20),
@@ -232,8 +237,15 @@ app.post('/api/evento', (req, res) => {
         // Um relato do tipo "falha" nunca pode aparecer como "abriu", mesmo que
         // o aplicativo antigo não mande o campo ok.
         ok: texto(corpo.tipo, 24) === 'falha' ? false : corpo.ok !== false,
-        motivo: texto(corpo.motivo, 120)
+        motivo: textoSeguro(corpo.motivo, 120)
     };
+    if (evento.tipo === 'reproducao') {
+        for (const campo of ['dispositivo', 'nome', 'aparelho', 'app', 'versao', 'id', 'episodio', 'temporada', 'numero', 'titulo', 'fonte', 'audio', 'resolucao', 'taxa']) evento[campo] = textoSeguro(evento[campo], 120);
+    }
+    if (medidas) Object.assign(evento, medidas);
+    // O resumo descreve como a tentativa terminou. A falha real continua
+    // chegando pelo evento antigo, sem somar de novo ao placar ou ao agente.
+    if (evento.tipo === 'reproducao') evento.ok = evento.resultado !== 'falhou';
     // A avaliação em tempo real (disputa das fontes) vem como lista — guarda
     // o que dá para o painel mostrar por título.
     if (Array.isArray(corpo.avaliacao)) {
@@ -246,8 +258,9 @@ app.post('/api/evento', (req, res) => {
         }));
     }
     anotarEvento(evento);
+    try { reproducao.registrar(evento); } catch { /* diagnóstico não impede receber o relato */ }
     // Histórico por título (qualidade medida, escolha e falhas).
-    try { titulos.registrar(evento); } catch { /* o evento já foi anotado */ }
+    if (evento.tipo !== 'reproducao') { try { titulos.registrar(evento); } catch { /* o evento já foi anotado */ } }
     // Placar das fontes: só o relato que fala de fonte (abertura, confirmação ou
     // falha) mexe no placar — e, com ele, na ordem das fontes no aplicativo.
     if (['play', 'confirmacao', 'falha'].includes(evento.tipo)) marcarPlacarParaAtualizar();
@@ -259,7 +272,7 @@ app.post('/api/evento', (req, res) => {
         } catch { /* pedido é opcional */ }
     }
     // Player que não abriu entra na fila do agente, que vai testar as fontes.
-    if (evento.ok === false) agente.registrarFalha(evento);
+    if (evento.ok === false && evento.tipo !== 'reproducao') agente.registrarFalha(evento);
     if (evento.tipo === 'confirmacao') agente.registrarConfirmacao(evento);
     if (evento.dispositivo) {
         const lista = lerJson(ARQ_DISPOSITIVOS, {});
@@ -294,6 +307,7 @@ app.post('/api/entrar', (req, res) => {
 });
 
 app.get('/api/status', exigirChave, async (req, res) => res.json(await gerarStatus()));
+app.get('/api/reproducao', exigirChave, (req, res) => res.json(reproducao.resumo()));
 app.get('/api/health', (req, res) => res.json({ status: 'ok', app: 'central-conecta-tv' }));
 
 // ------------------------------------------------------------------ ações
@@ -463,10 +477,10 @@ async function gerarStatus() {
 
     const eventosDeHoje = eventos.filter(e => String(e.em).slice(0, 10) === hoje);
     const sessoes = eventosDeHoje.filter(e => e.tipo === 'play' || e.tipo === 'sessao');
-    const falhas = eventosDeHoje.filter(e => e.ok === false);
+    const falhas = eventosDeHoje.filter(e => e.ok === false && e.tipo !== 'reproducao');
 
     const porFonte = {};
-    for (const evento of eventos.filter(e => e.fonte)) {
+    for (const evento of eventos.filter(e => e.fonte && e.tipo !== 'reproducao')) {
         const alvo = porFonte[evento.fonte] || (porFonte[evento.fonte] = { fonte: evento.fonte, total: 0, ok: 0, falhas: 0, ultimaFalha: null, ultimoUso: null, resolucoes: new Set() });
         alvo.total++;
         if (evento.ok === false) { alvo.falhas++; if (!alvo.ultimaFalha || evento.em > alvo.ultimaFalha) alvo.ultimaFalha = evento.em; }
@@ -528,6 +542,7 @@ async function gerarStatus() {
         cacadorAndamento: cacador.progresso ? cacador.progresso() : null,
         cacadorFila: cacador.fila ? cacador.fila() : null,
         cacadorDiagnostico: cacador.diagnostico(),
+        reproducaoDiagnostico: reproducao.resumo(),
         placar: atualizarPlacarSePreciso(),
         pedidos: pedidos.resumo(),
         fichas: (cacador.fichas ? cacador.fichas() : []).map(f => ({

@@ -337,6 +337,7 @@ app.get('/hls.min.js', (req, res) => res.type('js').send(fs.readFileSync(path.jo
 // O player vai sem cache: a atualização vale na hora, sem o navegador ficar
 // com a versão antiga guardada.
 app.get('/playback.js', (req, res) => { res.setHeader('Cache-Control', 'no-store'); res.type('js').send(fs.readFileSync(path.join(__dirname, 'playback.js'))); });
+app.get('/reproducao-sessao.js', (req, res) => { res.setHeader('Cache-Control', 'no-store'); res.type('js').send(fs.readFileSync(path.join(__dirname, 'reproducao-sessao.js'))); });
 
 // ============================================================
 // ENCAMINHAMENTO DO VÍDEO — o provedor de mídia exige um "referer"
