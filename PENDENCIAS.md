@@ -5,6 +5,21 @@
 
 ## Última versão publicada
 
+### 2.13.68 / 398 — primeira etapa de estabilidade, publicada em 12/10/2026
+
+- Implementação e publicação continuadas conforme autorização do usuário: https://github.com/invictusbr1/stream-tv-atualizacoes/releases/tag/v2.13.68.
+- Filmes e episódios no player interno recuperam uma interrupção após a primeira imagem, procuram uma fonte diferente e mantêm o ponto, temporada/episódio e exigência de português. Máximo de duas trocas automáticas por abertura; fonte que falhou fica excluída. Se não houver alternativa compatível, mantém o progresso e oferece as opções existentes.
+- Travamento prolongado: após 6s, Melhor disponível passa para qualidade automática; após 20s sem avanço tenta recuperar. Resolução escolhida manualmente é respeitada. Pausa, busca, término, fechamento e aba oculta não contam como falha. Qualidade mostrada prioriza a imagem medida.
+- Diagnóstico por sessão e tentativa na central: tempo até a primeira imagem, posição, travamentos/tempo parado, fornecedor e resultado. Resumos não duplicam falhas nem acionam investigação indevidamente. Persistência com backup, limite de 200 sessões/21 dias e 20 tentativas por sessão; sem URLs temporárias ou credenciais.
+- Protegidos os retornos atrasados ao fechar, trocar fonte/episódio e pedir Full HD. TV ao vivo limpa o contexto de filme e mantém controles de transmissão ao vivo.
+- Validação: 334 testes, zero falhas/ignorados; três cenários no Chromium real com HLS local e falha HTTP 503 (filme, episódio, fechar durante recuperação), zero erros JavaScript; build/lint celular e Android TV; smoke dos dois executáveis. Vídeo de controle 320x180: prova de recuperação, não de HD nem fornecedor externo.
+- Quatro pacotes e downloads públicos completos conferidos por tamanho/SHA256; assinatura Android preservada. Ambos os endereços públicos conferidos na versão 2.13.68/398.
+- Código funcional: 580cae5b11730f72f8d0fe76ff136cf53823ec8d. A preparação dos APKs preservou os endereços públicos de central/descoberta/Jarvis/Supabase e o verificador compara esses campos; configuração privada não foi publicada.
+- Aplicativo e central instalados no computador atualizados, incluindo index.html externo que tem precedência sobre o pacote. Versão, interface, novo helper e API de diagnóstico conferidos. Configurações e históricos mantidos; executáveis/interface anteriores em C:/Users/tikto/Documents/Codex/2026-10-10/cha/work/backup-instalados-2.13.68.
+- Limites: recuperação exige outra fonte interna com suporte ao ponto; iframe externo e conversão incompleta não garantem retomada. Não foi feito teste físico no celular ou Samsung. Mini novelas têm adaptadores próprios, sem nova recuperação específica nesta etapa. Servidor independente do PC e instalação Samsung continuam separados.
+- Próximas etapas: sincronizar favoritos/progresso/assistidos por registro e data (incluindo exclusões/offline e renovação de sessão); selos baseados em prova; validação em aparelhos reais e recuperação da versão estável.
+- Evidências: C:/Users/tikto/Documents/Codex/2026-10-10/cha/outputs/verificacao-release-2.13.68.json, downloads-publicos-2.13.68.json, recuperacao-2.13.68-player-real.json, instalacao-local-2.13.68.json e primeira-etapa-profissional-2.13.68.md.
+
 ### 2.13.67 / 397 — publicada em 12/10/2026
 
 - Publicação autorizada pelo usuário: https://github.com/invictusbr1/stream-tv-atualizacoes/releases/tag/v2.13.67.
