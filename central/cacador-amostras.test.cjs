@@ -82,3 +82,11 @@ test('falta de título e rejeição de qualidade não derrubam o domínio inteir
     assert.equal(falhaDeDominio({status:0,situacao:'descartada'}), true);
     assert.equal(falhaDeDominio(null), true);
 });
+
+test('provas de séries e addons conservam tipo TV e coordenadas em todos os caminhos', () => {
+    const { amostrasParaCategoria } = require('./cacador');
+    const [serie, addon] = amostrasParaCategoria({tipo:'tv'}, [{id:'1399',temporada:'2',episodio:'3'}, {id:'tt123456'}]);
+    assert.equal(serie.tipo, 'tv'); assert.equal(serie.temporada, '2'); assert.equal(serie.episodio, '3');
+    assert.equal(addon.tipo, 'tv'); assert.equal(addon.imdb, 'tt123456'); assert.equal(addon.episodio, '1');
+    assert.equal(amostrasParaCategoria({tipo:'movie'}, [{id:'27205'}])[0].tipo, 'movie');
+});

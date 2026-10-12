@@ -64,6 +64,9 @@ function Enviar-Arquivo([string]$caminho, [string]$tipo) {
 
 Enviar-Arquivo $apk 'application/vnd.android.package-archive'
 
+# Preserve download channels that are not being rebuilt in this publication.
+$manifestoAntes = Invoke-RestMethod -Uri "https://api.github.com/repos/$repo/contents/latest.json?ref=main" -Headers $headers -Method Get
+$feedAntes = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($manifestoAntes.content)) | ConvertFrom-Json
 $feed = [ordered]@{
     versionCode = $versionCode
     versionName = $release
@@ -71,6 +74,10 @@ $feed = [ordered]@{
     sha256      = $sha
     bytes       = $bytes
     notes       = $Notes
+}
+
+foreach ($campo in @('exeUrl','exeSha256','exeBytes','apkTvUrl','apkTvSha256','apkTvBytes')) {
+    if ($feedAntes.PSObject.Properties.Name -contains $campo) { $feed[$campo] = $feedAntes.$campo }
 }
 
 # O aplicativo da TV tem pacote próprio e recebe o APK dele no mesmo aviso.
@@ -99,6 +106,13 @@ $conteudo = ($feed | ConvertTo-Json -Depth 3)
 $atual = Invoke-RestMethod -Uri "https://api.github.com/repos/$repo/contents/latest.json" -Headers $headers -Method Get
 $envio = @{ message = "Publica atualização $release"; content = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($conteudo)); sha = $atual.sha } | ConvertTo-Json
 Invoke-RestMethod -Uri "https://api.github.com/repos/$repo/contents/latest.json" -Headers $headers -Method Put -Body $envio -ContentType 'application/json' | Out-Null
+
+# Keep the app's GitHub Pages fallback feed in sync with the primary update feed.
+$repoApp = 'invictusbr1/stream-tv-app'
+$feedReserva = Invoke-RestMethod -Uri "https://api.github.com/repos/$repoApp/contents/docs/latest.json" -Headers $headers -Method Get
+$envioReserva = @{ message = "Atualiza aviso Android $release"; content = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($conteudo)); sha = $feedReserva.sha } | ConvertTo-Json
+Invoke-RestMethod -Uri "https://api.github.com/repos/$repoApp/contents/docs/latest.json" -Headers $headers -Method Put -Body $envioReserva -ContentType 'application/json' | Out-Null
+[IO.File]::WriteAllText((Join-Path (Split-Path -Parent $PSScriptRoot) 'docs\latest.json'), $conteudo, [Text.UTF8Encoding]::new($false))
 
 # Confere o manifesto publicado de verdade (o script já subiu o APK sem
 # atualizar o aviso uma vez; esta conferência evita repetir o erro).

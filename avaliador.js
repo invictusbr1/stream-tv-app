@@ -110,13 +110,17 @@ function notaDaFonte(medida) {
     else { detalhes.idioma = 'idioma não informado'; }
 
     // 2) Qualidade — medida quando possível; senão, a informada pela fonte.
-    const alturaMedida = sonda && sonda.altura ? sonda.altura : 0;
+    // A reserva de conversão usa só o rótulo da fonte, ainda sem sondar o
+    // vídeo. Ela não pode transformar a promessa em uma medição.
+    const alturaMedida = sonda && !sonda.conversao && sonda.altura ? sonda.altura : 0;
     const alturaInformada = Number(String(dados.resolucao || '').replace(/\D/g, '')) || 0;
-    const altura = Math.max(alturaMedida, alturaInformada);
-    if (altura >= 1080) { nota += 2; detalhes.qualidade = altura + 'p medido'; }
-    else if (altura >= 720) { nota += 1.5; detalhes.qualidade = altura + 'p'; }
-    else if (altura >= 480) { nota += 0.6; detalhes.qualidade = altura + 'p'; }
-    else { nota += 0.4; detalhes.qualidade = 'não mediu a altura'; }
+    const altura = alturaMedida || alturaInformada;
+    const evidenciaQualidade = alturaMedida ? 'medido' : 'informado pela fonte';
+    if (altura >= 1080) nota += 2;
+    else if (altura >= 720) nota += 1.5;
+    else if (altura >= 480) nota += 0.6;
+    else nota += 0.4;
+    detalhes.qualidade = altura > 0 ? `${altura}p ${evidenciaQualidade}` : 'não mediu a altura';
 
     // 3) Taxa de bits (quando a lista informa).
     const banda = (sonda && sonda.banda) || 0;

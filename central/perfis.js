@@ -42,17 +42,23 @@ function ler(pastaDados) {
 }
 
 function gravar(pastaDados, dados) {
+    let temporario = '';
     try {
         const destino = arquivo(pastaDados);
         fs.mkdirSync(path.dirname(destino), { recursive: true });
-        fs.writeFileSync(destino, JSON.stringify({
+        temporario = destino + '.tmp-' + process.pid;
+        fs.writeFileSync(temporario, JSON.stringify({
             atualizadoEm: new Date().toISOString(),
             perfis: dados.perfis || [],
             listasTv: dados.listasTv || [],
             placar: dados.placar || [],
         }, null, 1));
+        fs.renameSync(temporario, destino);
         return true;
-    } catch { return false; }
+    } catch {
+        if (temporario) { try { fs.unlinkSync(temporario); } catch { /* sem arquivo temporário */ } }
+        return false;
+    }
 }
 
 function listar(pastaDados) { return ler(pastaDados).perfis; }
@@ -173,7 +179,7 @@ function inferirDeStremio({ candidata, imdbServico, modelo: modeloPronto }) {
 }
 
 async function buscarTexto(endereco, referer = '') {
-    const resposta = await axios.get(endereco, {
+    const resposta = await require('./rede-cacador').get(endereco, {
         timeout: 15000, responseType: 'text', maxRedirects: 4,
         maxContentLength: 3 * 1024 * 1024, validateStatus: s => s < 400,
         headers: { 'User-Agent': UA, ...(referer ? { Referer: referer } : {}) },
@@ -184,9 +190,11 @@ async function buscarTexto(endereco, referer = '') {
 // ---------------------------------------------------------------- validação
 // Testa a ficha em títulos que não foram usados para criá-la. Só passa quem
 // abre de verdade em pelo menos dois deles.
-async function validar(ficha, amostras, { buscar = buscarTexto, registrar = () => {} } = {}) {
+async function validar(ficha, amostras, { buscar = buscarTexto, sondar = sondagemRapida, registrar = () => {} } = {}) {
     const provas = [];
-    for (const amostra of amostras.slice(0, 3)) {
+    const titulosVistos = new Set();
+    const videosVistos = new Set();
+    for (const amostra of (Array.isArray(amostras) ? amostras : [])) {
         // Addons do Stremio são pedidos pelo CÓDIGO IMDb. Quando a amostra já é
         // um código (tt123…), ele vale como o próprio identificador — sem isso
         // o endereço saía com o campo vazio e a ficha era recusada por engano.
@@ -194,26 +202,44 @@ async function validar(ficha, amostras, { buscar = buscarTexto, registrar = () =
         const alvo = amostra.tipo === 'tv'
             ? { tipo: 'tv', tmdbId: String(amostra.id), temporada: String(amostra.temporada || 1), episodio: String(amostra.episodio || 1), imdb }
             : { tipo: 'movie', tmdbId: String(amostra.id), imdb };
+        // Repetir a mesma série ou filme não oferece uma segunda prova, mesmo
+        // quando outro episódio ou nome foi usado na amostra.
+        const chave = alvo.tipo + ':' + (imdb || alvo.tmdbId);
+        if (titulosVistos.has(chave)) continue;
+        titulosVistos.add(chave);
+        if (provas.length >= 3) break;
         const pronto = await motor.resolver(ficha, alvo, { buscar }).catch(() => null);
         if (!pronto) { provas.push({ amostra: amostra.titulo, ok: false, motivo: 'não achei o vídeo' }); continue; }
-        const sonda = await sondagemRapida(pronto.url, pronto.referer).catch(() => null);
+        // Uma página que sempre entrega a mesma prévia não comprova catálogo.
+        if (videosVistos.has(pronto.url)) { provas.push({ amostra: amostra.titulo, ok: false, motivo: 'o mesmo vídeo foi devolvido para outro título' }); continue; }
+        videosVistos.add(pronto.url);
+        const sonda = await sondar(pronto.url, pronto.referer).catch(() => null);
         const viva = Boolean(sonda && sonda.viva);
+        const altura = Math.max(0, Number(sonda && sonda.altura) || 0);
+        const dublado = sonda && typeof sonda.dublado === 'boolean' ? sonda.dublado : null;
+        const atendePadrao = viva && altura >= 720 && dublado === true && !sonda.avisoAudio;
+        const motivo = !viva ? 'o endereço não devolveu vídeo'
+            : sonda.avisoAudio ? 'o áudio não é compatível com o player'
+            : altura < 720 ? 'alta definição não comprovada'
+            : dublado !== true ? 'áudio em português não comprovado'
+            : '';
         provas.push({
             amostra: amostra.titulo, ok: viva, url: pronto.url,
-            altura: sonda ? sonda.altura : 0,
-            dublado: sonda ? sonda.dublado : null,
+            altura, dublado, atendePadrao,
             evidencia: sonda ? sonda.evidencia : '',
-            motivo: viva ? '' : 'o endereço não devolveu vídeo',
+            motivo,
         });
-        registrar(`ficha ${ficha.nome}: ${amostra.titulo} → ${viva ? 'abriu' : 'não abriu'}`);
+        registrar(`ficha ${ficha.nome}: ${amostra.titulo} → ${atendePadrao ? 'HD com áudio em português' : motivo}`);
     }
     const abertas = provas.filter(p => p.ok);
-    if (abertas.length < 2) return { aprovada: false, provas };
-    const comAudio = abertas.filter(p => p.dublado === true).length;
-    const semAudio = abertas.filter(p => p.dublado === false).length;
-    const altura = Math.max(0, ...abertas.map(p => p.altura || 0));
+    const aprovadas = abertas.filter(p => p.atendePadrao);
+    if (aprovadas.length < 2 || abertas.some(p => !p.atendePadrao)) {
+        return { aprovada: false, emAnalise: abertas.length > 0, motivo: 'faltam duas provas independentes em HD com áudio em português', provas, ajustes: { ativo: false } };
+    }
+    // A qualidade anunciada é a que todas as provas alcançaram.
+    const altura = Math.min(...aprovadas.map(p => p.altura));
     const qualidade = altura >= 1080 ? '1080p' : altura >= 720 ? '720p' : altura ? altura + 'p' : '';
-    const dublado = comAudio > 0 && semAudio === 0;
+    const dublado = true;
     const nota = Math.max(0, Math.min(10,
         (dublado ? 4 : 1.5) +
         (altura >= 1080 ? 2 : altura >= 720 ? 1.4 : 0.6) +
@@ -252,11 +278,18 @@ function registrarFicha(pastaDados, ficha, avaliacao, extras = {}) {
         // de três validações ruins seguidas — e nunca perde a nota que já tem.
         const seguiaAtiva = anterior.ativo !== false && juntar.ativo === false;
         if (seguiaAtiva) {
+            // Uma ficha que funcionava conserva os endereços e regras já
+            // validados. Uma tentativa incompleta não substitui sua receita.
+            for (const campo of ['urlMovie', 'urlTv', 'passos', 'referer', 'tipos']) {
+                if (Object.prototype.hasOwnProperty.call(anterior, campo)) juntar[campo] = anterior[campo];
+            }
             juntar.ativo = true;
             juntar.nota = anterior.nota;
-            juntar.qualidade = juntar.qualidade || anterior.qualidade;
+            juntar.qualidade = anterior.qualidade;
             juntar.dublado = anterior.dublado;
-            juntar.falhasDeValidacao = (Number(anterior.falhasDeValidacao) || 0) + 1;
+            // Metadados desconhecidos ou insuficientes mantêm a candidata em
+            // análise; só indisponibilidade real entra no castigo existente.
+            juntar.falhasDeValidacao = (Number(anterior.falhasDeValidacao) || 0) + (avaliacao && avaliacao.emAnalise ? 0 : 1);
             if (juntar.falhasDeValidacao >= 3) {
                 juntar.ativo = false;
                 juntar.motivo = `três validações seguidas sem abrir em dois títulos (${juntar.falhasDeValidacao})`;
@@ -317,25 +350,27 @@ function gravarPlacar(pastaDados, tabela) {
 // Publica as fichas aprovadas no mesmo repositório que guarda o aviso de
 // versão — assim o celular e o computador leem o mesmo arquivo, sem depender
 // de o computador estar ligado.
-async function publicar(pastaDados, token) {
+async function publicar(pastaDados, token, { api = axios } = {}) {
     if (!token) return { ok: false, motivo: 'sem token do GitHub' };
     const dados = ler(pastaDados);
     const conteudo = JSON.stringify({
         atualizadoEm: new Date().toISOString(),
-        perfis: dados.perfis.filter(p => p.ativo !== false),
+        // Uma suspensão precisa chegar ao aplicativo que ainda guarda uma
+        // cópia antiga. Ausência do ID, por si só, não desativa essa cópia.
+        perfis: dados.perfis.map(p => p.ativo === false ? { id: p.id, ativo: false } : p),
         listasTv: dados.listasTv || [],
         placar: dados.placar || [],
     }, null, 1);
     const cabecalhos = { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json', 'User-Agent': 'conecta-tv-cacador' };
     try {
-        const atual = await axios.get(`https://api.github.com/repos/${REPOSITORIO}/contents/${ARQUIVO_PUBLICADO}`, { headers: cabecalhos, timeout: 20000, validateStatus: s => s < 500 }).catch(() => null);
+        const atual = await api.get(`https://api.github.com/repos/${REPOSITORIO}/contents/${ARQUIVO_PUBLICADO}`, { headers: cabecalhos, timeout: 20000, validateStatus: s => s < 500 }).catch(() => null);
         const sha = atual && atual.data && atual.data.sha ? atual.data.sha : undefined;
-        await axios.put(`https://api.github.com/repos/${REPOSITORIO}/contents/${ARQUIVO_PUBLICADO}`, {
+        await api.put(`https://api.github.com/repos/${REPOSITORIO}/contents/${ARQUIVO_PUBLICADO}`, {
             message: `Fichas de fonte (${dados.perfis.length})`,
             content: Buffer.from(conteudo, 'utf8').toString('base64'),
             ...(sha ? { sha } : {}),
         }, { headers: cabecalhos, timeout: 25000 });
-        return { ok: true, perfis: dados.perfis.length };
+        return { ok: true, perfis: dados.perfis.filter(p => p.ativo !== false).length };
     } catch (erro) {
         return { ok: false, motivo: String(erro.message).slice(0, 80) };
     }

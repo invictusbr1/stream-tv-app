@@ -9,7 +9,7 @@
 // O resultado entra na lista de candidatas do caçador, que testa cada um com
 // medição de verdade (reprodução + idioma).
 
-const axios = require('axios');
+const axios = require('./rede-cacador');
 
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36';
 const TEMPO = 20000;
@@ -75,8 +75,10 @@ const SITES = [
     { nome: 'Pomfy', url: 'https://pomfy.online/' },
 ];
 
-function comPrazo(promessa, ms = TEMPO) {
-    return Promise.race([promessa, new Promise(resolve => setTimeout(() => resolve(null), ms))]);
+async function comPrazo(promessa, ms = TEMPO) {
+    let timer;
+    try { return await Promise.race([promessa, new Promise(resolve => { timer = setTimeout(() => resolve(null), ms); })]); }
+    finally { clearTimeout(timer); }
 }
 
 function marcasDeDublado(texto) {
@@ -110,7 +112,9 @@ async function varrerAddons(registrar = () => {}) {
     // em que aquele addon realmente devolveu vídeo — é o que valida a ficha.
     const porAddon = new Map();
     for (const addon of ADDONS) {
+            if (axios.sinalRodada()?.aborted) break;
         for (const amostra of AMOSTRAS_ADDON) {
+            if (axios.sinalRodada()?.aborted) break;
             const caminho = amostra.tipo === 'movie' ? `/stream/movie/${amostra.id}.json` : `/stream/series/${amostra.id}.json`;
             const resposta = await comPrazo(axios.get(addon.base + caminho, { headers: { 'User-Agent': UA }, timeout: 15000, validateStatus: s => s < 500 }).catch(() => null));
             const streams = resposta && resposta.data && Array.isArray(resposta.data.streams) ? resposta.data.streams : [];
@@ -174,9 +178,33 @@ function moldeDoEndereco(url) {
     return /\{id\}/.test(texto) ? texto : '';
 }
 
+function linksDoMapa(xml, raiz) {
+    const origem = new URL(raiz).origin;
+    return [...String(xml).matchAll(/<loc>\s*(?:<!\[CDATA\[)?([^<]+?)(?:\]\]>)?\s*<\/loc>/gi)]
+        .map(m => m[1].trim().replace(/&amp;/g, '&'))
+        .filter(link => { try { return axios.enderecoPublico(link).origin === origem; } catch { return false; } });
+}
+
+function juntarCandidatas(...listas) {
+    const mapa = new Map();
+    for (const candidata of listas.flat()) {
+        if (!candidata || typeof candidata.url !== 'string') continue;
+        let u; try { u = axios.enderecoPublico(candidata.url); } catch { continue; }
+        u.hash = '';
+        const anterior = mapa.get(u.href);
+        const origens = [...new Set([...(anterior?.origens || []), candidata.origem].filter(Boolean))].slice(0, 8);
+        mapa.set(u.href, { ...anterior, ...candidata, url: u.href, origens,
+            detalhes: { ...(anterior?.detalhes || {}), ...(candidata.detalhes || {}) },
+            molde: candidata.molde || anterior?.molde || '' });
+        if (mapa.size >= 4000) break;
+    }
+    return [...mapa.values()];
+}
+
 async function varrerSitemaps(dominios = [], registrar = () => {}) {
     const achados = [];
     for (const dominio of dominios.slice(0, 8)) {
+            if (axios.sinalRodada()?.aborted) break;
         try {
             const raiz = `https://${dominio.replace(/^https?:\/\//, '').replace(/\/.*$/, '')}`;
             const primeiro = await comPrazo(axios.get(`${raiz}/sitemap.xml`, { headers: { 'User-Agent': UA }, timeout: 15000, responseType: 'text', maxRedirects: 4, validateStatus: s => s < 500 }).catch(() => null), 16000);
@@ -184,15 +212,16 @@ async function varrerSitemaps(dominios = [], registrar = () => {}) {
             if (!/<urlset|<sitemapindex/i.test(xml)) continue;
             // Mapa de mapas: entra nos primeiros filhos.
             if (/<sitemapindex/i.test(xml)) {
-                const filhos = [...xml.matchAll(/<loc>([^<]+)<\/loc>/g)].map(m => m[1]).slice(0, 3);
+                const filhos = linksDoMapa(xml, raiz).slice(0, 3);
                 const partes = [];
                 for (const filho of filhos) {
+            if (axios.sinalRodada()?.aborted) break;
                     const resposta = await comPrazo(axios.get(filho, { headers: { 'User-Agent': UA }, timeout: 15000, responseType: 'text', maxRedirects: 3, validateStatus: s => s < 500 }).catch(() => null), 16000);
                     if (resposta && resposta.data) partes.push(String(resposta.data));
                 }
                 xml = partes.join('\n') || xml;
             }
-            const enderecos = [...xml.matchAll(/<loc>([^<]+)<\/loc>/g)].map(m => m[1]).slice(0, 4000);
+            const enderecos = linksDoMapa(xml, raiz).slice(0, 4000);
             const moldes = new Set();
             for (const endereco of enderecos) {
                 const molde = moldeDoEndereco(endereco);
@@ -229,6 +258,7 @@ async function varrerGithub(token = '', registrar = () => {}) {
     ];
     const achados = [];
     for (const termo of consultas) {
+            if (axios.sinalRodada()?.aborted) break;
         try {
             const resposta = await axios.get('https://api.github.com/search/repositories', {
                 params: { q: termo, sort: 'stars', per_page: 6 },
@@ -287,6 +317,7 @@ async function varrerCodigoGithub(token = '', registrar = () => {}) {
     ];
     const achados = [];
     for (const termo of consultas) {
+            if (axios.sinalRodada()?.aborted) break;
         try {
             const busca = await axios.get('https://api.github.com/search/code', {
                 params: { q: termo, per_page: 5 },
@@ -296,6 +327,7 @@ async function varrerCodigoGithub(token = '', registrar = () => {}) {
             const itens = (busca.data && busca.data.items) || [];
             registrar(`GitHub (código) "${termo}": ${itens.length} arquivo(s)`);
             for (const item of itens.slice(0, 3)) {
+            if (axios.sinalRodada()?.aborted) break;
                 const repositorio = item.repository || {};
                 const bruto = `https://raw.githubusercontent.com/${repositorio.full_name}/${repositorio.default_branch || 'main'}/${item.path}`;
                 const conteudo = await axios.get(bruto, { headers: { 'User-Agent': UA }, timeout: 20000, responseType: 'text', validateStatus: s => s < 500 }).catch(() => null);
@@ -319,12 +351,14 @@ async function varrerCodigoGithub(token = '', registrar = () => {}) {
 async function varrerSites(registrar = () => {}) {
     const achados = [];
     for (const site of SITES) {
+            if (axios.sinalRodada()?.aborted) break;
         try {
             const pagina = await comPrazo(axios.get(site.url, { headers: { 'User-Agent': UA }, timeout: 15000, responseType: 'text', maxRedirects: 4, validateStatus: s => s < 500 }));
             const html = String((pagina && pagina.data) || '');
             const scripts = [...new Set([...html.matchAll(/<script[^>]+src=["']([^"']+)["']/gi)].map(m => m[1]).slice(0, 8))];
             const textos = [html];
             for (const src of scripts) {
+            if (axios.sinalRodada()?.aborted) break;
                 const endereco = src.startsWith('http') ? src : new URL(src, site.url).href;
                 const arquivo = await comPrazo(axios.get(endereco, { headers: { 'User-Agent': UA, Referer: site.url }, timeout: 15000, responseType: 'text', maxRedirects: 3, validateStatus: s => s < 500 }).catch(() => null), 15000);
                 if (arquivo && arquivo.data) textos.push(String(arquivo.data));
@@ -349,7 +383,7 @@ async function varrerSites(registrar = () => {}) {
     return achados;
 }
 
-async function varrerTudo({ token = '', registrar = () => {} } = {}) {
+async function executarVarredura({ token = '', registrar = () => {} } = {}) {
     const [addons, github, codigo, sites] = await Promise.all([
         varrerAddons(registrar).catch(() => []),
         varrerGithub(token, registrar).catch(() => []),
@@ -373,7 +407,23 @@ async function varrerTudo({ token = '', registrar = () => {} } = {}) {
     // site já usou), canais públicos e listas guardadas em arquivos. Cada um é
     // opcional — se um cair, os outros seguem.
     const vetores = await require('./vetores').varrerVetores({ dominios, token, registrar }).catch(() => []);
-    return [...addons, ...github, ...codigo, ...sites, ...sitemaps, ...vetores];
+    return juntarCandidatas(addons, github, codigo, sites, sitemaps, vetores);
 }
 
-module.exports = { varrerTudo, varrerAddons, varrerGithub, varrerCodigoGithub, varrerSites, varrerSitemaps, moldeDoEndereco, marcasDeDublado, sinaisDeAnuncio, extrairDominios, REDES_DE_ANUNCIO, ADDONS, SITES };
+async function varrerTudo(opcoes = {}) {
+    const pai = axios.checarRodada(), sinalPai = opcoes.signal || pai?.signal;
+    const controlador = new AbortController();
+    const cancelar = () => controlador.abort();
+    sinalPai?.addEventListener('abort', cancelar, { once:true });
+    if (sinalPai?.aborted) cancelar();
+    const prazo = Math.max(1, Math.min(Number(opcoes.prazoMs) || 120000, pai ? pai.fim-Date.now() : 120000));
+    const timer = setTimeout(cancelar, prazo);
+    try {
+        const itens = await axios.comRodada({ signal:controlador.signal, fim:Date.now()+prazo }, () => executarVarredura(opcoes));
+        itens.parcial = controlador.signal.aborted;
+        return itens;
+    }
+    finally { clearTimeout(timer); sinalPai?.removeEventListener('abort', cancelar); }
+}
+
+module.exports = { varrerTudo, varrerAddons, varrerGithub, varrerCodigoGithub, varrerSites, varrerSitemaps, moldeDoEndereco, marcasDeDublado, sinaisDeAnuncio, extrairDominios, linksDoMapa, juntarCandidatas, REDES_DE_ANUNCIO, ADDONS, SITES };

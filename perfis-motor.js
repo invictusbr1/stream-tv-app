@@ -46,6 +46,13 @@ function ehEnderecoSeguro(valor) {
     } catch { return false; }
 }
 
+// O referenciador segue como cabeçalho HTTP. Aceita só um endereço público
+// HTTPS sem espaços/controles, credenciais ou endereço da rede interna.
+function refererSeguro(valor) {
+    if (typeof valor !== 'string' || /[\u0000-\u0020\u007f]/.test(valor)) return '';
+    return ehEnderecoSeguro(valor) ? valor : '';
+}
+
 function preencher(modelo, alvo) {
     return String(modelo || '')
         .replace(/\{id\}/g, encodeURIComponent(String(alvo.tmdbId || '')))
@@ -145,22 +152,25 @@ async function resolver(perfil, alvo, { buscar, referer = '' } = {}) {
     if (!modelo) return null;
     let endereco = preencher(modelo, alvo);
     if (!ehEnderecoSeguro(endereco)) return null;
-    const base = perfil.referer || endereco;
+    const referencia = refererSeguro(perfil.referer);
+    const base = referencia || endereco;
     const passos = Array.isArray(perfil.passos) && perfil.passos.length ? perfil.passos : [REGRA_PADRAO];
     let texto = '';
     // Quando o primeiro passo é de ENDEREÇO, a ficha já sabe para onde ir: não
     // precisa baixar a página do título antes (economiza uma requisição).
     if (String(passos[0].tipo || 'regex') !== 'endereco') {
-        try { texto = String(await buscar(endereco, referer || perfil.referer || '') || ''); }
+        try { texto = String(await buscar(endereco, refererSeguro(referer) || referencia) || ''); }
         catch { return null; }
         if (!texto) return null;
     }
     let video = '';
     for (let i = 0; i < passos.length; i++) {
-        const passo = passos[i];
+        const original = passos[i];
         // Passo de endereço já traz o molde da chamada: aqui ele é preenchido
         // com o título (filme/episódio) antes de ser usado.
-        if (passo && passo.tipo === 'endereco') passo.url = preencher(passo.url, alvo);
+        const passo = original && original.tipo === 'endereco'
+            ? { ...original, url: preencher(original.url, alvo) }
+            : original;
         const achado = aplicarPasso(passo, texto, base);
         if (!achado) return null;
         const ultimo = i === passos.length - 1;
@@ -181,10 +191,10 @@ async function resolver(perfil, alvo, { buscar, referer = '' } = {}) {
     if (!ehEnderecoSeguro(video)) return null;
     return {
         url: video,
-        referer: perfil.referer || base,
+        referer: referencia || base,
         fonte: perfil.nome || perfil.id,
         fonteId: perfil.id,
-        audio: perfil.dublado === false ? 'original' : 'dublado',
+        audio: perfil.dublado === true ? 'pt-BR' : perfil.dublado === false ? 'original' : 'desconhecido',
         resolucao: perfil.qualidade || '',
         type: /\.m3u8(\?|$)/i.test(video) ? 'hls' : 'file',
         perfil: true,
@@ -192,5 +202,5 @@ async function resolver(perfil, alvo, { buscar, referer = '' } = {}) {
 }
 
 module.exports = {
-    resolver, ordenar, serve, preencher, aplicarPasso, perfisValidos, ehEnderecoSeguro, valorNoCaminho,
+    resolver, ordenar, serve, preencher, aplicarPasso, perfisValidos, ehEnderecoSeguro, refererSeguro, valorNoCaminho,
 };

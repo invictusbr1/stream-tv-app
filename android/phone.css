@@ -1,0 +1,63 @@
+/* Touch-specific rules apply only to the handset, never to Android TV. */
+.android-phone{overscroll-behavior-y:none}
+.android-phone body{font-size:15px}
+.android-phone button,.android-phone a{-webkit-tap-highlight-color:transparent}
+.android-phone .header{padding:12px 18px;gap:10px}
+.android-phone .busca input{font-size:16px}
+.android-phone .hero{min-height:62dvh;padding:40px 22px 52px}
+.android-phone .hero-content{max-width:100%}
+.android-phone .poster-row{grid-auto-columns:clamp(120px,36vw,175px);gap:12px}
+.android-phone #series-dialog{touch-action:pan-y;scrollbar-width:none}
+.android-phone #series-dialog .series-cover{min-height:56dvh;padding-top:88px}
+.android-phone #series-dialog .series-heading{margin-top:24px}
+.android-phone #series-dialog .series-heading h2{font-size:clamp(30px,8vw,48px);line-height:1.12;overflow-wrap:anywhere}
+.android-phone #series-close,.android-phone #series-fav{min-height:48px;top:18px}
+.android-phone #series-close{left:18px}
+.android-phone #series-fav{right:18px}
+.android-phone .detail-summary{font-size:14px;line-height:1.65!important}
+.android-phone #series-assistir{min-height:50px;padding:14px 28px;font-size:16px}
+.android-phone #series-dialog .series-abas{gap:24px}
+.android-phone .serie-aba{min-height:52px}
+.android-phone #series-dialog .series-filtros{display:flex;flex-wrap:wrap;gap:12px;align-items:center}
+.android-phone #season-select{max-width:100%;font-size:16px;min-height:48px}
+.android-phone #series-dialog .episode-row{display:grid!important;grid-template-columns:minmax(0,1fr) 44px 44px;gap:12px;align-items:center;padding:20px 0!important}
+.android-phone #series-dialog .episode-row .episode-play-btn{grid-column:1/-1;display:flex!important;min-height:72px;border-radius:8px!important}
+.android-phone #series-dialog .episode-row .episode-info{padding:0!important;min-width:0}
+.android-phone #series-dialog .episode-row .episode-art{width:104px!important;min-width:104px!important;height:59px!important}
+.android-phone #series-dialog .episode-row .episode-info strong{font-size:15px!important;line-height:1.5}
+.android-phone #series-dialog .episode-row .episode-sinopse{grid-column:1/-1;margin:0!important;width:100%!important;font-size:14px!important;line-height:1.6!important}
+.android-phone #series-dialog .episode-row .episode-baixar,.android-phone #series-dialog .episode-row .episode-check{position:static!important;inset:auto!important;width:44px!important;height:44px!important;margin:0!important;min-width:44px!important;border-radius:50%!important}
+.android-phone #series-dialog .episode-row .episode-baixar{grid-column:2}
+.android-phone #series-dialog .episode-row .episode-check{grid-column:3}
+.android-phone #series-dialog .series-body{padding-bottom:36px}
+.android-phone #player #volume-toggle,.android-phone #player #volume-range,.android-phone .rotate-hint{display:none!important}
+.android-phone #player .player-top{padding:10px max(12px,env(safe-area-inset-right)) 10px max(12px,env(safe-area-inset-left));gap:8px}
+.android-phone #player .player-language{display:none}
+.android-phone #player .player-status{display:none}
+.android-phone #player .ctl,.android-phone #player .icon-btn{min-width:48px;min-height:48px;height:48px}
+.android-phone #player #direct-toggle{width:56px!important;height:56px}
+.android-phone #player .menu-player{max-height:calc(100dvh - 110px);overflow-y:auto;bottom:92px;font-size:15px}
+.android-phone #player .menu-player select{font-size:16px;min-height:48px}
+.android-phone #player .options{max-height:calc(100dvh - 24px)}
+.android-phone #player .scrub{height:24px;cursor:pointer}
+.android-phone #direct-controls .direct-row{gap:6px}
+.android-phone #direct-controls .direct-row button{padding:0 6px}
+@media(orientation:landscape){
+ .android-phone #direct-controls{padding:28px max(12px,env(safe-area-inset-right)) max(8px,env(safe-area-inset-bottom)) max(12px,env(safe-area-inset-left))}
+ .android-phone #direct-controls .direct-row{display:flex;flex-wrap:nowrap;gap:6px}
+ .android-phone #direct-time{font-size:12px;flex:0 0 auto}
+ .android-phone #direct-controls .direct-gap{display:block;min-width:0}
+ .android-phone #series-dialog .series-cover{min-height:85dvh}
+}
+@media(max-width:600px) and (orientation:landscape){
+ .android-phone #player .ctl{min-width:40px;width:40px;padding:0 4px}
+ .android-phone #direct-controls .direct-row{gap:4px}
+ .android-phone #direct-time{font-size:10px}
+}
+
+.android-phone #series-dialog .episode-row{grid-template-areas:"play play play" "syn syn syn" ". download watched"}
+.android-phone #series-dialog .episode-row .episode-play-btn{grid-area:play!important}
+.android-phone #series-dialog .episode-row .episode-sinopse{grid-area:syn!important}
+.android-phone #series-dialog .episode-row .episode-baixar{grid-area:download!important}
+.android-phone #series-dialog .episode-row .episode-check{grid-area:watched!important}
+.android-phone.phone-details-open .bottom-nav{display:none!important}

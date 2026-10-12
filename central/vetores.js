@@ -14,7 +14,7 @@
 //   - Common Crawl e crt.sh: fora do ar/bloqueados no momento da medição —
 //     ficam implementados e voltam sozinhos quando responderem.
 
-const axios = require('axios');
+const axios = require('./rede-cacador');
 
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36';
 const TEMPO = 30000;
@@ -26,8 +26,10 @@ const CANAIS_TELEGRAM = ['filmes', 'filmeseseries', 'SeriesDubladas', 'animesbr'
 // Palavras que aparecem no endereço de um título nos agregadores.
 const PALAVRAS_DE_TITULO = /(filme|filmes|movie|movies|serie|series|assistir|watch|ver|online|dublado|legendado|anime|dorama)/i;
 
-function comPrazo(promessa, ms = TEMPO) {
-    return Promise.race([promessa, new Promise(resolve => setTimeout(() => resolve(null), ms))]);
+async function comPrazo(promessa, ms = TEMPO) {
+    let timer;
+    try { return await Promise.race([promessa, new Promise(resolve => { timer = setTimeout(() => resolve(null), ms); })]); }
+    finally { clearTimeout(timer); }
 }
 
 async function textoDe(url, opcoes = {}) {
@@ -46,6 +48,7 @@ async function textoDe(url, opcoes = {}) {
 async function varrerWayback(dominios = [], registrar = () => {}) {
     const achados = [];
     for (const dominio of dominios.slice(0, 6)) {
+            if (axios.sinalRodada()?.aborted) break;
         // Busca só os caminhos que parecem título (o arquivo da internet tem
         // milhões de linhas por domínio; filtrar aqui deixa a resposta pequena).
         const base = `https://web.archive.org/cdx/search/cdx?url=${encodeURIComponent(dominio)}&matchType=domain&filter=urlkey:.*(filme|filmes|movie|serie|series|assistir|online|dublado).*&output=json&limit=300&collapse=urlkey`;
@@ -88,6 +91,7 @@ const DOMINIOS_CONHECIDOS = /(google|gstatic|cloudflare|jsdelivr|unpkg|github|tm
 async function varrerTelegram(registrar = () => {}) {
     const achados = [];
     for (const canal of CANAIS_TELEGRAM) {
+            if (axios.sinalRodada()?.aborted) break;
         const html = await textoDe(`https://t.me/s/${canal}`).catch(() => '');
         if (!html || !/tgme_widget_message/.test(html)) continue;
         const dominios = new Set();
@@ -118,6 +122,7 @@ async function varrerGists(token = '', registrar = () => {}) {
     const achados = [];
     const dominios = new Set();
     for (const termo of consultas) {
+            if (axios.sinalRodada()?.aborted) break;
         try {
             const resposta = await comPrazo(axios.get('https://api.github.com/search/code', {
                 params: { q: termo, per_page: 5 },
@@ -127,6 +132,7 @@ async function varrerGists(token = '', registrar = () => {}) {
             const itens = (resposta && resposta.data && resposta.data.items) || [];
             registrar(`github (arquivos) "${termo}": ${itens.length} arquivo(s)`);
             for (const item of itens.slice(0, 3)) {
+            if (axios.sinalRodada()?.aborted) break;
                 const repositorio = item.repository || {};
                 const bruto = `https://raw.githubusercontent.com/${repositorio.full_name}/${repositorio.default_branch || 'main'}/${item.path}`;
                 const conteudo = await textoDe(bruto).catch(() => '');

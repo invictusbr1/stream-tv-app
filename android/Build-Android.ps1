@@ -1,7 +1,8 @@
 param(
     [Parameter(Mandatory=$true)][string]$ToolRoot,
     [Parameter(Mandatory=$true)][string]$BuildDirectory,
-    [Parameter(Mandatory=$true)][string]$OutputDirectory
+    [Parameter(Mandatory=$true)][string]$OutputDirectory,
+    [ValidateSet("celular","tv","ambos")][string]$Canal = "ambos"
 )
 $ErrorActionPreference = 'Stop'
 $toolsPath = (Resolve-Path -LiteralPath $ToolRoot).Path
@@ -27,7 +28,8 @@ foreach ($name in @('app','gradle','gradlew','gradlew.bat','settings.gradle','bu
 $env:JAVA_HOME = (Get-ChildItem -LiteralPath $toolsPath -Directory -Filter 'jdk-*' | Select-Object -First 1).FullName
 $env:ANDROID_HOME = Join-Path $toolsPath 'sdk'
 $env:GRADLE_USER_HOME = Join-Path $toolsPath 'gradle-cache'
-& (Join-Path $toolsPath 'gradle-8.11.1\bin\gradle.bat') -p $buildPath assembleCelularDebug assembleTvDebug lintCelularDebug lintTvDebug --no-daemon
+$tarefas = if ($Canal -eq 'celular') { @('assembleCelularDebug','lintCelularDebug') } elseif ($Canal -eq 'tv') { @('assembleTvDebug','lintTvDebug') } else { @('assembleCelularDebug','assembleTvDebug','lintCelularDebug','lintTvDebug') }
+& (Join-Path $toolsPath 'gradle-8.11.1\bin\gradle.bat') -p $buildPath @tarefas --no-daemon
 if ($LASTEXITCODE -ne 0) { throw 'Compilação ou verificação Android falhou.' }
 $versionName = [regex]::Match((Get-Content -LiteralPath (Join-Path $PSScriptRoot 'app\build.gradle') -Raw), "versionName\s+'([^']+)'").Groups[1].Value
 if (-not $versionName) { throw 'versionName não encontrado em app/build.gradle.' }
@@ -36,6 +38,8 @@ $saidas = @(
     @{ apk = Join-Path $buildPath 'app\build\outputs\apk\tv\debug\app-tv-debug.apk'; nome = "Conecta-TV-TV-$versionName.apk"; pacote = 'br.streamtv.app.tv' }
 )
 foreach ($saida in $saidas) {
+    if ($Canal -eq 'celular' -and $saida.pacote -ne 'br.streamtv.app') { continue }
+    if ($Canal -eq 'tv' -and $saida.pacote -ne 'br.streamtv.app.tv') { continue }
     if (-not (Test-Path -LiteralPath $saida.apk)) { throw "APK não encontrado: $($saida.apk)" }
     & (Join-Path $env:ANDROID_HOME 'build-tools\35.0.0\apksigner.bat') verify $saida.apk
     if ($LASTEXITCODE -ne 0) { throw "Assinatura inválida em $($saida.nome)." }

@@ -531,8 +531,10 @@ function prepararParaPlayer(escolhido) {
     let host = '';
     try {
         host = new URL(escolhido.url).hostname;
-        referer = midia.refererPadrao(host);
-        if (!referer) midia.liberarHost(host);
+        referer = perfisMotor.refererSeguro(escolhido.referer) || midia.refererPadrao(host);
+        // O CDN aprendido continua liberado mesmo quando a ficha precisa de
+        // seu próprio referenciador, diferente dos padrões já conhecidos.
+        if (!midia.hostPermitido(host)) midia.liberarHost(host);
     } catch { /* endereço inválido */ }
     return { ...escolhido, urlAplicativo: midia.urlViaProxy(escolhido.url, referer) };
 }

@@ -97,12 +97,10 @@ revisor.iniciar();
 // código dos agregadores) alimenta a lista de candidatas, e cada uma é MEDIDA
 // (reprodução + idioma + anúncio) antes de entrar no ranking.
 const CATEGORIAS_CACADAS = ['filme', 'serie', 'dorama', 'anime', 'tv-online', 'short-drama'];
-let voltaDaCacada = 0;
 function cacadaAutomatica() {
     try {
         if (cacador.rodando()) return;
-        const categoria = CATEGORIAS_CACADAS[voltaDaCacada % CATEGORIAS_CACADAS.length];
-        voltaDaCacada += 1;
+        const categoria = require('./agendamento-cacador').proximaCategoria(CATEGORIAS_CACADAS, cacador.ultimo() || {});
         console.log('[central] caçada automática: ' + categoria);
         cacador.cacar(categoria).catch(() => {});
     } catch { /* nunca impede a central de subir */ }
@@ -319,6 +317,7 @@ app.post('/api/investigar', exigirChave, async (req, res) => {
 app.post('/api/cacar', exigirChave, (req, res) => {
     if (cacador.rodando()) return res.json({ ok: true, rodando: true });
     const categoria = texto(req.body?.categoria, 20) || 'todas';
+    if (categoria !== 'todas' && !cacador.CATEGORIAS.some(c => c.id === categoria)) return res.status(400).json({ ok:false, erro:'Escolha uma categoria válida.' });
     // Caçada profunda: varre muito mais candidatas, procura o vídeo dentro das
     // páginas e tenta virar ficha — demora bem mais e gasta mais rede.
     const profundo = req.body?.profundo === true || req.body?.profundo === 'sim';
@@ -333,11 +332,16 @@ app.post('/api/cacar', exigirChave, (req, res) => {
 
 app.get('/api/fontes', exigirChave, (req, res) => res.json(cacador.ultimo() || { ranking: [], candidatas: [], atualizadoEm: null }));
 
+app.post('/api/cacar/pausar', exigirChave, (req, res) => {
+    res.json({ ok:true, pausando:cacador.pausar(), aviso:'O caçador encerra a verificação atual e preserva as descobertas.' });
+});
+
 // Andamento da caçada (o que está sendo medido agora).
 app.get('/api/cacar/estado', exigirChave, (req, res) => res.json({
     rodando: cacador.rodando(),
     categoria: cacador.categoriaAtual(),
     andamento: cacador.progresso ? cacador.progresso() : null,
+    diagnostico: cacador.diagnostico(),
 }));
 
 // Placar real das fontes (relatos dos aparelhos).
@@ -523,6 +527,7 @@ async function gerarStatus() {
         cacadorCategoria: cacador.categoriaAtual(),
         cacadorAndamento: cacador.progresso ? cacador.progresso() : null,
         cacadorFila: cacador.fila ? cacador.fila() : null,
+        cacadorDiagnostico: cacador.diagnostico(),
         placar: atualizarPlacarSePreciso(),
         pedidos: pedidos.resumo(),
         fichas: (cacador.fichas ? cacador.fichas() : []).map(f => ({

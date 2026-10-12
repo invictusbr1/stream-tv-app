@@ -13,7 +13,8 @@
 
 const fs = require('fs');
 const path = require('path');
-const axios = require('axios');
+const axios = require('./rede-cacador');
+const armazenamento = require('./armazenamento');
 const motor = require('../fontes-motor');
 const midia = require('../midia-proxy');
 const { verificarIdioma, sondagemRapida } = require('./verificar-midia');
@@ -167,6 +168,10 @@ CATEGORIAS.push({ id: 'short-drama', nome: 'Mininovelas', tipo: 'short-drama', f
 
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36';
 const TEMPO = 20000;
+async function buscarResposta(url, opcoes = {}) {
+ const response = await axios.get(url, {...opcoes, responseType:'text', validateStatus:()=>true});
+ return { status:response.status, ok:response.status>=200&&response.status<300, text:async()=>String(response.data||'') };
+}
 
 // Fontes que JÁ estão dentro do aplicativo (e as que já foram descartadas pela
 // avaliação). Serve para o caçador sinalizar e ninguém acabar cadastrando de
@@ -200,6 +205,13 @@ function alturaDe(valor) {
 }
 function categoriaDe(id) {
     return CATEGORIAS.find(c => c.id === id) || CATEGORIAS[0];
+}
+
+function amostrasParaCategoria(categoria, lista = []) {
+    const tipo = categoria.tipo === 'movie' ? 'movie' : 'tv';
+    return lista.filter(a => a && a.id).map(a => ({ ...a, tipo,
+        ...(/^tt\d+$/.test(String(a.id)) ? { imdb:String(a.id) } : {}),
+        ...(tipo === 'tv' ? { temporada:String(a.temporada || '1'), episodio:String(a.episodio || '1') } : {}) }));
 }
 
 // ---------------------------------------------------------------- achar o vídeo
@@ -237,9 +249,11 @@ function acharPlayerNaPagina(html) {
 // quando ela não consegue responder — é o que deixa o caçador rápido.
 async function medirVideo(url, { referer = '', nome = 'candidata', titulo = 'título de teste', tipoTitulo = 'movie' } = {}) {
     const sonda = await sondagemRapida(url, referer).catch(() => null);
+    axios.checarRodada();
     if (sonda && !sonda.viva) return { detalhes: { tocou: false, semRobo: false, qualidade: '—', ms: 0, popups: 0, anuncios: [], idioma: 'indefinido', idiomaEvidencia: '', avisoAudio: '', amostra: titulo, url }, motivo: 'o endereço não devolveu vídeo' };
     const tipo = /\.m3u8(\?|$)/i.test(url) ? 'hls' : 'file';
-    const reproducao = await tocarNoNavegador(url, { referer, tipo, segundos: 20 }).catch(() => null);
+    const reproducao = await tocarNoNavegador(url, { referer, tipo, segundos: 20, signal: axios.sinalRodada() }).catch(() => null);
+    axios.checarRodada();
     let prova = null;
     if (sonda && sonda.dublado !== null) {
         prova = { idioma: sonda.dublado ? 'pt' : 'outro', evidencia: sonda.evidencia || '', avisoAudio: '' };
@@ -439,7 +453,8 @@ async function conferirMidiaDireta(candidata) {
     const tipo = /\.m3u8(\?|$)/i.test(candidata.url) ? 'hls' : 'file';
     const titulo = candidata.tituloTeste || 'título de teste';
     try {
-        const reproducao = await tocarNoNavegador(candidata.url, { tipo, segundos: 20 }).catch(() => null);
+        const reproducao = await tocarNoNavegador(candidata.url, { tipo, segundos: 20, signal: axios.sinalRodada() }).catch(() => null);
+        axios.checarRodada();
         const prova = await verificarIdioma({
             url: candidata.url, tipo: 'movie',
             fonteId: 'candidata-' + String(candidata.nome).replace(/\W+/g, '-').slice(0, 24),
@@ -462,13 +477,13 @@ async function conferirMidiaDireta(candidata) {
         let situacao = 'em análise';
         let motivo = 'medida parcial';
         if (!detalhes.tocou && detalhes.semRobo) {
-            situacao = detalhes.idioma === 'pt' ? 'promover' : 'em análise';
+            situacao = 'em análise';
             motivo = `sem robô de navegador neste modo; áudio: ${detalhes.idioma}${detalhes.avisoAudio ? ' — ' + detalhes.avisoAudio : ''} · ${titulo}`;
         }
         else if (!detalhes.tocou) { situacao = 'descartada'; motivo = 'o vídeo não abriu no navegador' + (reproducao && reproducao.erro ? ' (' + reproducao.erro + ')' : ''); }
         else if (detalhes.avisoAudio) { situacao = 'descartada'; motivo = detalhes.avisoAudio; }
         else if (anunciado) { situacao = 'descartada'; motivo = `abriu, mas chamou rede de anúncio (${detalhes.anuncios.join(', ') || 'pop-up'})`; }
-        else if (detalhes.idioma === 'pt') { situacao = 'promover'; motivo = `tocou em ${detalhes.qualidade} com áudio em português confirmado · ${titulo}`; }
+        else if (detalhes.idioma === 'pt' && alturaDe(detalhes.qualidade) >= PADRAO_APP.alturaMinima) { situacao = 'promover'; motivo = `tocou em ${detalhes.qualidade} com áudio em português confirmado · ${titulo}`; }
         else if (detalhes.idioma === 'outro') { situacao = 'em análise'; motivo = `tocou em ${detalhes.qualidade}, mas o áudio NÃO é português · ${titulo}`; }
         else { situacao = 'em análise'; motivo = `tocou em ${detalhes.qualidade}; idioma não confirmado · ${titulo}`; }
         return { nome: candidata.nome, url: candidata.url, status: 200, situacao, motivo, origem: candidata.origem, esperado: candidata.motivoEsperado, detalhes, nota: situacao === 'promover' ? 8 : situacao === 'em análise' ? 5 : 0 };
@@ -486,7 +501,8 @@ async function conferirFonteDeStream(candidata) {
         const primeiro = streams.find(s => s && s.url);
         if (!primeiro) return { nome: candidata.nome, url: candidata.url, status: 200, situacao: 'descartada', motivo: 'não devolveu nenhum vídeo para o título de teste', origem: candidata.origem };
         const tipo = /\.m3u8(\?|$)/i.test(primeiro.url) ? 'hls' : 'file';
-        const reproducao = await tocarNoNavegador(primeiro.url, { referer: candidata.url, tipo, segundos: 20 }).catch(() => null);
+        const reproducao = await tocarNoNavegador(primeiro.url, { referer: candidata.url, tipo, segundos: 20, signal:axios.sinalRodada() }).catch(() => null);
+        axios.checarRodada();
         const titulo = candidata.tituloTeste || 'título de teste';
         const prova = await verificarIdioma({
             url: primeiro.url, tipo: 'movie', fonteId: 'candidata-' + String(candidata.nome).replace(/\W+/g, '-').slice(0, 24),
@@ -509,13 +525,13 @@ async function conferirFonteDeStream(candidata) {
         let situacao = 'em análise';
         let motivo = 'medida parcial';
         if (!detalhes.tocou && detalhes.semRobo) {
-            situacao = detalhes.idioma === 'pt' ? 'promover' : 'em análise';
+            situacao = 'em análise';
             motivo = `sem robô de navegador neste modo; áudio: ${detalhes.idioma}${detalhes.avisoAudio ? ' — ' + detalhes.avisoAudio : ''} · ${titulo}`;
         }
         else if (!detalhes.tocou) { situacao = 'descartada'; motivo = 'o vídeo não abriu no navegador' + (reproducao && reproducao.erro ? ' (' + reproducao.erro + ')' : ''); }
         else if (detalhes.avisoAudio) { situacao = 'descartada'; motivo = detalhes.avisoAudio; }
         else if (anunciado) { situacao = 'descartada'; motivo = `abriu, mas chamou rede de anúncio (${detalhes.anuncios.join(', ') || 'pop-up'})`; }
-        else if (detalhes.idioma === 'pt') { situacao = 'promover'; motivo = `tocou em ${detalhes.qualidade} com áudio em português confirmado (${detalhes.idiomaEvidencia.slice(0, 60)})`; }
+        else if (detalhes.idioma === 'pt' && alturaDe(detalhes.qualidade) >= PADRAO_APP.alturaMinima) { situacao = 'promover'; motivo = `tocou em ${detalhes.qualidade} com áudio em português confirmado (${detalhes.idiomaEvidencia.slice(0, 60)})`; }
         else if (detalhes.idioma === 'outro') { situacao = 'em análise'; motivo = `tocou em ${detalhes.qualidade}, mas o áudio NÃO é português (${detalhes.idiomaEvidencia.slice(0, 60)})`; }
         else { situacao = 'em análise'; motivo = `tocou em ${detalhes.qualidade}; não consegui confirmar o idioma`; }
         return { nome: candidata.nome, url: candidata.url, status: 200, situacao, motivo, origem: candidata.origem, esperado: candidata.motivoEsperado, detalhes, nota: situacao === 'promover' ? 8 : situacao === 'em análise' ? 5 : 0 };
@@ -544,7 +560,7 @@ async function conferirCandidata(candidata) {
         };
     }
     try {
-        const resposta = await fetch(candidata.url, {
+        const resposta = await buscarResposta(candidata.url, {
             headers: { 'User-Agent': UA, 'Accept-Language': 'pt-BR,pt;q=0.9' },
             redirect: 'follow', signal: AbortSignal.timeout(12000)
         });
@@ -572,7 +588,7 @@ async function conferirCandidata(candidata) {
         return { nome: candidata.nome, url: candidata.url, status: resposta.status, situacao, motivo, esperado: candidata.motivoEsperado, anuncios: redesDeAnuncio };
     } catch (erro) {
         return {
-            nome: candidata.nome, url: candidata.url, status: 0, situacao: 'descartada',
+            nome: candidata.nome, url: candidata.url, status: 0, situacao: ['FORNECEDOR_EM_PAUSA','CONSULTA_CANCELADA','RODADA_INTERROMPIDA','FILA_REDE_CHEIA'].includes(erro.code) ? 'em análise' : 'descartada',
             motivo: 'sem resposta (' + (erro.name === 'TimeoutError' ? 'demorou demais' : String(erro.message).slice(0, 40)) + ')',
             esperado: candidata.motivoEsperado
         };
@@ -583,7 +599,7 @@ async function conferirCandidata(candidata) {
 async function medirListaDeCanais(lista) {
     const inicio = Date.now();
     try {
-        const resposta = await fetch(lista.url, { headers: { 'User-Agent': UA }, signal: AbortSignal.timeout(30000) });
+        const resposta = await buscarResposta(lista.url, { headers: { 'User-Agent': UA }, signal: AbortSignal.timeout(30000), maxContentLength:16*1024*1024 });
         if (!resposta.ok) throw new Error('http ' + resposta.status);
         const texto = await resposta.text();
         const canais = require('../listas-tv').parseM3u(texto, lista.id || 'esportes');
@@ -598,7 +614,7 @@ async function medirListaDeCanais(lista) {
         for (const canal of amostra) {
             const t0 = Date.now();
             try {
-                const r = await fetch(canal.url, { headers: { 'User-Agent': UA }, signal: AbortSignal.timeout(12000) });
+                const r = await buscarResposta(canal.url, { headers: { 'User-Agent': UA }, signal: AbortSignal.timeout(12000) });
                 const corpo = await r.text().catch(() => '');
                 tempoTotal += Date.now() - t0;
                 if (r.ok && /^\s*#EXTM3U/m.test(corpo) && /#EXT(?:INF|-X-STREAM-INF)/.test(corpo)) {
@@ -645,7 +661,7 @@ async function medirListaDeCanais(lista) {
 
 // ---------------------------------------------------------------- execução
 function criarCacador(opcoes = {}) {
-    const pastaDados = opcoes.pastaDados;
+    const pastaDados = opcoes.pastaDados || path.join(__dirname, 'dados');
     const registrar = typeof opcoes.registrar === 'function' ? opcoes.registrar : () => {};
     // Títulos que falharam com quem usa o aplicativo (registro da central).
     const titulos = opcoes.titulos || null;
@@ -664,17 +680,27 @@ function criarCacador(opcoes = {}) {
     const arquivoHistorico = path.join(pastaDados, 'fontes-historico.json');
     let rodando = false;
     let categoriaAtual = '';
+    let controlador = null, ultimaFalha = '', persistenciaErro = '';
     // O varredor é caro (rede + GitHub): roda no máximo a cada 6 horas.
-    let varredura = { em: 0, itens: [] };
+    const arquivoVarredura = path.join(pastaDados, 'varredura.json');
+    let varredura = armazenamento.lerJson(arquivoVarredura, { em: 0, itens: [] }, d => Number.isFinite(d.em) && Array.isArray(d.itens));
+    varredura.itens = varredor.juntarCandidatas(varredura.itens);
     async function candidatosVarridos() {
-        if (Date.now() - varredura.em < 6 * 60 * 60 * 1000 && varredura.itens.length) return varredura.itens;
+        axios.checarRodada();
+        const validade = varredura.itens.length && !varredura.parcial ? 6 * 60 * 60 * 1000 : 15 * 60 * 1000;
+        if (varredura.em && Date.now() - varredura.em < validade) return varredura.itens;
         try {
             const token = (() => { try { return fs.readFileSync(path.join(require('os').homedir(), '.streamtv', 'github-token.txt'), 'utf8').trim(); } catch { return ''; } })();
-            const itens = await varredor.varrerTudo({ token, registrar });
-            varredura = { em: Date.now(), itens };
+            const descobertas = await (opcoes.varrer || varredor.varrerTudo)({ token, registrar });
+            const parcial = Boolean(descobertas.parcial);
+            const itens = varredor.juntarCandidatas(parcial ? varredura.itens : [], descobertas);
+            varredura = { em: Date.now(), itens, parcial };
+            try { armazenamento.gravarJson(arquivoVarredura, varredura); } catch { persistenciaErro = 'Não foi possível salvar as descobertas no disco'; }
             registrar(`varredor: ${itens.length} candidato(s) encontrados`);
             return itens;
         } catch (erro) {
+            varredura.em = Date.now();
+            varredura.parcial = true;
             registrar('varredor falhou: ' + String(erro.message).slice(0, 60));
             return varredura.itens;
         }
@@ -683,12 +709,12 @@ function criarCacador(opcoes = {}) {
     // ---------------------------------------------------------- evolução
     // Cada medição é guardada: assim o caçador tem memória, mostra a tendência
     // de cada fonte e rebaixa sozinho quem piora (sem o usuário pedir).
-    let historico = {};
-    try { historico = JSON.parse(fs.readFileSync(arquivoHistorico, 'utf8')) || {}; } catch { historico = {}; }
+    let historico = armazenamento.lerJson(arquivoHistorico, {}, d => typeof d === 'object' && !Array.isArray(d));
+    for (const chave of Object.keys(historico)) if (!historico[chave] || !Array.isArray(historico[chave].medicoes)) delete historico[chave];
     const MAX_MEDICOES = 30;
 
     function gravarHistorico() {
-        try { fs.mkdirSync(pastaDados, { recursive: true }); fs.writeFileSync(arquivoHistorico, JSON.stringify(historico, null, 1)); } catch { /* sem disco */ }
+        try { armazenamento.gravarJson(arquivoHistorico, historico); } catch { persistenciaErro = 'Não foi possível salvar o histórico no disco'; }
     }
     function anotarMedicao(categoriaId, item) {
         const chave = `${categoriaId}|${item.id || item.nome}`;
@@ -745,6 +771,7 @@ function criarCacador(opcoes = {}) {
     // inclusive na caçada profunda, que demora bem mais.
     let progresso = null;
     function marcar(etapa, feitos = 0, total = 0) {
+        axios.checarRodada();
         progresso = {
             categoria: categoriaAtual, etapa, feitos, total,
             iniciadoEm: progresso && progresso.iniciadoEm ? progresso.iniciadoEm : Date.now(),
@@ -770,7 +797,7 @@ function criarCacador(opcoes = {}) {
             : [];
         const fixas = categoria.amostras || [];
         const dasFalhas = amostrasComFalhas(titulos, categoria.tipo === 'movie' ? 'movie' : 'tv');
-        return juntarAmostras(categoria.tipo, pedidos, dasFalhas, fixas);
+        return amostrasParaCategoria(categoria, juntarAmostras(categoria.tipo, pedidos, dasFalhas, fixas));
     }
 
     // ---------------------------------------------------------- fichas
@@ -818,7 +845,7 @@ function criarCacador(opcoes = {}) {
                 video: video.url,
             });
             if (!ficha) return null;
-            const provas = (categoria.amostras || []).filter(a => String(a.id) !== String(amostra.id)).slice(0, 3);
+            const provas = amostrasParaCategoria(categoria, (categoria.amostras || []).filter(a => String(a.id) !== String(amostra.id)).slice(0, 3));
             const avaliacao = await perfilModulo.validar(ficha, provas, { registrar });
             const registro = perfilModulo.registrarFicha(pastaDados, ficha, avaliacao, { descobertoEm: new Date().toISOString(), canal: categoria.id });
             const abriram = (avaliacao.provas || []).filter(p => p.ok).length;
@@ -845,7 +872,7 @@ function criarCacador(opcoes = {}) {
                 .replace('{temporada}', String(amostra.temporada || 1))
                 .replace('{episodio}', String(amostra.episodio || 1));
             const endereco = candidata.molde ? comTitulo(candidata.molde) : candidata.url;
-            const espiao = await espionarPagina(endereco, { referer: endereco, segundos: 16, registrar });
+            const espiao = await espionarPagina(endereco, { referer: endereco, segundos: 16, registrar, signal: axios.sinalRodada() });
             if (!espiao || !espiao.ok) return null;
             const provas = [];
             for (const achado of espiao.api || []) {
@@ -884,7 +911,7 @@ function criarCacador(opcoes = {}) {
                 passos: [{ tipo: 'regex', padrao, grupo: 1, juntarComBase: true }],
                 ...(categoria.tipo === 'movie' ? { urlMovie: moldeEndpoint } : { urlTv: moldeEndpoint }),
             };
-            const provasDeValidacao = (categoria.amostras || []).filter(a => String(a.id) !== String(amostra.id)).slice(0, 3);
+            const provasDeValidacao = amostrasParaCategoria(categoria, (categoria.amostras || []).filter(a => String(a.id) !== String(amostra.id)).slice(0, 3));
             const avaliacao = await perfilModulo.validar(ficha, provasDeValidacao, { registrar });
             const registro = perfilModulo.registrarFicha(pastaDados, ficha, avaliacao, { descobertoEm: new Date().toISOString(), canal: categoria.id });
             if (avaliacao.aprovada) registrar(`FICHA APROVADA (espião): ${registro.nome} — nota ${registro.nota}, ${registro.tipos.join('/')}`);
@@ -922,15 +949,15 @@ function criarCacador(opcoes = {}) {
             // ficha é validada); os títulos fixos do aplicativo entram depois,
             // só como reserva. Antes vinha na ordem contrária e a ficha era
             // recusada por testar títulos que o addon não tem.
-            const provas = [
-                ...confirmados.filter(id => String(id) !== String(amostra.id)).map(id => ({
+            const provas = amostrasParaCategoria(categoria, [
+                ...confirmados.filter(id => String(id).split(':')[0] !== imdb && String(id) !== String(amostra.id)).map(id => ({
                     id: String(id).split(':')[0],
                     temporada: String(id).split(':')[1] || '1',
                     episodio: String(id).split(':')[2] || '1',
                     titulo: `título ${id} (o addon tem)`,
                 })),
                 ...(categoria.amostras || []).filter(a => String(a.id) !== String(amostra.id)),
-            ].slice(0, 4);
+            ].slice(0, 4));
             const avaliacao = await perfilModulo.validar(ficha, provas, { registrar });
             const registro = perfilModulo.registrarFicha(pastaDados, ficha, avaliacao, { descobertoEm: new Date().toISOString(), canal: categoria.id });
             if (avaliacao.aprovada) registrar(`FICHA APROVADA (addon): ${registro.nome} — nota ${registro.nota}`);
@@ -939,13 +966,13 @@ function criarCacador(opcoes = {}) {
     }
 
     async function cacarCategoria(categoria, rodada = {}) {
-        if (categoria.id === 'short-drama') return require('./cacador-mininovelas').cacarMininovelas({ registrar });
+        if (categoria.id === 'short-drama') return require('./cacador-mininovelas').cacarMininovelas({ registrar, signal:axios.sinalRodada() });
         const profundo = Boolean(rodada.profundo);
         const amostras = amostrasDe(categoria);
         marcar(`medindo ${categoria.nome}`, 0, 0);
         const candidatas = [];
         const largura = profundo ? 40 : 10;
-        for (const c of (categoria.candidatas || []).slice(0, largura)) candidatas.push(await conferirCandidata(c));
+        for (const c of (categoria.candidatas || []).slice(0, largura)) { axios.checarRodada(); candidatas.push(await conferirCandidata(c)); }
         // Guarda o que o varredor descobriu (imdb, tipo e os títulos em que o
         // addon devolveu vídeo): a medição não carrega esses dados, e sem eles
         // a ficha do addon era validada em títulos que ele nem tem.
@@ -967,6 +994,7 @@ function criarCacador(opcoes = {}) {
         // (com castigo por domínio: quem insiste em falhar descansa).
         const daFila = fila.proximos(largura);
         for (const candidata of daFila) {
+            axios.checarRodada();
             const existente = candidatas.find(c => c.url === candidata.url);
             if (existente) {
                 fila.anotar(candidata.url, {
@@ -1010,6 +1038,7 @@ function criarCacador(opcoes = {}) {
         const fichas = [];
         let tentativaDeFicha = 0;
         for (const candidata of paginas.slice(0, limiteDeFichas)) {
+            axios.checarRodada();
             tentativaDeFicha += 1;
             marcar(`procurando o vídeo em ${candidata.nome}`, tentativaDeFicha, Math.min(paginas.length, limiteDeFichas));
             registrar(`ficha: abrindo ${candidata.nome} (${String(candidata.url).slice(0, 60)})`);
@@ -1049,8 +1078,9 @@ function criarCacador(opcoes = {}) {
             }
         }
         const aprovadas = fichas.filter(f => f && f.ativo !== false);
-        const ativas = perfilModulo.listar(pastaDados).filter(f => f.ativo !== false);
-        if (ativas.length && publicarFichas) {
+        const cadastradas = perfilModulo.listar(pastaDados);
+        const ativas = cadastradas.filter(f => f.ativo !== false);
+        if (cadastradas.length && publicarFichas) {
             const publicado = await perfilModulo.publicar(pastaDados, tokenDoGithub()).catch(() => null);
             registrar(`fichas no ar: ${ativas.length}${aprovadas.length ? ' (nova nesta rodada)' : ''}${publicado && publicado.ok ? '' : ' — publicação pendente'}`);
         }
@@ -1111,6 +1141,7 @@ function criarCacador(opcoes = {}) {
             marcar(`medindo a fonte ${fonte.nome}`, medidaAtual++, fontesMedidas.length);
             const medidas = [];
             for (const amostra of amostras) {
+                axios.checarRodada();
                 const medida = await testarFonte(fonte, amostra, categoria.tipo).catch(() => null);
                 if (medida) medidas.push(medida);
             }
@@ -1118,9 +1149,11 @@ function criarCacador(opcoes = {}) {
             // voz está mesmo em português (a fonte pode mentir no rótulo).
             const chaveDeIa = chaveDaIA();
             for (const medida of medidas.filter(m => m.ok && m.url).slice(0, 2)) {
+                axios.checarRodada();
                 // Leitura barata primeiro (faixas do arquivo + o que a lista de
                 // reprodução declara): só gasta IA quando ela não responde.
                 const sonda = await sondagemRapida(medida.url, medida.referer).catch(() => null);
+                axios.checarRodada();
                 if (sonda && sonda.dublado !== null) {
                     medida.idioma = sonda.dublado ? 'pt' : 'outro';
                     medida.idiomaEvidencia = sonda.evidencia || '';
@@ -1174,39 +1207,60 @@ function criarCacador(opcoes = {}) {
     }
 
     async function cacar(qual = 'filme', opcoesRodada = {}) {
+        if (qual !== 'todas' && !CATEGORIAS.some(c => c.id === qual)) throw Error('Categoria de caçada inválida');
         if (rodando) return { rodando: true };
-        rodando = true;
-        categoriaAtual = qual;
-        progresso = { categoria: qual, etapa: 'começando', feitos: 0, total: 0, iniciadoEm: Date.now(), em: new Date().toISOString() };
-        try {
-            const anteriores = ultimo() || { porCategoria: {} };
-            const porCategoria = { ...(anteriores.porCategoria || {}) };
-            const alvos = qual === 'todas' ? CATEGORIAS : [categoriaDe(qual)];
-            for (const categoria of alvos) porCategoria[categoria.id] = await cacarCategoria(categoria, { profundo: Boolean(opcoesRodada.profundo) });
+        rodando = true; categoriaAtual = qual; ultimaFalha = ''; persistenciaErro = '';
+        const inicio = Date.now();
+        const prazo = Math.max(1, Math.min(Number(opcoesRodada.prazoMs) || (opcoesRodada.profundo ? 45 : 20) * 60000, 2 * 60 * 60000));
+        controlador = new AbortController(); const signal = controlador.signal;
+        const timer = setTimeout(() => controlador?.abort(), prazo);
+        progresso = { categoria: qual, etapa: 'começando', feitos: 0, total: 0, iniciadoEm: inicio, em: new Date().toISOString() };
+        const anteriores = ultimo() || { porCategoria: {} };
+        const porCategoria = { ...(anteriores.porCategoria || {}) }, erros = [];
+        const tentativasCategoria = { ...(anteriores.tentativasCategoria || {}) };
+        let estado = 'concluida', medidas = 0;
+        const salvar = () => {
             const saida = {
-                atualizadoEm: new Date().toISOString(),
+                ...anteriores, atualizadoEm: new Date().toISOString(),
                 regra: 'dublado (3) + sem anúncio (2) + qualidade HD/Full HD (2) + sucesso (2) + velocidade (1) — na TV ao vivo: canais (3) + sem anúncio (2) + qualidade (2) + resposta (2) + velocidade (1)',
-                // O placar real e as fichas dão o contexto de cada rodada.
                 placar: placar && typeof placar.resumo === 'function' ? placar.resumo() : [],
-                fichas: perfilModulo.listar(pastaDados).map(f => ({ id: f.id, nome: f.nome, nota: f.nota, ativo: f.ativo !== false, tipos: f.tipos, qualidade: f.qualidade, dublado: f.dublado })),
-                ultimaRodada: { profunda: Boolean(opcoesRodada.profundo), em: new Date().toISOString() },
-                porCategoria
+                fichas: perfilModulo.listar(pastaDados).map(f => ({ id:f.id, nome:f.nome, nota:f.nota, ativo:f.ativo!==false, tipos:f.tipos, qualidade:f.qualidade, dublado:f.dublado })),
+                ultimaRodada: { profunda:Boolean(opcoesRodada.profundo), em:new Date().toISOString(), estado, duracaoMs:Date.now()-inicio, categoriasMedidas:medidas, erros },
+                porCategoria, tentativasCategoria
             };
-            fs.mkdirSync(pastaDados, { recursive: true });
-            fs.writeFileSync(arquivo, JSON.stringify(saida, null, 1));
+            try { armazenamento.gravarJson(arquivo, saida); } catch { persistenciaErro = 'Não foi possível salvar o resultado no disco'; }
             return saida;
-        } finally { rodando = false; categoriaAtual = ''; progresso = null; }
+        };
+        try {
+            return await axios.comRodada({ signal, fim:inicio+prazo }, async () => {
+                const alvos = qual === 'todas' ? CATEGORIAS : [categoriaDe(qual)];
+                for (const categoria of alvos) {
+                    try {
+                        axios.checarRodada();
+                        tentativasCategoria[categoria.id] = new Date().toISOString();
+                        const resultado = await (opcoes.medirCategoria || cacarCategoria)(categoria, { profundo:Boolean(opcoesRodada.profundo), signal });
+                        axios.checarRodada();
+                        porCategoria[categoria.id] = resultado; medidas++;
+                        salvar();
+                    } catch (erro) {
+                        ultimaFalha = signal.aborted ? 'Rodada pausada; os resultados anteriores foram preservados' : String(erro.message).slice(0,160);
+                        erros.push({ categoria:categoria.id, motivo:ultimaFalha });
+                        estado = signal.aborted || erro.code === 'RODADA_INTERROMPIDA' ? 'pausada' : 'parcial';
+                        registrar(categoria.nome + ': ' + ultimaFalha);
+                        if (estado === 'pausada') break;
+                    }
+                }
+                return salvar();
+            });
+        } finally { clearTimeout(timer); controlador = null; rodando = false; categoriaAtual = ''; progresso = null; }
     }
-
-    function ultimo() {
-        try { return JSON.parse(fs.readFileSync(arquivo, 'utf8')); } catch { return null; }
-    }
-
+    function ultimo() { return armazenamento.lerJson(arquivo, null, d => d.porCategoria && typeof d.porCategoria === 'object' && !Array.isArray(d.porCategoria)); }
+    function pausar() { if (!controlador) return false; controlador.abort(); return true; }
+    function diagnostico() { return { ultimaFalha, persistenciaErro, rede:axios.resumo(), varreduraEm:varredura.em ? new Date(varredura.em).toISOString() : '', descobertas:varredura.itens.length }; }
     return {
-        cacar, ultimo, rodando: () => rodando, categoriaAtual: () => categoriaAtual,
-        progresso: () => progresso, historico: historicoCompleto, CATEGORIAS,
-        fichas: () => perfilModulo.listar(pastaDados),
-        fila: () => fila.resumo(),
+        cacar, ultimo, pausar, diagnostico, rodando:()=>rodando, categoriaAtual:()=>categoriaAtual,
+        progresso:()=>progresso, historico:historicoCompleto, CATEGORIAS,
+        fichas:()=>perfilModulo.listar(pastaDados), fila:()=>fila.resumo(),
     };
 }
 
@@ -1233,5 +1287,5 @@ function juntarAmostras(tipo, ...listas) {
 module.exports = {
     criarCacador, notaDoFornecedor, avaliarPromocao, CATEGORIAS, PADRAO_APP, medirListaDeCanais, chaveDaIA,
     // Usados pelos testes: escolha das amostras que vieram de falhas reais.
-    falhaDeDominio, juntarAmostras, amostrasComFalhas, acharVideoNaPagina, acharPlayerNaPagina, comPrazo,
+    falhaDeDominio, juntarAmostras, amostrasParaCategoria, amostrasComFalhas, acharVideoNaPagina, acharPlayerNaPagina, comPrazo,
 };

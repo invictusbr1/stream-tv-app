@@ -62,7 +62,14 @@ public final class MainActivity extends Activity {
         root = new FrameLayout(this);
         root.setBackgroundColor(Color.BLACK);
         root.setOnApplyWindowInsetsListener((view, insets) -> {
-            if (fullscreen == null && !inlineFullscreen) view.setPadding(insets.getSystemWindowInsetLeft(), insets.getSystemWindowInsetTop(), insets.getSystemWindowInsetRight(), insets.getSystemWindowInsetBottom());
+            if (fullscreen == null && !inlineFullscreen) {
+                view.setPadding(insets.getSystemWindowInsetLeft(), insets.getSystemWindowInsetTop(), insets.getSystemWindowInsetRight(), insets.getSystemWindowInsetBottom());
+            } else if (Build.VERSION.SDK_INT >= 28 && !BuildConfig.TV) {
+                // Keep touch controls clear of a camera cutout in landscape fullscreen.
+                android.view.DisplayCutout cutout = insets.getDisplayCutout();
+                view.setPadding(cutout == null ? 0 : cutout.getSafeInsetLeft(), cutout == null ? 0 : cutout.getSafeInsetTop(),
+                    cutout == null ? 0 : cutout.getSafeInsetRight(), cutout == null ? 0 : cutout.getSafeInsetBottom());
+            }
             return insets.consumeSystemWindowInsets();
         });
         setContentView(root);
@@ -315,9 +322,13 @@ public final class MainActivity extends Activity {
                 String endereco = preencher(modelo, id, temporada, episodio).replace("{imdb}", Uri.encode(imdb));
                 if (!enderecoSeguro(endereco)) continue;
                 String referer = ficha.optString("referer", "");
-                String pagina = lerPagina(endereco, referer.isEmpty() ? null : referer);
-                if (pagina == null) continue;
                 JSONArray passos = ficha.optJSONArray("passos");
+                JSONObject primeiroPasso = passos != null ? passos.optJSONObject(0) : null;
+                String pagina = "";
+                if (primeiroPasso == null || !"endereco".equals(primeiroPasso.optString("tipo", "regex"))) {
+                    pagina = lerPagina(endereco, referer.isEmpty() ? null : referer);
+                    if (pagina == null) continue;
+                }
                 String video = "";
                 String atual = pagina;
                 String base = referer.isEmpty() ? endereco : referer;
@@ -327,7 +338,7 @@ public final class MainActivity extends Activity {
                     String achado = aplicarPasso(passo, atual, base);
                     // Passo de endereço: o molde vem com {id}/{temporada}/
                     // {episodio}/{imdb} e é preenchido aqui.
-                    if (achado.contains("{id}") || achado.contains("{temporada}") || achado.contains("{episodio}")) {
+                    if (achado.contains("{id}") || achado.contains("{temporada}") || achado.contains("{episodio}") || achado.contains("{imdb}")) {
                         achado = preencher(achado, id, temporada, episodio).replace("{imdb}", Uri.encode(imdb));
                     }
                     if (achado.isEmpty()) { video = ""; break; }
@@ -345,7 +356,7 @@ public final class MainActivity extends Activity {
                 if (video.startsWith("http://")) video = "https://" + video.substring("http://".length());
                 if (video.isEmpty() || !enderecoSeguro(video)) continue;
                 String tipoMidia = video.matches("(?i).*\\.m3u8(\\?.*)?$") ? "hls" : "file";
-                WebResourceResponse resposta = jsonMidia(video, tipoMidia, ficha.optString("nome", "Fonte nova"), ficha.optBoolean("dublado", false) ? "pt-BR" : "original", ficha.optString("id", ""));
+                WebResourceResponse resposta = jsonMidia(video, tipoMidia, ficha.optString("nome", "Fonte nova"), ficha.optBoolean("dublado", false) ? "pt-BR" : "original", ficha.optString("id", ""), enderecoSeguro(referer) ? referer : base);
                 if (resposta != null && resposta.getStatusCode() == 200) return resposta;
             }
             return error(502);
@@ -373,6 +384,7 @@ public final class MainActivity extends Activity {
             if (Build.VERSION.SDK_INT >= 30 && getWindow().getInsetsController() != null) getWindow().getInsetsController().show(WindowInsets.Type.systemBars());
             root.requestApplyInsets();
         }
+        root.requestApplyInsets();
         main.evaluateJavascript("window.StreamSetFullscreen && window.StreamSetFullscreen(" + enabled + ")", null);
     }
 
@@ -428,18 +440,22 @@ public final class MainActivity extends Activity {
     }
 
     private WebResourceResponse jsonMidia(String url, String tipo, String fonte, String audio, String fonteId) {
+        return jsonMidia(url, tipo, fonte, audio, fonteId, "");
+    }
+
+    private WebResourceResponse jsonMidia(String url, String tipo, String fonte, String audio, String fonteId, String referencia) {
         // Antes de entregar o endereço ao player, confere se ele realmente
         // devolve VÍDEO. As fontes trocam de servidor sem avisar (o PipocaCine
         // passou a devolver página de erro em 09/10/2026) e, sem esta
         // checagem, o aparelho ficava esperando uma imagem que nunca vinha.
-        String referer = refererDaFonte(url);
+        String referer = enderecoSeguro(referencia) ? referencia : refererDaFonte(url);
         if (!entregaVideo(url, referer)) return error(502);
         try {
             JSONObject result = new JSONObject();
             // Lista de reprodução passa pelo encaminhador do aparelho: é o que
             // evita o 403 do CDN quando o pedido vem do WebView. Arquivo direto
             // (MP4) continua indo direto — assim o avançar/voltar segue igual.
-            String servido = (url.contains(".m3u8")) ? enderecoEncaminhado(url, referer) : url;
+            String servido = url.contains(".m3u8") ? enderecoEncaminhado(url, referer) : url;
             result.put("url", servido); result.put("audio", audio); result.put("type", tipo); result.put("source", fonte); result.put("fonteId", fonteId);
             return new WebResourceResponse("application/json", "UTF-8", 200, "OK", Collections.singletonMap("Cache-Control", "no-store"), new ByteArrayInputStream(result.toString().getBytes(StandardCharsets.UTF_8)));
         } catch (Exception e) { return error(502); }
@@ -695,24 +711,18 @@ public final class MainActivity extends Activity {
             Matcher bloco = Pattern.compile("var\\s+sources\\s*=\\s*(\\[[\\s\\S]*?\\]);").matcher(html);
             if (!bloco.find()) return error(502);
             JSONArray lista = new JSONArray(bloco.group(1));
-            String arquivo = "", playlist = "";
+            List<MgebSources.Source> fontes = new ArrayList<>();
             for (int i = 0; i < lista.length(); i++) {
                 JSONObject item = lista.optJSONObject(i);
                 if (item == null) continue;
-                String url = item.optString("file", "");
-                if (url.isEmpty()) continue;
-                if (url.startsWith("http://")) url = url.replaceFirst("http://", "https://").replace(":80/", "/");
-                // A MGEB às vezes devolve caminho com ".." no meio
-                // (ex.: mgeb.site/../cache/hls/...). Sem normalizar, o player e
-                // a conferência de entrega falham e o título não abre no
-                // aparelho — era o caso de várias minisséries e filmes.
-                url = url.replace("/../", "/").replace("/./", "/");
-                if (url.contains(".mp4")) { if (arquivo.isEmpty()) arquivo = url; }
-                else if (url.contains(".m3u8")) { if (playlist.isEmpty()) playlist = url; }
+                MgebSources.Source fonte = MgebSources.parse(item.optString("file", ""), item.optString("label", ""));
+                if (fonte != null && enderecoSeguro(fonte.url)) fontes.add(fonte);
             }
-            if (!arquivo.isEmpty()) return jsonMidia(arquivo, "file", "MGEB · dublado");
-            if (!playlist.isEmpty()) return jsonMidia(playlist, "hls", "MGEB · dublado");
-            return error(502);
+            WebResourceResponse resposta = MgebSources.firstWorking(fontes, fonte -> {
+                WebResourceResponse candidata = jsonMidia(fonte.url, fonte.file ? "file" : "hls", "MGEB · dublado", "pt-BR", "mgeb", "https://mgeb.top/");
+                return candidata != null && candidata.getStatusCode() == 200 ? candidata : null;
+            });
+            return resposta != null ? resposta : error(502);
         } catch (Exception e) { return error(502); }
     }
     private WebResourceResponse pipocaEpisodio(String id, String temporada, String episodio) {
@@ -968,26 +978,27 @@ public final class MainActivity extends Activity {
                 }
                 if (path != null && path.matches("/api/playback/[0-9]{1,10}")) {
                     String id = path.substring("/api/playback/".length());
+                    java.util.Set<String> exceto = PlaybackSources.exclusions(uri.getQueryParameter("exceto"));
                     // Dublado CONFERIDO primeiro: o arquivo do PipocaCine tem a
                     // faixa em português marcada como padrão. A WatchPlay apenas
                     // "avisa" que é dublada e em alguns títulos entrega o idioma
                     // original (caso do "A Luta pela Esperança", medido em
                     // 08/10/2026 por transcrição do áudio) — por isso vem depois.
-                    WebResourceResponse dublado = pipocaFilme(id);
+                    WebResourceResponse dublado = exceto.contains("pipoca") ? null : pipocaFilme(id);
                     if (dublado != null && dublado.getStatusCode() == 200) return dublado;
-                    WebResourceResponse principal = directPlayback("https://v2.watchplay.shop/movie/" + id);
+                    WebResourceResponse principal = exceto.contains("watchplay") ? null : directPlayback("https://v2.watchplay.shop/movie/" + id);
                     if (principal != null && principal.getStatusCode() == 200) return principal;
                     // A MGEB fica por último entre as dubladas: o catálogo dela é
                     // "latino" e em alguns títulos entrega outro idioma.
-                    WebResourceResponse mgeb = mgebFilme(id);
+                    WebResourceResponse mgeb = exceto.contains("mgeb") ? null : mgebFilme(id);
                     if (mgeb != null && mgeb.getStatusCode() == 200) return mgeb;
                     // Fichas de fonte descobertas pelo caçador (fornecedores novos).
-                    WebResourceResponse ficha = perfilPlayback("movie", id, null, null);
+                    WebResourceResponse ficha = perfilPlayback("movie", id, null, null, exceto);
                     if (ficha != null && ficha.getStatusCode() == 200) return ficha;
                     // Nada dublado? Segunda opção da regra: alta definição
                     // limpa com legenda em português (antes o aparelho ficava
                     // sem nada e o usuário via "nenhuma fonte").
-                    return vixsrcMidia("movie", id, null, null);
+                    return exceto.contains("vixsrc") ? error(502) : vixsrcMidia("movie", id, null, null);
                 }
                 if (path != null && path.matches("/api/playback/serie/[0-9]{1,10}/[0-9]{1,3}/[1-9][0-9]{0,3}")) {
                     String[] partes = path.split("/");
@@ -1182,7 +1193,14 @@ public final class MainActivity extends Activity {
     private void back() {
         if (pointerMode) { setPointerMode(false); return; }
         if (fullscreen != null) { exitFullscreen(); return; }
-        if (inlineFullscreen) { setInlineFullscreen(false); return; }
+        if (inlineFullscreen) {
+            setInlineFullscreen(false);
+            if (!BuildConfig.TV && getPackageManager().hasSystemFeature(android.content.pm.PackageManager.FEATURE_TOUCHSCREEN)) {
+                // One handset Back press leaves playback and returns to the title page.
+                main.evaluateJavascript("Boolean(window.streamBack && window.streamBack())", null);
+            }
+            return;
+        }
         if (popup != null) { closePopup(); return; }
         Uri current = Uri.parse(main.getUrl() == null ? HOME : main.getUrl());
         if (local(current) && "/assistir.html".equals(current.getPath())) { main.loadUrl(HOME); return; }

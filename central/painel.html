@@ -115,6 +115,7 @@ code{background:#ffffff10;padding:2px 6px;border-radius:6px;font-size:12.5px}
         <div style="padding:10px 14px 0;display:flex;gap:10px;flex-wrap:wrap">
           <button class="botao" id="botao-cacar">Rodar o caçador nesta categoria</button>
           <button class="botao" id="botao-profunda" title="Varre muito mais fornecedores, procura o vídeo dentro das páginas e valida fichas de fonte">Caçada profunda</button>
+          <button class="botao" id="botao-pausar" hidden>Pausar busca</button>
         </div>
         <p class="mini" id="cacador-andamento" style="padding:8px 14px 0"></p>
         <table><thead><tr><th>Fonte</th><th>Nota</th><th>Destino</th><th id="coluna-extra">Dublado</th><th>Qualidade</th><th>Resposta</th></tr></thead>
@@ -321,10 +322,35 @@ function pintar(dados) {
       await fetch('/api/cacar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ categoria: categoriaAtual, profundo: true }) }).catch(() => {});
     };
     const andamento = dados.cacadorAndamento;
+    const pausar = el('botao-pausar');
+    pausar.hidden = !dados.cacadorRodando;
+    pausar.disabled = false;
+    pausar.textContent = 'Pausar busca';
+    pausar.onclick = async () => {
+      pausar.disabled = true;
+      pausar.textContent = 'Encerrando verificação…';
+      try {
+        const r = await fetch('/api/cacar/pausar', { method:'POST' });
+        if (!r.ok) throw Error('Não foi possível pausar');
+      } catch { pausar.disabled = false; pausar.textContent = 'Tentar pausar novamente'; }
+    };
     el('cacador-andamento').innerHTML = andamento
       ? '<b style="color:#e0b64d">Agora:</b> ' + escapar(andamento.etapa || 'trabalhando') +
         (andamento.total ? ' <span class="fraco">(' + (andamento.feitos || 0) + ' de ' + andamento.total + ')</span>' : '')
       : (dados.cacadorRodando ? '<b style="color:#e0b64d">Caçador rodando…</b>' : '');
+    const fila = dados.cacadorFila || {}, diagnostico = dados.cacadorDiagnostico || {};
+    const rede = diagnostico.rede || {}, rodada = dados.fontesCacadas?.ultimaRodada;
+    const resumoBusca = [];
+    if (andamento?.iniciadoEm) resumoBusca.push(Math.max(0, Math.floor((Date.now()-andamento.iniciadoEm)/60000)) + ' min de busca');
+    if (typeof fila.total === 'number') resumoBusca.push(fila.total + ' descobertas na fila · ' + (fila.esperando || 0) + ' prontas para testar');
+    if (rede.dominiosEmPausa) resumoBusca.push(rede.dominiosEmPausa + ' fornecedores em pausa');
+    if (!andamento && rodada?.estado === 'pausada') resumoBusca.push('Última busca pausada; resultados anteriores preservados');
+    if (!andamento && rodada?.estado === 'parcial') resumoBusca.push('Última busca incompleta; confira o diagnóstico');
+    if (diagnostico.ultimaFalha) resumoBusca.push(diagnostico.ultimaFalha);
+    if (diagnostico.persistenciaErro) resumoBusca.push(diagnostico.persistenciaErro);
+    if (fila.persistencia?.erroGravacao) resumoBusca.push('A fila está na memória; não foi possível salvá-la no disco');
+    if (fila.persistencia?.recuperada) resumoBusca.push('A fila foi recuperada da cópia de segurança');
+    if (resumoBusca.length) el('cacador-andamento').innerHTML += '<br><span class="fraco">' + resumoBusca.map(escapar).join(' · ') + '</span>';
 
     // -------------------------------------------------- fichas de fonte
     const fichas = dados.fichas || [];

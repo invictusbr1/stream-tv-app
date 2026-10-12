@@ -32,6 +32,7 @@ if(!html.includes("busca-final"))html=html.replace("</style>",CSS_BUSCA_FINAL+"<
 // Uma só folha de estilos de TV substitui os antigos ajustes conflitantes.
 html=html.split(/\r?\n/).filter(line=>!line.trimStart().startsWith('html.modo-tv ')).join('\n');
 html=html.replace('</head>','<link rel="stylesheet" href="/tv.css?v=2.13.53">\n</head>');
+html=require('./phone-ui.cjs').phonePage(html);
 fs.writeFileSync(path.join(assets,'index.html'),html);
 fs.copyFileSync(path.join(root,'playback.js'),path.join(assets,'playback.js'));
 fs.copyFileSync(path.join(root,'futebol.js'),path.join(assets,'futebol.js'));

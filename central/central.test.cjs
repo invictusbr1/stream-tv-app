@@ -74,6 +74,13 @@ test('a central guarda quem entrou, o que assistiu e mostra os números', async 
         assert.equal(dados.fontes.find(f => f.fonte === 'Vixsrc').taxa, 0);
         assert.ok(dados.alertas.length >= 1);
         assert.equal(dados.eventos.length, 3);
+        assert.ok(dados.cacadorDiagnostico.rede);
+        const invalida = await fetch(`http://127.0.0.1:${PORTA}/api/cacar?chave=${CHAVE}`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({categoria:'inexistente'})});
+        assert.equal(invalida.status, 400);
+        const pausaSemChave = await fetch(`http://127.0.0.1:${PORTA}/api/cacar/pausar`, {method:'POST'});
+        assert.equal(pausaSemChave.status, 401);
+        const pausaOciosa = await fetch(`http://127.0.0.1:${PORTA}/api/cacar/pausar?chave=${CHAVE}`, {method:'POST'});
+        assert.equal(pausaOciosa.status, 200); assert.equal((await pausaOciosa.json()).pausando, false);
 
         // A página do painel é entregue com a chave e sem cache.
         const pagina = await fetch(`http://127.0.0.1:${PORTA}/`, { headers: { cookie: `central_chave=${CHAVE}` } });
