@@ -5,6 +5,18 @@
 
 ## Última versão publicada
 
+### 2.13.67 / 397 — publicada em 12/10/2026
+
+- Publicação autorizada pelo usuário: https://github.com/invictusbr1/stream-tv-atualizacoes/releases/tag/v2.13.67.
+- Quatro arquivos publicados: APK celular, APK Android TV, Windows e central. Assinaturas Android preservadas. Downloads públicos completos tiveram tamanho e SHA256 iguais aos arquivos locais aprovados.
+- Avisos principal (stream-tv-atualizacoes/latest.json) e reserva (stream-tv-app/docs/latest.json/GitHub Pages) conferidos pela API e pelos endereços públicos em 2.13.67/397.
+- Inclui correções MGEB/Sobrevivência e seleção por qualidade medida, referências do fornecedor, exclusão de fontes que falharam em filmes Android e variantes MGEB. Mantém a interface nova do celular da versão 2.13.66 e a interface própria da TV.
+- Inclui fortalecimento do caçador: limite de rede/Chromium, fila persistente com recuperação, rodadas com orçamento e pausa, cache parcial curto, aprovação com provas independentes, alternância de categorias e diagnóstico no painel.
+- Validação: 295 testes, zero falhas/ignorados; build/lint celular e TV; ambos os executáveis iniciados em ambiente isolado, com interface/motor e diagnóstico/pausa verificados.
+- Sobrevivência (2026, TMDB 1236045) tocou no teste de navegador em 1280 × 720 com português confirmado em amostra. Full HD português, filme inteiro e aparelhos Android/TV físicos não foram confirmados.
+- Código funcional publicado no commit 96343b563e8fd780052646a40240c780b3964422; endereço automático e fichas atuais do main preservados. Não houve substituição dos executáveis instalados nesta publicação.
+- Evidências: C:/Users/tikto/Documents/Codex/2026-10-10/cha/outputs/verificacao-release-2.13.67.json e downloads-publicos-2.13.67.json.
+
 ### Correções locais do navegador — 10/10/2026
 
 - Atualizado o executável instalado a partir do código local 2.13.60 para que Futebol no navegador use a mesma interface do APK: banner, jogos ao vivo e cartões sem placares.
