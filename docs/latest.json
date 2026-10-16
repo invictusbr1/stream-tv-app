@@ -1,14 +1,14 @@
 {
-  "versionCode": 403,
-  "versionName": "2.13.73",
-  "apkUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.73/Conecta-TV-Android-2.13.73.apk",
-  "sha256": "45f43d0120b9cf26f68f618b2fb9dee50888bdc7db022ddfdbbb9b519465063d",
-  "bytes": 502879,
-  "notes": "Teclas de volume nao fazem reaparecer o titulo do player. Novo botao Proximo episodio, com mudanca de temporada quando disponivel. Continuar assistindo mostra um cartao por serie, com episodio e ponto salvos; ao concluir, oferece o proximo disponivel. Mantem os ajustes de qualidade e a regra sem anuncios.",
+  "versionCode": 404,
+  "versionName": "2.13.74",
+  "apkUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.74/Conecta-TV-Android-2.13.74.apk",
+  "sha256": "debf9177355e26a8dcaf3e1d93f5551f7e15dcf709e2f131c440d76d1f17b159",
+  "bytes": 541757,
+  "notes": "Crystal Lake: fonte dublada em português, 480p, no player do aplicativo. Exceção exclusiva da série, com renovação dos links e conferência de publicidade; seleção de qualidade dos demais títulos preservada.",
   "exeUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.68/Conecta-TV-2.13.68.exe",
   "exeSha256": "40914a57b0e3ad375615c9954839f8c3f7bb138d8739472772de3ee28d3ff015",
   "exeBytes": 120409967,
-  "apkTvUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.73/Conecta-TV-TV-2.13.73.apk",
-  "apkTvSha256": "58aba0deb04bd223d7c7f63febe4a7dd2dad80d1a2cc9749c3ec6103bdbeb682",
-  "apkTvBytes": 502873
+  "apkTvUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.74/Conecta-TV-TV-2.13.74.apk",
+  "apkTvSha256": "8c927c40b532706edac3988d82836f90765303956fecc6b8271ae95d868c1583",
+  "apkTvBytes": 541642
 }
