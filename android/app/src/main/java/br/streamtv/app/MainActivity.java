@@ -905,7 +905,7 @@ public final class MainActivity extends Activity {
             return dados != null && dados.optBoolean("success", false) ? dados.optString("videoUrl", "") : null;
         };
         AnimeSource.Result fonte = AnimeSource.resolve(pedido, catalogo, fornecedor, relogio);
-        if (fonte == null) return respostaTexto("application/json", "{\"ok\":false}");
+        if (fonte == null) return animeDireto(pedido, catalogo);
         try {
             JSONObject dados = new JSONObject();
             dados.put("ok", true); dados.put("tipo", "embed"); dados.put("type", "embed"); dados.put("embed", true);
@@ -919,6 +919,53 @@ public final class MainActivity extends Activity {
             // A preparação do iframe não comprova primeira imagem nem informa resolução.
             return respostaTexto("application/json", dados.toString());
         } catch (Exception falha) { return respostaTexto("application/json", "{\"ok\":false}"); }
+    }
+
+    private WebResourceResponse animeDireto(AnimeSource.Request pedido, AnimeSource.Catalog catalogo) {
+        ProplayerSource.Catalog fontes = new ProplayerSource.Catalog() {
+            @Override public ProplayerSource.Meta title(int id, long prazo) throws Exception {
+                JSONObject dados = lerAnimeJson("https://api.themoviedb.org/3/tv/" + id + "?api_key=" + Uri.encode(chaveTmdb()) + "&language=en-US", prazo);
+                if (dados == null || dados.optInt("id", -1) != id) return null;
+                boolean animacao = false, origem = "ja".equals(dados.optString("original_language"));
+                JSONArray generos = dados.optJSONArray("genres"), paises = dados.optJSONArray("origin_country"), temporadas = dados.optJSONArray("seasons");
+                for (int i=0; generos!=null && i<generos.length(); i++) if (generos.optJSONObject(i)!=null && generos.optJSONObject(i).optInt("id")==16) animacao=true;
+                for (int i=0; paises!=null && i<paises.length(); i++) if ("JP".equals(paises.optString(i)) || "KR".equals(paises.optString(i))) origem=true;
+                java.util.Map<Integer,Integer> contagens = new java.util.HashMap<>();
+                for (int i=0; temporadas!=null && i<temporadas.length(); i++) { JSONObject t=temporadas.optJSONObject(i); if(t!=null)contagens.put(t.optInt("season_number",-1),t.optInt("episode_count",0)); }
+                return new ProplayerSource.Meta(id, dados.optString("name", ""), animacao && origem, contagens);
+            }
+            @Override public int[] episodes(int id,int temporada,long prazo) throws Exception { return catalogo.episodes(id,temporada,prazo); }
+        };
+        ProplayerSource.Result fonte = ProplayerSource.resolve(pedido, fontes, this::lerProplayerTexto, () -> SystemClock.elapsedRealtime());
+        if (fonte == null) return respostaTexto("application/json", "{\"ok\":false}");
+        try {
+            JSONObject dados = new JSONObject();
+            dados.put("ok",true);dados.put("tipo","file");dados.put("type","file");dados.put("tmdbId",pedido.id);dados.put("url",fonte.url);
+            dados.put("fonteId",ProplayerSource.ID);dados.put("supplierId",ProplayerSource.ID);dados.put("source","PROPLAYER · legendado");dados.put("nome","PROPLAYER · legendado");
+            dados.put("audio","original");dados.put("anime",true);dados.put("semAnuncio",true);dados.put("legendaPortugues",true);dados.put("legendaEmbutida",true);
+            dados.put("pagina",fonte.page);dados.put("qualidade",fonte.height+"p");
+            JSONObject episodio=new JSONObject();episodio.put("season",pedido.season);episodio.put("number",pedido.episode);dados.put("episode",episodio);
+            return respostaTexto("application/json",dados.toString());
+        } catch(Exception unavailable) { return respostaTexto("application/json","{\"ok\":false}"); }
+    }
+
+    private String lerProplayerTexto(String endereco,String referer,long prazo,int limite) throws Exception {
+        long restante=prazo-SystemClock.elapsedRealtime();if(restante<=0)return null;
+        URL url=new URL(endereco);String host=url.getHost();
+        if(!"https".equals(url.getProtocol())||url.getUserInfo()!=null||url.getPort()!=-1||url.getRef()!=null||
+            !("assistiranimesonline.net".equals(host)||"sk-ru.alibabacdn.net".equals(host)))return null;
+        HttpsURLConnection conexao=(HttpsURLConnection)url.openConnection();
+        try {
+            conexao.setConnectTimeout((int)Math.min(restante,6000));conexao.setReadTimeout((int)Math.min(restante,6000));conexao.setInstanceFollowRedirects(false);
+            conexao.setRequestProperty("User-Agent","Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36");
+            if(!referer.isEmpty())conexao.setRequestProperty("Referer",referer);
+            if(conexao.getResponseCode()!=200)return null;
+            try(InputStream input=conexao.getInputStream();ByteArrayOutputStream bytes=new ByteArrayOutputStream()){
+                byte[] buffer=new byte[8192];int count;
+                while(true){restante=prazo-SystemClock.elapsedRealtime();if(restante<=0)return null;conexao.setReadTimeout((int)Math.min(restante,6000));count=input.read(buffer);if(count==-1)break;if(bytes.size()+count>limite)return null;bytes.write(buffer,0,count);}
+                return new String(bytes.toByteArray(),StandardCharsets.UTF_8);
+            }
+        } finally { conexao.disconnect(); }
     }
 
     private JSONObject lerAnimeJson(String endereco, long prazo) throws Exception {

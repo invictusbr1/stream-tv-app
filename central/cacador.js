@@ -107,6 +107,7 @@ const CATEGORIAS = [
             { nome: 'PipocaCine', url: 'https://pipocacine.lat/media/tv?id=95479&s=1&e=1', motivoEsperado: 'anime dublado em arquivo' },
             { nome: 'AnimesOnlineCC', url: 'https://animesonlinecc.to/', motivoEsperado: 'anúncios na página' },
             { nome: 'Meus Animes', url: 'https://meusanimes.blog/e/one-piece-1-episodio-1/', motivoEsperado: 'anime legendado; adaptador restrito a One Piece e Solo Leveling' },
+            { nome: 'PROPLAYER legendado', url: 'https://assistiranimesonline.net/', motivoEsperado: 'adaptador MP4 próprio; somente episódios com identidade confirmada, sem abrir páginas externas' },
             { nome: 'AnimesDigital', url: 'https://animesdigital.org/', motivoEsperado: 'anúncios na página' },
             { nome: 'Dattebayo BR', url: 'https://www.dattebayo-br.com/anime-dublado', motivoEsperado: 'catálogo de busca; episódio só no site' },
             { nome: 'AnimeFire', url: 'https://animefire.io/', motivoEsperado: 'player só abre com navegador' },
@@ -178,6 +179,7 @@ async function buscarResposta(url, opcoes = {}) {
 // avaliação). Serve para o caçador sinalizar e ninguém acabar cadastrando de
 // novo o que já existe.
 const JA_NO_APP = [
+    { nome: 'PROPLAYER legendado', dominios: ['assistiranimesonline.net', 'sk-ru.alibabacdn.net'], papel: 'anime legendado · MP4 no player do aplicativo · identidade do episódio conferida' },
     { nome: 'Meus Animes', dominios: ['meusanimes.blog', 'serv01.meusdoramas.club'], papel: 'anime legendado · One Piece e Solo Leveling · player incorporado' },
     { nome: 'WatchPlay', dominios: ['watchplay.shop', 'hclod.qzz.io'], papel: 'dublado · filmes e séries' },
     { nome: 'PipocaCine', dominios: ['pipocacine.lat', 'nixplay.lat'], papel: 'dublado · filme e episódios' },

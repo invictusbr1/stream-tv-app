@@ -615,7 +615,7 @@ async function abrirPlayer(id,titulo,episode=null,retomada=null){
  setLoading(retomada?'Retomando seu vídeo':'Preparando seu filme',retomada?'Procurando outra opção para continuar de onde parou.':'Buscando a melhor opção disponível.');
  try{
   if(anime&&audioAnime==='legendado'&&!retomada&&window.StreamAnimePlayer){
-   const incorporado=await StreamAnimePlayer.abrir({id,episode,audio:audioAnime,signal:req.signal,valido,request:lerJson,sessao:contexto.sessao,
+   const incorporado=await StreamAnimePlayer.abrir({id,episode,audio:audioAnime,version,playbackOptions:opcoes(),signal:req.signal,valido,request:lerJson,sessao:contexto.sessao,
     onLoad:()=>{if(!valido())return;el('loading').classList.remove('vis');mostrarStatus('Legendado · use os controles do vídeo');window.StreamChrome?.wake();},
     onError:()=>{if(!valido())return;mostrarErro('O player deste anime não carregou.','Tente novamente ou escolha Dublado, conforme disponibilidade.');abrirOpcoes();}
    });

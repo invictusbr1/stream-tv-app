@@ -738,7 +738,7 @@ app.get('/api/anime-player',async(req,res)=>{
  res.setHeader('Cache-Control','no-store');
  if(!/^[1-9]\d{0,9}$/.test(id)||!/^\d{1,3}$/.test(temporada)||!/^\d{1,4}$/.test(episodio)||Number(temporada)<1||Number(episodio)<1||!['legendado','dublado'].includes(audio)||(req.query.tipo&&req.query.tipo!=='tv'))return res.status(400).json({ok:false});
  const controller=new AbortController();const cancelar=()=>{if(!res.writableEnded)controller.abort();};res.once('close',cancelar);
- try{const dados=await require('./anime-source').resolverEpisodio({tmdbId:id,temporada,episodio,audio,tmdbKey:TMDB_KEY,signal:controller.signal});if(!res.destroyed)res.json(dados||{ok:false,motivo:'Fonte legendada indisponível para este episódio agora.'});}
+ try{const pedido={tmdbId:id,temporada,episodio,audio,tmdbKey:TMDB_KEY,signal:controller.signal};let dados=await require('./anime-source').resolverEpisodio(pedido);if(!dados&&!controller.signal.aborted)dados=await require('./anime-proplayer-source').resolverEpisodio(pedido);if(!res.destroyed)res.json(dados||{ok:false,motivo:'Fonte legendada indisponível para este episódio agora.'});}
  catch{if(!res.destroyed)res.json({ok:false,motivo:'Fonte legendada indisponível para este episódio agora.'});}
  finally{res.removeListener('close',cancelar);}
 });

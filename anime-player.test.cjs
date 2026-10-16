@@ -8,7 +8,7 @@ function setup(){
  const player=criar(host),controller=new AbortController();
  const good={ok:true,tipo:'embed',anime:true,fonteId:'meus-animes',audio:'original',legendaPortugues:true,legendaEmbutida:true,url:embed,episode:{season:1,number:1}};
  const options={id:37854,episode:{anime:true,season:1,number:1},audio:'legendado',signal:controller.signal,valido:()=>true,request:async()=>good,onLoad:()=>events.push('load'),onError:()=>events.push('error'),sessao:{iniciar:()=>events.push('tentativa'),imagem:()=>events.push('imagem'),encerrar:()=>events.push('fim'),falha:()=>events.push('falha')}};
- return{player,options,good,controller,timers,events,frame:()=>frame};
+ return{player,options,good,controller,timers,events,host,frame:()=>frame};
 }
 test('abre somente o embed Blogger do episódio solicitado, mantendo sandbox sem popups',async()=>{
  const s=setup();assert.equal(await s.player.abrir(s.options),true);assert.equal(s.frame().src,embed);assert.match(s.frame().sandbox,/allow-scripts/);assert.doesNotMatch(s.frame().sandbox,/allow-popups|allow-top-navigation/);s.frame().onload();assert.deepEqual(s.events,['tentativa','load']);assert.equal(s.player.estado().resolucao,'');assert.equal(s.timers.size,0);
@@ -28,4 +28,19 @@ test('abortar limpa o iframe, timer e eventos antigos sem declarar reprodução'
 });
 test('carregamento expira uma vez e a preferência de anime persiste sem afetar fontes gerais',async()=>{
  const s=setup();assert.equal(s.player.preferencia(),'legendado');assert.equal(s.player.escolher('dublado'),true);assert.equal(s.player.preferencia(),'dublado');assert.equal(s.player.escolher('qualquer'),false);await s.player.abrir(s.options);[...s.timers.values()][0].fn();assert.deepEqual(s.events,['tentativa','falha','error']);assert.equal(s.timers.size,0);
+});
+
+test('MP4 validado usa somente o player nativo sem abrir iframe ou scripts externos',async()=>{
+ const s=setup(),calls=[];const url='https://meusanimes.blog.alibabacdn.net/video/a/video.mp4?X-Amz-Signature='+'a'.repeat(64);
+ s.options.version=7;s.options.playbackOptions={posicao:12};s.options.request=async()=>({...s.good,tipo:'file',url,tmdbId:37854,fonteId:'proplayer-legendado',semAnuncio:true});
+ s.host.StreamPlayback={start:async(...args)=>{calls.push(args);return true;}};
+ assert.equal(await s.player.abrir(s.options),true);assert.equal(s.frame().src,'about:blank');assert.equal(calls.length,1);assert.equal(calls[0][4],url);assert.equal(calls[0][1],7);assert.deepEqual(calls[0][7],{posicao:12});assert.equal(s.player.isActive(),false);
+});
+
+test('mídia direta recusa publicidade, outro título, outro episódio e URL de página',async()=>{
+ const url='https://meusanimes.blog.alibabacdn.net/video/a/video.mp4?X-Amz-Signature='+'a'.repeat(64);
+ for(const extra of[{semAnuncio:false},{tmdbId:99},{episode:{season:1,number:2}},{url:'https://assistiranimesonline.net/'},{legendaEmbutida:false}]){
+  const s=setup();s.options.version=1;s.options.request=async()=>({...s.good,tipo:'file',url,tmdbId:37854,fonteId:'proplayer-legendado',semAnuncio:true,...extra});s.host.StreamPlayback={start:async()=>{throw Error('não pode tocar');}};
+  assert.equal(await s.player.abrir(s.options),false);assert.equal(s.frame().src,'about:blank');
+ }
 });

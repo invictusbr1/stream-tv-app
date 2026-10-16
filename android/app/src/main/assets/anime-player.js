@@ -3,6 +3,9 @@
  function enderecoBlogger(value){
   try{const u=new URL(String(value||''));return u.protocol==='https:'&&u.hostname==='www.blogger.com'&&!u.port&&!u.username&&!u.password&&!u.hash&&u.pathname==='/video.g'&&[...u.searchParams.keys()].length===1&&/^[A-Za-z0-9_-]{20,2048}$/.test(u.searchParams.get('token')||'')?u.href:null;}catch{return null;}
  }
+ function enderecoDireto(value){
+  try{const u=new URL(String(value||''));return u.protocol==='https:'&&u.hostname==='meusanimes.blog.alibabacdn.net'&&!u.port&&!u.username&&!u.password&&!u.hash&&/^\/video\/[a-zA-Z0-9/_-]+\.[a-zA-Z0-9._-]*mp4$/.test(u.pathname)&&/^[a-f0-9]{64}$/.test(u.searchParams.get('X-Amz-Signature')||'')?u.href:null;}catch{return null;}
+ }
  function criar(host){
   let geracao=0,frame=null,timer=null,removerAbort=null,estado=null,sessao=null;
   const get=id=>host.document.getElementById(id);
@@ -22,6 +25,13 @@
    let dados;
    try{dados=await opcoes.request('/api/anime-player?'+query,opcoes.signal);}catch{return false;}
    if(!valido())return false;
+   if(dados?.tipo==='file'){
+    const url=enderecoDireto(dados.url);
+    if(!dados.ok||dados.fonteId!=='proplayer-legendado'||Number(dados.tmdbId)!==Number(opcoes.id)||dados.anime!==true||dados.semAnuncio!==true||dados.audio!=='original'||dados.legendaPortugues!==true||dados.legendaEmbutida!==true||Number(dados.episode?.season)!==Number(opcoes.episode.season)||Number(dados.episode?.number)!==Number(opcoes.episode.number)||!url||!Number.isInteger(opcoes.version)||!host.StreamPlayback?.start)return false;
+    const tocou=await host.StreamPlayback.start(opcoes.id,opcoes.version,opcoes.signal,undefined,url,true,{id:'proplayer-legendado',nome:'PROPLAYER · legendado',tipo:'file',audioInformado:'Legendado · português'},opcoes.playbackOptions);
+    if(!valido()||!tocou)return false;
+    opcoes.onLoad?.();return true;
+   }
    const endereco=enderecoBlogger(dados?.url);
    if(!dados?.ok||dados.tipo!=='embed'||dados.anime!==true||dados.fonteId!=='meus-animes'||dados.audio!=='original'||dados.legendaPortugues!==true||dados.legendaEmbutida!==true||Number(dados.episode?.season)!==Number(opcoes.episode.season)||Number(dados.episode?.number)!==Number(opcoes.episode.number)||!endereco)return false;
    const anterior=get('frame');if(!anterior)return false;
@@ -46,6 +56,6 @@
   }
   return{abrir,parar,preferencia,escolher,isActive:()=>Boolean(frame),estado:()=>estado?{...estado}:null};
  }
- if(typeof module!=='undefined'&&module.exports)module.exports={criar,enderecoBlogger};
+ if(typeof module!=='undefined'&&module.exports)module.exports={criar,enderecoBlogger,enderecoDireto};
  if(root?.document)root.StreamAnimePlayer=criar(root);
 })(typeof window!=='undefined'?window:globalThis);
