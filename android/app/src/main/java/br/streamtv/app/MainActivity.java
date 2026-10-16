@@ -55,6 +55,17 @@ public final class MainActivity extends Activity {
     private View pointer;
     private boolean pointerMode;
     private float pointerX, pointerY;
+    private final QualitySelector qualitySelector = new QualitySelector();
+    private final ThreadLocal<Long> qualityDeadline = new ThreadLocal<>();
+
+    private int qualityTimeout(int normal) throws java.io.IOException {
+        Long deadline=qualityDeadline.get();
+        if(Thread.currentThread().isInterrupted())throw new java.io.IOException("Consulta encerrada");
+        if(deadline==null)return normal;
+        long left=deadline-QualitySelector.now();
+        if(left<=0)throw new java.io.IOException("Prazo da escolha encerrado");
+        return (int)Math.min(Math.min(normal,3000),left);
+    }
 
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
@@ -288,6 +299,10 @@ public final class MainActivity extends Activity {
     }
 
     private WebResourceResponse perfilPlayback(String tipo, String id, String temporada, String episodio, java.util.Set<String> exceto) {
+        return perfilPlayback(tipo,id,temporada,episodio,exceto,null);
+    }
+
+    private WebResourceResponse perfilPlayback(String tipo, String id, String temporada, String episodio, java.util.Set<String> exceto, String somenteId) {
         try {
             String texto = perfis();
             if (texto == null || texto.isEmpty()) return error(502);
@@ -299,6 +314,7 @@ public final class MainActivity extends Activity {
             for (int i = 0; i < lista.length(); i++) {
                 JSONObject ficha = lista.optJSONObject(i);
                 if (ficha == null || !ficha.optBoolean("ativo", true) || exceto.contains(ficha.optString("id", ""))) continue;
+                if(somenteId!=null&&!somenteId.equals(ficha.optString("id","")))continue;
                 JSONArray tipos = ficha.optJSONArray("tipos");
                 boolean serve = false;
                 for (int j = 0; tipos != null && j < tipos.length(); j++) if (tipo.equals(tipos.optString(j))) serve = true;
@@ -356,7 +372,7 @@ public final class MainActivity extends Activity {
                 if (video.startsWith("http://")) video = "https://" + video.substring("http://".length());
                 if (video.isEmpty() || !enderecoSeguro(video)) continue;
                 String tipoMidia = video.matches("(?i).*\\.m3u8(\\?.*)?$") ? "hls" : "file";
-                WebResourceResponse resposta = jsonMidia(video, tipoMidia, ficha.optString("nome", "Fonte nova"), ficha.optBoolean("dublado", false) ? "pt-BR" : "original", ficha.optString("id", ""), enderecoSeguro(referer) ? referer : base);
+                WebResourceResponse resposta = jsonMidia(video, tipoMidia, ficha.optString("nome", "Fonte nova"), ficha.optBoolean("dublado", false) ? "pt-BR" : "original", ficha.optString("id", ""), enderecoSeguro(referer) ? referer : base, ficha.optString("qualidade",""));
                 if (resposta != null && resposta.getStatusCode() == 200) return resposta;
             }
             return error(502);
@@ -416,7 +432,7 @@ public final class MainActivity extends Activity {
         HttpsURLConnection connection = null;
         try {
             connection = (HttpsURLConnection) new URL(pagina).openConnection();
-            connection.setConnectTimeout(10000); connection.setReadTimeout(10000);
+            connection.setConnectTimeout(qualityTimeout(10000)); connection.setReadTimeout(qualityTimeout(10000));
             connection.setInstanceFollowRedirects(false);
             connection.setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Mobile Safari/537.36");
             connection.setRequestProperty("Accept-Language", "pt-BR,pt;q=0.9");
@@ -424,7 +440,7 @@ public final class MainActivity extends Activity {
             if (connection.getResponseCode() != 200) return null;
             try (InputStream input = connection.getInputStream(); ByteArrayOutputStream bytes = new ByteArrayOutputStream()) {
                 byte[] buffer = new byte[8192]; int count;
-                while ((count = input.read(buffer)) != -1) { bytes.write(buffer, 0, count); if (bytes.size() > 4194304) return null; }
+                while ((count = input.read(buffer)) != -1) { qualityTimeout(10000);bytes.write(buffer, 0, count); if (bytes.size() > 4194304) return null; }
                 return new String(bytes.toByteArray(), StandardCharsets.UTF_8);
             }
         } catch (Exception e) { return null; }
@@ -444,6 +460,10 @@ public final class MainActivity extends Activity {
     }
 
     private WebResourceResponse jsonMidia(String url, String tipo, String fonte, String audio, String fonteId, String referencia) {
+        return jsonMidia(url,tipo,fonte,audio,fonteId,referencia,"");
+    }
+
+    private WebResourceResponse jsonMidia(String url, String tipo, String fonte, String audio, String fonteId, String referencia, String resolucao) {
         // Antes de entregar o endereço ao player, confere se ele realmente
         // devolve VÍDEO. As fontes trocam de servidor sem avisar (o PipocaCine
         // passou a devolver página de erro em 09/10/2026) e, sem esta
@@ -457,6 +477,7 @@ public final class MainActivity extends Activity {
             // (MP4) continua indo direto — assim o avançar/voltar segue igual.
             String servido = url.contains(".m3u8") ? enderecoEncaminhado(url, referer) : url;
             result.put("url", servido); result.put("audio", audio); result.put("type", tipo); result.put("source", fonte); result.put("fonteId", fonteId);
+            result.put("_referer",referer==null?"":referer);result.put("resolucao",resolucao);
             return new WebResourceResponse("application/json", "UTF-8", 200, "OK", Collections.singletonMap("Cache-Control", "no-store"), new ByteArrayInputStream(result.toString().getBytes(StandardCharsets.UTF_8)));
         } catch (Exception e) { return error(502); }
     }
@@ -582,7 +603,7 @@ public final class MainActivity extends Activity {
         HttpsURLConnection conexao = null;
         try {
             conexao = (HttpsURLConnection) new URL(url).openConnection();
-            conexao.setConnectTimeout(6000); conexao.setReadTimeout(6000);
+            conexao.setConnectTimeout(qualityTimeout(6000)); conexao.setReadTimeout(qualityTimeout(6000));
             conexao.setInstanceFollowRedirects(true);
             conexao.setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Mobile Safari/537.36");
             conexao.setRequestProperty("Accept", "*/*");
@@ -628,7 +649,7 @@ public final class MainActivity extends Activity {
         HttpsURLConnection conexao = null;
         try {
             conexao = (HttpsURLConnection) new URL(endereco).openConnection();
-            conexao.setConnectTimeout(10000); conexao.setReadTimeout(12000);
+            conexao.setConnectTimeout(qualityTimeout(10000)); conexao.setReadTimeout(qualityTimeout(12000));
             conexao.setInstanceFollowRedirects(true);
             conexao.setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Mobile Safari/537.36");
             conexao.setRequestProperty("Accept", accept);
@@ -706,7 +727,8 @@ public final class MainActivity extends Activity {
     }
     private WebResourceResponse mgeb(String endereco) {
         try {
-            String html = MgebHttp.read(endereco);
+            Long deadline=qualityDeadline.get();
+            String html = MgebHttp.read(endereco,deadline==null?Long.MAX_VALUE:deadline);
             if (html == null) return error(502);
             Matcher bloco = Pattern.compile("var\\s+sources\\s*=\\s*(\\[[\\s\\S]*?\\]);").matcher(html);
             if (!bloco.find()) return error(502);
@@ -719,7 +741,7 @@ public final class MainActivity extends Activity {
                 if (fonte != null && enderecoSeguro(fonte.url)) fontes.add(fonte);
             }
             WebResourceResponse resposta = MgebSources.firstWorking(fontes, fonte -> {
-                WebResourceResponse candidata = jsonMidia(fonte.url, fonte.file ? "file" : "hls", "MGEB · dublado", "pt-BR", "mgeb", "https://mgeb.top/");
+                WebResourceResponse candidata = jsonMidia(fonte.url, fonte.file ? "file" : "hls", "MGEB · dublado", "pt-BR", "mgeb", "https://mgeb.top/",fonte.height>0?fonte.height+"p":"");
                 return candidata != null && candidata.getStatusCode() == 200 ? candidata : null;
             });
             return resposta != null ? resposta : error(502);
@@ -746,25 +768,62 @@ public final class MainActivity extends Activity {
         } catch (Exception e) { return error(502); }
     }
 
-    // Episódio: tenta a fonte dublada principal e, se ela não tiver este
-    // episódio, a segunda opção dublada — sempre dentro do aplicativo.
-    private WebResourceResponse directEpisode(String id, String temporada, String episodio, java.util.Set<String> exceto) {
-        WebResourceResponse resposta;
-        if (!exceto.contains("watchplay")) {
-            resposta = directPlayback("https://v2.watchplay.shop/tvshow/" + id + "/" + temporada + "/" + episodio);
-            if (resposta != null && resposta.getStatusCode() == 200) return resposta;
+    private QualitySelector.Candidate qualityCandidate(WebResourceResponse response) {
+        if(response==null||response.getStatusCode()!=200)return null;
+        try(InputStream input=response.getData()){
+            JSONObject data=new JSONObject(lerTexto(input));
+            if(!"pt-BR".equals(data.optString("audio")))return null;
+            String id=data.optString("fonteId"),type=data.optString("type"),raw=data.optString("url"),referer=data.optString("_referer","");
+            if(!id.matches("[a-z0-9_-]{1,64}"))return null;
+            if(raw.startsWith("/api/hls?")){Uri uri=Uri.parse(raw);raw=decodificar(uri.getQueryParameter("u"));referer=decodificar(uri.getQueryParameter("r"));}
+            NativeMediaProbe.safe(raw);
+            if(!"hls".equals(type)&&!("file".equals(type)&&new URL(raw).getPath().toLowerCase(java.util.Locale.ROOT).endsWith(".mp4")))return null;
+            Matcher height=Pattern.compile("(?i)(\\d{3,4})\\s*p\\b").matcher(data.optString("resolucao"));
+            int declared=height.find()?Integer.parseInt(height.group(1)):0;
+            data.remove("_referer");
+            return new QualitySelector.Candidate(id,raw,referer,type,data.toString(),declared);
+        }catch(Exception ignored){return null;}
+    }
+
+    private QualitySelector.Source qualitySource(java.util.concurrent.Callable<WebResourceResponse> resolver) {
+        return deadline->{qualityDeadline.set(deadline);try{return qualityCandidate(resolver.call());}finally{qualityDeadline.remove();}};
+    }
+
+    private WebResourceResponse qualityPlayback(String tipo,String id,String temporada,String episodio,java.util.Set<String> excluded) {
+        final java.util.Set<String> exceto=Collections.unmodifiableSet(new java.util.HashSet<>(excluded));
+        List<QualitySelector.Source> sources=new ArrayList<>();
+        boolean tv="tv".equals(tipo);
+        if(!exceto.contains("pipoca")&&!tv)sources.add(qualitySource(()->pipocaFilme(id)));
+        if(!exceto.contains("watchplay"))sources.add(qualitySource(()->directPlayback(tv?"https://v2.watchplay.shop/tvshow/"+id+"/"+temporada+"/"+episodio:"https://v2.watchplay.shop/movie/"+id)));
+        if(!exceto.contains("pipoca-serie")&&tv)sources.add(qualitySource(()->pipocaEpisodio(id,temporada,episodio)));
+        if(!exceto.contains("mgeb"))sources.add(qualitySource(()->tv?mgebEpisodio(id,temporada,episodio):mgebFilme(id)));
+        String profiles=perfis();
+        try{
+            JSONArray lista=new JSONObject(profiles).optJSONArray("perfis");java.util.Set<String> seen=new java.util.HashSet<>();
+            for(int i=0;lista!=null&&i<lista.length();i++){
+                JSONObject ficha=lista.optJSONObject(i);if(ficha==null||!ficha.optBoolean("ativo",true)||!ficha.optBoolean("dublado",false))continue;
+                final String profileId=ficha.optString("id");if(!profileId.matches("[a-z0-9_-]{1,64}")||exceto.contains(profileId)||!seen.add(profileId))continue;
+                if(ficha.optString(tv?"urlTv":"urlMovie").isEmpty())continue;
+                JSONArray tipos=ficha.optJSONArray("tipos");boolean applies=false;for(int j=0;tipos!=null&&j<tipos.length();j++)if(tipo.equals(tipos.optString(j)))applies=true;
+                if(applies)sources.add(qualitySource(()->perfilPlayback(tipo,id,temporada,episodio,exceto,profileId)));
+            }
+        }catch(Exception ignored){ /* Segue com as fontes fixas se a ficha não estiver disponível. */ }
+        String key=tipo+":"+id+":"+temporada+":"+episodio+":"+new java.util.TreeSet<>(exceto)+":"+(profiles==null?0:profiles.hashCode());
+        QualitySelector.Candidate chosen=qualitySelector.choose(key,sources,exceto,NativeMediaProbe::read,12000);
+        if(chosen!=null){
+            if(!entregaVideo(chosen.url,chosen.referer)){qualitySelector.forget(key);return error(502);}
+            try{
+                JSONObject data=new JSONObject(chosen.json);QualitySelector.Measure m=chosen.measure;
+                if(m!=null&&m.width>0&&m.height>0){data.put("resolucao",m.height+"p");data.put("largura",m.width);data.put("altura",m.height);data.put("evidenciaQualidade","medido");}
+                else if(chosen.declared>0)data.put("evidenciaQualidade","informado pela fonte");
+                return respostaTexto("application/json",data.toString());
+            }catch(Exception ignored){return error(502);}
         }
-        if (!exceto.contains("pipoca-serie")) {
-            resposta = pipocaEpisodio(id, temporada, episodio);
-            if (resposta != null && resposta.getStatusCode() == 200) return resposta;
-        }
-        if (!exceto.contains("mgeb")) {
-            resposta = mgebEpisodio(id, temporada, episodio);
-            if (resposta != null && resposta.getStatusCode() == 200) return resposta;
-        }
-        resposta = perfilPlayback("tv", id, temporada, episodio, exceto);
-        if (resposta != null && resposta.getStatusCode() == 200) return resposta;
-        return exceto.contains("vixsrc") ? error(502) : vixsrcMidia("tv", id, temporada, episodio);
+        return exceto.contains("vixsrc")?error(502):vixsrcMidia(tipo,id,temporada,episodio);
+    }
+
+    private WebResourceResponse directEpisode(String id,String temporada,String episodio,java.util.Set<String> exceto) {
+        return qualityPlayback("tv",id,temporada,episodio,exceto);
     }
 
     // ---------------------------------------------------------------
@@ -1121,26 +1180,7 @@ public final class MainActivity extends Activity {
                 if (path != null && path.matches("/api/playback/[0-9]{1,10}")) {
                     String id = path.substring("/api/playback/".length());
                     java.util.Set<String> exceto = PlaybackSources.exclusions(uri.getQueryParameter("exceto"));
-                    // Dublado CONFERIDO primeiro: o arquivo do PipocaCine tem a
-                    // faixa em português marcada como padrão. A WatchPlay apenas
-                    // "avisa" que é dublada e em alguns títulos entrega o idioma
-                    // original (caso do "A Luta pela Esperança", medido em
-                    // 08/10/2026 por transcrição do áudio) — por isso vem depois.
-                    WebResourceResponse dublado = exceto.contains("pipoca") ? null : pipocaFilme(id);
-                    if (dublado != null && dublado.getStatusCode() == 200) return dublado;
-                    WebResourceResponse principal = exceto.contains("watchplay") ? null : directPlayback("https://v2.watchplay.shop/movie/" + id);
-                    if (principal != null && principal.getStatusCode() == 200) return principal;
-                    // A MGEB fica por último entre as dubladas: o catálogo dela é
-                    // "latino" e em alguns títulos entrega outro idioma.
-                    WebResourceResponse mgeb = exceto.contains("mgeb") ? null : mgebFilme(id);
-                    if (mgeb != null && mgeb.getStatusCode() == 200) return mgeb;
-                    // Fichas de fonte descobertas pelo caçador (fornecedores novos).
-                    WebResourceResponse ficha = perfilPlayback("movie", id, null, null, exceto);
-                    if (ficha != null && ficha.getStatusCode() == 200) return ficha;
-                    // Nada dublado? Segunda opção da regra: alta definição
-                    // limpa com legenda em português (antes o aparelho ficava
-                    // sem nada e o usuário via "nenhuma fonte").
-                    return exceto.contains("vixsrc") ? error(502) : vixsrcMidia("movie", id, null, null);
+                    return qualityPlayback("movie",id,null,null,exceto);
                 }
                 if (path != null && path.matches("/api/playback/serie/[0-9]{1,10}/[0-9]{1,3}/[1-9][0-9]{0,3}")) {
                     String[] partes = path.split("/");
@@ -1365,6 +1405,7 @@ public final class MainActivity extends Activity {
         if (popup != null) popup.onResume();
     }
     @Override protected void onDestroy() {
+        qualitySelector.close();
         if (updater != null) updater.close();
         closePopup(); exitFullscreen(); root.removeView(main); main.destroy(); super.onDestroy();
     }

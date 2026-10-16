@@ -14,11 +14,20 @@ final class MgebHttp {
         return url;
     }
     static String read(String raw) throws IOException {
+        return read(raw,Long.MAX_VALUE);
+    }
+    private static int timeout(long deadline)throws IOException {
+        if(Thread.currentThread().isInterrupted())throw new IOException("provider request cancelled");
+        if(deadline==Long.MAX_VALUE)return 10000;
+        long left=deadline-QualitySelector.now();if(left<=0)throw new IOException("provider deadline exceeded");
+        return (int)Math.min(3000,left);
+    }
+    static String read(String raw,long deadline) throws IOException {
         URL url = safe(raw);
         for (int attempt=0; attempt<5; attempt++) {
             HttpsURLConnection c=(HttpsURLConnection)url.openConnection();
             try {
-                c.setConnectTimeout(10000); c.setReadTimeout(10000); c.setInstanceFollowRedirects(false);
+                c.setConnectTimeout(timeout(deadline)); c.setReadTimeout(timeout(deadline)); c.setInstanceFollowRedirects(false);
                 c.setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Mobile Safari/537.36");
                 c.setRequestProperty("Accept-Language", "pt-BR,pt;q=0.9"); c.setRequestProperty("Referer", "https://mgeb.top/");
                 int status=c.getResponseCode();
@@ -30,7 +39,7 @@ final class MgebHttp {
                 if (status!=200) throw new IOException("provider HTTP "+status);
                 try(InputStream in=c.getInputStream();ByteArrayOutputStream out=new ByteArrayOutputStream()) {
                     byte[] block=new byte[8192];int n;
-                    while((n=in.read(block))!=-1){if(out.size()+n>4*1024*1024)throw new IOException("provider page too large");out.write(block,0,n);}
+                    while((n=in.read(block))!=-1){timeout(deadline);if(out.size()+n>4*1024*1024)throw new IOException("provider page too large");out.write(block,0,n);}
                     return new String(out.toByteArray(),StandardCharsets.UTF_8);
                 }
             } finally {c.disconnect();}
