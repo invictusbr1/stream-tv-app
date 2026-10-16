@@ -5,10 +5,9 @@
 // EM PARALELO — o que cada uma entrega de verdade, e escolhe a melhor segundo
 // as regras do projeto:
 //
-//     dublado (de preferência CONFIRMADO pela central)   peso maior
-//   + sem anúncio (todas as fontes internas são limpas; a sonda confirma)
-//   + qualidade HD/Full HD medida (altura + taxa de bits)
-//   + velocidade (quanto tempo a fonte demora para responder)
+//     idioma comprovado → resolução medida → reprodução direta → taxa → tempo.
+// As fontes internas entregam mídia direta, sem incorporar páginas externas.
+// A nota complementar explica as evidências; velocidade só desempata qualidade.
 //
 // A decisão tem prazo curto: se a checagem passar do orçamento, toca o que já
 // respondeu (nunca deixamos quem assiste esperando).
@@ -18,9 +17,9 @@ const motor = require('./fontes-motor');
 const midia = require('./midia-proxy');
 
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36';
-// Inclui as alternativas de perfil depois das fontes fixas. Com três, uma
-// fonte Full HD na quarta posição nem era consultada, mesmo com as demais em HD.
-const MAX_FONTES = 5;              // consultas paralelas, mantendo os mesmos prazos
+// Todas as fontes aprovadas e aplicáveis participam. Uma posição fixa na
+// fila não pode esconder a única alternativa de maior qualidade do título.
+const MAX_FONTES = Infinity;
 const TEMPO_RESOLVER = 7000;       // limite por fonte
 const TEMPO_SONDAR = 4000;         // limite por sonda
 const ORCAMENTO = 6000;            // prazo total da pré-checagem
@@ -28,24 +27,27 @@ const VALIDADE = 10 * 60 * 1000;   // quanto tempo a decisão fica lembrada
 
 const cache = new Map();
 const medidasDeArquivo = new Map();
+const medicoesEmCurso = new Map();
+let versaoMedicoes = 0;
 
-const prazo = (promessa, ms, padrao = null) => Promise.race([
-    Promise.resolve(promessa).catch(() => padrao),
-    new Promise(resolve => setTimeout(() => resolve(padrao), ms)),
-]);
+const prazo = (promessa, ms, padrao = null) => new Promise(resolve => {
+    const timer = setTimeout(() => resolve(padrao), ms);
+    Promise.resolve(promessa).then(valor => { clearTimeout(timer); resolve(valor); }, () => { clearTimeout(timer); resolve(padrao); });
+});
 
 // ---------------------------------------------------------------- sondagens
 // Lê a lista mestre do HLS: melhor formato, idiomas de áudio e legendas.
 function analisarPlaylist(texto) {
     const linhas = String(texto || '').split('\n').map(l => l.trim());
-    let altura = 0, banda = 0, mestre = false;
+    let altura = 0, largura = 0, banda = 0, mestre = false;
     const audios = [], legendas = [];
     for (const linha of linhas) {
         if (linha.startsWith('#EXT-X-STREAM-INF')) {
             mestre = true;
             const a = Number((linha.match(/RESOLUTION=\d+x(\d+)/i) || [])[1] || 0);
+            const l = Number((linha.match(/RESOLUTION=(\d+)x\d+/i) || [])[1] || 0);
             const b = Number((linha.match(/BANDWIDTH=(\d+)/i) || [])[1] || 0);
-            if (a > altura) altura = a;
+            if (alturaEquivalente(l, a) > alturaEquivalente(largura, altura)) { altura = a; largura = l; }
             if (b > banda) banda = b;
         } else if (linha.startsWith('#EXT-X-MEDIA:TYPE=AUDIO')) {
             audios.push({
@@ -57,7 +59,7 @@ function analisarPlaylist(texto) {
             if (lang && !legendas.includes(lang)) legendas.push(lang);
         }
     }
-    return { mestre, altura, banda, audios, legendas };
+    return { mestre, altura, largura, banda, audios, legendas };
 }
 
 async function sondarLista(url, referer) {
@@ -65,7 +67,22 @@ async function sondarLista(url, referer) {
     const referencia = referer || midia.refererPadrao(new URL(url).hostname);
     if (referencia) cabecalhos.Referer = referencia;
     const resposta = await axios.get(url, { headers: cabecalhos, timeout: TEMPO_SONDAR, responseType: 'text', maxContentLength: 1024 * 1024 });
-    return analisarPlaylist(String(resposta.data || ''));
+    const texto = String(resposta.data || '');
+    const analise = analisarPlaylist(texto);
+    // Listas de qualidade única não declaram RESOLUTION. Mede um segmento
+    // claro da própria origem, inclusive quando o fornecedor usa sufixo .js.
+    // Não segue aqui endereços de outro domínio, chaves ou listas criptografadas.
+    if (!analise.altura && /^#EXTM3U/m.test(texto) && !/#EXT-X-KEY:.*METHOD=(?!NONE)/i.test(texto)) {
+        const segmento = texto.split(/\r?\n/).map(l => l.trim()).find(l => l && !l.startsWith('#'));
+        if (segmento) {
+            const base = new URL(url), destino = new URL(segmento, base);
+            if (base.protocol === 'https:' && destino.origin === base.origin && !destino.username && !destino.password && !/\.m3u8(?:$|\?)/i.test(destino.href)) {
+                const medida = await sondarArquivo(destino.href, referencia);
+                if (medida) return { ...analise, ...medida, audios: [...analise.audios, ...medida.audios], legendas: analise.legendas };
+            }
+        }
+    }
+    return analise;
 }
 
 async function sondarArquivo(url, referer) {
@@ -76,6 +93,7 @@ async function sondarArquivo(url, referer) {
     return {
         mestre: false,
         altura: faixas.imagem ? faixas.imagem.altura : 0,
+        largura: faixas.imagem ? faixas.imagem.largura : 0,
         banda: 0,
         audios: faixas.faixas.map(f => ({ lang: f.idioma, name: f.codec, padrao: f.padrao })),
         legendas: [],
@@ -87,23 +105,73 @@ async function sondarArquivo(url, referer) {
 // Sonda o que a fonte realmente entrega (lista ou arquivo).
 async function sondar(dados) {
     if (!dados || !dados.url) return null;
-    if (dados.converter) return { conversao: true, altura: Number(String(dados.resolucao || '').replace(/\D/g, '')) || 0, banda: 0, audios: [], legendas: [] };
-    const ehLista = /\.m3u8(\?|$)/i.test(dados.url);
+    const ehLista = dados.type === 'hls' || /\.m3u8(\?|$)/i.test(dados.url);
     const chave = JSON.stringify([dados.url, dados.referer || '']);
-    // O mesmo MP4 não muda de resolução entre duas aberturas. Reaproveita só
-    // medições concluídas, por endereço e referência exatos, enquanto o teste
+    // Reaproveita só medições concluídas, por endereço e referência exatos,
+    // com prazo menor para listas, enquanto o teste
     // de entrega continua sendo feito a cada avaliação. Uma falha não é prova
     // de que o arquivo perdeu a qualidade ou a faixa em português.
-    const medida = !ehLista && medidasDeArquivo.get(chave);
+    const medida = medidasDeArquivo.get(chave);
     if (medida && medida.expira > Date.now()) return medida.sonda;
-    try {
+    if (medicoesEmCurso.has(chave)) return medicoesEmCurso.get(chave);
+    const versao = versaoMedicoes;
+    const operacao = (async () => { try {
         const sonda = ehLista ? await sondarLista(dados.url, dados.referer) : await sondarArquivo(dados.url, dados.referer);
-        if (!ehLista && sonda?.altura > 0 && sonda.audios?.length) {
+        if (versao === versaoMedicoes && sonda?.altura > 0) {
             if (medidasDeArquivo.size >= 128) medidasDeArquivo.delete(medidasDeArquivo.keys().next().value);
-            medidasDeArquivo.set(chave, { sonda, expira: Date.now() + VALIDADE });
+            medidasDeArquivo.set(chave, { sonda, expira: Date.now() + (ehLista ? 60000 : VALIDADE) });
         }
         return sonda;
-    } catch { return null; }
+    } catch { return null; } })();
+    medicoesEmCurso.set(chave, operacao);
+    try { return await operacao; } finally { if (medicoesEmCurso.get(chave) === operacao) medicoesEmCurso.delete(chave); }
+}
+
+// Compara também a largura: 1920×800 é uma imagem de cinema em Full HD,
+// enquanto 3840×1600 tem mais definição que 1920×1080.
+function alturaEquivalente(largura, altura) {
+    if (!(altura > 0)) return 0;
+    return largura > 0 ? Math.max(Math.min(largura, altura), Math.max(largura, altura) * 9 / 16) : altura;
+}
+
+function alturaDoRotulo(valor) {
+    const texto = String(valor || '');
+    const pixels = texto.match(/(?:^|\D)(\d{3,4})\s*p\b/i) || texto.match(/\d{3,4}\s*[x×]\s*(\d{3,4})/i);
+    if (pixels) return Number(pixels[1]);
+    if (/\b(?:4k|uhd)\b/i.test(texto)) return 2160;
+    if (/full\s*hd|\bfhd\b/i.test(texto)) return 1080;
+    return /\bhd\b/i.test(texto) ? 720 : 0;
+}
+
+function prioridadeDaFonte({ dados, sonda, idiomaVerificado, ms }) {
+    const pt = sonda?.portuguesa || sonda?.padraoPortugues || sonda?.audios?.some(a => /^(?:pt|por)(?:[-_]|$)/i.test(a.lang || ''));
+    const outro = idiomaVerificado === 'outro' || (idiomaVerificado !== 'pt' && !pt && sonda?.audios?.some(a => a.lang && a.lang !== 'und' && !/^(?:pt|por)(?:[-_]|$)/i.test(a.lang)));
+    const idioma = outro ? -1 : idiomaVerificado === 'pt' || pt ? 2 : dados.audio === 'pt-BR' ? 1 : 0;
+    const medida = sonda && !sonda.conversao && sonda.altura > 0;
+    const informada = alturaDoRotulo(dados.resolucao);
+    return [idioma, medida ? 1 : 0, medida ? alturaEquivalente(sonda.largura, sonda.altura) : informada, dados.converter ? 0 : 1, sonda?.banda || 0, -(ms || 0)];
+}
+
+function compararPrioridade(a, b) {
+    for (let i = 0; i < a.length; i++) { if (a[i] !== b[i]) return b[i] - a[i]; }
+    return 0;
+}
+
+function avaliarConferidas(conferidas, idiomas) {
+    return conferidas.map((registro, i) => {
+        const guardada = medidasDeArquivo.get(JSON.stringify([registro.item.dados.url, registro.item.dados.referer || '']));
+        const sonda = guardada && guardada.expira > Date.now() ? guardada.sonda : registro.sonda;
+        const medida = { dados: registro.item.dados, sonda, idiomaVerificado: idiomas[registro.item.fonte.id] || '', ms: registro.item.ms };
+        const { nota, detalhes } = notaDaFonte(medida);
+        return { fonteId: registro.item.fonte.id, fonte: registro.item.dados.fonte || registro.item.fonte.nome,
+            nota: Math.round((nota + Math.max(0, 0.15 - i * 0.05)) * 100) / 100,
+            detalhes: { ...detalhes, ordemNoMotor: i + 1 }, dados: registro.item.dados, ms: registro.item.ms, prioridade: prioridadeDaFonte(medida) };
+    }).sort((a, b) => compararPrioridade(a.prioridade, b.prioridade));
+}
+
+function resultadoDasAvaliacoes(avaliacoes, tempoMs) {
+    const melhor = avaliacoes[0];
+    return { escolhido: { ...melhor.dados, fonteId: melhor.fonteId }, avaliacao: avaliacoes.map(({ dados, prioridade, ...resto }) => resto), tempoMs };
 }
 
 // ---------------------------------------------------------------- nota
@@ -163,7 +231,7 @@ function notaDaFonte(medida) {
     // A reserva de conversão usa só o rótulo da fonte, ainda sem sondar o
     // vídeo. Ela não pode transformar a promessa em uma medição.
     const alturaMedida = sonda && !sonda.conversao && sonda.altura ? sonda.altura : 0;
-    const alturaInformada = Number(String(dados.resolucao || '').replace(/\D/g, '')) || 0;
+    const alturaInformada = alturaDoRotulo(dados.resolucao);
     const altura = alturaMedida || alturaInformada;
     const evidenciaQualidade = alturaMedida ? 'medido' : 'informado pela fonte';
     if (altura >= 1080) nota += 2;
@@ -171,6 +239,7 @@ function notaDaFonte(medida) {
     else if (altura >= 480) nota += 0.6;
     else nota += 0.4;
     detalhes.qualidade = altura > 0 ? `${altura}p ${evidenciaQualidade}` : 'não mediu a altura';
+    if (alturaMedida && sonda.largura > 0) detalhes.dimensoes = `${sonda.largura} × ${alturaMedida}`;
 
     // 3) Taxa de bits (quando a lista informa).
     const banda = (sonda && sonda.banda) || 0;
@@ -195,7 +264,15 @@ async function escolherMelhor(papel, alvo, opcoes = {}) {
     const inicio = Date.now();
     const chave = `${papel}:${motor.chaveDoTitulo(alvo)}:${(opcoes.exceto || []).join(',')}`;
     const guardado = cache.get(chave);
-    if (guardado && guardado.expira > Date.now() && !opcoes.semCache) return { ...guardado.resultado, cache: true };
+    if (guardado && guardado.expira > Date.now() && !opcoes.semCache) {
+        // A sonda pode terminar depois do prazo da primeira abertura. Aproveita
+        // essa prova na abertura seguinte, sem prender o título à reserva HD.
+        const atualizadas = avaliarConferidas(guardado.conferidas, motor.lerIdiomasVerificados()[motor.chaveDoTitulo(alvo)] || {});
+        const anterior = guardado.resultado.escolhido.fonteId;
+        guardado.resultado = resultadoDasAvaliacoes(atualizadas, guardado.resultado.tempoMs);
+        if (anterior !== guardado.resultado.escolhido.fonteId) motor.anotarEscolha(papel, alvo, guardado.resultado.escolhido);
+        return { ...guardado.resultado, cache: true };
+    }
 
     const fila = motor.filaDeFontes(papel, alvo, { exceto: opcoes.exceto || [] }).slice(0, opcoes.maxFontes || MAX_FONTES);
     if (!fila.length) return null;
@@ -235,26 +312,15 @@ async function escolherMelhor(papel, alvo, opcoes = {}) {
         });
     if (!conferidas.length) return null;
 
-    const avaliacoes = conferidas.map((registro, i) => {
-        const { nota, detalhes } = notaDaFonte({
-            dados: registro.item.dados, sonda: registro.sonda, idiomaVerificado: idiomas[registro.item.fonte.id] || '', ms: registro.item.ms,
-        });
-        // Empate vai para quem o motor já prefere: a ordem da fila representa a
-        // regra do projeto (dublado conferido, depois as demais). Sem isso, uma
-        // fonte rápida mas "latina" (MGEB) passava na frente da principal.
-        const bonusDaFila = Math.max(0, 0.15 - i * 0.05);
-        return { fonteId: registro.item.fonte.id, fonte: registro.item.dados.fonte || registro.item.fonte.nome, nota: Math.round((nota + bonusDaFila) * 100) / 100, detalhes: { ...detalhes, ordemNoMotor: i + 1 }, dados: registro.item.dados, ms: registro.item.ms };
-    }).sort((a, b) => b.nota - a.nota);
-
-    const melhor = avaliacoes[0];
-    const escolhido = { ...melhor.dados, fonteId: melhor.fonteId };
-    motor.registrarSucesso(melhor.fonteId);
-    motor.anotarEscolha(papel, alvo, escolhido);
-    const resultado = { escolhido, avaliacao: avaliacoes.map(({ dados, ...resto }) => resto), tempoMs: Date.now() - inicio };
-    cache.set(chave, { resultado, expira: Date.now() + VALIDADE });
+    const avaliacoes = avaliarConferidas(conferidas, idiomas);
+    const resultado = resultadoDasAvaliacoes(avaliacoes, Date.now() - inicio);
+    motor.registrarSucesso(resultado.escolhido.fonteId);
+    motor.anotarEscolha(papel, alvo, resultado.escolhido);
+    if (cache.size >= 256 && !cache.has(chave)) cache.delete(cache.keys().next().value);
+    cache.set(chave, { resultado, conferidas, expira: Date.now() + VALIDADE });
     return resultado;
 }
 
-function limparCache() { cache.clear(); medidasDeArquivo.clear(); }
+function limparCache() { ++versaoMedicoes; cache.clear(); medidasDeArquivo.clear(); medicoesEmCurso.clear(); }
 
-module.exports = { escolherMelhor, sondar, sondarLista, sondarArquivo, analisarPlaylist, notaDaFonte, limparCache, MAX_FONTES, ORCAMENTO };
+module.exports = { escolherMelhor, sondar, sondarLista, sondarArquivo, analisarPlaylist, notaDaFonte, prioridadeDaFonte, compararPrioridade, limparCache, MAX_FONTES, ORCAMENTO };

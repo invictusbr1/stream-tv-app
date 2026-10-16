@@ -35,6 +35,30 @@ test('lista sem qualidades (arquivo único) não inventa altura', () => {
     assert.equal(analise.altura, 0);
 });
 
+test('lista de qualidade única mede segmento claro na mesma origem e preserva idioma da lista', async () => {
+    const avaliador = require('./avaliador'), verificador = require('./central/verificar-midia'), axios = require('axios');
+    const getOriginal = axios.get, probeOriginal = verificador.faixasDeAudio;
+    const consultadas = [];
+    try {
+        avaliador.limparCache();
+        axios.get = async () => ({ data: '#EXTM3U\n#EXT-X-MEDIA:TYPE=AUDIO,LANGUAGE="pt-BR"\n#EXTINF:6,\nsegmento.js\n' });
+        verificador.faixasDeAudio = async (url, ref) => {
+            consultadas.push([url, ref]);
+            return { imagem: { largura: 1920, altura: 1080 }, faixas: [{ idioma: 'und', codec: 'aac' }] };
+        };
+        const sonda = await avaliador.sondarLista('https://qualidade.invalid/lista/index.m3u8','https://qualidade.invalid/');
+        assert.equal(sonda.altura, 1080);
+        assert.equal(sonda.largura, 1920);
+        assert(sonda.audios.some(a => a.lang === 'pt-br'));
+        assert.deepEqual(consultadas, [['https://qualidade.invalid/lista/segmento.js','https://qualidade.invalid/']]);
+        for (const texto of ['#EXTM3U\nhttps://outro.invalid/segmento.ts', '#EXTM3U\n#EXT-X-KEY:METHOD=AES-128,URI="key"\nsegmento.ts', '#EXTM3U\nhttps://user:password@qualidade.invalid/segmento.ts']) {
+            axios.get = async () => ({ data: texto });
+            assert.equal((await avaliador.sondarLista('https://qualidade.invalid/lista.m3u8')).altura, 0);
+        }
+        assert.equal(consultadas.length, 1);
+    } finally { axios.get = getOriginal;verificador.faixasDeAudio = probeOriginal;avaliador.limparCache(); }
+});
+
 test('180p medido prevalece sobre a promessa de 2160p e perde para HD medido', () => {
     const medida = { dados: { audio: 'pt-BR', resolucao: '2160p' }, sonda: { altura: 180 }, idiomaVerificado: 'pt', ms: 900 };
     const baixa = notaDaFonte(medida);
@@ -48,6 +72,12 @@ test('qualidade anunciada só serve como reserva e é identificada como informad
     assert.equal(anunciada.detalhes.qualidade, '1080p informado pela fonte');
     const semMedida = notaDaFonte({ dados: { audio: 'pt-BR' }, sonda: null, idiomaVerificado: '', ms: 900 });
     assert.equal(semMedida.detalhes.qualidade, 'não mediu a altura');
+});
+
+test('rótulos de qualidade não misturam resolução com canais de áudio ou outros números', () => {
+    for (const [resolucao,altura] of [['1080p · áudio 5.1',1080],['1920 × 1080',1080],['Full HD',1080],['4K HDR10',2160],['HD',720]]) {
+        assert.equal(notaDaFonte({dados:{resolucao},sonda:null,ms:1}).detalhes.qualidade, altura+'p informado pela fonte');
+    }
 });
 
 test('a reserva de conversão não apresenta o rótulo da fonte como resolução medida', () => {
@@ -102,7 +132,7 @@ test('fonte que precisa de conversão é descontada (mas continua na disputa)', 
     assert.match(comConversao.detalhes.conversao, /converter/);
 });
 
-test('compara também a quarta fonte e escolhe Full HD com português em vez de HD', async () => {
+test('consulta também a sexta fonte e escolhe Full HD com português em vez de HD', async () => {
     const motor = require('./fontes-motor');
     const axios = require('axios');
     const originais = Object.fromEntries(['filaDeFontes', 'lerIdiomasVerificados', 'registrarSucesso', 'anotarEscolha'].map(nome => [nome, motor[nome]]));
@@ -111,7 +141,7 @@ test('compara também a quarta fonte e escolhe Full HD com português em vez de 
     let liberarFonteLenta;
     const primeiraSonda = new Promise(resolve => { liberarFonteLenta = resolve; });
     try {
-        motor.filaDeFontes = () => [720, 720, 720, 1080].map((altura, indice) => ({
+        motor.filaDeFontes = () => [720, 720, 720, 720, 720, 1080].map((altura, indice) => ({
             id: 'regressao-qualidade-' + indice,
             resolver: async () => {
                 consultadas.push(indice);
@@ -129,14 +159,71 @@ test('compara também a quarta fonte e escolhe Full HD com português em vez de 
             return { data: '#EXTM3U\n#EXT-X-MEDIA:TYPE=AUDIO,LANGUAGE="pt-BR"\n#EXT-X-STREAM-INF:BANDWIDTH=2800000,RESOLUTION=' + (url.includes('1080') ? '1920x1080' : '1280x720') + '\nvideo.m3u8' };
         };
         const resultado = await require('./avaliador').escolherMelhor('dublado', { tipo: 'movie', tmdbId: '969681' }, { semCache: true });
-        assert.deepEqual(consultadas, [0, 1, 2, 3]);
-        assert.equal(resultado.avaliacao.length, 4);
-        assert.equal(resultado.escolhido.fonteId, 'regressao-qualidade-3');
+        assert.deepEqual(consultadas, [0, 1, 2, 3, 4, 5]);
+        assert.equal(resultado.avaliacao.length, 6);
+        assert.equal(resultado.escolhido.fonteId, 'regressao-qualidade-5');
         assert.equal(resultado.avaliacao[0].detalhes.qualidade, '1080p medido');
     } finally {
         Object.assign(motor, originais);
         axios.get = getOriginal;
     }
+});
+
+test('idioma e resolução prevalecem sobre velocidade, taxa e posição da fonte', () => {
+    const { prioridadeDaFonte: p, compararPrioridade: comparar } = require('./avaliador');
+    const base = { dados: { audio: 'pt-BR', resolucao: '1080p' }, sonda: { altura: 1080, largura: 1920, portuguesa: true, banda: 2000000 }, ms: 5000 };
+    const hdRapida = { ...base, sonda: { altura: 720, largura: 1280, portuguesa: true, banda: 9000000 }, ms: 10, idiomaVerificado: 'pt' };
+    assert(comparar(p(base), p(hdRapida)) < 0);
+    assert(comparar(p({ ...base, sonda: { ...base.sonda, largura: 3840, altura: 1600 } }), p(base)) < 0);
+    assert(comparar(p({ ...base, sonda: { ...base.sonda, largura: 1920, altura: 800 } }), p(hdRapida)) < 0);
+    assert(comparar(p(base), p({ ...base, sonda: { altura: 2160, largura: 3840, audios: [{ lang: 'en' }] }, ms: 1 })) < 0);
+    assert(comparar(p(base), p({ ...base, sonda: null, dados: { audio: 'pt-BR', resolucao: '2160p' } })) < 0);
+});
+
+test('mede o arquivo que precisa converter áudio sem transformar o rótulo em prova', async () => {
+    const avaliador = require('./avaliador'), verificador = require('./central/verificar-midia');
+    const original = verificador.faixasDeAudio;
+    try {
+        avaliador.limparCache();
+        verificador.faixasDeAudio = async () => ({ imagem: { largura: 1280, altura: 720 }, faixas: [{ idioma: 'por', padrao: true, codec: 'eac3' }] });
+        const dados = { url: 'https://qualidade.invalid/conversao.mkv', converter: true, resolucao: '2160p', audio: 'pt-BR' };
+        const sonda = await avaliador.sondar(dados);
+        assert.equal(sonda.altura, 720);
+        assert.equal(sonda.padraoPortugues, true);
+        assert.equal(avaliador.notaDaFonte({ dados, sonda, ms: 1 }).detalhes.qualidade, '720p medido');
+    } finally { verificador.faixasDeAudio = original; avaliador.limparCache(); }
+});
+
+test('medição tardia melhora a próxima abertura sem repetir consulta nem vazar para outra exclusão', async () => {
+    const avaliador = require('./avaliador'), motor = require('./fontes-motor'), verificador = require('./central/verificar-midia'), axios = require('axios');
+    const originais = Object.fromEntries(['filaDeFontes', 'lerIdiomasVerificados', 'registrarSucesso', 'anotarEscolha'].map(nome => [nome, motor[nome]]));
+    const getOriginal = axios.get, probeOriginal = verificador.faixasDeAudio;
+    let concluir, consultas = 0;
+    const pendente = new Promise(resolve => { concluir = resolve; });
+    const arquivo = { url: 'https://qualidade.invalid/tardia.mp4', audio: 'pt-BR', resolucao: '1080p' };
+    const alvo = { tipo: 'tv', tmdbId: '99000001', temporada: '2', episodio: '3' };
+    try {
+        avaliador.limparCache();
+        const fontes = [
+            { id: 'reserva-hd', resolver: async () => { consultas++; return { url: 'https://qualidade.invalid/hd.m3u8', audio: 'pt-BR' }; } },
+            { id: 'arquivo-fhd', resolver: async () => { consultas++; return arquivo; } },
+        ];
+        motor.filaDeFontes = (_papel, _alvo, opcoes) => fontes.filter(f => !opcoes.exceto.includes(f.id));
+        motor.lerIdiomasVerificados = () => ({});motor.registrarSucesso = () => {};motor.anotarEscolha = () => {};
+        axios.get = async () => ({ data: '#EXTM3U\n#EXT-X-MEDIA:TYPE=AUDIO,LANGUAGE="pt-BR"\n#EXT-X-STREAM-INF:RESOLUTION=1280x720\n720.m3u8' });
+        verificador.faixasDeAudio = () => pendente;
+        const primeira = await avaliador.escolherMelhor('dublado', alvo);
+        assert.equal(primeira.escolhido.fonteId, 'reserva-hd');
+        concluir({ imagem: { largura: 1920, altura: 1080 }, faixas: [{ idioma: 'por', padrao: true, codec: 'aac' }] });
+        await avaliador.sondar(arquivo);
+        const segunda = await avaliador.escolherMelhor('dublado', alvo);
+        assert.equal(segunda.escolhido.fonteId, 'arquivo-fhd');
+        assert.equal(segunda.avaliacao[0].detalhes.qualidade, '1080p medido');
+        assert.equal(consultas, 2);
+        const excluida = await avaliador.escolherMelhor('dublado', alvo, { exceto: ['arquivo-fhd'] });
+        assert.equal(excluida.escolhido.fonteId, 'reserva-hd');
+        assert.equal(consultas, 3);
+    } finally { concluir(null);Object.assign(motor, originais);axios.get = getOriginal;verificador.faixasDeAudio = probeOriginal;avaliador.limparCache(); }
 });
 
 test('preserva medição confirmada do mesmo arquivo, sem reaproveitar outro endereço ou referenciador', async () => {
@@ -168,5 +255,25 @@ test('preserva medição confirmada do mesmo arquivo, sem reaproveitar outro end
         verificador.faixasDeAudio = original;
         avaliador.limparCache();
     }
+});
+
+test('sondagens simultâneas do mesmo arquivo compartilham a leitura e limpar cache invalida a leitura antiga', async () => {
+    const avaliador = require('./avaliador'), verificador = require('./central/verificar-midia');
+    const original = verificador.faixasDeAudio;
+    let concluir, consultas = 0;
+    const pendente = new Promise(resolve => { concluir = resolve; });
+    try {
+        avaliador.limparCache();
+        verificador.faixasDeAudio = () => { consultas++;return pendente; };
+        const dados = { url:'https://qualidade.invalid/concorrente.mp4' };
+        const uma = avaliador.sondar(dados), outra = avaliador.sondar(dados);
+        assert.equal(consultas, 1);
+        avaliador.limparCache();
+        concluir({ imagem:{largura:1920,altura:1080},faixas:[{idioma:'por',padrao:true}] });
+        const [a,b] = await Promise.all([uma,outra]);
+        assert.equal(a.altura,1080);assert.deepEqual(a,b);
+        await avaliador.sondar(dados);
+        assert.equal(consultas,2);
+    } finally { concluir(null);verificador.faixasDeAudio=original;avaliador.limparCache(); }
 });
 
