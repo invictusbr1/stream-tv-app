@@ -27,6 +27,7 @@ const ORCAMENTO = 6000;            // prazo total da pré-checagem
 const VALIDADE = 10 * 60 * 1000;   // quanto tempo a decisão fica lembrada
 
 const cache = new Map();
+const medidasDeArquivo = new Map();
 
 const prazo = (promessa, ms, padrao = null) => Promise.race([
     Promise.resolve(promessa).catch(() => padrao),
@@ -88,8 +89,20 @@ async function sondar(dados) {
     if (!dados || !dados.url) return null;
     if (dados.converter) return { conversao: true, altura: Number(String(dados.resolucao || '').replace(/\D/g, '')) || 0, banda: 0, audios: [], legendas: [] };
     const ehLista = /\.m3u8(\?|$)/i.test(dados.url);
+    const chave = JSON.stringify([dados.url, dados.referer || '']);
+    // O mesmo MP4 não muda de resolução entre duas aberturas. Reaproveita só
+    // medições concluídas, por endereço e referência exatos, enquanto o teste
+    // de entrega continua sendo feito a cada avaliação. Uma falha não é prova
+    // de que o arquivo perdeu a qualidade ou a faixa em português.
+    const medida = !ehLista && medidasDeArquivo.get(chave);
+    if (medida && medida.expira > Date.now()) return medida.sonda;
     try {
-        return ehLista ? await sondarLista(dados.url, dados.referer) : await sondarArquivo(dados.url, dados.referer);
+        const sonda = ehLista ? await sondarLista(dados.url, dados.referer) : await sondarArquivo(dados.url, dados.referer);
+        if (!ehLista && sonda?.altura > 0 && sonda.audios?.length) {
+            if (medidasDeArquivo.size >= 128) medidasDeArquivo.delete(medidasDeArquivo.keys().next().value);
+            medidasDeArquivo.set(chave, { sonda, expira: Date.now() + VALIDADE });
+        }
+        return sonda;
     } catch { return null; }
 }
 
@@ -242,6 +255,6 @@ async function escolherMelhor(papel, alvo, opcoes = {}) {
     return resultado;
 }
 
-function limparCache() { cache.clear(); }
+function limparCache() { cache.clear(); medidasDeArquivo.clear(); }
 
 module.exports = { escolherMelhor, sondar, sondarLista, sondarArquivo, analisarPlaylist, notaDaFonte, limparCache, MAX_FONTES, ORCAMENTO };

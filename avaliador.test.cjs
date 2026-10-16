@@ -139,3 +139,34 @@ test('compara também a quarta fonte e escolhe Full HD com português em vez de 
     }
 });
 
+test('preserva medição confirmada do mesmo arquivo, sem reaproveitar outro endereço ou referenciador', async () => {
+    const avaliador = require('./avaliador');
+    const verificador = require('./central/verificar-midia');
+    const original = verificador.faixasDeAudio;
+    let consultas = 0;
+    try {
+        avaliador.limparCache();
+        verificador.faixasDeAudio = async () => {
+            consultas++;
+            if (consultas !== 1) throw new Error('medição indisponível agora');
+            return { imagem: { largura: 3832, altura: 1600 }, faixas: [{ idioma: 'por', padrao: true, codec: 'aac' }] };
+        };
+        const arquivo = { url: 'https://qualidade.invalid/filme.mp4', referer: 'https://qualidade.invalid/' };
+        const primeira = await avaliador.sondar(arquivo);
+        const repetida = await avaliador.sondar(arquivo);
+        assert.equal(repetida.altura, 1600);
+        assert.equal(repetida.padraoPortugues, true);
+        assert.deepEqual(repetida, primeira);
+        assert.equal(consultas, 1);
+        assert.equal(await avaliador.sondar({ ...arquivo, url: arquivo.url + '?versao=nova' }), null);
+        assert.equal(await avaliador.sondar({ ...arquivo, referer: 'https://outro.invalid/' }), null);
+        assert.equal(consultas, 3);
+        // Falhas de medição não são guardadas como resultado definitivo.
+        assert.equal(await avaliador.sondar({ ...arquivo, url: arquivo.url + '?versao=nova' }), null);
+        assert.equal(consultas, 4);
+    } finally {
+        verificador.faixasDeAudio = original;
+        avaliador.limparCache();
+    }
+});
+
