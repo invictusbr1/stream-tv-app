@@ -35,14 +35,27 @@ function linkSeguro(data, now = Date.now()) {
 function playlistPortuguesa(text) {
     if (typeof text !== 'string' || !text.startsWith('#EXTM3U') || text.length > 131072 || /#EXT-X-(?:DATERANGE|CUE-|DISCONTINUITY)|SCTE|INTERSTITIAL/i.test(text)) throw new Error('Lista recusada');
     const lines = text.split(/\r?\n/), kept = [];
+    const groups = new Set(lines.filter(line => line.startsWith('#EXT-X-MEDIA:TYPE=AUDIO') && /LANGUAGE="(?:por|pt(?:-BR)?)"/i.test(line)).map(line => /GROUP-ID="([^"]+)"/.exec(line)?.[1]).filter(Boolean));
     let portuguese = false, variant = false;
-    for (const line of lines) {
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        if (line.startsWith('#EXT-X-STREAM-INF:')) {
+            const group = /AUDIO="([^"]+)"/.exec(line)?.[1];
+            const target = lines[++i];
+            if (!target || target.startsWith('#')) throw new Error('Variante incompleta');
+            if (!groups.has(group)) continue;
+            const u = new URL(target);
+            if (u.origin !== ORIGIN || u.username || u.password || u.hash || !/^\/hls\/[A-Za-z0-9%+/=_-]+$/.test(u.pathname)) throw new Error('Destino fora da fonte');
+            variant = true;
+            kept.push(line, target);
+            continue;
+        }
+        if (line.startsWith('#EXT-X-I-FRAME-STREAM-INF:')) continue;
         if (line.startsWith('#EXT-X-MEDIA:TYPE=AUDIO')) {
             if (!/LANGUAGE="(?:por|pt(?:-BR)?)"/i.test(line)) continue;
             portuguese = true;
             kept.push(line.replace(/DEFAULT=(?:YES|NO)/, 'DEFAULT=YES'));
         } else kept.push(line);
-        if (line.startsWith('#EXT-X-STREAM-INF:')) variant = true;
         const targets = line.startsWith('#') ? [...line.matchAll(/URI="([^"]+)"/g)].map(m => m[1]) : line.trim() ? [line.trim()] : [];
         for (const target of targets) {
             const u = new URL(target);
@@ -51,6 +64,18 @@ function playlistPortuguesa(text) {
     }
     if (!portuguese || !variant) throw new Error('Sem faixa portuguesa');
     return kept.join('\n');
+}
+function qualidadeDaPlaylist(playlist) {
+    let largura = 0, altura = 0, melhor = 0;
+    for (const line of playlist.split(/\r?\n/)) {
+        if (!line.startsWith('#EXT-X-STREAM-INF:')) continue;
+        const match = /RESOLUTION=(\d{2,5})x(\d{2,5})/i.exec(line);
+        if (!match) continue;
+        const w = Number(match[1]), h = Number(match[2]);
+        const qualidade = Math.max(Math.min(w, h), Math.max(w, h) * 9 / 16);
+        if (qualidade > melhor) { melhor = qualidade; largura = w; altura = h; }
+    }
+    return { largura, altura, resolucao: melhor > 0 ? `${Math.round(melhor)}p` : '' };
 }
 function listaMediaLimpa(text) {
     if (typeof text !== 'string' || !text.startsWith('#EXTM3U') || !text.includes('#EXT-X-ENDLIST') || /#EXT-X-(?:DATERANGE|CUE-|DISCONTINUITY)|SCTE|INTERSTITIAL/i.test(text)) return false;
@@ -65,10 +90,10 @@ function criar({ get, post, now = Date.now } = {}) {
     get ||= async (url, referer, signal) => (await axios.get(url, { ...options, signal, headers: { Referer: referer, Accept: '*/*' } })).data;
     post ||= async (url, body, referer, signal) => (await axios.post(url, body, { ...options, signal, headers: { Referer: referer, 'Content-Type': 'application/x-www-form-urlencoded', 'X-Requested-With': 'XMLHttpRequest' } })).data;
     const cache = new Map(), inflight = new Map();
-    async function obter(episodio) {
+    async function obter(episodio, atualizar = false) {
         if (!/^[1-8]$/.test(String(episodio))) throw new Error('Episódio fora da exceção');
         const previous = cache.get(String(episodio));
-        if (previous && previous.until > now()) return previous;
+        if (!atualizar && previous && previous.until > now()) return previous;
         if (inflight.has(String(episodio))) return inflight.get(String(episodio));
         const task = (async () => {
             const signal = AbortSignal.timeout(14000);
@@ -80,8 +105,8 @@ function criar({ get, post, now = Date.now } = {}) {
             if (!link) throw new Error('Endereço não aprovado');
             const playlist = playlistPortuguesa(await get(link.url, '', signal));
             const children = [...new Set([...playlist.matchAll(/URI="([^"]+)"/g)].map(m => m[1]).concat(playlist.split('\n').filter(l => l && !l.startsWith('#'))))];
-            if (children.length > 8 || !(await Promise.all(children.map(async url => listaMediaLimpa(await get(url, '', signal))))).every(Boolean)) throw new Error('Lista de mídia não aprovada');
-            const item = { ...link, playlist, until: Math.min(now() + 300000, link.expiry - 90000) };
+            if (children.length > 16 || !(await Promise.all(children.map(async url => listaMediaLimpa(await get(url, '', signal))))).every(Boolean)) throw new Error('Lista de mídia não aprovada');
+            const item = { ...link, playlist, ...qualidadeDaPlaylist(playlist), until: Math.min(now() + 300000, link.expiry - 90000) };
             cache.set(String(episodio), item);
             return item;
         })();
@@ -91,8 +116,8 @@ function criar({ get, post, now = Date.now } = {}) {
     async function resolver(alvo, { exceto = [] } = {}) {
         if (!seAplica(alvo) || exceto.includes(ID)) return null;
         try {
-            await obter(alvo.episodio);
-            return { url: `/api/crystal-lake/1/${alvo.episodio}/master.m3u8`, final: true, audio: 'pt-BR', fonte: 'Crystal Lake · dublado (480p)', fonteId: ID, type: 'hls', resolucao: '480p' };
+            const atual = await obter(alvo.episodio, true);
+            return { url: `/api/crystal-lake/1/${alvo.episodio}/master.m3u8`, final: true, audio: 'pt-BR', fonte: 'Crystal Lake · dublado', fonteId: ID, type: 'hls', resolucao: atual.resolucao, largura: atual.largura, altura: atual.altura };
         } catch { return null; }
     }
     async function playlist(episodio) {
@@ -102,4 +127,4 @@ function criar({ get, post, now = Date.now } = {}) {
     }
     return { resolver, playlist };
 }
-module.exports = { ID, seAplica, configuracao, linkSeguro, playlistPortuguesa, listaMediaLimpa, criar, ...criar() };
+module.exports = { ID, seAplica, configuracao, linkSeguro, playlistPortuguesa, qualidadeDaPlaylist, listaMediaLimpa, criar, ...criar() };

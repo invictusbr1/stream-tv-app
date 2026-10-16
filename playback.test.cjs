@@ -43,6 +43,17 @@ test('player aceita somente o manifesto interno exato da exceção Crystal Lake'
  }
 });
 
+test('Crystal Lake passa de reserva 480p para a melhor versão dublada na próxima abertura',async()=>{
+ const s=harness();s.fetch(async()=>({url:'/api/crystal-lake/1/1/master.m3u8',audio:'pt-BR',fonteId:'crystal-lake-dublado',type:'hls'}));
+ for(const height of [480,720,1080,1440,2160]){
+  const pending=s.controller.start(213562,1);await new Promise(setImmediate);
+  s.Hls.instance.levels=[{height:480,bitrate:750000,videoCodec:'avc1.4D401E'},{height,bitrate:8000000,videoCodec:'avc1.640028'}];
+  s.Hls.instance.audioTracks=[{lang:'por',name:'Portuguese'}];s.Hls.instance.emit('manifest');
+  assert.equal(s.Hls.instance.currentLevel,1);assert.equal(s.Hls.instance.audioTrack,0);
+  s.controller.stop();await pending;
+ }
+});
+
 test('falha após imagem pede uma única troca e preserva a posição exata',async()=>{
  const s=harness(),trocas=[];const v=await videoTocando(s,{onInterrupted:d=>{trocas.push(d);return true;}});
  v.currentTime=127.5;v.error={code:2};v.fire('error');v.fire('error');

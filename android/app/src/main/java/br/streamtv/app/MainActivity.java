@@ -872,10 +872,10 @@ public final class MainActivity extends Activity {
 
     private final java.util.Map<String,CrystalLakeSource.Result> crystalLakeCache=new java.util.concurrent.ConcurrentHashMap<>();
 
-    private synchronized CrystalLakeSource.Result crystalLakeResolve(String episode)throws Exception {
+    private synchronized CrystalLakeSource.Result crystalLakeResolve(String episode,boolean refresh)throws Exception {
         if(!CrystalLakeSource.applies("213562","1",episode))return null;
         long now=System.currentTimeMillis();CrystalLakeSource.Result cached=crystalLakeCache.get(episode);
-        if(cached!=null&&cached.until>now)return cached;
+        if(!refresh&&cached!=null&&cached.until>now)return cached;
         Long previousDeadline=qualityDeadline.get();if(previousDeadline==null)qualityDeadline.set(QualitySelector.now()+14000);
         try{
         String embed=CrystalLakeSource.ORIGIN+"/embed2/213562-1-"+episode;
@@ -898,7 +898,7 @@ public final class MainActivity extends Activity {
         String playlist=CrystalLakeSource.portuguesePlaylist(lerPagina(url,null));if(playlist==null)return null;
         java.util.Set<String> children=new java.util.HashSet<>();Matcher child=Pattern.compile("URI=\"([^\"]+)\"").matcher(playlist);while(child.find())children.add(child.group(1));
         for(String line:playlist.split("\\n"))if(!line.trim().isEmpty()&&!line.startsWith("#"))children.add(line.trim());
-        if(children.size()>8)return null;
+        if(children.size()>16)return null;
         for(String target:children)if(!CrystalLakeSource.cleanMediaPlaylist(lerPagina(target,null)))return null;
         CrystalLakeSource.Result result=new CrystalLakeSource.Result(url,playlist,Math.min(System.currentTimeMillis()+300000,CrystalLakeSource.expiry(url)-90000));
         crystalLakeCache.put(episode,result);return result;
@@ -907,7 +907,7 @@ public final class MainActivity extends Activity {
 
     private WebResourceResponse crystalLakePlaylist(String episode){
         try{
-            CrystalLakeSource.Result data=crystalLakeResolve(episode);if(data==null)return error(502);
+            CrystalLakeSource.Result data=crystalLakeResolve(episode,false);if(data==null)return error(502);
             StringBuilder output=new StringBuilder();
             for(String line:data.playlist.split("\\n")){
                 if(line.startsWith("#")){
@@ -923,8 +923,8 @@ public final class MainActivity extends Activity {
 
     private WebResourceResponse directEpisode(String id,String temporada,String episodio,java.util.Set<String> exceto) {
         if(CrystalLakeSource.applies(id,temporada,episodio)&&!exceto.contains(CrystalLakeSource.ID)){
-            try{if(crystalLakeResolve(episodio)!=null){
-                JSONObject data=new JSONObject();data.put("url","/api/crystal-lake/1/"+episodio+"/master.m3u8");data.put("audio","pt-BR");data.put("type","hls");data.put("source","Crystal Lake · dublado (480p)");data.put("fonteId",CrystalLakeSource.ID);data.put("resolucao","480p");
+            try{CrystalLakeSource.Result resolved=crystalLakeResolve(episodio,true);if(resolved!=null){
+                JSONObject data=new JSONObject();data.put("url","/api/crystal-lake/1/"+episodio+"/master.m3u8");data.put("audio","pt-BR");data.put("type","hls");data.put("source","Crystal Lake · dublado");data.put("fonteId",CrystalLakeSource.ID);data.put("resolucao",resolved.resolution);data.put("largura",resolved.width);data.put("altura",resolved.height);
                 return respostaTexto("application/json",data.toString());
             }}catch(Exception unavailable){ /* Mantém as alternativas atuais se a exceção falhar. */ }
         }

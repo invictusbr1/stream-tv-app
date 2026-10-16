@@ -13,8 +13,8 @@ final class CrystalLakeSource {
         Settings(String hash,String json){this.hash=hash;this.json=json;}
     }
     static final class Result {
-        final String url,playlist;final long until;
-        Result(String url,String playlist,long until){this.url=url;this.playlist=playlist;this.until=until;}
+        final String url,playlist,resolution;final int width,height;final long until;
+        Result(String url,String playlist,long until){this.url=url;this.playlist=playlist;this.until=until;int[] size=quality(playlist);width=size[0];height=size[1];double equivalent=Math.max(Math.min(width,height),Math.max(width,height)*9.0/16);resolution=equivalent>0?Math.round(equivalent)+"p":"";}
     }
     private static String base62(int n){return n<62?n<36?Integer.toString(n,36):String.valueOf((char)(n+29)):base62(n/62)+base62(n%62);}
     static Settings settings(String html){
@@ -40,18 +40,34 @@ final class CrystalLakeSource {
     }
     static String portuguesePlaylist(String text){
         if(text==null||!text.startsWith("#EXTM3U")||text.length()>131072||Pattern.compile("#EXT-X-(?:DATERANGE|CUE-|DISCONTINUITY)|SCTE|INTERSTITIAL",Pattern.CASE_INSENSITIVE).matcher(text).find())return null;
+        String[] lines=text.split("\\r?\\n");java.util.Set<String> groups=new java.util.HashSet<>();
+        for(String line:lines)if(line.startsWith("#EXT-X-MEDIA:TYPE=AUDIO")&&Pattern.compile("LANGUAGE=\"(?:por|pt(?:-BR)?)\"",Pattern.CASE_INSENSITIVE).matcher(line).find()){Matcher group=Pattern.compile("GROUP-ID=\"([^\"]+)\"").matcher(line);if(group.find())groups.add(group.group(1));}
         StringBuilder kept=new StringBuilder();boolean portuguese=false,variant=false;
-        try{for(String line:text.split("\\r?\\n")){
+        try{for(int i=0;i<lines.length;i++){String line=lines[i];
+            if(line.startsWith("#EXT-X-STREAM-INF:")){
+                Matcher group=Pattern.compile("AUDIO=\"([^\"]+)\"").matcher(line);String audio=group.find()?group.group(1):"";
+                if(++i>=lines.length||lines[i].startsWith("#"))return null;String target=lines[i];
+                if(!groups.contains(audio))continue;if(!child(target))return null;
+                kept.append(line).append('\n').append(target).append('\n');variant=true;continue;
+            }
+            if(line.startsWith("#EXT-X-I-FRAME-STREAM-INF:"))continue;
             if(line.startsWith("#EXT-X-MEDIA:TYPE=AUDIO")){
                 if(!Pattern.compile("LANGUAGE=\"(?:por|pt(?:-BR)?)\"",Pattern.CASE_INSENSITIVE).matcher(line).find())continue;
                 portuguese=true;kept.append(line.replaceAll("DEFAULT=(?:YES|NO)","DEFAULT=YES")).append('\n');
             }else kept.append(line).append('\n');
-            if(line.startsWith("#EXT-X-STREAM-INF:"))variant=true;
             if(line.startsWith("#")){
                 Matcher target=Pattern.compile("URI=\"([^\"]+)\"").matcher(line);while(target.find())if(!child(target.group(1)))return null;
             }else if(!line.trim().isEmpty()&&!child(line.trim()))return null;
         }}catch(Exception invalid){return null;}
         return portuguese&&variant?kept.toString():null;
+    }
+    static int[] quality(String text){
+        int width=0,height=0;double best=0;
+        for(String line:text.split("\\r?\\n"))if(line.startsWith("#EXT-X-STREAM-INF:")){
+            Matcher m=Pattern.compile("RESOLUTION=(\\d{2,5})x(\\d{2,5})",Pattern.CASE_INSENSITIVE).matcher(line);if(!m.find())continue;
+            int w=Integer.parseInt(m.group(1)),h=Integer.parseInt(m.group(2));double equivalent=Math.max(Math.min(w,h),Math.max(w,h)*9.0/16);
+            if(equivalent>best){best=equivalent;width=w;height=h;}
+        }return new int[]{width,height};
     }
     private static boolean child(String target)throws Exception{
         URI u=new URI(target);return "https".equals(u.getScheme())&&"vaiquecol.com".equals(u.getHost())&&u.getPort()==-1&&u.getUserInfo()==null&&u.getFragment()==null&&u.getRawPath().matches("/hls/[A-Za-z0-9%+/=_-]+");

@@ -26,6 +26,27 @@ test('manifesto força apenas português e recusa inserções publicitárias e d
  const filtered=c.playlistPortuguesa(master);assert.doesNotMatch(filtered,/LANGUAGE="eng"/);assert.match(filtered,/LANGUAGE="por",DEFAULT=YES/);
  for(const bad of [master.replace('LANGUAGE="por"','LANGUAGE="spa"'),master+'#EXT-X-DISCONTINUITY\n',master.replace('/hls/video','/other/video'),master.replace('https://vaiquecol.com/hls/video','https://127.0.0.1/hls/video')])assert.throws(()=>c.playlistPortuguesa(bad));
 });
+test('qualidade sobe de 480p até 4K; versão maior só em inglês não entra',async()=>{
+ let current=master,calls=0;
+ const source=c.criar({now:()=>now,get:async url=>url.includes('/embed2/')?packed(settings(1)):url.includes('/cdn/hls/')?current:media,post:async()=>{calls++;return JSON.stringify(data());}});
+ const target={tipo:'tv',tmdbId:'213562',temporada:'1',episodio:'1'};
+ assert.equal((await source.resolver(target)).resolucao,'480p');
+ current=master+'#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="original",LANGUAGE="eng",DEFAULT=NO,URI="https://vaiquecol.com/hls/original"\n#EXT-X-STREAM-INF:RESOLUTION=3840x2160,AUDIO="original"\nhttps://vaiquecol.com/hls/english4k\n';
+ assert.equal((await source.resolver(target)).resolucao,'480p');
+ assert.doesNotMatch(await source.playlist('1'),/english4k|LANGUAGE="eng"/);
+ for(const [width,height,label] of [[1280,720,'720p'],[1920,1080,'1080p'],[2560,1440,'1440p'],[3840,2160,'2160p']]){
+  current+=`#EXT-X-STREAM-INF:RESOLUTION=${width}x${height},AUDIO="audio"\nhttps://vaiquecol.com/hls/pt${height}\n`;
+  const result=await source.resolver(target);
+  assert.equal(result.resolucao,label);assert.equal(result.largura,width);
+ }
+ assert.equal(calls,6,'cada nova abertura consulta a fonte, mesmo antes de cinco minutos');
+ assert.match(await source.playlist('1'),/RESOLUTION=3840x2160/);
+ current+='#EXT-X-CUE-OUT:30\n';assert.equal(await source.resolver(target),null,'4K com publicidade também é recusado');
+});
+test('qualidade do formato de cinema considera largura e não anuncia resolução inventada',()=>{
+ assert.deepEqual(c.qualidadeDaPlaylist(master.replace('842x480','3840x1600')),{largura:3840,altura:1600,resolucao:'2160p'});
+ assert.equal(c.qualidadeDaPlaylist('#EXTM3U\n').resolucao,'');
+});
 test('renova em cinco minutos, compartilha pedidos simultâneos e entrega apenas manifesto interno',async()=>{
  let clock=now,calls=0;
  const source=c.criar({now:()=>clock,get:async url=>url.includes('/embed2/')?packed(settings(1)):url.includes('/cdn/hls/')?master:media,post:async()=>{calls++;return JSON.stringify(data());}});

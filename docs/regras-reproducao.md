@@ -1,8 +1,11 @@
 # Regra obrigatória de reprodução
 
-Definida e esclarecida pelo proprietário em 15/10/2026: ausência de anúncios é obrigatória; dublagem é preferencial, com áudio original sem anúncios como última alternativa.
+Definida pelo proprietário em 15/10/2026 e reforçada em 16/10/2026: ausência de anúncios é obrigatória; entre as opções dubladas sem anúncios, sempre priorizar a melhor qualidade disponível. Áudio original sem anúncios permanece como última alternativa quando não houver dublagem. Para anime, legenda também é aceita.
 
 - Ordem de preferência: A) Full HD ou superior, dublado e sem anúncios; B) HD, dublado e sem anúncios; C) qualidade inferior, dublado e sem anúncios; D) Full HD ou HD, áudio original e sem anúncios.
 - A ausência de dublagem permite a alternativa D. Publicidade nunca é aceita como solução, independentemente de idioma ou qualidade.
+- Não há teto de resolução: HD, Full HD, 2K, 4K ou superior devem ser aproveitados quando disponibilizados com dublagem, sem anúncios e com suporte do aparelho. Uma opção em 4K com anúncios é descartada; uma opção original em 4K não supera uma opção dublada limpa em 480p.
+- Qualidade inferior é uma reserva por disponibilidade, nunca um limite permanente. Se 480p for a melhor versão dublada limpa existente, ela pode tocar; quando a fonte publicar uma versão dublada superior, a seleção automática deve usar a superior.
+- Crystal Lake (TMDB 213562): a exceção é exclusiva da série e não fixa a qualidade em 480p. A cada nova abertura de episódio, consultar novamente o fornecedor, manter apenas variantes ligadas à faixa portuguesa e entregar as resoluções atuais ao player em “Melhor disponível”. O cache do manifesto serve à reprodução em curso; não deve impedir a descoberta de qualidade superior na próxima abertura. A atualização não deve interromper o episódio que já está tocando.
 - Preservar o comportamento que já funcionava antes da hospedagem. Diagnosticar o bloqueio da conexão da Oracle sem remover alternativas limpas já existentes, alterar pacotes instalados ou criar dependência obrigatória deste computador.
 - Mudanças publicadas na web não atualizam automaticamente APKs e executáveis já instalados. Esses pacotes precisam de publicação própria.
