@@ -152,6 +152,12 @@ window.StreamPlayback = (() => {
         // que são liberadas na hora pelo resolvedor).
         // nixplay.lat entrega o episódio dublado em MP4 (arquivo direto).
         const enderecoDeMidia=url=>/^(\/api\/(?:hls\?|convertido\/)|https:\/\/[a-z0-9-]+\.hclod\.qzz\.io\/|https:\/\/pipocacine\.lat\/|https:\/\/vixsrc\.to\/|https:\/\/nixplay\.lat\/)/i.test(url)||/^https:\/\/[a-z0-9.-]+\/(?:pl\/|[^\s]*\.(?:m3u8|mp4))/i.test(url);
+        function arquivoConferidoNoAparelho(data){
+            // Alguns CDNs removem a extensão no destino final. O Android já
+            // conferiu a imagem e o conteúdo, antes de entregar esse endereço.
+            if(data?.midiaConferida!==true||data.type!=='file'||typeof location==='undefined'||location.hostname!=='appassets.androidplatform.net'||location.protocol!=='https:')return false;
+            try{const u=new URL(data.url);return u.protocol==='https:'&&!u.username&&!u.password&&(!u.port||u.port==='443');}catch{return false;}
+        }
         async function start(id,version,signal,caminho,urlDireta,originalPermitido,fonteDireta=null,opcoes=null){
         const recebidas=opcoes||window.StreamPlaybackOptions?.({id,version})||{};
         stop('trocou');const token=generation;
@@ -184,7 +190,7 @@ window.StreamPlayback = (() => {
         if(token!==generation||(signal&&signal.aborted)||version!==playerVersion)return false;
         fonteIdUsada=String(data?.fonteId||'');fonteUsada=String(data?.source||'');
         analiseAtual?.fonte({fonteId:fonteIdUsada,fonte:fonteUsada,audio:data?.audio==='pt-BR'?'Dublado':'som original'});
-        const enderecoAceito=enderecoDeMidia(String(data?.url||''));
+        const enderecoAceito=enderecoDeMidia(String(data?.url||''))||(!urlDireta&&arquivoConferidoNoAparelho(data));
         if(!enderecoAceito||(!urlDireta&&data.audio!=='pt-BR'&&!originalPermitido)){analiseAtual?.falha('a fonte não entregou vídeo no formato ou idioma esperado',retomadaAlvo||0);return false;}
         aoVivo=Boolean(data.live);el('direct-controls').classList.toggle('live-controls',aoVivo);for(const id of ['direct-progress','direct-back','direct-forward','menu-speed-btn'])el(id).hidden=aoVivo;el('direct-time').textContent=aoVivo?'AO VIVO':'0:00 / --:--';rotuloAudio=data.live?'Áudio da transmissão':data.audioInformado||(data.audio==='pt-BR'?'Dublado':'som original');fonteUsada=data.source||'';fonteIdUsada=data.fonteId||'';alturaAtual=0;relatoFeito=false;relatoConfirmado=false;progressFilm=data.live?null:typeof filmeAtual!=='undefined'?{...filmeAtual}:null;resumeApplied=false;lastSaved=0;video=document.createElement('video');video.id='direct-video';video.controls=false;video.autoplay=true;video.playsInline=true;video.preload='auto';video.tabIndex=0;video.setAttribute('aria-label',data.live?'TV ao vivo':rotuloAudio==='Dublado'?'Filme dublado':'Filme em alta definição');video.setAttribute('webkit-playsinline','');video.setAttribute('x-webkit-airplay','allow');video.style.cssText='width:100%;height:100%;object-fit:contain;background:#000';video.playbackRate=aoVivo?1:speed;try{video.volume=volume;video.muted=mudo;}catch{}atualizarVolume();el('frame').hidden=true;document.querySelector('.area-player').prepend(video);const speedSelect=el('speed-select');if(speedSelect)speedSelect.value=String(speed);audioMenu();direct=true;showControls();
         return new Promise(resolve=>{settle=resolve;const current=()=>token===generation&&version===playerVersion;verificarAtual=current;const ready=()=>{if(!current()||!video.videoWidth||!video.videoHeight)return;

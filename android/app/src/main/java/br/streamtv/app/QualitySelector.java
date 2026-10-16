@@ -18,12 +18,18 @@ final class QualitySelector implements AutoCloseable {
         final String id,url,referer,type,json;
         final int declared;
         volatile Measure measure;
+        volatile String deliveryUrl;
         Candidate(String id,String url,String referer,String type,String json,int declared) {
             this.id=id;this.url=url;this.referer=referer==null?"":referer;this.type=type;this.json=json;this.declared=declared;
         }
         String key() { return type+"\n"+url+"\n"+referer; }
     }
-    interface Source { Candidate resolve(long deadline) throws Exception; }
+    interface Source {
+        Candidate resolve(long deadline) throws Exception;
+        default List<Candidate> resolveAll(long deadline)throws Exception {
+            Candidate c=resolve(deadline);return c==null?Collections.emptyList():Collections.singletonList(c);
+        }
+    }
     interface Probe { Measure read(Candidate candidate,long deadline) throws Exception; }
     private static final class Entry<T> { final T value;final long expires;Entry(T v,long e){value=v;expires=e;} }
     private final ExecutorService workers=Executors.newFixedThreadPool(6,r->{Thread t=new Thread(r,"conecta-quality");t.setDaemon(true);return t;});
@@ -38,23 +44,26 @@ final class QualitySelector implements AutoCloseable {
         List<Candidate> cached;
         synchronized(this){Entry<List<Candidate>> e=choices.get(key);cached=e!=null&&e.expires>now()?new ArrayList<>(e.value):null;}
         List<Candidate> found=Collections.synchronizedList(new ArrayList<>());
-        List<Callable<Void>> tasks=new ArrayList<>();
-        if(cached!=null) for(Candidate c:cached) tasks.add(()->{assess(c,excluded,probe,deadline,found);return null;});
-        else for(Source source:sources) tasks.add(()->{if(now()<deadline&&!Thread.currentThread().isInterrupted())assess(source.resolve(deadline),excluded,probe,deadline,found);return null;});
-        List<Future<Void>> futures=new ArrayList<>();
+        List<Future<List<Candidate>>> futures=new ArrayList<>();
         boolean complete=false;
         try {
-            CompletionService<Void> finished=new ExecutorCompletionService<>(workers);
-            for(Callable<Void> task:tasks)futures.add(finished.submit(task));
-            int completed=0;
-            for(int i=0;i<tasks.size();i++){
-                long left=deadline-now();if(left<=0||finished.poll(left,TimeUnit.MILLISECONDS)==null)break;
-                completed++;
+            CompletionService<List<Candidate>> finished=new ExecutorCompletionService<>(workers);
+            if(cached!=null)for(Candidate c:cached)futures.add(finished.submit(()->{assess(c,excluded,probe,deadline,found);return Collections.emptyList();}));
+            else for(Source source:sources)futures.add(finished.submit(()->now()<deadline&&!Thread.currentThread().isInterrupted()?source.resolveAll(deadline):Collections.emptyList()));
+            int pending=futures.size();
+            while(pending>0){
+                long left=deadline-now();if(left<=0)break;
+                Future<List<Candidate>> done=finished.poll(left,TimeUnit.MILLISECONDS);if(done==null)break;
+                pending--;
+                List<Candidate> candidates;try{candidates=done.get();}catch(ExecutionException e){continue;}
+                for(Candidate c:candidates){
+                    futures.add(finished.submit(()->{assess(c,excluded,probe,deadline,found);return Collections.emptyList();}));pending++;
+                }
             }
-            complete=completed==tasks.size();
+            complete=pending==0;
         } catch(InterruptedException e){Thread.currentThread().interrupt();return null;}
         catch(RejectedExecutionException e){return null;}
-        finally { for(Future<Void> f:futures)if(!f.isDone())f.cancel(true); }
+        finally { for(Future<List<Candidate>> f:futures)if(!f.isDone())f.cancel(true); }
         List<Candidate> snapshot;
         synchronized(found){snapshot=new ArrayList<>(found);}
         // Estável nos empates: não deixa a ordem das respostas da rede decidir.
@@ -71,7 +80,7 @@ final class QualitySelector implements AutoCloseable {
         synchronized(found){for(Candidate other:found)if(other.key().equals(c.key()))return;found.add(c);}
         synchronized(this){Entry<Measure> e=measures.get(c.key());if(e!=null&&e.expires>now()){c.measure=e.value;return;}}
         try {
-            Measure m=probe.read(c,Math.min(deadline,now()+4000));
+            Measure m=probe.read(c,Math.min(deadline,now()+6000));
             if(m!=null){c.measure=m;synchronized(this){if(!closed){trim(measures,128);measures.put(c.key(),new Entry<>(m,now()+("hls".equals(c.type)?60000:600000)));}}}
         }catch(Exception ignored){ /* Sem prova, conserva a alternativa existente sem inventar resolução. */ }
     }

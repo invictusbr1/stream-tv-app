@@ -2,13 +2,78 @@ package br.streamtv.app;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.io.IOException;
+import java.net.*;
 
 public final class QualitySelectorTest {
+    private static byte[] box(String name,byte[]...parts)throws Exception{
+        int length=8;for(byte[] p:parts)length+=p.length;
+        java.nio.ByteBuffer b=java.nio.ByteBuffer.allocate(length);b.putInt(length).put(name.getBytes("US-ASCII"));for(byte[] p:parts)b.put(p);return b.array();
+    }
+    private static byte[] track(String kind,String codec,int w,int h,byte[] table)throws Exception{
+        byte[] header=new byte[84];header[3]=1;java.nio.ByteBuffer.wrap(header).putInt(76,w<<16).putInt(80,h<<16);
+        byte[] handler=new byte[12];System.arraycopy(kind.getBytes("US-ASCII"),0,handler,8,4);
+        byte[] mdhd=new byte[24];int por=(16<<10)|(15<<5)|18;java.nio.ByteBuffer.wrap(mdhd).putShort(20,(short)por);
+        byte[] entry=new byte[kind.equals("vide")?78:28];
+        if(kind.equals("vide"))java.nio.ByteBuffer.wrap(entry).putShort(24,(short)w).putShort(26,(short)h);
+        else java.nio.ByteBuffer.wrap(entry).putShort(16,(short)2).putInt(24,48000<<16);
+        byte[] count=new byte[8];count[7]=1;
+        return box("trak",box("tkhd",header),box("mdia",box("mdhd",mdhd),box("hdlr",handler),box("minf",box("stbl",box("stsd",count,box(codec,entry)),table))));
+    }
     private static void check(boolean ok){if(!ok)throw new AssertionError();}
     private static QualitySelector.Candidate candidate(String id){return new QualitySelector.Candidate(id,"https://media.invalid/"+id+".mp4","https://media.invalid/","file","{}",0);}
     private static QualitySelector.Measure measure(int w,int h,int lang){return new QualitySelector.Measure(w,h,lang,0,true);}
     public static void main(String[] args)throws Exception{
         switch(args[0]){
+        case "mp4":{
+            byte[] data=box("moov",track("vide","avc1",3832,1600,box("stsz",new byte[9*1024*1024])),track("soun","mp4a",0,0,new byte[0]));
+            AtomicInteger transferred=new AtomicInteger();
+            try(BoundedMediaReader reader=new BoundedMediaReader((p,n,end)->{transferred.addAndGet(n);return new BoundedMediaReader.Block(206,p,data.length,Arrays.copyOfRange(data,(int)p,(int)p+n),"video/mp4");},QualitySelector.now()+2000)){
+                Mp4Metadata.Result metadata=Mp4Metadata.read(reader);QualitySelector.Measure m=metadata.measure();check(m.width==3832&&m.height==1600&&m.language==2);check(metadata.tracks.size()==2);check(metadata.tracks.get(0).mime.equals("video/avc"));check(metadata.tracks.get(1).mime.equals("audio/mp4a-latm"));check(transferred.get()<200000);
+            }
+            byte[] invalid={0,0,0,7,'m','o','o','v'};
+            try(BoundedMediaReader reader=new BoundedMediaReader((p,n,end)->new BoundedMediaReader.Block(206,p,invalid.length,Arrays.copyOfRange(invalid,(int)p,(int)p+n),"video/mp4"),QualitySelector.now()+1000)){
+                try{Mp4Metadata.read(reader);throw new AssertionError("tamanho inválido aceito");}catch(IOException expected){}
+            }break;
+        }
+        case "redirects":{
+            List<HttpURLConnection> opened=new ArrayList<>();
+            MediaHttp.Connector connector=url->{
+                final int i=opened.size();HttpURLConnection c=new HttpURLConnection(url){
+                    public void disconnect(){} public boolean usingProxy(){return false;} public void connect(){}
+                    public int getResponseCode(){return i==0?307:i==1?302:206;}
+                    public String getHeaderField(String name){return "Location".equals(name)?i==0?"http://cdn.invalid/media.mp4":i==1?"/final.mp4":null:null;}
+                    public String getContentType(){return i<2?"text/html":"video/mp4";}
+                };opened.add(c);return c;
+            };
+            HttpURLConnection finalResponse=MediaHttp.open("https://addon.invalid/r/video.mp4","https://addon.invalid/","bytes=9000-9100",QualitySelector.now()+1000,connector);
+            MediaHttp.requireMedia(finalResponse);check(opened.size()==3);check(finalResponse.getURL().toString().equals("https://cdn.invalid/final.mp4"));
+            for(HttpURLConnection c:opened){check(c.getURL().getProtocol().equals("https"));check(c.getRequestProperty("Range").equals("bytes=9000-9100"));check(c.getRequestProperty("Referer").equals("https://addon.invalid/"));check(!c.getInstanceFollowRedirects());}
+            for(String target:Arrays.asList("https://127.0.0.1/a","https://192.168.1.2/a","https://user:password@cdn.invalid/a","https://cdn.invalid:8080/a","https://addon.invalid/a")){
+                try{MediaHttp.open("https://addon.invalid/a","","bytes=0-1",QualitySelector.now()+1000,url->new HttpURLConnection(url){public void disconnect(){}public boolean usingProxy(){return false;}public void connect(){}public int getResponseCode(){return 302;}public String getHeaderField(String name){return target;}});throw new AssertionError("destino ou ciclo aceito");}catch(IOException expected){}
+            }
+            HttpURLConnection html=new HttpURLConnection(new URL("https://cdn.invalid/a")){public void disconnect(){}public boolean usingProxy(){return false;}public void connect(){}public int getResponseCode(){return 404;}public String getContentType(){return "application/json";}};
+            try{MediaHttp.requireMedia(html);throw new AssertionError("404 aceito");}catch(MediaHttp.Unavailable expected){}
+            try{MediaHttp.open("https://addon.invalid/a","",null,QualitySelector.now()-1,url->{throw new AssertionError("abriu fora do prazo");});throw new AssertionError();}catch(IOException expected){}
+            break;
+        }
+        case "batch":{
+            try(QualitySelector s=new QualitySelector()){
+                AtomicInteger queries=new AtomicInteger();
+                QualitySelector.Source addon=new QualitySelector.Source(){
+                    public QualitySelector.Candidate resolve(long end){throw new AssertionError("usou só streams[0]");}
+                    public List<QualitySelector.Candidate> resolveAll(long end){queries.incrementAndGet();return Arrays.asList(candidate("broken-4k"),candidate("good-fhd"),candidate("foreign-4k"));}
+                };
+                List<QualitySelector.Source> sources=Arrays.asList(end->candidate("fast-hd"),addon);
+                QualitySelector.Probe probe=(c,end)->c.id.equals("broken-4k")?new QualitySelector.Measure(0,0,1,0,false):c.id.equals("foreign-4k")?measure(3840,1600,-1):c.id.equals("good-fhd")?measure(1920,800,2):measure(1280,720,2);
+                check(s.choose("movie:batch",sources,Collections.emptySet(),probe,1000).id.equals("good-fhd"));
+                check(s.choose("movie:batch",sources,Collections.emptySet(),probe,1000).id.equals("good-fhd"));check(queries.get()==1);
+            }break;
+        }
+        case "addon":{
+            check(AddonPolicy.dubbed("FenixFlix 4K · 🇧🇷 Dublado"));check(AddonPolicy.dubbed("1080p · 🇧🇷🇺🇸 Dual Áudio"));
+            check(!AddonPolicy.dubbed("1080p Legendado"));check(!AddonPolicy.dubbed("CAM Dublado"));check(!AddonPolicy.dubbed("1080p"));check(!AddonPolicy.dubbed("🇧🇷 Legendado"));
+            check(AddonPolicy.height("FenixFlix 4K")==2160);check(AddonPolicy.height("FenixFlix 1080p")==1080);break;
+        }
         case "ranking":{
             QualitySelector.Candidate hd=candidate("hd"),fhd=candidate("fhd"),uhd=candidate("uhd"),cinema=candidate("cinema"),foreign=candidate("foreign");
             hd.measure=measure(1280,720,2);fhd.measure=measure(1920,1080,2);uhd.measure=measure(3840,1600,2);cinema.measure=measure(1920,800,2);foreign.measure=measure(3840,2160,-1);
@@ -39,9 +104,10 @@ public final class QualitySelectorTest {
         case "deadline":{
             try(QualitySelector s=new QualitySelector()){
                 AtomicInteger slowCalls=new AtomicInteger();
-                List<QualitySelector.Source> sources=Arrays.asList(end->candidate("hd"),end->{if(slowCalls.incrementAndGet()==1)Thread.sleep(200);return candidate("fhd");});
+                List<QualitySelector.Source> sources=Arrays.asList(end->candidate("hd"),end->{if(slowCalls.incrementAndGet()==1)Thread.sleep(1500);return candidate("fhd");});
                 QualitySelector.Probe probe=(c,end)->measure(c.id.equals("fhd")?1920:1280,c.id.equals("fhd")?1080:720,2);
-                long start=QualitySelector.now();check(s.choose("movie:2",sources,Collections.emptySet(),probe,60).id.equals("hd"));check(QualitySelector.now()-start<190);
+                s.choose("warmup",Collections.singletonList(end->candidate("hd")),Collections.emptySet(),probe,1000);
+                long start=QualitySelector.now();check(s.choose("movie:2",sources,Collections.emptySet(),probe,300).id.equals("hd"));check(QualitySelector.now()-start<1200);
                 check(s.choose("movie:2",sources,Collections.emptySet(),probe,1000).id.equals("fhd"));check(slowCalls.get()==2);
             }break;
         }
@@ -56,6 +122,7 @@ public final class QualitySelectorTest {
             AtomicInteger calls=new AtomicInteger();
             try(BoundedMediaReader reader=new BoundedMediaReader((p,n,end)->{calls.incrementAndGet();byte[] b=new byte[n];Arrays.fill(b,(byte)(p%127));return new BoundedMediaReader.Block(206,p,1000000,b,"video/mp4");},QualitySelector.now()+2000)){
                 check(reader.size()==1000000);byte[] b=new byte[32];check(reader.readAt(999900,b,0,32)==32);check(b[0]==(byte)(999900%127));check(reader.readAt(1000000,b,0,1)==-1);check(calls.get()==2);
+                check(reader.readAt(999932,b,0,32)==32);check(calls.get()==2);
             }
             for(int bad=0;bad<4;bad++){
                 final int mode=bad;

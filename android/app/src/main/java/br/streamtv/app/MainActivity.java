@@ -177,18 +177,21 @@ public final class MainActivity extends Activity {
         } catch (Exception e) { return null; }
     }
 
-    /** Texto das fichas: guardado no aparelho, senão o que veio junto da versão. */
+    private String dataPerfis(String texto) {
+        try{JSONObject d=new JSONObject(texto);return d.optJSONArray("perfis")==null?"":d.optString("atualizadoEm","");}catch(Exception e){return "";}
+    }
+
+    /** Uma ficha antiga do aparelho não substitui a cópia mais nova do APK. */
     private String perfis() {
         if (perfisTexto != null) return perfisTexto;
+        String embutido="",guardado="";
+        try { embutido=lerTexto(getAssets().open("perfis.json")); }catch(Exception ignored){}
         try {
-            File guardado = arquivoPerfis();
-            if (guardado.isFile()) {
-                perfisTexto = lerTexto(new FileInputStream(guardado));
-                if (perfisTexto != null && perfisTexto.length() > 10) return perfisTexto;
-            }
-        } catch (Exception e) { /* segue para o arquivo embutido */ }
-        try { perfisTexto = lerTexto(getAssets().open("perfis.json")); } catch (Exception e) { perfisTexto = ""; }
-        return perfisTexto == null ? "" : perfisTexto;
+            if(arquivoPerfis().isFile())guardado=lerTexto(new FileInputStream(arquivoPerfis()));
+        }catch(Exception ignored){}
+        String escolhido=!dataPerfis(guardado).isEmpty()&&dataPerfis(guardado).compareTo(dataPerfis(embutido))>=0?guardado:embutido;
+        // A busca de rede pode ter terminado durante a leitura do disco.
+        synchronized(this){if(perfisTexto==null)perfisTexto=escolhido==null?"":escolhido;return perfisTexto;}
     }
 
     /** Busca a versão publicada das fichas (silencioso, em segundo plano). */
@@ -203,9 +206,9 @@ public final class MainActivity extends Activity {
                 conexao.setRequestProperty("Cache-Control", "no-cache");
                 if (conexao.getResponseCode() != 200) return;
                 String texto = lerTexto(conexao.getInputStream());
-                if (texto == null || !texto.contains("\"perfis\"")) return;
+                if (texto == null || dataPerfis(texto).isEmpty()) return;
                 try (FileOutputStream saida = new FileOutputStream(arquivoPerfis())) { saida.write(texto.getBytes(StandardCharsets.UTF_8)); }
-                perfisTexto = texto;
+                synchronized(this){if(dataPerfis(texto).compareTo(dataPerfis(perfisTexto))>=0)perfisTexto=texto;}
             } catch (Exception e) { /* sem internet: segue com o que já tem */ }
             finally { if (conexao != null) conexao.disconnect(); }
         }).start();
@@ -789,6 +792,46 @@ public final class MainActivity extends Activity {
         return deadline->{qualityDeadline.set(deadline);try{return qualityCandidate(resolver.call());}finally{qualityDeadline.remove();}};
     }
 
+    private QualitySelector.Source qualityProfileSource(JSONObject ficha,String tipo,String id,String temporada,String episodio,java.util.Set<String> excluded) {
+        final String profileId=ficha.optString("id");
+        return new QualitySelector.Source(){
+            @Override public QualitySelector.Candidate resolve(long deadline)throws Exception {
+                return qualitySource(()->perfilPlayback(tipo,id,temporada,episodio,excluded,profileId)).resolve(deadline);
+            }
+            @Override public List<QualitySelector.Candidate> resolveAll(long deadline)throws Exception {
+                JSONArray steps=ficha.optJSONArray("passos");JSONObject step=steps==null?null:steps.optJSONObject(0);
+                if(steps==null||steps.length()!=1||step==null||!"json".equals(step.optString("tipo"))||!"streams[0].url".equals(step.optString("caminho")))return QualitySelector.Source.super.resolveAll(deadline);
+                qualityDeadline.set(deadline);
+                try{
+                    String model=ficha.optString("tv".equals(tipo)?"urlTv":"urlMovie");String imdb=imdbNaMemoria(tipo,id);
+                    if(model.contains("{imdb}")&&imdb.isEmpty()){imdb=imdbDoTitulo(tipo,id);guardarImdb(tipo,id,imdb);}
+                    if(model.contains("{imdb}")&&imdb.isEmpty())return Collections.emptyList();
+                    String endpoint=preencher(model,id,temporada,episodio).replace("{imdb}",Uri.encode(imdb));
+                    if(!enderecoSeguro(endpoint))return Collections.emptyList();
+                    String ref=ficha.optString("referer",endpoint);String body=lerPagina(endpoint,ref);
+                    if(body==null)return Collections.emptyList();JSONArray streams=new JSONObject(body).optJSONArray("streams");
+                    List<QualitySelector.Candidate> candidates=new ArrayList<>();
+                    for(int i=0;streams!=null&&i<streams.length()&&candidates.size()<8;i++){
+                        JSONObject stream=streams.optJSONObject(i);if(stream==null)continue;
+                        String name=stream.optString("name"),title=stream.optString("title"),label=name+" "+title;
+                        if(!AddonPolicy.dubbed(label))continue;
+                        String raw=stream.optString("url");if(raw.startsWith("http://"))raw="https://"+raw.substring(7);
+                        if(!enderecoSeguro(raw))continue;
+                        String path=new URL(raw).getPath().toLowerCase(java.util.Locale.ROOT);
+                        String mediaType=path.endsWith(".m3u8")?"hls":path.endsWith(".mp4")?"file":"";
+                        if(mediaType.isEmpty())continue;
+                        int declared=AddonPolicy.height(name);
+                        JSONObject data=new JSONObject();data.put("url","hls".equals(mediaType)?enderecoEncaminhado(raw,ref):raw);
+                        data.put("audio","pt-BR");data.put("type",mediaType);data.put("source",ficha.optString("nome","Fonte")+" · "+name);data.put("fonteId",profileId);
+                        data.put("resolucao",declared>0?declared+"p":"");
+                        candidates.add(new QualitySelector.Candidate(profileId,raw,ref,mediaType,data.toString(),declared));
+                    }
+                    return candidates;
+                }finally{qualityDeadline.remove();}
+            }
+        };
+    }
+
     private WebResourceResponse qualityPlayback(String tipo,String id,String temporada,String episodio,java.util.Set<String> excluded) {
         final java.util.Set<String> exceto=Collections.unmodifiableSet(new java.util.HashSet<>(excluded));
         List<QualitySelector.Source> sources=new ArrayList<>();
@@ -805,19 +848,24 @@ public final class MainActivity extends Activity {
                 final String profileId=ficha.optString("id");if(!profileId.matches("[a-z0-9_-]{1,64}")||exceto.contains(profileId)||!seen.add(profileId))continue;
                 if(ficha.optString(tv?"urlTv":"urlMovie").isEmpty())continue;
                 JSONArray tipos=ficha.optJSONArray("tipos");boolean applies=false;for(int j=0;tipos!=null&&j<tipos.length();j++)if(tipo.equals(tipos.optString(j)))applies=true;
-                if(applies)sources.add(qualitySource(()->perfilPlayback(tipo,id,temporada,episodio,exceto,profileId)));
+                if(applies)sources.add(qualityProfileSource(ficha,tipo,id,temporada,episodio,exceto));
             }
         }catch(Exception ignored){ /* Segue com as fontes fixas se a ficha não estiver disponível. */ }
         String key=tipo+":"+id+":"+temporada+":"+episodio+":"+new java.util.TreeSet<>(exceto)+":"+(profiles==null?0:profiles.hashCode());
         QualitySelector.Candidate chosen=qualitySelector.choose(key,sources,exceto,NativeMediaProbe::read,12000);
         if(chosen!=null){
-            if(!entregaVideo(chosen.url,chosen.referer)){qualitySelector.forget(key);return error(502);}
             try{
                 JSONObject data=new JSONObject(chosen.json);QualitySelector.Measure m=chosen.measure;
+                if("file".equals(chosen.type)){
+                    // O WebView recebe o destino HTTPS final, sem passar pelos
+                    // redirecionamentos http publicados por alguns fornecedores.
+                    java.net.HttpURLConnection connection=MediaHttp.open(chosen.deliveryUrl==null?chosen.url:chosen.deliveryUrl,chosen.referer,"bytes=0-2047",QualitySelector.now()+5000);
+                    try{MediaHttp.requireMedia(connection);data.put("url",connection.getURL().toString());data.put("midiaConferida",m!=null&&m.width>0&&m.height>0);}finally{connection.disconnect();}
+                }else if(!entregaVideo(chosen.url,chosen.referer)){qualitySelector.forget(key);return error(502);}
                 if(m!=null&&m.width>0&&m.height>0){data.put("resolucao",m.height+"p");data.put("largura",m.width);data.put("altura",m.height);data.put("evidenciaQualidade","medido");}
                 else if(chosen.declared>0)data.put("evidenciaQualidade","informado pela fonte");
                 return respostaTexto("application/json",data.toString());
-            }catch(Exception ignored){return error(502);}
+            }catch(Exception ignored){qualitySelector.forget(key);return error(502);}
         }
         return exceto.contains("vixsrc")?error(502):vixsrcMidia(tipo,id,temporada,episodio);
     }

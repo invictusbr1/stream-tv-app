@@ -26,6 +26,16 @@ async function videoTocando(s,opcoes=null,dados={url,audio:'pt-BR',fonteId:'watc
  v.fire('loadedmetadata');v.fire('playing');assert.equal(await pending,true);return v;
 }
 
+test('APK reproduz destino sem extensão apenas após conferência nativa; navegador mantém sua validação',async()=>{
+ const data={url:'https://cdn.example/video/identificador',type:'file',audio:'pt-BR',fonteId:'perfil',midiaConferida:true};
+ const native=harness('StreamTVAndroid');native.context.location={hostname:'appassets.androidplatform.net',protocol:'https:'};native.context.URL=URL;
+ await videoTocando(native,null,data);assert.equal(native.controller.isActive(),true);native.controller.stop();
+ for(const [host,url,confirmed]of [['stream.example',data.url,true],['appassets.androidplatform.net',data.url,false],['appassets.androidplatform.net','http://cdn.example/video/identificador',true],['appassets.androidplatform.net','https://user:secret@cdn.example/video/identificador',true]]){
+  const s=harness();s.context.location={hostname:host,protocol:'https:'};s.context.URL=URL;s.fetch(async()=>({...data,url,midiaConferida:confirmed}));
+  assert.equal(await s.controller.start(238,1),false);assert.equal(s.controller.isActive(),false);
+ }
+});
+
 test('falha após imagem pede uma única troca e preserva a posição exata',async()=>{
  const s=harness(),trocas=[];const v=await videoTocando(s,{onInterrupted:d=>{trocas.push(d);return true;}});
  v.currentTime=127.5;v.error={code:2};v.fire('error');v.fire('error');

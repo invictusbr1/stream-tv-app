@@ -10,6 +10,7 @@ final class BoundedMediaReader implements AutoCloseable {
     }
     interface Fetcher { Block read(long start,int count,long deadline) throws IOException; }
     private final Fetcher fetcher;private final long deadline;private long total=-1;private int used,requests;private boolean closed;
+    private long windowStart=-1;private byte[] window;
     BoundedMediaReader(Fetcher fetcher,long deadline){this.fetcher=fetcher;this.deadline=deadline;}
     private Block fetch(long position,int length)throws IOException{
         if(closed||Thread.currentThread().isInterrupted()||QualitySelector.now()>=deadline||++requests>40||used+length>2*1024*1024)throw new IOException("Fim do prazo ou limite da medição");
@@ -18,14 +19,17 @@ final class BoundedMediaReader implements AutoCloseable {
         if(total>=0&&b.total!=total)throw new IOException("Arquivo mudou durante a medição");
         total=b.total;used+=b.bytes.length;return b;
     }
-    synchronized long size()throws IOException{if(total<0)fetch(0,1);return total;}
+    synchronized long size()throws IOException{if(closed||Thread.currentThread().isInterrupted()||QualitySelector.now()>=deadline)throw new IOException("Leitura encerrada");if(total<0)fetch(0,1);return total;}
     synchronized int readAt(long position,byte[] buffer,int offset,int count)throws IOException{
         if(position<0||offset<0||count<0||offset>buffer.length-count)throw new IOException("Faixa inválida");
         if(count==0)return 0;
         if(position>=size())return -1;
         int length=(int)Math.min(Math.min(count,65536),total-position);
-        Block b=fetch(position,length);if(b.bytes.length==0)return -1;
-        System.arraycopy(b.bytes,0,buffer,offset,b.bytes.length);return b.bytes.length;
+        if(window==null||position<windowStart||position>=windowStart+window.length){
+            Block b=fetch(position,(int)Math.min(65536,total-position));windowStart=position;window=b.bytes;
+        }
+        int available=Math.min(length,window.length-(int)(position-windowStart));if(available<=0)return -1;
+        System.arraycopy(window,(int)(position-windowStart),buffer,offset,available);return available;
     }
-    @Override public synchronized void close(){closed=true;}
+    @Override public synchronized void close(){closed=true;window=null;}
 }

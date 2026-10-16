@@ -1,4 +1,14 @@
-# Qualidade no Android — 2.13.71
+# Qualidade no Android — 2.13.72
+
+A versão 2.13.72 corrige uma lacuna da 2.13.71: a sonda de mídia não seguia redirecionamentos. O endereço do addon respondia 307, seguido de 302; o MP4 de maior qualidade ficava sem medida, enquanto a fonte alternativa de 1920 × 800 era medida. O seletor então privilegiava a alternativa já comprovada. No teste real com o transporte Java corrigido, tanto a opção 4K quanto a 1080p responderam 206 e entregaram bytes do arquivo. Isso verifica o transporte; não substitui reprodução em Android físico.
+
+Agora cada salto é validado, mantém Range e o prazo, usa HTTPS e respeita o limite de cinco redirecionamentos. Se o fornecedor escreve http em Location, somente a versão HTTPS do mesmo destino é consultada. O WebView recebe o endereço HTTPS final. Destinos sem extensão são aceitos apenas na origem interna do APK, com tipo file e confirmação nativa de dimensões; páginas e conteúdo de erro continuam recusados.
+
+Fichas de addon com streams[0].url consultam a lista uma única vez e oferecem até oito opções diretas ao seletor. As opções precisam indicar áudio dublado ou dual; CAM e legendado são recusados nesse caminho de filmes e séries. As sondagens das alternativas são independentes e paralelas, permitindo usar outra opção do mesmo fornecedor se a primeira estiver indisponível ou não houver decodificador de áudio/vídeo no aparelho. O caminho próprio dos animes mantém sua exceção de legendas.
+
+A ficha aprovada também acompanha a instalação. Na primeira abertura, uma cópia antiga guardada no celular não substitui a ficha mais recente embutida; atualizações publicadas continuam chegando em segundo plano. O leitor de faixas reaproveita uma janela de até 64 KiB para reduzir chamadas repetidas durante a leitura de metadados, dentro dos limites anteriores.
+
+Os dois MP4 reais do Homem-Aranha têm caixas moov de 8.527.366 e 6.814.992 bytes, maiores que o orçamento anterior de leitura. O leitor MP4 agora percorre somente os cabeçalhos necessários e pula as tabelas de cada quadro. No teste Java com a mídia real, a opção maior foi identificada como 3832 × 1600, áudio português, lendo 196.609 bytes em quatro pedidos, em cerca de 2,6 segundos. A sonda tem até seis segundos por candidata dentro do prazo total de doze segundos. Outros contêineres continuam usando MediaExtractor como alternativa. A disponibilidade dos decodificadores é conferida no próprio Android.
 
 O APK de celular e o de Android TV passam a comparar as fontes de filmes e episódios antes de escolher. As consultas são feitas pelo próprio aparelho, sem computador ou servidor obrigatório. As fichas aprovadas que servem ao título também participam, cada uma com seu identificador; uma falha excluída pelo player não reaparece na recuperação.
 

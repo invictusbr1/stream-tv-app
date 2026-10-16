@@ -12,8 +12,10 @@ import javax.net.ssl.HttpsURLConnection;
 
 /** Usa o leitor de mídia do Android; nenhuma página ou script é executado. */
 final class NativeMediaProbe {
-    private static final String UA="Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Mobile Safari/537.36";
     static QualitySelector.Measure read(QualitySelector.Candidate c,long deadline)throws Exception {
+        try{return inspect(c,deadline);}catch(MediaHttp.Unavailable e){return new QualitySelector.Measure(0,0,1,0,false);}
+    }
+    private static QualitySelector.Measure inspect(QualitySelector.Candidate c,long deadline)throws Exception {
         if("hls".equals(c.type)){
             String text=text(c.url,c.referer,deadline);
             QualitySelector.Measure manifest=QualitySelector.playlist(text);
@@ -24,29 +26,20 @@ final class NativeMediaProbe {
                 String line=raw.trim();if(line.isEmpty()||line.startsWith("#"))continue;
                 URL base=safe(c.url),part=safe(new URL(base,line).toString());
                 if(!base.getAuthority().equals(part.getAuthority())||part.getPath().endsWith(".m3u8"))return manifest;
-                QualitySelector.Measure measured=file(part.toString(),c.referer,deadline);
+                QualitySelector.Measure measured=file(part.toString(),c.referer,deadline,null);
                 return measured==null?manifest:new QualitySelector.Measure(measured.width,measured.height,manifest.language==2?2:measured.language,manifest.bitrate,measured.playable);
             }
             return manifest;
         }
-        return file(c.url,c.referer,deadline);
+        return file(c.url,c.referer,deadline,c);
     }
     static URL safe(String raw)throws IOException{
-        URL u=new URL(raw);String h=u.getHost().toLowerCase(java.util.Locale.ROOT);
-        if(!u.getProtocol().equals("https")||u.getUserInfo()!=null||(u.getPort()!=-1&&u.getPort()!=443)||h.isEmpty()||h.equals("localhost")||h.endsWith(".local")||h.matches("^(127\\.|10\\.|192\\.168\\.|169\\.254\\.|0\\.).*")||h.matches("^172\\.(1[6-9]|2[0-9]|3[01])\\..*")||h.startsWith("["))throw new IOException("Endereço de mídia inválido");
-        return u;
-    }
-    private static HttpsURLConnection open(String url,String referer,long deadline)throws IOException{
-        long left=deadline-QualitySelector.now();if(left<=0||Thread.currentThread().isInterrupted())throw new IOException("Medição encerrada");
-        HttpsURLConnection c=(HttpsURLConnection)safe(url).openConnection();
-        c.setConnectTimeout((int)Math.min(2000,left));c.setReadTimeout((int)Math.min(2000,left));c.setInstanceFollowRedirects(false);
-        c.setRequestProperty("User-Agent",UA);c.setRequestProperty("Accept-Encoding","identity");
-        if(referer!=null&&!referer.isEmpty()&&!referer.contains("\r")&&!referer.contains("\n"))c.setRequestProperty("Referer",referer);
-        return c;
+        return MediaHttp.safe(raw);
     }
     private static String text(String url,String referer,long deadline)throws IOException{
-        HttpsURLConnection c=open(url,referer,deadline);
+        HttpURLConnection c=MediaHttp.open(url,referer,null,deadline);
         try{
+            MediaHttp.requireMedia(c);
             if(c.getResponseCode()!=200)throw new IOException("Lista indisponível");
             try(InputStream in=c.getInputStream();ByteArrayOutputStream out=new ByteArrayOutputStream()){
                 byte[] buffer=new byte[8192];int n;
@@ -55,9 +48,11 @@ final class NativeMediaProbe {
             }
         }finally{c.disconnect();}
     }
-    private static BoundedMediaReader.Block block(String url,String referer,long position,int count,long deadline)throws IOException{
-        HttpsURLConnection c=open(url,referer,deadline);c.setRequestProperty("Range","bytes="+position+"-"+(position+count-1));
+    private static BoundedMediaReader.Block block(String[] url,String referer,long position,int count,long deadline)throws IOException{
+        HttpURLConnection c=MediaHttp.open(url[0],referer,"bytes="+position+"-"+(position+count-1),deadline);
         try{
+            MediaHttp.requireMedia(c);
+            url[0]=c.getURL().toString();
             int status=c.getResponseCode();long total=-1,start=0;
             String range=c.getHeaderField("Content-Range");
             if(status==206){Matcher m=Pattern.compile("bytes (\\d+)-(\\d+)/(\\d+)").matcher(range==null?"":range);if(!m.matches())throw new IOException("Faixa não identificada");start=Long.parseLong(m.group(1));total=Long.parseLong(m.group(3));}
@@ -71,8 +66,9 @@ final class NativeMediaProbe {
             }
         }finally{c.disconnect();}
     }
-    private static QualitySelector.Measure file(String url,String referer,long deadline)throws Exception{
-        BoundedMediaReader reader=new BoundedMediaReader((start,count,end)->block(url,referer,start,count,end),deadline);
+    private static QualitySelector.Measure file(String url,String referer,long deadline,QualitySelector.Candidate candidate)throws Exception{
+        String[] resolved={url};
+        BoundedMediaReader reader=new BoundedMediaReader((start,count,end)->block(resolved,referer,start,count,end),deadline);
         MediaDataSource source=new MediaDataSource(){
             @Override public int readAt(long p,byte[] b,int o,int s)throws IOException{return reader.readAt(p,b,o,s);}
             @Override public long getSize()throws IOException{return reader.size();}
@@ -80,6 +76,23 @@ final class NativeMediaProbe {
         };
         MediaExtractor extractor=new MediaExtractor();
         try{
+            // Verifica status e conteúdo antes da API de mídia, que pode
+            // encapsular um 404/HTML em uma exceção genérica de extração.
+            reader.size();
+            try{
+                Mp4Metadata.Result metadata=Mp4Metadata.read(reader);QualitySelector.Measure measured=metadata.measure();
+                if(measured!=null){
+                    boolean playable=true;MediaCodecList codecs=new MediaCodecList(MediaCodecList.ALL_CODECS);
+                    for(Mp4Metadata.Track track:metadata.tracks){
+                        if(!track.kind.equals("vide")&&!track.kind.equals("soun"))continue;
+                        if(track.mime.isEmpty()){playable=false;break;}
+                        MediaFormat format=track.kind.equals("vide")?MediaFormat.createVideoFormat(track.mime,track.width,track.height):MediaFormat.createAudioFormat(track.mime,Math.max(1,track.sampleRate),Math.max(1,track.channels));
+                        if(codecs.findDecoderForFormat(format)==null)playable=false;
+                    }
+                    if(candidate!=null)candidate.deliveryUrl=resolved[0];
+                    return new QualitySelector.Measure(measured.width,measured.height,measured.language,measured.bitrate,playable);
+                }
+            }catch(MediaHttp.Unavailable e){throw e;}catch(IOException ignored){ /* Outros contêineres seguem para o leitor do Android. */ }
             extractor.setDataSource(source);int width=0,height=0;boolean pt=false,other=false,ptDefault=false,otherDefault=false,playable=true;long bitrate=0;
             for(int i=0;i<extractor.getTrackCount();i++){
                 MediaFormat format=extractor.getTrackFormat(i);String mime=format.getString(MediaFormat.KEY_MIME);
@@ -90,6 +103,7 @@ final class NativeMediaProbe {
                     if(new MediaCodecList(MediaCodecList.ALL_CODECS).findDecoderForFormat(format)==null)playable=false;
                 }
                 if(mime!=null&&mime.startsWith("audio/")){
+                    if(new MediaCodecList(MediaCodecList.ALL_CODECS).findDecoderForFormat(format)==null)playable=false;
                     String lang=format.containsKey(MediaFormat.KEY_LANGUAGE)?format.getString(MediaFormat.KEY_LANGUAGE):"";
                     boolean defaultTrack=format.containsKey("is-default")&&format.getInteger("is-default")==1;
                     if(QualitySelector.portuguese(lang)){pt=true;ptDefault|=defaultTrack;}
@@ -97,6 +111,7 @@ final class NativeMediaProbe {
                 }
             }
             int language=ptDefault||pt&&!other?2:otherDefault||other&&!pt?-1:1;
+            if(candidate!=null&&width>0&&height>0)candidate.deliveryUrl=resolved[0];
             return width>0&&height>0?new QualitySelector.Measure(width,height,language,bitrate,playable):null;
         }finally{extractor.release();source.close();}
     }

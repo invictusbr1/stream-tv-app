@@ -1,6 +1,32 @@
 {
-  "atualizadoEm": "2026-10-10T19:59:55.320Z",
-  "perfis": [],
+  "atualizadoEm": "2026-10-15T22:38:41.860Z",
+  "perfis": [
+    {
+      "id": "fenixflix-fenixhub",
+      "nome": "FenixFlix (FenixHub)",
+      "ativo": true,
+      "tipos": [
+        "movie",
+        "tv"
+      ],
+      "urlMovie": "https://fenixflix.fenixhub.online/stream/movie/{imdb}.json",
+      "urlTv": "https://fenixflix.fenixhub.online/stream/series/{imdb}:{temporada}:{episodio}.json",
+      "passos": [
+        {
+          "tipo": "json",
+          "caminho": "streams[0].url"
+        }
+      ],
+      "dublado": true,
+      "qualidade": "1080p",
+      "referer": "https://fenixflix.fenixhub.online/",
+      "nota": 8
+    },
+    {
+      "id": "fenixflix-fenixhub-fenixflix-1080p",
+      "ativo": false
+    }
+  ],
   "listasTv": [
     {
       "id": "esportes",
