@@ -181,7 +181,7 @@ app.post('/api/evento', async (req, res) => {
         }
     } catch { /* o aviso para a central segue normalmente */ }
     if (!central.configurada()) return res.json({ ok: true, central: false });
-    const enviado = await central.reportar(req.body || {}).catch(() => false);
+    const enviado = await central.reportar({ ...(req.body || {}), ip: ipDoPedido(req) }).catch(() => false);
     res.json({ ok: true, central: enviado });
 });
 
@@ -218,6 +218,7 @@ app.post('/api/acesso', (req, res) => {
         dispositivo,
         nome,
         aparelho: String(corpo.aparelho || 'Aparelho').slice(0, 40),
+        app: String(corpo.app || anterior.app || 'conecta-tv').slice(0, 20),
         versao: String(corpo.versao || '').slice(0, 20),
         assistindo: corpo.assistindo ? String(corpo.assistindo).slice(0, 90) : (anterior.assistindo || null),
         ip: ipDoPedido(req),

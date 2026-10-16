@@ -198,6 +198,9 @@
         if (guardado()?.nome) registrar().catch(() => {});
         else if (doEndereco) { salvar(doEndereco); registrar().catch(() => {}); liberar(); }
         else mostrarPortao();
-        setInterval(() => registrar().catch(() => {}), 10 * 60 * 1000);
+        setInterval(() => registrar().catch(() => {}), 60 * 1000);
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible') registrar().catch(() => {});
+        });
     });
 })();

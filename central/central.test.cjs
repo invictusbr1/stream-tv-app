@@ -47,10 +47,29 @@ test('a central guarda quem entrou, o que assistiu e mostra os números', async 
         const acesso = await fetch(`http://127.0.0.1:${PORTA}/api/acesso`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'X-Central': TOKEN },
-            body: JSON.stringify({ nome: 'Marlon', aparelho: 'Celular Android', dispositivo: 'd-cel-1', versao: '2.8.1' })
+            body: JSON.stringify({ nome: 'Marlon', aparelho: 'Celular Android', dispositivo: 'd-cel-1', versao: '2.8.1', ip: '203.0.113.17', app: 'android' })
         });
         assert.equal(acesso.status, 200);
         assert.equal((await acesso.json()).aparelhos, 1);
+
+        // Relatos do APK podem chegar antes do cadastro; o painel deve aprender
+        // a identidade e atualizar a versão nas próximas mensagens.
+        const relato = corpo => fetch(`http://127.0.0.1:${PORTA}/api/evento`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Central': TOKEN },
+            body: JSON.stringify({ tipo: 'atualizacao', dispositivo: 'apk-sem-cadastro', nome: 'Teste APK', aparelho: 'Celular Android', app: 'android', ...corpo })
+        });
+        assert.equal((await relato({ versao: '2.13.74' })).status, 200);
+        assert.equal((await relato({ versao: '2.13.76' })).status, 200);
+        const presenca = await fetch(`http://127.0.0.1:${PORTA}/api/status?chave=${CHAVE}`).then(r => r.json());
+        const apk = presenca.aparelhos.find(a => a.dispositivo === 'apk-sem-cadastro');
+        assert.equal(apk.versao, '2.13.76');
+        assert.equal(apk.app, 'android');
+        assert.equal(apk.online, true);
+        // Retira apenas o registro do teste para conservar as contagens abaixo.
+        const registros = JSON.parse(fs.readFileSync(path.join(pasta, 'dados', 'dispositivos.json')));
+        delete registros['apk-sem-cadastro'];
+        fs.writeFileSync(path.join(pasta, 'dados', 'dispositivos.json'), JSON.stringify(registros));
+        fs.writeFileSync(path.join(pasta, 'dados', 'eventos.ndjson'), '');
 
         for (const [titulo, fonte, ok] of [['Game of Thrones · T1 E1', 'WatchPlay', true], ['Round 6 · T1 E1', 'PipocaCine', true], ['Filme novo', 'Vixsrc', false]]) {
             const evento = await fetch(`http://127.0.0.1:${PORTA}/api/evento`, {
@@ -70,6 +89,7 @@ test('a central guarda quem entrou, o que assistiu e mostra os números', async 
         assert.equal(dados.resumo.sessoesHoje, 3);
         assert.equal(dados.resumo.falhasHoje, 1);
         assert.equal(dados.aparelhos[0].assistindo, 'Filme novo');
+        assert.equal(dados.aparelhos[0].ip, '203.0.113.17');
         assert.equal(dados.fontes.length, 3);
         assert.equal(dados.fontes.find(f => f.fonte === 'Vixsrc').taxa, 0);
         assert.ok(dados.alertas.length >= 1);

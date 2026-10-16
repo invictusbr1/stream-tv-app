@@ -197,7 +197,8 @@ app.post('/api/acesso', (req, res) => {
         app: texto(corpo.app, 20) || anterior.app || 'conecta-tv',
         versao: texto(corpo.versao, 20) || anterior.versao || '',
         assistindo: corpo.assistindo ? texto(corpo.assistindo, 90) : (anterior.assistindo || null),
-        ip: ipDoPedido(req),
+        // O IP original só é aceito pela ponte autenticada do servidor.
+        ip: TOKEN_APPS && String(req.headers['x-central'] || '') === TOKEN_APPS && require('net').isIP(String(corpo.ip || '')) ? corpo.ip : ipDoPedido(req),
         primeiroEm: anterior.primeiroEm || agora,
         ultimoEm: agora,
         vezes: Number(anterior.vezes || 0) + 1
@@ -276,10 +277,18 @@ app.post('/api/evento', (req, res) => {
     if (evento.tipo === 'confirmacao') agente.registrarConfirmacao(evento);
     if (evento.dispositivo) {
         const lista = lerJson(ARQ_DISPOSITIVOS, {});
-        const anterior = lista[evento.dispositivo];
+        const anterior = lista[evento.dispositivo] || (evento.nome !== 'Anônimo' ? {
+            dispositivo: evento.dispositivo, nome: evento.nome, primeiroEm: evento.em, vezes: 0
+        } : null);
         if (anterior) {
+            if (evento.nome !== 'Anônimo') anterior.nome = evento.nome;
+            if (evento.aparelho) anterior.aparelho = evento.aparelho;
+            if (evento.versao) anterior.versao = evento.versao;
+            if (evento.app) anterior.app = evento.app;
+            if (TOKEN_APPS && String(req.headers['x-central'] || '') === TOKEN_APPS && require('net').isIP(String(corpo.ip || ''))) anterior.ip = corpo.ip;
             if (evento.titulo) anterior.assistindo = evento.titulo;
             anterior.ultimoEm = evento.em;
+            lista[evento.dispositivo] = anterior;
             gravarJson(ARQ_DISPOSITIVOS, lista);
         }
     }
@@ -480,7 +489,7 @@ async function gerarStatus() {
         const meusEventos = eventos.filter(e => e.dispositivo === item.dispositivo);
         aparelhos.push({
             ...item,
-            online: minutos !== null && minutos < 5,
+            online: Number.isFinite(Date.parse(item.ultimoEm)) && agora - Date.parse(item.ultimoEm) >= 0 && agora - Date.parse(item.ultimoEm) < 5 * 60000,
             minutos,
             ultimoCurto: curto(item.ultimoEm),
             primeiroCurto: curto(item.primeiroEm),
@@ -527,7 +536,8 @@ async function gerarStatus() {
     const alertas = [];
     for (const fonte of fontes) if (fonte.total >= 4 && fonte.taxa < 70) alertas.push(`Fonte ${fonte.fonte} caiu para ${fonte.taxa}% de sucesso (${fonte.falhas} falhas em ${fonte.total} usos).`);
     for (const item of aparelhos) if (item.minutos !== null && item.minutos > 7 * 1440) alertas.push(`${item.nome} (${item.aparelho}) está sem dar sinal há ${Math.round(item.minutos / 1440)} dias.`);
-    const desatualizados = aparelhos.filter(item => item.versao && item.versao !== '1.0' && item.versao !== '');
+    const versaoAtual = require('../package.json').version;
+    const desatualizados = aparelhos.filter(item => item.versao && item.versao !== '1.0' && item.versao !== versaoAtual);
     if (desatualizados.length > 1) alertas.push(`${desatualizados.length} aparelhos com versão registrada diferente — vale conferir se estão na última atualização.`);
     if (falhas.length >= 5) alertas.push(`${falhas.length} falhas registradas hoje. Veja a tabela de fontes para saber qual está devendo.`);
     if (!alertas.length) alertas.push('Tudo em ordem: nenhuma fonte com taxa baixa e nenhum aparelho sumido.');
