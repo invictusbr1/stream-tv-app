@@ -1,14 +1,14 @@
 {
-  "versionCode": 402,
-  "versionName": "2.13.72",
-  "apkUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.72/Conecta-TV-Android-2.13.72.apk",
-  "sha256": "3c282b07f45065235fa42c0681d5c5c8209abd56d03ae6963be49ea5428dfce6",
-  "bytes": 573739,
-  "notes": "Corrige a selecao de alta qualidade no Android: segue os redirecionamentos da midia por HTTPS, mede apenas os cabecalhos necessarios de MP4 e compara alternativas dubladas do mesmo fornecedor. Preserva a regra sem anuncios. Inclui a ficha aprovada para a primeira abertura e considera os decodificadores disponiveis no aparelho.",
+  "versionCode": 403,
+  "versionName": "2.13.73",
+  "apkUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.73/Conecta-TV-Android-2.13.73.apk",
+  "sha256": "45f43d0120b9cf26f68f618b2fb9dee50888bdc7db022ddfdbbb9b519465063d",
+  "bytes": 502879,
+  "notes": "Teclas de volume nao fazem reaparecer o titulo do player. Novo botao Proximo episodio, com mudanca de temporada quando disponivel. Continuar assistindo mostra um cartao por serie, com episodio e ponto salvos; ao concluir, oferece o proximo disponivel. Mantem os ajustes de qualidade e a regra sem anuncios.",
   "exeUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.68/Conecta-TV-2.13.68.exe",
   "exeSha256": "40914a57b0e3ad375615c9954839f8c3f7bb138d8739472772de3ee28d3ff015",
   "exeBytes": 120409967,
-  "apkTvUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.72/Conecta-TV-TV-2.13.72.apk",
-  "apkTvSha256": "6efa1ce06bb88be784d8b8174708b0792d872ef888017e278a7fb51efc77cfb1",
-  "apkTvBytes": 573592
+  "apkTvUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.73/Conecta-TV-TV-2.13.73.apk",
+  "apkTvSha256": "58aba0deb04bd223d7c7f63febe4a7dd2dad80d1a2cc9749c3ec6103bdbeb682",
+  "apkTvBytes": 502873
 }
