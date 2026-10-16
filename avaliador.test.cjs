@@ -102,3 +102,40 @@ test('fonte que precisa de conversão é descontada (mas continua na disputa)', 
     assert.match(comConversao.detalhes.conversao, /converter/);
 });
 
+test('compara também a quarta fonte e escolhe Full HD com português em vez de HD', async () => {
+    const motor = require('./fontes-motor');
+    const axios = require('axios');
+    const originais = Object.fromEntries(['filaDeFontes', 'lerIdiomasVerificados', 'registrarSucesso', 'anotarEscolha'].map(nome => [nome, motor[nome]]));
+    const getOriginal = axios.get;
+    const consultadas = [];
+    let liberarFonteLenta;
+    const primeiraSonda = new Promise(resolve => { liberarFonteLenta = resolve; });
+    try {
+        motor.filaDeFontes = () => [720, 720, 720, 1080].map((altura, indice) => ({
+            id: 'regressao-qualidade-' + indice,
+            resolver: async () => {
+                consultadas.push(indice);
+                // Uma consulta ainda está pendente quando a primeira fonte
+                // chega. A medição dela deve começar sem esperar essa consulta.
+                if (indice === 2) await primeiraSonda;
+                return { url: `https://qualidade.invalid/${altura}.m3u8`, audio: 'pt-BR', resolucao: altura + 'p' };
+            },
+        }));
+        motor.lerIdiomasVerificados = () => ({});
+        motor.registrarSucesso = () => {};
+        motor.anotarEscolha = () => {};
+        axios.get = async url => {
+            liberarFonteLenta();
+            return { data: '#EXTM3U\n#EXT-X-MEDIA:TYPE=AUDIO,LANGUAGE="pt-BR"\n#EXT-X-STREAM-INF:BANDWIDTH=2800000,RESOLUTION=' + (url.includes('1080') ? '1920x1080' : '1280x720') + '\nvideo.m3u8' };
+        };
+        const resultado = await require('./avaliador').escolherMelhor('dublado', { tipo: 'movie', tmdbId: '969681' }, { semCache: true });
+        assert.deepEqual(consultadas, [0, 1, 2, 3]);
+        assert.equal(resultado.avaliacao.length, 4);
+        assert.equal(resultado.escolhido.fonteId, 'regressao-qualidade-3');
+        assert.equal(resultado.avaliacao[0].detalhes.qualidade, '1080p medido');
+    } finally {
+        Object.assign(motor, originais);
+        axios.get = getOriginal;
+    }
+});
+

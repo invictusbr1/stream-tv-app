@@ -18,7 +18,9 @@ const motor = require('./fontes-motor');
 const midia = require('./midia-proxy');
 
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36';
-const MAX_FONTES = 3;              // quantas fontes entram na disputa
+// Inclui as alternativas de perfil depois das fontes fixas. Com três, uma
+// fonte Full HD na quarta posição nem era consultada, mesmo com as demais em HD.
+const MAX_FONTES = 5;              // consultas paralelas, mantendo os mesmos prazos
 const TEMPO_RESOLVER = 7000;       // limite por fonte
 const TEMPO_SONDAR = 4000;         // limite por sonda
 const ORCAMENTO = 6000;            // prazo total da pré-checagem
@@ -190,7 +192,12 @@ async function escolherMelhor(papel, alvo, opcoes = {}) {
         const comeco = Date.now();
         const dados = await prazo(fonte.resolver(alvo), TEMPO_RESOLVER);
         if (!dados || !dados.url) return null;
-        return { fonte, dados, ms: Date.now() - comeco };
+        const ms = Date.now() - comeco;
+        // Mede assim que cada endereço chega. Uma fonte lenta não deve consumir
+        // o prazo que as outras precisam para comprovar resolução e português.
+        const sonda = prazo(sondar(dados), TEMPO_SONDAR);
+        const validacao = prazo(midia.validarMidia(dados.url, dados.referer, TEMPO_SONDAR), TEMPO_SONDAR + 500, true);
+        return { fonte, dados, ms, sonda, validacao };
     }))).filter(Boolean);
     if (!resolvidas.length) return null;
 
@@ -199,14 +206,8 @@ async function escolherMelhor(papel, alvo, opcoes = {}) {
     // Sondagem (o que a fonte promete) e validação (o que ela entrega AGORA)
     // acontecem juntas, dentro do mesmo orçamento de tempo.
     const [sondas, validacoes] = await Promise.all([
-        prazo(
-            Promise.all(resolvidas.map(item => prazo(sondar({ url: item.dados.url, referer: item.dados.referer, converter: item.dados.converter, resolucao: item.dados.resolucao }), TEMPO_SONDAR))),
-            restante,
-            null),
-        prazo(
-            Promise.all(resolvidas.map(item => prazo(midia.validarMidia(item.dados.url, item.dados.referer, TEMPO_SONDAR), TEMPO_SONDAR + 500, true))),
-            restante,
-            null),
+        Promise.all(resolvidas.map(item => prazo(item.sonda, restante))),
+        Promise.all(resolvidas.map(item => prazo(item.validacao, restante, true))),
     ]);
     const lista = sondas || resolvidas.map(() => null);
 
