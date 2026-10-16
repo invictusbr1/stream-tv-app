@@ -1,14 +1,14 @@
 {
-  "versionCode": 400,
-  "versionName": "2.13.70",
-  "apkUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.70/Conecta-TV-Android-2.13.70.apk",
-  "sha256": "cb59e7211d87b5b908866e161d32478d06e52bd4996abd68899743c88751042a",
-  "bytes": 429213,
-  "notes": "Anime legendado com alternativa MP4 no player do aplicativo, sem abrir paginas ou scripts do fornecedor. Mantidos os caminhos atuais de filmes, series e dublados. Fonte e episodio conferidos antes da reproducao. Validacao automatizada e compilacao Android celular/TV.",
+  "versionCode": 401,
+  "versionName": "2.13.71",
+  "apkUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.71/Conecta-TV-Android-2.13.71.apk",
+  "sha256": "c134d07eb7905079e26ec9b3247a26e365aec07ff3c25aa5590036ad1772a163",
+  "bytes": 443254,
+  "notes": "Melhoria na escolha de qualidade no Android e Android TV: compara as fontes disponíveis, prioriza português comprovado e resolução medida e considera o formato de cinema. Mantém vídeo no player do aplicativo, sem abrir páginas de anúncios. Compilação e verificações de celular e TV aprovadas; 397 testes passaram. Reprodução em aparelho físico ainda não verificada nesta atualização.",
   "exeUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.68/Conecta-TV-2.13.68.exe",
   "exeSha256": "40914a57b0e3ad375615c9954839f8c3f7bb138d8739472772de3ee28d3ff015",
   "exeBytes": 120409967,
-  "apkTvUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.70/Conecta-TV-TV-2.13.70.apk",
-  "apkTvSha256": "53636c19ce710b92f0ff460d05a7f369a31c3e5faccc837c867b0be66b368d95",
-  "apkTvBytes": 429096
+  "apkTvUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.71/Conecta-TV-TV-2.13.71.apk",
+  "apkTvSha256": "ed28eb7e3c84761a5d2a7139a2adeb2b078f060f588d8b2fd55d607a7e142ba4",
+  "apkTvBytes": 443168
 }
