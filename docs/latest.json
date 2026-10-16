@@ -1,14 +1,14 @@
 {
-  "versionCode": 401,
-  "versionName": "2.13.71",
-  "apkUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.71/Conecta-TV-Android-2.13.71.apk",
-  "sha256": "c134d07eb7905079e26ec9b3247a26e365aec07ff3c25aa5590036ad1772a163",
-  "bytes": 443254,
-  "notes": "Melhoria na escolha de qualidade no Android e Android TV: compara as fontes disponíveis, prioriza português comprovado e resolução medida e considera o formato de cinema. Mantém vídeo no player do aplicativo, sem abrir páginas de anúncios. Compilação e verificações de celular e TV aprovadas; 397 testes passaram. Reprodução em aparelho físico ainda não verificada nesta atualização.",
+  "versionCode": 402,
+  "versionName": "2.13.72",
+  "apkUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.72/Conecta-TV-Android-2.13.72.apk",
+  "sha256": "3c282b07f45065235fa42c0681d5c5c8209abd56d03ae6963be49ea5428dfce6",
+  "bytes": 573739,
+  "notes": "Corrige a selecao de alta qualidade no Android: segue os redirecionamentos da midia por HTTPS, mede apenas os cabecalhos necessarios de MP4 e compara alternativas dubladas do mesmo fornecedor. Preserva a regra sem anuncios. Inclui a ficha aprovada para a primeira abertura e considera os decodificadores disponiveis no aparelho.",
   "exeUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.68/Conecta-TV-2.13.68.exe",
   "exeSha256": "40914a57b0e3ad375615c9954839f8c3f7bb138d8739472772de3ee28d3ff015",
   "exeBytes": 120409967,
-  "apkTvUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.71/Conecta-TV-TV-2.13.71.apk",
-  "apkTvSha256": "ed28eb7e3c84761a5d2a7139a2adeb2b078f060f588d8b2fd55d607a7e142ba4",
-  "apkTvBytes": 443168
+  "apkTvUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.72/Conecta-TV-TV-2.13.72.apk",
+  "apkTvSha256": "6efa1ce06bb88be784d8b8174708b0792d872ef888017e278a7fb51efc77cfb1",
+  "apkTvBytes": 573592
 }
