@@ -41,3 +41,22 @@ test('terminar um episódio marca ele como assistido sozinho',()=>{
  data.save(serie,1490,1500);
  assert.equal(data.isWatched(serie),true,'faltando menos de 30 segundos conta como assistido');
 });
+
+test('continuar mostra uma série só, migra duplicados antigos e conserva o ponto de cada episódio',()=>{
+ const {storage,data}=setup(),ep=n=>({id:1399,titulo:`Série · T1 E${n}`,episode:{season:1,number:n}});
+ storage.setItem('streamtv-progress',JSON.stringify([{...ep(1),position:60,duration:1000,updated:10},{...ep(2),position:180,duration:1000,updated:20}]));
+ assert.equal(data.history().length,1);assert.equal(data.history()[0].episode.number,2);assert.equal(data.position(ep(1)),60);
+ data.save(ep(3),300,1000);assert.equal(data.history().length,1);assert.equal(data.history()[0].episode.number,3);assert.equal(data.position(ep(2)),180);
+});
+test('finalizar não ressuscita episódios antigos e fechar o player não apaga o próximo',()=>{
+ const {data}=setup(),ep=n=>({id:1399,titulo:`Série · T1 E${n}`,episode:{season:1,number:n}});
+ data.save(ep(1),100,1000);data.save(ep(2),990,1000);assert.equal(data.history().length,0);assert.equal(data.position(ep(2)),0);
+ data.queueEpisode(ep(3));assert.equal(data.history().length,1);assert.equal(data.history()[0].episode.number,3);assert.equal(data.position(ep(3)),0);
+ data.save(ep(2),999,1000);assert.equal(data.history()[0].episode.number,3);
+ data.save(ep(3),180,1000);assert.equal(data.history()[0].pending,false);assert.equal(data.position(ep(3)),180);
+});
+test('remover uma série remove seus cartões antigos, preservando outras séries e filmes com o mesmo id',()=>{
+ const {data}=setup(),ep=n=>({id:1399,titulo:'Série',episode:{season:1,number:n}});
+ data.save(ep(1),100,1000);data.save(ep(2),200,1000);data.save({id:603,titulo:'Matrix'},300,1000);data.save({id:1399,titulo:'Filme com mesmo id'},400,1000);
+ data.remove(ep(2));assert.equal(data.position(ep(1)),0);assert.equal(data.history().length,2);assert.equal(data.position({id:1399}),400);
+});

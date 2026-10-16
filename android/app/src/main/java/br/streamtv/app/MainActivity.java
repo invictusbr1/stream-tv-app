@@ -1255,7 +1255,7 @@ public final class MainActivity extends Activity {
                 }
                 String name = "/".equals(path) ? "index.html" : path.substring(1);
                 // Only the bundled public assets can be served; no arbitrary file paths.
-                if (!name.matches("(?:index\\.html|assistir\\.html|tv\\.css|personal\\.js|library\\.js|auth\\.js|jarvis\\.js|acesso\\.js|legendas\\.js|fontes\\.json|catalog\\.js|android\\.js|config\\.json|playback\\.js|reproducao-sessao\\.js|anime-player\\.js|hls\\.min\\.js|vidsrc-source\\.js|listas-tv\\.js|futebol\\.js|mininovelas\\.js|mininovelas-source\\.js|perfis\\.json)")) return error(404);
+                if (!name.matches("(?:index\\.html|assistir\\.html|tv\\.css|personal\\.js|episodios\\.js|library\\.js|auth\\.js|jarvis\\.js|acesso\\.js|legendas\\.js|fontes\\.json|catalog\\.js|android\\.js|config\\.json|playback\\.js|reproducao-sessao\\.js|anime-player\\.js|hls\\.min\\.js|vidsrc-source\\.js|listas-tv\\.js|futebol\\.js|mininovelas\\.js|mininovelas-source\\.js|perfis\\.json)")) return error(404);
                 try {
                     String mime = name.endsWith(".html") ? "text/html" : name.endsWith(".css") ? "text/css" : name.endsWith(".js") ? "text/javascript" : "application/json";
                     return new WebResourceResponse(mime, "UTF-8", 200, "OK", Collections.singletonMap("Cache-Control", "no-store"), getAssets().open(name));
@@ -1364,6 +1364,7 @@ public final class MainActivity extends Activity {
     }
     @Override public boolean dispatchKeyEvent(KeyEvent event) {
         int key = event.getKeyCode();
+        if(key==KeyEvent.KEYCODE_VOLUME_UP||key==KeyEvent.KEYCODE_VOLUME_DOWN||key==KeyEvent.KEYCODE_VOLUME_MUTE||key==KeyEvent.KEYCODE_MUTE)return super.dispatchKeyEvent(event);
         if (event.getAction() == KeyEvent.ACTION_DOWN && main != null && main.getUrl() != null && local(Uri.parse(main.getUrl()))) main.evaluateJavascript("window.StreamChrome && window.StreamChrome.wake()", null);
         if (key == KeyEvent.KEYCODE_MENU) {
             if (event.getAction() == KeyEvent.ACTION_DOWN && event.getRepeatCount() == 0) setPointerMode(!pointerMode);

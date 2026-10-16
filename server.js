@@ -887,6 +887,7 @@ app.get('/mininovelas.js', (req, res) => res.sendFile(path.join(__dirname, 'mini
 const libraryCatalog=require('./android/app/src/main/assets/catalog').createCatalog(async (url,options)=>{const r=await axios.get(url,{signal:options?.signal});return {ok:true,json:async()=>r.data};},TMDB_KEY);
 app.get(['/api/explore','/api/genres','/api/top-br','/api/alta',/^\/api\/(tv|season|episode)\//],async(req,res)=>{try{res.json(await libraryCatalog.request(req.originalUrl));}catch{res.status(502).json({error:'Catálogo indisponível'});}});
 app.get('/personal.js',(req,res)=>{res.setHeader('Cache-Control','no-store');res.sendFile(path.join(__dirname,'personal.js'));});
+app.get('/episodios.js',(req,res)=>{res.setHeader('Cache-Control','no-store');res.sendFile(path.join(__dirname,'episodios.js'));});
 app.get('/library.js',(req,res)=>{res.setHeader('Cache-Control','no-store');res.type('js').send(fs.readFileSync(path.join(__dirname,'library.js')));});
 app.get('/auth.js',(req,res)=>{res.setHeader('Cache-Control','no-store');res.type('js').send(fs.readFileSync(path.join(__dirname,'auth.js')));});
 app.get('/jarvis.js',(req,res)=>{res.setHeader('Cache-Control','no-store');res.type('js').send(fs.readFileSync(path.join(__dirname,'jarvis.js')));});

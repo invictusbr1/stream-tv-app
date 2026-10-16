@@ -81,6 +81,7 @@ fs.copyFileSync(path.join(root,'library.js'),path.join(assets,'library.js'));
 fs.copyFileSync(path.join(root,'vidsrc-source.js'),path.join(assets,'vidsrc-source.js'));
 
 fs.copyFileSync(path.join(root,'personal.js'),path.join(assets,'personal.js'));
+fs.copyFileSync(path.join(root,'episodios.js'),path.join(assets,'episodios.js'));
 fs.copyFileSync(path.join(root,'auth.js'),path.join(assets,'auth.js'));
 fs.copyFileSync(path.join(root,'jarvis.js'),path.join(assets,'jarvis.js'));
 fs.copyFileSync(path.join(root,'acesso.js'),path.join(assets,'acesso.js'));

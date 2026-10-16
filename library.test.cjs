@@ -2,12 +2,18 @@ const {test}=require('node:test'),assert=require('node:assert/strict'),vm=requir
 function setup(){
  const nodes=new Map(),timers=new Map(),intervals=[],requests=[];let seq=0;
  const el=id=>{if(id==='direct-video')return null;if(!nodes.has(id)){const c=new Set();nodes.set(id,{hidden:true,textContent:'',value:'',append(){},addEventListener(){},classList:{add:x=>c.add(x),remove:x=>c.delete(x),contains:x=>c.has(x)},focus(){},replaceChildren(){}});}return nodes.get(id);};
- const window={},document={hidden:false,activeElement:null,addEventListener(){}};
+ const handlers={},window={},document={hidden:false,activeElement:null,addEventListener(name,fn){(handlers[name]??=[]).push(fn);}};
  const ctx=vm.createContext({window,document,el,Option:class{},MutationObserver:class{constructor(fn){this.fn=fn;}observe(){}},AbortController,URLSearchParams,Date,timeoutSignal:()=>undefined,lerJson:async url=>{requests.push(url);return {items:[],checkedAt:new Date().toISOString()};},renderizar(){},setTimeout:fn=>{timers.set(++seq,fn);return seq;},clearTimeout:id=>timers.delete(id),setInterval:(fn,ms)=>intervals.push({fn,ms})});
- vm.runInContext(fs.readFileSync(__dirname+'/library.js','utf8'),ctx);return {window,el,timers,intervals,requests};
+ vm.runInContext(fs.readFileSync(__dirname+'/library.js','utf8'),ctx);return {window,el,timers,intervals,requests,key:(key,keyCode)=>handlers.keydown.forEach(fn=>fn({key,keyCode}))};
 }
 test('title and controls hide after inactivity and wake together',()=>{const s=setup();s.el('player').classList.add('ativo');s.window.StreamChrome.wake();const fn=[...s.timers.values()].at(-1);fn();assert(s.el('player').classList.contains('chrome-hidden'));s.window.StreamChrome.wake();assert(!s.el('player').classList.contains('chrome-hidden'));});
 test('options stay visible while being used',()=>{const s=setup();s.el('player').classList.add('ativo');s.el('opcoes').hidden=false;s.window.StreamChrome.wake();[...s.timers.values()].at(-1)();assert(!s.el('player').classList.contains('chrome-hidden'));});
+test('volume do aparelho não revela título nem reativa o relógio dos controles; setas continuam funcionando',()=>{
+ const s=setup();s.el('player').classList.add('ativo');s.window.StreamChrome.wake();[...s.timers.values()].at(-1)();const timers=s.timers.size;
+ for(const key of ['AudioVolumeUp','AudioVolumeDown','AudioVolumeMute','VolumeUp','VolumeDown','VolumeMute']){s.key(key);assert(s.el('player').classList.contains('chrome-hidden'));}
+ s.key('Unidentified',175);assert(s.el('player').classList.contains('chrome-hidden'));assert.equal(s.timers.size,timers);
+ s.key('ArrowRight');assert(!s.el('player').classList.contains('chrome-hidden'));
+});
 test('o Top 10 do dia (filmes e séries) é buscado uma vez e atualizado em intervalos longos',async()=>{
  const s=setup();await new Promise(setImmediate);
  assert.equal(s.requests.filter(x=>x==='/api/alta?tipo=movie').length,1,'pede o ranking de filmes');
