@@ -22,6 +22,10 @@ const { spawn } = require('child_process');
 
 const PASTA = path.join(os.homedir(), '.conecta-tv', 'conversoes');
 const MAXIMO_ARQUIVOS = 6;
+// Uma conversão é uma PASTA. Enquanto alguém estiver buscando a lista ou os
+// pedaços, a pasta fica protegida por este tempo — sem isso a limpeza apagaria
+// o filme no meio da reprodução.
+const PROTECAO_ACESSO = 2 * 60 * 60 * 1000; // 2 horas
 const VALIDADE = 3 * 24 * 60 * 60 * 1000; // 3 dias
 const PRONTO_PARA_TOCAR = 0.03;            // 3% já dá para começar
 const MINIMO_TOCAVEL = 20;                 // ou 20 segundos de vídeo
@@ -32,15 +36,18 @@ const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML,
 function limparAntigos() {
     try {
         fs.mkdirSync(PASTA, { recursive: true });
-        const arquivos = fs.readdirSync(PASTA)
+        const pastas = fs.readdirSync(PASTA)
             .map(nome => ({ nome, caminho: path.join(PASTA, nome), info: fs.statSync(path.join(PASTA, nome)) }))
-            .filter(item => item.info.isFile())
+            .filter(item => item.info.isDirectory())
             .sort((a, b) => b.info.mtimeMs - a.info.mtimeMs);
-        for (const item of arquivos) {
+        for (const item of pastas) {
+            const registro = [...trabalhos.values()].find(t => t.pasta === item.caminho);
+            const trabalhando = Boolean(registro && !registro.terminou);
+            const vistoAgora = Boolean(registro && registro.ultimoAcesso && Date.now() - registro.ultimoAcesso < PROTECAO_ACESSO);
+            if (trabalhando || vistoAgora) continue;
             const velho = Date.now() - item.info.mtimeMs > VALIDADE;
-            const excedente = arquivos.indexOf(item) >= MAXIMO_ARQUIVOS;
-            const emUso = [...trabalhos.values()].some(t => t.arquivo === item.caminho && !t.terminou);
-            if ((velho || excedente) && !emUso) { try { fs.unlinkSync(item.caminho); } catch { /* segue */ } }
+            const excedente = pastas.indexOf(item) >= MAXIMO_ARQUIVOS;
+            if (velho || excedente) { try { fs.rmSync(item.caminho, { recursive: true, force: true }); } catch { /* segue */ } }
         }
     } catch { /* sem permissão: segue */ }
 }
@@ -69,7 +76,25 @@ async function faixaPortuguesa(url, referer) {
 
 // Inicia (ou reaproveita) a conversão de um endereço.
 async function iniciar(url, { titulo = '', referer = '', id = '' } = {}) {
-    const chave = id || identificar(titulo);
+    // `id` é a identidade do TRABALHO (filme-550 / serie-1399-T1E1), estável entre
+    // aberturas. A chave real leva um carimbo de tempo porque a mesma obra pode
+    // voltar com endereço novo: reaproveitar a conversão velha serviria um vídeo
+    // que já não responde. O carimbo separa "mesma obra" de "mesma conversão" —
+    // sem ele, cada abertura criava uma pasta nova para sempre.
+    const lastro = id || identificar(titulo);
+    const chave = `${lastro}-${Date.now().toString(36)}`;
+
+    // Já existe conversão desta obra que ainda serve? Reaproveita, sem reconverter.
+    const prontas = [...trabalhos.entries()]
+        .filter(([, t]) => t.lastro === lastro && t.arquivo && fs.existsSync(t.arquivo))
+        .sort((a, b) => b[1].iniciadoEm - a[1].iniciadoEm);
+    if (prontas.length) {
+        const [chaveBoa, registroBom] = prontas[0];
+        registroBom.ultimoAcesso = Date.now();
+        return resumo(chaveBoa);
+    }
+
+    limparAntigos();
     const existente = trabalhos.get(chave);
     if (existente && !existente.terminou && !existente.erro) return resumo(chave);
     if (existente && existente.arquivo && fs.existsSync(existente.arquivo) && existente.terminou) return resumo(chave);
@@ -78,7 +103,7 @@ async function iniciar(url, { titulo = '', referer = '', id = '' } = {}) {
     const pasta = path.join(PASTA, chave);
     try { fs.mkdirSync(pasta, { recursive: true }); } catch { /* sem permissão */ }
     const arquivo = path.join(pasta, 'index.m3u8');
-    const registro = { arquivo, pasta, segundos: 0, duracao: 0, pronto: false, terminou: false, erro: '', iniciadoEm: Date.now(), processo: null };
+    const registro = { arquivo, pasta, lastro, segundos: 0, duracao: 0, pronto: false, terminou: false, erro: '', iniciadoEm: Date.now(), ultimoAcesso: Date.now(), processo: null };
     trabalhos.set(chave, registro);
 
     let binario;
@@ -157,13 +182,15 @@ function resumo(chave) {
 function estado(chave) { return resumo(chave); }
 function arquivoDe(chave) {
     const registro = trabalhos.get(chave);
-    if (registro && fs.existsSync(registro.arquivo)) return registro.arquivo;
+    if (registro && fs.existsSync(registro.arquivo)) { registro.ultimoAcesso = Date.now(); return registro.arquivo; }
     const direto = path.join(PASTA, String(chave || '').replace(/[^\w.-]/g, ''), 'index.m3u8');
     return fs.existsSync(direto) ? direto : '';
 }
 
 // Caminho seguro de um pedaço da conversão (lista e segmentos).
 function caminhoDoPedaço(chave, nome) {
+    const registro = trabalhos.get(String(chave || ''));
+    if (registro) registro.ultimoAcesso = Date.now();
     const pasta = path.join(PASTA, String(chave || '').replace(/[^\w.-]/g, ''));
     const alvo = path.join(pasta, String(nome || 'index.m3u8').replace(/[^\w.-]/g, ''));
     if (!alvo.startsWith(pasta)) return '';

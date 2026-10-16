@@ -21,6 +21,7 @@ const { criarPlacar } = require('./placar.js');
 const { criarPedidos } = require('./pedidos.js');
 const { criarRevisor } = require('./revisor.js');
 const { criarClienteApp } = require('./app-client.js');
+const { criarDiagnostico, normalizarEvento, textoSeguro, identificador } = require('./diagnostico-playback.js');
 
 const app = express();
 const PORTA = Number(process.env.PORT || process.env.CENTRAL_PORT || 4100);
@@ -73,6 +74,7 @@ fs.mkdirSync(DADOS, { recursive: true });
 const agente = criarAgente({ pastaDados: DADOS, appUrl: APP_URL, codigoApp: APP_CODIGO });
 // Histórico de qualidade por título (alimentado pelos eventos do aplicativo).
 const titulos = criarRegistro({ pastaDados: DADOS });
+const reproducao = criarDiagnostico({ pastaDados: DADOS });
 // Placar real: o que acontece com quem usa o aplicativo (aberturas, confirmações
 // e falhas por fonte). Entra na nota do caçador e na ordem das fontes no app.
 const placar = criarPlacar({ arquivoEventos: ARQ_EVENTOS });
@@ -96,13 +98,11 @@ revisor.iniciar();
 // novas, alternando as categorias. O varredor (addons do Stremio, GitHub e o
 // código dos agregadores) alimenta a lista de candidatas, e cada uma é MEDIDA
 // (reprodução + idioma + anúncio) antes de entrar no ranking.
-const CATEGORIAS_CACADAS = ['filme', 'serie', 'dorama', 'anime', 'tv-online'];
-let voltaDaCacada = 0;
+const CATEGORIAS_CACADAS = ['filme', 'serie', 'dorama', 'anime', 'tv-online', 'short-drama'];
 function cacadaAutomatica() {
     try {
         if (cacador.rodando()) return;
-        const categoria = CATEGORIAS_CACADAS[voltaDaCacada % CATEGORIAS_CACADAS.length];
-        voltaDaCacada += 1;
+        const categoria = require('./agendamento-cacador').proximaCategoria(CATEGORIAS_CACADAS, cacador.ultimo() || {});
         console.log('[central] caçada automática: ' + categoria);
         cacador.cacar(categoria).catch(() => {});
     } catch { /* nunca impede a central de subir */ }
@@ -148,6 +148,7 @@ function atualizarPlacarSePreciso(forcar = false) {
     return tabela;
 }
 function tokenDoGithub() {
+    if (process.env.NODE_ENV === 'test') return '';
     try { return fs.readFileSync(path.join(require('os').homedir(), '.streamtv', 'github-token.txt'), 'utf8').trim(); } catch { return ''; }
 }
 function lerEventos(limite = 4000) {
@@ -209,6 +210,8 @@ app.post('/api/acesso', (req, res) => {
 app.post('/api/evento', (req, res) => {
     if (TOKEN_APPS && String(req.headers['x-central'] || '') !== TOKEN_APPS) return res.status(401).json({ error: 'token da central inválido' });
     const corpo = req.body || {};
+    const medidas = normalizarEvento(corpo);
+    if (corpo.tipo === 'reproducao' && (!medidas || !medidas.resultado)) return res.status(400).json({ error: 'informe sessão, tentativa e resultado válidos' });
     const evento = {
         em: new Date().toISOString(),
         tipo: texto(corpo.tipo, 24) || 'sessao',
@@ -226,7 +229,7 @@ app.post('/api/evento', (req, res) => {
         fonte: texto(corpo.fonte, 40),
         // Identificador da fonte (ex.: watchplay, pipoca, vixsrc, ficha do
         // caçador): é o que liga o relato do aparelho ao placar das fontes.
-        fonteId: texto(corpo.fonteId, 40),
+        fonteId: identificador(corpo.fonteId, 40),
         audio: texto(corpo.audio, 20),
         resolucao: texto(corpo.resolucao, 20),
         taxa: texto(corpo.taxa, 20),
@@ -234,8 +237,15 @@ app.post('/api/evento', (req, res) => {
         // Um relato do tipo "falha" nunca pode aparecer como "abriu", mesmo que
         // o aplicativo antigo não mande o campo ok.
         ok: texto(corpo.tipo, 24) === 'falha' ? false : corpo.ok !== false,
-        motivo: texto(corpo.motivo, 120)
+        motivo: textoSeguro(corpo.motivo, 120)
     };
+    if (evento.tipo === 'reproducao') {
+        for (const campo of ['dispositivo', 'nome', 'aparelho', 'app', 'versao', 'id', 'episodio', 'temporada', 'numero', 'titulo', 'fonte', 'audio', 'resolucao', 'taxa']) evento[campo] = textoSeguro(evento[campo], 120);
+    }
+    if (medidas) Object.assign(evento, medidas);
+    // O resumo descreve como a tentativa terminou. A falha real continua
+    // chegando pelo evento antigo, sem somar de novo ao placar ou ao agente.
+    if (evento.tipo === 'reproducao') evento.ok = evento.resultado !== 'falhou';
     // A avaliação em tempo real (disputa das fontes) vem como lista — guarda
     // o que dá para o painel mostrar por título.
     if (Array.isArray(corpo.avaliacao)) {
@@ -248,8 +258,9 @@ app.post('/api/evento', (req, res) => {
         }));
     }
     anotarEvento(evento);
+    try { reproducao.registrar(evento); } catch { /* diagnóstico não impede receber o relato */ }
     // Histórico por título (qualidade medida, escolha e falhas).
-    try { titulos.registrar(evento); } catch { /* o evento já foi anotado */ }
+    if (evento.tipo !== 'reproducao') { try { titulos.registrar(evento); } catch { /* o evento já foi anotado */ } }
     // Placar das fontes: só o relato que fala de fonte (abertura, confirmação ou
     // falha) mexe no placar — e, com ele, na ordem das fontes no aplicativo.
     if (['play', 'confirmacao', 'falha'].includes(evento.tipo)) marcarPlacarParaAtualizar();
@@ -261,7 +272,8 @@ app.post('/api/evento', (req, res) => {
         } catch { /* pedido é opcional */ }
     }
     // Player que não abriu entra na fila do agente, que vai testar as fontes.
-    if (evento.ok === false) agente.registrarFalha(evento);
+    if (evento.ok === false && evento.tipo !== 'reproducao') agente.registrarFalha(evento);
+    if (evento.tipo === 'confirmacao') agente.registrarConfirmacao(evento);
     if (evento.dispositivo) {
         const lista = lerJson(ARQ_DISPOSITIVOS, {});
         const anterior = lista[evento.dispositivo];
@@ -295,6 +307,7 @@ app.post('/api/entrar', (req, res) => {
 });
 
 app.get('/api/status', exigirChave, async (req, res) => res.json(await gerarStatus()));
+app.get('/api/reproducao', exigirChave, (req, res) => res.json(reproducao.resumo()));
 app.get('/api/health', (req, res) => res.json({ status: 'ok', app: 'central-conecta-tv' }));
 
 // ------------------------------------------------------------------ ações
@@ -318,6 +331,7 @@ app.post('/api/investigar', exigirChave, async (req, res) => {
 app.post('/api/cacar', exigirChave, (req, res) => {
     if (cacador.rodando()) return res.json({ ok: true, rodando: true });
     const categoria = texto(req.body?.categoria, 20) || 'todas';
+    if (categoria !== 'todas' && !cacador.CATEGORIAS.some(c => c.id === categoria)) return res.status(400).json({ ok:false, erro:'Escolha uma categoria válida.' });
     // Caçada profunda: varre muito mais candidatas, procura o vídeo dentro das
     // páginas e tenta virar ficha — demora bem mais e gasta mais rede.
     const profundo = req.body?.profundo === true || req.body?.profundo === 'sim';
@@ -332,11 +346,16 @@ app.post('/api/cacar', exigirChave, (req, res) => {
 
 app.get('/api/fontes', exigirChave, (req, res) => res.json(cacador.ultimo() || { ranking: [], candidatas: [], atualizadoEm: null }));
 
+app.post('/api/cacar/pausar', exigirChave, (req, res) => {
+    res.json({ ok:true, pausando:cacador.pausar(), aviso:'O caçador encerra a verificação atual e preserva as descobertas.' });
+});
+
 // Andamento da caçada (o que está sendo medido agora).
 app.get('/api/cacar/estado', exigirChave, (req, res) => res.json({
     rodando: cacador.rodando(),
     categoria: cacador.categoriaAtual(),
     andamento: cacador.progresso ? cacador.progresso() : null,
+    diagnostico: cacador.diagnostico(),
 }));
 
 // Placar real das fontes (relatos dos aparelhos).
@@ -390,18 +409,32 @@ app.post('/api/revisar-titulos', exigirChave, (req, res) => {
 // ouve o áudio (idioma confirmado). Usado nos testes e pelo painel.
 app.get('/api/conferir-midia', exigirChave, async (req, res) => {
     const endereco = String(req.query.url || '');
-    if (!/^https:\/\//i.test(endereco)) return res.status(400).json({ erro: 'endereço inválido' });
+    if (!/^https?:\/\//i.test(endereco)) return res.status(400).json({ erro: 'endereço inválido' });
+    // Com `fonteId` e `tmdbId`, a medição é gravada na MESMA chave que o aplicativo
+    // consulta (fonteId|movie:TMDB), então o aplicativo passa a saber o idioma real
+    // em vez de acreditar na declaração do fornecedor. Sem esses campos, a medição
+    // vira só uma conferência avulsa.
+    const fonteId = String(req.query.fonteId || 'conferencia').slice(0, 60);
+    const tmdbId = String(req.query.tmdbId || '');
+    const temporada = String(req.query.temporada || '1');
+    const episodio = String(req.query.episodio || '1');
+    const usarChaveDoApp = /^[1-9]\d{0,9}$/.test(tmdbId);
     try {
         const robo = require('./verificar-navegador');
         const midia = require('./verificar-midia');
         const tipo = /\.m3u8(\?|$)/i.test(endereco) ? 'hls' : 'file';
         const reproducao = await robo.tocarNoNavegador(endereco, { tipo, segundos: 20 });
         const idioma = await midia.verificarIdioma({
-            url: endereco, tipo: 'movie', fonteId: 'conferencia',
-            amostra: { id: 'sob-demanda-' + Date.now().toString().slice(-6) },
+            url: endereco, referer: String(req.query.referer || ''),
+            tipo: usarChaveDoApp && String(req.query.tipo || 'movie') === 'tv' ? 'tv' : 'movie',
+            fonteId,
+            amostra: usarChaveDoApp
+                ? { id: tmdbId, temporada, episodio }
+                : { id: 'sob-demanda-' + Date.now().toString().slice(-6) },
+            central: { pastaDados: process.env.CENTRAL_DADOS || '/dados' },
             chaveIa: (() => { try { return require('./cacador').chaveDaIA(); } catch { return ''; } })(),
         });
-        res.json({ ok: true, reproducao, idioma, roboDisponivel: Boolean(robo.acharNavegador()) });
+        res.json({ ok: true, gravadoComo: usarChaveDoApp ? `${fonteId}|${tmdbId}` : 'conferência avulsa', reproducao, idioma, roboDisponivel: Boolean(robo.acharNavegador()) });
     } catch (erro) {
         res.status(502).json({ erro: String(erro.message).slice(0, 120) });
     }
@@ -458,10 +491,10 @@ async function gerarStatus() {
 
     const eventosDeHoje = eventos.filter(e => String(e.em).slice(0, 10) === hoje);
     const sessoes = eventosDeHoje.filter(e => e.tipo === 'play' || e.tipo === 'sessao');
-    const falhas = eventosDeHoje.filter(e => e.ok === false);
+    const falhas = eventosDeHoje.filter(e => e.ok === false && e.tipo !== 'reproducao');
 
     const porFonte = {};
-    for (const evento of eventos.filter(e => e.fonte)) {
+    for (const evento of eventos.filter(e => e.fonte && e.tipo !== 'reproducao')) {
         const alvo = porFonte[evento.fonte] || (porFonte[evento.fonte] = { fonte: evento.fonte, total: 0, ok: 0, falhas: 0, ultimaFalha: null, ultimoUso: null, resolucoes: new Set() });
         alvo.total++;
         if (evento.ok === false) { alvo.falhas++; if (!alvo.ultimaFalha || evento.em > alvo.ultimaFalha) alvo.ultimaFalha = evento.em; }
@@ -501,6 +534,7 @@ async function gerarStatus() {
 
     return {
         atualizadoEm: new Date().toISOString(),
+        instalacao: String(process.env.CENTRAL_INSTALACAO || 'Neste computador').trim().slice(0, 60),
         resumo: {
             pessoas: new Set(aparelhos.map(a => a.nome.toLowerCase())).size,
             aparelhos: aparelhos.length,
@@ -522,6 +556,8 @@ async function gerarStatus() {
         cacadorCategoria: cacador.categoriaAtual(),
         cacadorAndamento: cacador.progresso ? cacador.progresso() : null,
         cacadorFila: cacador.fila ? cacador.fila() : null,
+        cacadorDiagnostico: cacador.diagnostico(),
+        reproducaoDiagnostico: reproducao.resumo(),
         placar: atualizarPlacarSePreciso(),
         pedidos: pedidos.resumo(),
         fichas: (cacador.fichas ? cacador.fichas() : []).map(f => ({

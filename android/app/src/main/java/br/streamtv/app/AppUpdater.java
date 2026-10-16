@@ -133,7 +133,7 @@ final class AppUpdater {
             }finally{if(c!=null)c.disconnect();}
             verify(temp,d.getLong("versionCode"));File apk=new File(activity.getCacheDir(),"stream-update.apk");if(apk.exists()&&!apk.delete())throw new IOException();if(!temp.renameTo(apk))throw new IOException();
             ui(()->{busy=false;dialog.dismiss();relatar("",safeVersion(d),"baixado","");pending=apk;if(active)install();else ready=true;});
-        }catch(Exception e){temp.delete();final String link=linkDaVersao(d);ui(()->{busy=false;dialog.dismiss();relatar("",safeVersion(d),"download-falhou",e.getClass().getSimpleName());new AlertDialog.Builder(activity).setTitle("Atualização não concluída").setMessage("Não consegui baixar ou conferir a atualização ("+e.getClass().getSimpleName()+"). Nada foi instalado.\n\nA versão nova também pode ser baixada pelo navegador.").setNegativeButton("Fechar",null).setPositiveButton("Baixar pelo navegador",(v,w)->abrirNoNavegador(link)).show();});}});
+        }catch(Exception e){temp.delete();ui(()->{busy=false;dialog.dismiss();relatar("",safeVersion(d),"download-falhou",e.getClass().getSimpleName());new AlertDialog.Builder(activity).setTitle("Atualização não concluída").setMessage("Não consegui baixar ou conferir a atualização ("+e.getClass().getSimpleName()+"). Nada foi instalado.\n\nConfira a internet e o espaço livre do aparelho. Você pode repetir o download aqui no aplicativo.").setNegativeButton("Depois",null).setPositiveButton("Tentar novamente",(v,w)->download(d)).show();});}});
     }
     // Endereço do APK publicado; se o aviso não trouxer um endereço seguro, abre
     // a página de versões do projeto.

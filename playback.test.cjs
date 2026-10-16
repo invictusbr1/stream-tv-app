@@ -13,11 +13,144 @@ function harness(userAgent='Test'){
  function node(){const events={};return {hidden:false,contains(n){return this.children.includes(n);},querySelectorAll(){return this.children;},closest(){return null;},style:{},children:[],classList:{add(){},remove(){},toggle(){}},pause(){},load(){},play(){return Promise.resolve();},remove(){nodes.delete(this.id);},removeAttribute(){},setAttribute(){},before(n){nodes.set(n.id,n);},append(n){this.children.push(n);},replaceChildren(){this.children=[];},focus(){doc.activeElement=this;},canPlayType(){return '';},addEventListener(name,cb){events[name]=cb;},fire(name){events[name]?.();}};}
  const el=id=>{if(!nodes.has(id)){const n=node();n.id=id;nodes.set(id,n);}return nodes.get(id);};doc.createElement=node;doc.createTextNode=text=>({textContent:text});
  class Hls {static Events={MANIFEST_PARSED:'manifest',ERROR:'error',LEVEL_SWITCHED:'level',AUDIO_TRACKS_UPDATED:'audioUpdated',AUDIO_TRACK_SWITCHED:'audioSwitched',SUBTITLE_TRACKS_UPDATED:'subtitles'};static isSupported(){return true;}constructor(){this.listeners={};this.levels=[{height:720,bitrate:200},{height:1080,bitrate:400},{height:480,bitrate:100}];this.audioTracks=[{lang:'pt-BR',name:'Dublado'}];Hls.instance=this;}on(n,fn){this.listeners[n]=fn;}emit(n,data={}){this.listeners[n]?.(n,data);}recoverMediaError(){this.recovered=(this.recovered||0)+1;}loadSource(){}attachMedia(){}destroy(){this.destroyed=true;}}
- const window={Hls};const context=vm.createContext({window,Hls,document:doc,navigator:{userAgent},el,playerVersion:1,lerJson:(...a)=>fetchImpl(...a),mostrarErro(){failures++;},setTimeout(fn){const id=++sequence;timers.set(id,fn);return id;},clearTimeout(id){timers.delete(id);}});
+ const window={Hls};const context=vm.createContext({window,Hls,document:doc,navigator:{userAgent},el,playerVersion:1,lerJson:(...a)=>fetchImpl(...a),mostrarErro(){failures++;},setTimeout(fn,ms){const id=++sequence;fn.delay=ms;timers.set(id,fn);return id;},clearTimeout(id){timers.delete(id);}});
  vm.runInContext(fs.readFileSync(__dirname+'/playback.js','utf8'),context);
  context.StreamPlayback=window.StreamPlayback;el('opcoes').hidden=true;el('direct-controls').children=[el('direct-back'),el('direct-toggle'),el('direct-forward')];
- return {context,window,doc,key(key){let prevented=false;handlers.keydown({key,preventDefault(){prevented=true;},stopPropagation(){}});return prevented;},controller:window.StreamPlayback,el,Hls,timers,failures:()=>failures,fetch(fn){fetchImpl=fn;}};
+ return {context,window,doc,visibility(hidden){doc.hidden=hidden;handlers.visibilitychange();},key(key){let prevented=false;handlers.keydown({key,preventDefault(){prevented=true;},stopPropagation(){}});return prevented;},controller:window.StreamPlayback,el,Hls,timers,failures:()=>failures,fetch(fn){fetchImpl=fn;}};
 }
+
+async function videoTocando(s,opcoes=null,dados={url,audio:'pt-BR',fonteId:'watchplay',source:'Fonte A'}){
+ s.context.filmeAtual={id:238,titulo:'Filme'};s.fetch(async()=>dados);
+ const pending=s.controller.start(238,1,null,null,null,false,null,opcoes);await new Promise(setImmediate);
+ const v=s.el('direct-video');v.duration=1000;v.currentTime=0;v.videoWidth=1280;v.videoHeight=720;v.webkitDecodedFrameCount=1;
+ v.fire('loadedmetadata');v.fire('playing');assert.equal(await pending,true);return v;
+}
+
+test('falha após imagem pede uma única troca e preserva a posição exata',async()=>{
+ const s=harness(),trocas=[];const v=await videoTocando(s,{onInterrupted:d=>{trocas.push(d);return true;}});
+ v.currentTime=127.5;v.error={code:2};v.fire('error');v.fire('error');
+ assert.equal(trocas.length,1);assert.equal(trocas[0].posicao,127.5);assert.equal(trocas[0].fonteId,'watchplay');assert.equal(trocas[0].audio,'Dublado');assert.equal(s.failures(),0);
+});
+
+test('falha antes da primeira imagem continua no fluxo inicial sem disparar recuperação',async()=>{
+ const s=harness();let trocas=0;const p=s.controller.start(238,1,null,null,null,false,null,{onInterrupted:()=>{trocas++;return true;}});await new Promise(setImmediate);
+ s.el('direct-video').fire('error');assert.equal(await p,false);assert.equal(trocas,0);
+});
+
+test('cancelar ou pausar não inicia uma recuperação automática',async()=>{
+ const s=harness();let trocas=0;const signal=new AbortController();
+ s.context.filmeAtual={id:238,titulo:'Filme'};s.fetch(async()=>({url,audio:'pt-BR',fonteId:'watchplay'}));
+ const p=s.controller.start(238,1,signal.signal,null,null,false,null,{onInterrupted:()=>{trocas++;return true;}});await new Promise(setImmediate);
+ const v=s.el('direct-video');v.duration=1000;v.videoWidth=1280;v.videoHeight=720;v.webkitDecodedFrameCount=1;v.fire('playing');await p;
+ signal.abort();assert.equal(trocas,0);assert.equal(s.failures(),0);assert.equal(s.controller.isActive(),false);
+ const s2=harness();const paused=await videoTocando(s2,{onInterrupted:()=>{trocas++;return true;}});paused.paused=false;s2.controller.toggle();paused.fire('error');assert.equal(trocas,0);
+});
+
+test('retomada explícita funciona abaixo de cinco segundos e limita duração menor',async()=>{
+ for(const [ponto,duracao,esperado] of [[2.5,1000,2.5],[0,1000,0],[150,100,99]]){
+  const s=harness();s.context.filmeAtual={id:238,titulo:'Filme'};s.window.StreamPersonal={position:()=>240};
+  const pending=s.controller.start(238,1,null,null,null,false,null,{posicao:ponto});await new Promise(setImmediate);
+  const v=s.el('direct-video');v.duration=duracao;v.currentTime=0;v.fire('loadedmetadata');assert.equal(v.currentTime,esperado);
+  s.controller.stop();await pending;
+ }
+});
+
+test('uma substituta sem imagem não apaga o progresso salvo da fonte anterior',async()=>{
+ const s=harness(),salvos=[];s.window.StreamPersonal={position:()=>240,record:(f,p)=>salvos.push(p)};
+ const v=await videoTocando(s);v.currentTime=260;s.controller.stop();assert.deepEqual(salvos,[260]);
+ const p=s.controller.start(238,1,null,null,null,false,null,{posicao:260});await new Promise(setImmediate);
+ const novo=s.el('direct-video');novo.duration=1000;novo.currentTime=0;novo.fire('loadedmetadata');novo.currentTime=1;
+ s.controller.stop();await p;assert.deepEqual(salvos,[260]);
+});
+
+test('encerrar no começo de uma nova consulta não reutiliza o ID da fonte anterior',async()=>{
+ const s=harness();await videoTocando(s);s.fetch(async()=>{throw Error('indisponível');});
+ assert.equal(await s.controller.start(238,1),false);assert.equal(s.controller.estado().fonteId,'');s.controller.stop();
+});
+
+test('fonte ainda em conversão não reinicia o filme ao tentar recuperar um ponto distante',async()=>{
+ const s=harness();s.fetch(async()=>({conversao:'em-preparacao',fonteId:'fenix',source:'Fonte em preparação'}));
+ assert.equal(await s.controller.start(238,1,null,null,null,false,null,{posicao:240}),false);
+ assert.equal(s.controller.estado().fonteId,'fenix');assert.equal(s.controller.isActive(),false);s.controller.stop();
+});
+
+test('resposta antiga de conversão não altera a fonte ou o diagnóstico do novo filme',async()=>{
+ const s=harness();let resolver;s.fetch(()=>new Promise(resolve=>resolver=resolve));
+ const antigo=s.controller.start(238,1,null,null,null,false,null,{posicao:240});
+ s.context.playerVersion=2;s.fetch(async()=>({url,audio:'pt-BR',fonteId:'mgeb',source:'Filme atual'}));
+ const atual=s.controller.start(550,2,null,null,null,false,null,{posicao:120});await new Promise(setImmediate);
+ resolver({conversao:'antiga',fonteId:'fenix',source:'Filme antigo'});assert.equal(await antigo,false);
+ assert.equal(s.controller.estado().fonteId,'mgeb');assert.equal(s.controller.isActive(),true);s.controller.stop();await atual;
+});
+
+test('trocar fornecedor não reutiliza índice de áudio de outra lista de faixas',async()=>{
+ const s=harness();await videoTocando(s);s.controller.setAudio(1);
+ const p=s.controller.start(238,1);await new Promise(setImmediate);
+ s.Hls.instance.audioTracks=[{lang:'en',name:'English'},{lang:'pt-BR',name:'Dublado'}];s.Hls.instance.emit('manifest');
+ assert.equal(s.Hls.instance.audioTrack,1);s.controller.stop();await p;
+});
+
+test('buffering prolongado adapta qualidade automática sem sobrescrever uma resolução manual',async()=>{
+ for(const escolha of ['best','1']){
+  const s=harness();const v=await videoTocando(s);s.Hls.instance.emit('manifest');s.controller.quality(escolha);
+  v.paused=false;v.seeking=false;v.fire('waiting');
+  const timer=[...s.timers.entries()].filter(([,fn])=>fn.delay===6000).at(-1);assert(timer);s.timers.delete(timer[0]);timer[1]();
+  assert.equal(s.Hls.instance.currentLevel,escolha==='best'?-1:1);s.controller.stop();
+ }
+});
+
+test('mudança adaptativa mostra a resolução da imagem e não o máximo anunciado pelo fornecedor',async()=>{
+ const s=harness();const v=await videoTocando(s);s.Hls.instance.levels=[{height:2160,width:3840},{height:480,width:854}];
+ s.Hls.instance.emit('level',{level:0});assert.equal(s.controller.estado().resolucao,'720p');
+ v.videoWidth=854;v.videoHeight=480;v.fire('resize');
+ assert.equal(s.controller.estado().resolucao,'480p');assert.equal(s.el('menu-quality-btn').textContent,'480p');s.controller.stop();
+});
+
+test('watchdog de buffering não trata pausa e busca manual como falhas',async()=>{
+ for(const evento of ['pause','seeking']){
+  const s=harness();let trocas=0;const v=await videoTocando(s,{onInterrupted:()=>{trocas++;return true;}});v.paused=false;v.seeking=false;v.fire('waiting');
+  v.fire(evento);assert.equal([...s.timers.values()].filter(fn=>fn.delay===20000).length,1,'permanece só o timer de confirmação');
+  assert.equal(trocas,0);s.controller.stop();
+ }
+});
+
+test('voltar à aba rearma detecção de vídeo que permaneceu travado',async()=>{
+ const s=harness();const v=await videoTocando(s);v.paused=false;v.seeking=false;v.readyState=2;v.fire('waiting');
+ s.visibility(true);assert.equal([...s.timers.values()].filter(fn=>fn.delay===20000).length,1);
+ s.visibility(false);assert.equal([...s.timers.values()].filter(fn=>fn.delay===20000).length,2);s.controller.stop();
+});
+
+test('fim do vídeo não dispara troca nem erro de reprodução',async()=>{
+ const s=harness();let trocas=0;const v=await videoTocando(s,{onInterrupted:()=>{trocas++;return true;}});v.ended=true;v.fire('ended');v.fire('error');
+ assert.equal(trocas,0);assert.equal(s.failures(),0);s.controller.stop();
+});
+
+test('URL direta marcada como TV não restaura progresso de filme',async()=>{
+ const s=harness();let consultou=0;s.context.filmeAtual={id:238,titulo:'Filme anterior'};s.window.StreamPersonal={position:()=>{consultou++;return 240;}};
+ const p=s.controller.start(0,1,null,null,'https://exemplo.com/canal.m3u8',true,{nome:'Canal',live:true});await new Promise(setImmediate);
+ const v=s.el('direct-video');v.duration=45;v.currentTime=0;v.fire('loadedmetadata');v.fire('timeupdate');
+ assert.equal(consultou,0);assert.equal(v.currentTime,0);assert.equal(s.el('direct-time').textContent,'AO VIVO');s.controller.stop();await p;
+});
+
+test('live broadcasts show AO VIVO without a false movie duration or seek controls',async()=>{
+ const s=harness();s.fetch(async()=>({url,audio:'fonte',live:true}));
+ const p=s.controller.start(0,1,new AbortController().signal,'/api/tv/la18hd',null,true);await new Promise(setImmediate);
+ const v=s.el('direct-video');v.currentTime=30;v.duration=45;v.fire('timeupdate');
+ assert.equal(s.el('direct-time').textContent,'AO VIVO');
+ for(const id of ['direct-progress','direct-back','direct-forward','menu-speed-btn'])assert.equal(s.el(id).hidden,true);
+ s.controller.seek(10);assert.equal(v.currentTime,30);
+ s.controller.stop();await p;
+});
+
+test('opening a movie after live TV restores seek controls and duration',async()=>{
+ const s=harness();s.fetch(async()=>({url,audio:'fonte',live:true}));
+ const live=s.controller.start(0,1,new AbortController().signal,'/api/tv/la18hd',null,true);await new Promise(setImmediate);s.controller.stop();await live;
+ s.fetch(async()=>({url,audio:'pt-BR'}));const movie=s.controller.start(238,1,new AbortController().signal);await new Promise(setImmediate);
+ const v=s.el('direct-video');v.currentTime=30;v.duration=120;v.fire('timeupdate');
+ assert.equal(s.el('direct-time').textContent,'0:30 / 2:00');
+ for(const id of ['direct-progress','direct-back','direct-forward','menu-speed-btn'])assert.equal(s.el(id).hidden,false);
+ s.controller.seek(10);assert.equal(v.currentTime,40);s.controller.stop();await movie;
+});
 test('selects highest actual rendition and Portuguese audio; stop resolves a pending start',async()=>{const s=harness();const p=s.controller.start(238,1,new AbortController().signal);await new Promise(setImmediate);s.Hls.instance.emit('manifest');assert.equal(s.Hls.instance.currentLevel,1);assert.equal(s.Hls.instance.audioTrack,0);s.controller.stop();assert.equal(await p,false);assert.equal(s.timers.size,0);});
 test('rejects explicitly non-Portuguese audio renditions',async()=>{const s=harness();const p=s.controller.start(238,1,new AbortController().signal);await new Promise(setImmediate);s.Hls.instance.audioTracks=[{lang:'en',name:'English'}];s.Hls.instance.emit('manifest');assert.equal(await p,false);assert.equal(s.controller.isActive(),false);});
 test('late metadata response cannot recreate a video after stop',async()=>{const s=harness();let resolve;s.fetch(()=>new Promise(r=>resolve=r));const p=s.controller.start(238,1,new AbortController().signal);s.controller.stop();resolve({url,audio:'pt-BR'});assert.equal(await p,false);assert.equal(s.controller.isActive(),false);});
@@ -97,7 +230,7 @@ test('subtitle selection defaults off, switches a supplied track and disables it
 });
 test('saved progress is restored after metadata and saved on stop',async()=>{
  const s=harness();let saved; s.context.filmeAtual={id:238,titulo:'Filme'};s.window.StreamPersonal={position:()=>240,record:(f,p,d)=>saved={f,p,d}};
- const pending=s.controller.start(238,1,new AbortController().signal);await new Promise(setImmediate);const v=s.el('direct-video');v.duration=1000;v.currentTime=0;v.fire('loadedmetadata');assert.equal(v.currentTime,240);v.currentTime=260;s.controller.stop();await pending;assert.equal(saved.p,260);assert.equal(saved.f.id,238);
+ const pending=s.controller.start(238,1,new AbortController().signal);await new Promise(setImmediate);const v=s.el('direct-video');v.duration=1000;v.currentTime=0;v.fire('loadedmetadata');assert.equal(v.currentTime,240);v.videoWidth=1280;v.videoHeight=720;v.webkitDecodedFrameCount=1;v.fire('playing');v.currentTime=260;s.controller.stop();await pending;assert.equal(saved.p,260);assert.equal(saved.f.id,238);
 });
 test('Android fullscreen button requests landscape and exit restores native mode',async()=>{
  const s=harness('StreamTVAndroid');s.context.location={};let expanded=false;s.el('player').classList={contains:()=>expanded,toggle:(name,value)=>expanded=value};
@@ -107,7 +240,7 @@ test('Android fullscreen button requests landscape and exit restores native mode
 test('iPhone fullscreen uses the native video presentation instead of Android navigation',async()=>{
  const s=harness('iPhone');let entered=0;s.el('direct-video').webkitEnterFullscreen=()=>entered++;await s.context.telaCheia();assert.equal(entered,1);
 });
-test('pause saves the exact latest position instead of waiting for another timer',async()=>{const s=harness();let saved;s.context.filmeAtual={id:238,titulo:'Filme'};s.window.StreamPersonal={position:()=>0,record:(f,p)=>saved=p};const p=s.controller.start(238,1,new AbortController().signal);await new Promise(setImmediate);const v=s.el('direct-video');v.duration=1000;v.currentTime=0;v.fire('loadedmetadata');v.currentTime=127.5;v.fire('pause');assert.equal(saved,127.5);s.controller.stop();await p;});
+test('pause saves the exact latest position instead of waiting for another timer',async()=>{const s=harness();let saved;s.context.filmeAtual={id:238,titulo:'Filme'};s.window.StreamPersonal={position:()=>0,record:(f,p)=>saved=p};const p=s.controller.start(238,1,new AbortController().signal);await new Promise(setImmediate);const v=s.el('direct-video');v.duration=1000;v.currentTime=0;v.fire('loadedmetadata');v.videoWidth=1280;v.videoHeight=720;v.webkitDecodedFrameCount=1;v.fire('playing');v.currentTime=127.5;v.fire('pause');assert.equal(saved,127.5);s.controller.stop();await p;});
 test('velocidade escolhida é aplicada ao vídeo e valor inválido volta ao normal',async()=>{
  const s=harness();s.controller.setSpeed('1.5');
  const p=s.controller.start(238,1,new AbortController().signal);await new Promise(setImmediate);

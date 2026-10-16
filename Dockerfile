@@ -5,6 +5,11 @@ FROM node:22-alpine
 WORKDIR /app
 ENV NODE_ENV=production
 
+# Conversão de áudio e análise de faixas precisam dos binários Linux.
+RUN apk add --no-cache ffmpeg
+ENV FFMPEG_PATH=/usr/bin/ffmpeg
+ENV FFPROBE_PATH=/usr/bin/ffprobe
+
 # Dependências primeiro: mudar o código não reinstala tudo.
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev --no-audit --no-fund

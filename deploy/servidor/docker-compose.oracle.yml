@@ -1,0 +1,45 @@
+# Complemento para servidor Oracle Micro: HTTPS público e serviços internos.
+# docker compose --env-file .env -f docker-compose.yml -f docker-compose.oracle.yml up -d
+services:
+  app:
+    ports: !override
+      - "127.0.0.1:3000:3000"
+    environment:
+      NODE_OPTIONS: --max-old-space-size=256
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+  central:
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    environment:
+      NODE_OPTIONS: --max-old-space-size=256
+      CONECTA_CHROME_STARTUP_MS: "60000"
+      CENTRAL_INSTALACAO: Oracle
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+  https:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    environment:
+      PUBLIC_IP: ${PUBLIC_IP:?defina PUBLIC_IP no .env}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - certificados:/data
+      - caddy-config:/config
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+volumes:
+  certificados:
+  caddy-config:

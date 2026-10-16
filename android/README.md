@@ -31,3 +31,13 @@ Testes automatizados cobrem rankings, cache, busca, cancelamento, falhas de rede
 Sem dispositivo conectado: instalação, vídeo, áudio, rotação, segundo plano, tela cheia e controle remoto precisam de validação no aparelho antes de considerar a versão final.
 
 Referências: https://developer.android.com/build/releases/agp-8-9-0-release-notes e https://developer.android.com/develop/ui/views/layout/webapps.
+
+## Interface de celular 2.13.66
+
+O APK de celular usa a interface aprovada para o navegador com adaptações próprias para toque. Filmes e séries abrem detalhes em tela inteira; temporadas, favoritos e episódios continuam usando o catálogo local. A reprodução pede tela cheia horizontal pelo mecanismo nativo do aplicativo. Voltar sai do player e restaura a página e a temporada da série. O volume usa os botões físicos do telefone.
+
+`phone-ui.cjs` reaproveita a apresentação de `pwa/redesign.css` e `pwa/redesign.js`; `phone.css` e `phone.js` acrescentam o comportamento do celular. A interface permanece desativada em aparelhos/canal de TV. Não editar os arquivos gerados em `app/src/main/assets/index.html` diretamente: executar `node android/sync-ui.cjs` depois das alterações.
+
+Para compilar apenas o celular, passar `-Canal celular` ao script `Build-Android.ps1`. O padrão `ambos` mantém o processo existente de compilar as duas variantes. O APK continua com o pacote `br.streamtv.app` e a chave Android de depuração já usada nas versões anteriores.
+
+Verificação desta interface: páginas de filme e série, larguras de 320–412px, player horizontal, pause, busca de ±10s e limites do vídeo, retorno à temporada selecionada, navegação de volta ao catálogo e exclusão da TV. Reprodução e orientação física ainda exigem teste no telefone.

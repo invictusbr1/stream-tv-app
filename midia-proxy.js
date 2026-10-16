@@ -18,6 +18,26 @@ const HOSTS_PERMITIDOS = [
 // fontes trocam de servidor de vídeo com frequência). Só entra aqui o que o
 // aplicativo descobriu sozinho — a lista continua fechada para o resto.
 const HOSTS_DESCOBERTOS = new Set();
+const CABECALHOS_DESCOBERTOS = new Map();
+
+// Somente resolvedores internos registram os cabeçalhos públicos exigidos
+// pelo arquivo. O visitante não pode fornecer cookies ou cabeçalhos de acesso.
+function registrarCabecalhos(url, headers, validadeMs = 300000) {
+    const seguros = {};
+    for (const nome of ['User-Agent', 'Accept']) {
+        const valor = headers?.[nome];
+        if (typeof valor === 'string' && valor.length <= 512 && !/[\r\n]/.test(valor)) seguros[nome] = valor;
+    }
+    if (!Object.keys(seguros).length) return;
+    if (CABECALHOS_DESCOBERTOS.size >= 128) CABECALHOS_DESCOBERTOS.delete(CABECALHOS_DESCOBERTOS.keys().next().value);
+    CABECALHOS_DESCOBERTOS.set(String(url), { headers: seguros, expira: Date.now() + Math.min(14400000, Math.max(1000, Number(validadeMs) || 300000)) });
+}
+function cabecalhosDaMidia(url) {
+    const chave = String(url), item = CABECALHOS_DESCOBERTOS.get(chave);
+    if (!item) return {};
+    if (item.expira <= Date.now()) { CABECALHOS_DESCOBERTOS.delete(chave); return {}; }
+    return { ...item.headers };
+}
 
 function liberarHost(host) {
     const nome = String(host || '').trim().toLowerCase();
@@ -45,7 +65,7 @@ async function validarMidia(url, referer, tempo = 5000) {
     if (endereco.startsWith('/')) return true; // caminho interno do aplicativo
     let host = '';
     try { host = new URL(endereco).hostname; } catch { return false; }
-    const cabecalhos = { 'User-Agent': UA_VALIDACAO, Accept: '*/*', Range: 'bytes=0-2047' };
+    const cabecalhos = { 'User-Agent': UA_VALIDACAO, Accept: '*/*', ...cabecalhosDaMidia(endereco), Range: 'bytes=0-2047' };
     const referencia = referer || refererPadrao(host);
     if (referencia) cabecalhos.Referer = referencia;
     try {
@@ -123,6 +143,8 @@ function reescreverPlaylist(texto, base, referer) {
 }
 
 module.exports = {
+    registrarCabecalhos,
+    cabecalhosDaMidia,
     hostPermitido,
     liberarHost,
     refererPadrao,

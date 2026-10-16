@@ -67,3 +67,38 @@ test('relato antigo (fora da janela) não conta', () => {
     assert.deepEqual(placar.resumo(), []);
     fs.rmSync(pasta, { recursive: true, force: true });
 });
+
+test('pedido de abertura não apaga falhas consecutivas; vídeo confirmado apaga', () => {
+    const { placar, pasta } = comEventos([
+        { em: agora, tipo: 'falha', fonteId: 'fonte' },
+        { em: agora, tipo: 'play', fonteId: 'fonte' },
+        { em: agora, tipo: 'falha', fonteId: 'fonte' },
+        { em: agora, tipo: 'play', fonteId: 'fonte' },
+        { em: agora, tipo: 'falha', fonteId: 'fonte' },
+    ]);
+    try { assert.equal(placar.resumo()[0].falhasSeguidas, 3); }
+    finally { fs.rmSync(pasta, { recursive: true, force: true }); }
+});
+
+test('janela de relatos avança quando a central fica aberta por vários dias', () => {
+    const timestamp = Date.now();
+    const evento = new Date(timestamp - 20 * 24 * 60 * 60 * 1000).toISOString();
+    const { placar, pasta } = comEventos([{ em: evento, tipo: 'confirmacao', fonteId: 'fonte' }]);
+    const realNow = Date.now;
+    try {
+        assert.equal(placar.resumo().length, 1);
+        Date.now = () => timestamp + 2 * 24 * 60 * 60 * 1000;
+        placar.atualizar();
+        assert.deepEqual(placar.resumo(), []);
+    } finally { Date.now = realNow; fs.rmSync(pasta, { recursive: true, force: true }); }
+});
+
+test('relatos sem data válida ou muito no futuro não influenciam a nota', () => {
+    const { placar, pasta } = comEventos([
+        { tipo: 'falha', fonteId: 'fonte' },
+        { em: 'data inválida', tipo: 'falha', fonteId: 'fonte' },
+        { em: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), tipo: 'falha', fonteId: 'fonte' },
+    ]);
+    try { assert.deepEqual(placar.resumo(), []); }
+    finally { fs.rmSync(pasta, { recursive: true, force: true }); }
+});

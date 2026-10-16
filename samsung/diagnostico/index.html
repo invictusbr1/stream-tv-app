@@ -1,0 +1,10 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Conecta TV · Samsung</title><link rel="stylesheet" href="style.css"></head><body>
+<main><h1>CONECTA TV <small>Samsung · teste 0.1.0</small></h1><p id="modelo">Verificando televisão…</p>
+<section><h2>Conectar à central</h2><p>Informe o endereço do Conecta TV que encaminha os relatos à central. O vídeo de teste funciona sem esse computador.</p>
+<label>Endereço do Conecta TV<input id="endereco" type="url" placeholder="http://192.168.1.6:3000"></label>
+<label>Nome desta TV<input id="nome" value="TV da sala" maxlength="60"></label>
+<label>Código de acesso<input id="codigo" type="password" autocomplete="off"></label>
+<button id="conectar">Conectar</button><button id="enviar">Enviar relatos pendentes</button><p id="rede" role="status"></p></section>
+<section><h2>Testar a reprodução na televisão</h2><button id="tocar">Reproduzir vídeo incluído</button><button id="pausar">Pausar / continuar</button><button id="parar">Parar</button><button id="falha">Registrar falha de teste</button><p id="player-status" role="status">Use as setas, OK e Voltar no controle remoto.</p></section>
+<p id="pendentes"></p><object id="av-player" type="application/avplayer"></object><video id="preview" hidden></video>
+</main><script src="$WEBAPIS/webapis/webapis.js"></script><script src="core.js"></script><script src="app.js"></script></body></html>

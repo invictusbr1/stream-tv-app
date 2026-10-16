@@ -35,6 +35,29 @@ test('lista sem qualidades (arquivo único) não inventa altura', () => {
     assert.equal(analise.altura, 0);
 });
 
+test('180p medido prevalece sobre a promessa de 2160p e perde para HD medido', () => {
+    const medida = { dados: { audio: 'pt-BR', resolucao: '2160p' }, sonda: { altura: 180 }, idiomaVerificado: 'pt', ms: 900 };
+    const baixa = notaDaFonte(medida);
+    const hd = notaDaFonte({ ...medida, dados: { audio: 'pt-BR', resolucao: '720p' }, sonda: { altura: 720 } });
+    assert.equal(baixa.detalhes.qualidade, '180p medido');
+    assert(baixa.nota < hd.nota);
+});
+
+test('qualidade anunciada só serve como reserva e é identificada como informada', () => {
+    const anunciada = notaDaFonte({ dados: { audio: 'pt-BR', resolucao: '1080p' }, sonda: null, idiomaVerificado: '', ms: 900 });
+    assert.equal(anunciada.detalhes.qualidade, '1080p informado pela fonte');
+    const semMedida = notaDaFonte({ dados: { audio: 'pt-BR' }, sonda: null, idiomaVerificado: '', ms: 900 });
+    assert.equal(semMedida.detalhes.qualidade, 'não mediu a altura');
+});
+
+test('a reserva de conversão não apresenta o rótulo da fonte como resolução medida', () => {
+    const avaliada = notaDaFonte({
+        dados: { audio: 'pt-BR', resolucao: '1080p', converter: true },
+        sonda: { conversao: true, altura: 1080 }, idiomaVerificado: '', ms: 900,
+    });
+    assert.equal(avaliada.detalhes.qualidade, '1080p informado pela fonte');
+});
+
 // A régua das regras: dublado confirmado manda; outro idioma elimina.
 test('português confirmado com 1080p vence fonte que só avisa que é dublada', () => {
     const confirmada = notaDaFonte({
@@ -78,3 +101,4 @@ test('fonte que precisa de conversão é descontada (mas continua na disputa)', 
     assert(comConversao.nota < direta.nota);
     assert.match(comConversao.detalhes.conversao, /converter/);
 });
+

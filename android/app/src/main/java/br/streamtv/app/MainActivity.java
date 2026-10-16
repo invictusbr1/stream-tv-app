@@ -62,7 +62,14 @@ public final class MainActivity extends Activity {
         root = new FrameLayout(this);
         root.setBackgroundColor(Color.BLACK);
         root.setOnApplyWindowInsetsListener((view, insets) -> {
-            if (fullscreen == null && !inlineFullscreen) view.setPadding(insets.getSystemWindowInsetLeft(), insets.getSystemWindowInsetTop(), insets.getSystemWindowInsetRight(), insets.getSystemWindowInsetBottom());
+            if (fullscreen == null && !inlineFullscreen) {
+                view.setPadding(insets.getSystemWindowInsetLeft(), insets.getSystemWindowInsetTop(), insets.getSystemWindowInsetRight(), insets.getSystemWindowInsetBottom());
+            } else if (Build.VERSION.SDK_INT >= 28 && !BuildConfig.TV) {
+                // Keep touch controls clear of a camera cutout in landscape fullscreen.
+                android.view.DisplayCutout cutout = insets.getDisplayCutout();
+                view.setPadding(cutout == null ? 0 : cutout.getSafeInsetLeft(), cutout == null ? 0 : cutout.getSafeInsetTop(),
+                    cutout == null ? 0 : cutout.getSafeInsetRight(), cutout == null ? 0 : cutout.getSafeInsetBottom());
+            }
             return insets.consumeSystemWindowInsets();
         });
         setContentView(root);
@@ -93,6 +100,41 @@ public final class MainActivity extends Activity {
 
     private WebResourceResponse error(int code) {
         return new WebResourceResponse("text/plain", "UTF-8", code, "Unavailable", Collections.emptyMap(), new ByteArrayInputStream("Página indisponível".getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+    }
+
+    // Esta rota existe só dentro do WebView. O GET local nunca sai do aparelho;
+    // descoberta e POST ao servidor são feitos pelo Java, em thread de interceptação.
+    private synchronized WebResourceResponse relatoNativo(Uri uri) {
+        try {
+            String rota = uri.getQueryParameter("rota");
+            String dados = uri.getQueryParameter("dados");
+            if (!("acesso".equals(rota) || "evento".equals(rota)) || dados == null || dados.length() > 32768) return error(400);
+            JSONObject config;
+            try (InputStream entrada = getAssets().open("config.json")) {
+                config = new JSONObject(lerTexto(entrada));
+            }
+            String descoberta = config.optString("descoberta");
+            // A interface não pode escolher uma URL: usamos a configuração do APK.
+            JSONObject atual = new JSONObject(RelatoHttp.enviar(descoberta, null));
+            String endereco = atual.getString("endereco").replaceAll("/+$", "");
+            URL destino = new URL(endereco);
+            if (!destino.getPath().isEmpty() || destino.getQuery() != null || destino.getRef() != null) return error(400);
+            JSONObject corpo = new JSONObject(dados);
+            String codigo = config.optString("acessoCodigo").trim();
+            if (codigo.isEmpty()) codigo = config.optString("codigo").trim();
+            if (codigo.isEmpty()) codigo = atual.optString("codigo").trim();
+            corpo.put("codigo", codigo);
+            String resposta = RelatoHttp.enviar(endereco + "/api/" + rota, corpo.toString());
+            JSONObject resultado = new JSONObject(resposta);
+            if (!resultado.optBoolean("ok", false)) throw new java.io.IOException("Servidor não confirmou o relato");
+            android.util.Log.i("ConectaRelato", "Confirmado: " + rota);
+            return respostaTexto("application/json", resposta);
+        } catch (Exception e) {
+            android.util.Log.w("ConectaRelato", "Falha no relato nativo: " + e.getClass().getSimpleName() + ": " + e.getMessage());
+            return new WebResourceResponse("application/json", "UTF-8", 502, "Bad Gateway",
+                Collections.singletonMap("Cache-Control", "no-store"),
+                new ByteArrayInputStream("{\"ok\":false,\"erro\":\"Falha no envio nativo\"}".getBytes(StandardCharsets.UTF_8)));
+        }
     }
 
     // ---------------------------------------------------------------- fichas
@@ -181,7 +223,7 @@ public final class MainActivity extends Activity {
     private boolean enderecoSeguro(String endereco) {
         try {
             Uri uri = Uri.parse(endereco);
-            if (!"https".equals(uri.getScheme()) || uri.getHost() == null || uri.getPort() != -1 || uri.getUserInfo() != null) return false;
+            if (!"https".equals(uri.getScheme()) || uri.getHost() == null || !La18Source.httpsPort(uri.getPort()) || uri.getUserInfo() != null) return false;
             String host = uri.getHost().toLowerCase();
             if (host.equals("localhost") || host.endsWith(".local")) return false;
             if (host.matches("^(127\\.|10\\.|192\\.168\\.|169\\.254\\.|0\\.).*")) return false;
@@ -242,6 +284,10 @@ public final class MainActivity extends Activity {
 
     /** Resolve um título por uma ficha aprovada pelo caçador. */
     private WebResourceResponse perfilPlayback(String tipo, String id, String temporada, String episodio) {
+        return perfilPlayback(tipo, id, temporada, episodio, Collections.emptySet());
+    }
+
+    private WebResourceResponse perfilPlayback(String tipo, String id, String temporada, String episodio, java.util.Set<String> exceto) {
         try {
             String texto = perfis();
             if (texto == null || texto.isEmpty()) return error(502);
@@ -252,7 +298,7 @@ public final class MainActivity extends Activity {
             List<JSONObject> fichas = new ArrayList<>();
             for (int i = 0; i < lista.length(); i++) {
                 JSONObject ficha = lista.optJSONObject(i);
-                if (ficha == null || !ficha.optBoolean("ativo", true)) continue;
+                if (ficha == null || !ficha.optBoolean("ativo", true) || exceto.contains(ficha.optString("id", ""))) continue;
                 JSONArray tipos = ficha.optJSONArray("tipos");
                 boolean serve = false;
                 for (int j = 0; tipos != null && j < tipos.length(); j++) if (tipo.equals(tipos.optString(j))) serve = true;
@@ -276,9 +322,13 @@ public final class MainActivity extends Activity {
                 String endereco = preencher(modelo, id, temporada, episodio).replace("{imdb}", Uri.encode(imdb));
                 if (!enderecoSeguro(endereco)) continue;
                 String referer = ficha.optString("referer", "");
-                String pagina = lerPagina(endereco, referer.isEmpty() ? null : referer);
-                if (pagina == null) continue;
                 JSONArray passos = ficha.optJSONArray("passos");
+                JSONObject primeiroPasso = passos != null ? passos.optJSONObject(0) : null;
+                String pagina = "";
+                if (primeiroPasso == null || !"endereco".equals(primeiroPasso.optString("tipo", "regex"))) {
+                    pagina = lerPagina(endereco, referer.isEmpty() ? null : referer);
+                    if (pagina == null) continue;
+                }
                 String video = "";
                 String atual = pagina;
                 String base = referer.isEmpty() ? endereco : referer;
@@ -288,7 +338,7 @@ public final class MainActivity extends Activity {
                     String achado = aplicarPasso(passo, atual, base);
                     // Passo de endereço: o molde vem com {id}/{temporada}/
                     // {episodio}/{imdb} e é preenchido aqui.
-                    if (achado.contains("{id}") || achado.contains("{temporada}") || achado.contains("{episodio}")) {
+                    if (achado.contains("{id}") || achado.contains("{temporada}") || achado.contains("{episodio}") || achado.contains("{imdb}")) {
                         achado = preencher(achado, id, temporada, episodio).replace("{imdb}", Uri.encode(imdb));
                     }
                     if (achado.isEmpty()) { video = ""; break; }
@@ -306,7 +356,7 @@ public final class MainActivity extends Activity {
                 if (video.startsWith("http://")) video = "https://" + video.substring("http://".length());
                 if (video.isEmpty() || !enderecoSeguro(video)) continue;
                 String tipoMidia = video.matches("(?i).*\\.m3u8(\\?.*)?$") ? "hls" : "file";
-                WebResourceResponse resposta = jsonMidia(video, tipoMidia, ficha.optString("nome", "Fonte nova"));
+                WebResourceResponse resposta = jsonMidia(video, tipoMidia, ficha.optString("nome", "Fonte nova"), ficha.optBoolean("dublado", false) ? "pt-BR" : "original", ficha.optString("id", ""), enderecoSeguro(referer) ? referer : base);
                 if (resposta != null && resposta.getStatusCode() == 200) return resposta;
             }
             return error(502);
@@ -334,7 +384,23 @@ public final class MainActivity extends Activity {
             if (Build.VERSION.SDK_INT >= 30 && getWindow().getInsetsController() != null) getWindow().getInsetsController().show(WindowInsets.Type.systemBars());
             root.requestApplyInsets();
         }
+        root.requestApplyInsets();
         main.evaluateJavascript("window.StreamSetFullscreen && window.StreamSetFullscreen(" + enabled + ")", null);
+    }
+
+    private boolean abrirFutebol(Uri uri) {
+        if (!"/abrir-futebol".equals(uri.getPath())) return false;
+        String id = uri.getQueryParameter("id");
+        String url = "premier".equals(id) ? "https://www.youtube.com/@CazeTV/streams" :
+            ("brasileirao".equals(id) || "copa".equals(id)) ? "https://www.youtube.com/@getv/streams" : null;
+        if (url == null) return true;
+        for (String pacote : new String[]{"com.google.android.youtube.tv", "com.google.android.youtube"}) {
+            android.content.Intent intent = new android.content.Intent(android.content.Intent.ACTION_VIEW, Uri.parse(url));
+            intent.setPackage(pacote);
+            try { startActivity(intent); return true; } catch (android.content.ActivityNotFoundException ignored) { }
+        }
+        Toast.makeText(this, "Instale o aplicativo do YouTube para abrir as transmissões gratuitas.", Toast.LENGTH_LONG).show();
+        return true;
     }
 
     private boolean fullscreenAction(Uri uri) {
@@ -370,20 +436,53 @@ public final class MainActivity extends Activity {
     }
 
     private WebResourceResponse jsonMidia(String url, String tipo, String fonte, String audio) {
+        return jsonMidia(url, tipo, fonte, audio, PlaybackSources.idFor(fonte));
+    }
+
+    private WebResourceResponse jsonMidia(String url, String tipo, String fonte, String audio, String fonteId) {
+        return jsonMidia(url, tipo, fonte, audio, fonteId, "");
+    }
+
+    private WebResourceResponse jsonMidia(String url, String tipo, String fonte, String audio, String fonteId, String referencia) {
         // Antes de entregar o endereço ao player, confere se ele realmente
         // devolve VÍDEO. As fontes trocam de servidor sem avisar (o PipocaCine
         // passou a devolver página de erro em 09/10/2026) e, sem esta
         // checagem, o aparelho ficava esperando uma imagem que nunca vinha.
-        String referer = refererDaFonte(url);
+        String referer = enderecoSeguro(referencia) ? referencia : refererDaFonte(url);
         if (!entregaVideo(url, referer)) return error(502);
         try {
             JSONObject result = new JSONObject();
             // Lista de reprodução passa pelo encaminhador do aparelho: é o que
             // evita o 403 do CDN quando o pedido vem do WebView. Arquivo direto
             // (MP4) continua indo direto — assim o avançar/voltar segue igual.
-            String servido = (url.contains(".m3u8")) ? enderecoEncaminhado(url, referer) : url;
-            result.put("url", servido); result.put("audio", audio); result.put("type", tipo); result.put("source", fonte);
+            String servido = url.contains(".m3u8") ? enderecoEncaminhado(url, referer) : url;
+            result.put("url", servido); result.put("audio", audio); result.put("type", tipo); result.put("source", fonte); result.put("fonteId", fonteId);
             return new WebResourceResponse("application/json", "UTF-8", 200, "OK", Collections.singletonMap("Cache-Control", "no-store"), new ByteArrayInputStream(result.toString().getBytes(StandardCharsets.UTF_8)));
+        } catch (Exception e) { return error(502); }
+    }
+
+    private WebResourceResponse la18Playback() {
+        try {
+            String url = La18Source.extract(lerPagina(La18Source.PAGE, La18Source.PAGE));
+            if (url.isEmpty() || !La18Source.playlist(lerPagina(url, La18Source.PAGE))) return error(502);
+            JSONObject result = new JSONObject();
+            result.put("url", enderecoEncaminhado(url, La18Source.PAGE));
+            result.put("audio", "fonte"); result.put("type", "hls"); result.put("live", true);
+            result.put("source", "LA18HD · Premiere"); result.put("fonteId", "la18hd-premiere1");
+            return respostaTexto("application/json", result.toString());
+        } catch (Exception e) { return error(502); }
+    }
+
+    private WebResourceResponse futebolAgenda(Uri uri) {
+        String league = uri.getQueryParameter("liga"), date = uri.getQueryParameter("data");
+        if (league == null || !(league.equals("eng.1") || league.equals("bra.1") || league.equals("bra.copa_do_brazil")) || date == null || !date.matches("\\d{4}-\\d{2}-\\d{2}")) return error(400);
+        try {
+            java.text.SimpleDateFormat format = new java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.ROOT);
+            format.setLenient(false);
+            if (!date.equals(format.format(format.parse(date)))) return error(400);
+            String data = lerPagina("https://site.api.espn.com/apis/site/v2/sports/soccer/" + league + "/scoreboard?dates=" + date.replace("-", "") + "&limit=100&lang=pt&region=br", null);
+            if (data == null || new JSONObject(data).optJSONArray("events") == null) return error(502);
+            return respostaTexto("application/json", data);
         } catch (Exception e) { return error(502); }
     }
 
@@ -607,29 +706,23 @@ public final class MainActivity extends Activity {
     }
     private WebResourceResponse mgeb(String endereco) {
         try {
-            String html = lerPagina(endereco, "https://mgeb.top/");
+            String html = MgebHttp.read(endereco);
             if (html == null) return error(502);
             Matcher bloco = Pattern.compile("var\\s+sources\\s*=\\s*(\\[[\\s\\S]*?\\]);").matcher(html);
             if (!bloco.find()) return error(502);
             JSONArray lista = new JSONArray(bloco.group(1));
-            String arquivo = "", playlist = "";
+            List<MgebSources.Source> fontes = new ArrayList<>();
             for (int i = 0; i < lista.length(); i++) {
                 JSONObject item = lista.optJSONObject(i);
                 if (item == null) continue;
-                String url = item.optString("file", "");
-                if (url.isEmpty()) continue;
-                if (url.startsWith("http://")) url = url.replaceFirst("http://", "https://").replace(":80/", "/");
-                // A MGEB às vezes devolve caminho com ".." no meio
-                // (ex.: mgeb.site/../cache/hls/...). Sem normalizar, o player e
-                // a conferência de entrega falham e o título não abre no
-                // aparelho — era o caso de várias minisséries e filmes.
-                url = url.replace("/../", "/").replace("/./", "/");
-                if (url.contains(".mp4")) { if (arquivo.isEmpty()) arquivo = url; }
-                else if (url.contains(".m3u8")) { if (playlist.isEmpty()) playlist = url; }
+                MgebSources.Source fonte = MgebSources.parse(item.optString("file", ""), item.optString("label", ""));
+                if (fonte != null && enderecoSeguro(fonte.url)) fontes.add(fonte);
             }
-            if (!arquivo.isEmpty()) return jsonMidia(arquivo, "file", "MGEB · dublado");
-            if (!playlist.isEmpty()) return jsonMidia(playlist, "hls", "MGEB · dublado");
-            return error(502);
+            WebResourceResponse resposta = MgebSources.firstWorking(fontes, fonte -> {
+                WebResourceResponse candidata = jsonMidia(fonte.url, fonte.file ? "file" : "hls", "MGEB · dublado", "pt-BR", "mgeb", "https://mgeb.top/");
+                return candidata != null && candidata.getStatusCode() == 200 ? candidata : null;
+            });
+            return resposta != null ? resposta : error(502);
         } catch (Exception e) { return error(502); }
     }
     private WebResourceResponse pipocaEpisodio(String id, String temporada, String episodio) {
@@ -649,24 +742,29 @@ public final class MainActivity extends Activity {
             if (alvo == null || alvo.isNull("url_dub")) return error(502);
             String url = alvo.optString("url_dub", "");
             if (!url.matches("https://nixplay\\.lat/series/[a-z0-9-]+/[A-Za-z0-9_-]+/\\d{1,10}/\\d{1,3}/\\d{1,4}\\.mp4")) return error(502);
-            return jsonMidia(url, "file", "PipocaCine");
+            return jsonMidia(url, "file", "PipocaCine", "pt-BR", "pipoca-serie");
         } catch (Exception e) { return error(502); }
     }
 
     // Episódio: tenta a fonte dublada principal e, se ela não tiver este
     // episódio, a segunda opção dublada — sempre dentro do aplicativo.
-    private WebResourceResponse directEpisode(String id, String temporada, String episodio) {
-        WebResourceResponse principal = directPlayback("https://v2.watchplay.shop/tvshow/" + id + "/" + temporada + "/" + episodio);
-        if (principal != null && principal.getStatusCode() == 200) return principal;
-        WebResourceResponse dublado = pipocaEpisodio(id, temporada, episodio);
-        if (dublado != null && dublado.getStatusCode() == 200) return dublado;
-        WebResourceResponse mgeb = mgebEpisodio(id, temporada, episodio);
-        if (mgeb != null && mgeb.getStatusCode() == 200) return mgeb;
-        // Fichas de fonte descobertas pelo caçador (fornecedores novos).
-        WebResourceResponse ficha = perfilPlayback("tv", id, temporada, episodio);
-        if (ficha != null && ficha.getStatusCode() == 200) return ficha;
-        // Sem dublado: alta definição limpa com legenda em português.
-        return vixsrcMidia("tv", id, temporada, episodio);
+    private WebResourceResponse directEpisode(String id, String temporada, String episodio, java.util.Set<String> exceto) {
+        WebResourceResponse resposta;
+        if (!exceto.contains("watchplay")) {
+            resposta = directPlayback("https://v2.watchplay.shop/tvshow/" + id + "/" + temporada + "/" + episodio);
+            if (resposta != null && resposta.getStatusCode() == 200) return resposta;
+        }
+        if (!exceto.contains("pipoca-serie")) {
+            resposta = pipocaEpisodio(id, temporada, episodio);
+            if (resposta != null && resposta.getStatusCode() == 200) return resposta;
+        }
+        if (!exceto.contains("mgeb")) {
+            resposta = mgebEpisodio(id, temporada, episodio);
+            if (resposta != null && resposta.getStatusCode() == 200) return resposta;
+        }
+        resposta = perfilPlayback("tv", id, temporada, episodio, exceto);
+        if (resposta != null && resposta.getStatusCode() == 200) return resposta;
+        return exceto.contains("vixsrc") ? error(502) : vixsrcMidia("tv", id, temporada, episodio);
     }
 
     // ---------------------------------------------------------------
@@ -687,18 +785,21 @@ public final class MainActivity extends Activity {
         } catch (Exception e) { return ""; }
     }
 
-    // Lista as legendas em português do filme (código IMDb, buscado no TMDB).
+    // Lista as legendas em português do filme ou da série (código IMDb, buscado no TMDB).
     private WebResourceResponse legendasOnline(Uri uri) {
         try {
             String imdb = uri.getQueryParameter("imdb") == null ? "" : uri.getQueryParameter("imdb");
             if (!imdb.matches("tt\\d{5,10}")) {
                 String id = uri.getQueryParameter("id") == null ? "" : uri.getQueryParameter("id");
                 if (id.matches("\\d{1,10}")) {
-                    String externo = lerPagina("https://api.themoviedb.org/3/movie/" + id + "/external_ids?api_key=" + chaveTmdb(), null);
-                    if (externo != null) {
-                        Matcher achado = Pattern.compile("\"imdb_id\"\\s*:\\s*\"(tt\\d{5,10})\"").matcher(externo);
-                        if (achado.find()) imdb = achado.group(1);
-                    }
+                    String tipo = uri.getQueryParameter("tipo") == null ? "" : uri.getQueryParameter("tipo");
+                    // A série tem ficha própria no TMDB: na rota /movie/ o TMDB devolve
+                    // "imdb_id": null, por isso o tipo do pedido decide a rota.
+                    boolean serie = "tv".equals(tipo) || "serie".equals(tipo) || "series".equals(tipo);
+                    imdb = imdbDoTitulo(serie ? "tv" : "movie", id);
+                    // A interface do aparelho ainda pede só o id (sem ?tipo=): quando a
+                    // ficha de filme não traz o código, o título é série — tenta a de série.
+                    if (tipo.isEmpty() && !imdb.matches("tt\\d{5,10}")) imdb = imdbDoTitulo("tv", id);
                 }
             }
             JSONArray lista = new JSONArray();
@@ -764,6 +865,147 @@ public final class MainActivity extends Activity {
     }
 
     @SuppressLint("SetJavaScriptEnabled")
+    // Apenas páginas públicas dos dois conectores; não é um proxy de destinos livres.
+    // Anime tem uma rota própria; nenhum pedido comum de filme/série muda de fornecedor.
+    private WebResourceResponse animePlayer(Uri uri) {
+        AnimeSource.Request pedido = AnimeSource.request(uri.getQueryParameter("tipo"), uri.getQueryParameter("id"),
+            uri.getQueryParameter("temporada"), uri.getQueryParameter("episodio"), uri.getQueryParameter("audio"));
+        if (pedido == null) return error(400);
+        AnimeSource.Clock relogio = () -> SystemClock.elapsedRealtime();
+        AnimeSource.Catalog catalogo = new AnimeSource.Catalog() {
+            @Override public AnimeSource.Title title(int id, long prazo) throws Exception {
+                JSONObject dados = lerAnimeJson("https://api.themoviedb.org/3/tv/" + id + "?api_key=" + Uri.encode(chaveTmdb()) + "&language=pt-BR", prazo);
+                if (dados == null || dados.optInt("id", -1) != id) return null;
+                boolean animacao = false;
+                JSONArray generos = dados.optJSONArray("genres");
+                for (int i = 0; generos != null && i < generos.length(); i++) {
+                    JSONObject genero = generos.optJSONObject(i);
+                    if (genero != null && genero.optInt("id", -1) == 16) animacao = true;
+                }
+                java.util.Set<String> paises = new java.util.HashSet<>();
+                JSONArray origem = dados.optJSONArray("origin_country");
+                for (int i = 0; origem != null && i < origem.length(); i++) paises.add(origem.optString(i));
+                return new AnimeSource.Title(id, animacao, paises, dados.optString("original_language", ""));
+            }
+            @Override public int[] episodes(int id, int temporada, long prazo) throws Exception {
+                JSONObject dados = lerAnimeJson("https://api.themoviedb.org/3/tv/" + id + "/season/" + temporada + "?api_key=" + Uri.encode(chaveTmdb()), prazo);
+                if (dados == null || dados.optInt("season_number", -1) != temporada) return null;
+                JSONArray episodios = dados.optJSONArray("episodes");
+                if (episodios == null || episodios.length() > 2000) return null;
+                int[] numeros = new int[episodios.length()];
+                for (int i = 0; i < numeros.length; i++) {
+                    JSONObject episodio = episodios.optJSONObject(i);
+                    numeros[i] = episodio == null || episodio.optInt("season_number", -1) != temporada ? -1 : episodio.optInt("episode_number", -1);
+                }
+                return numeros;
+            }
+        };
+        AnimeSource.Player fornecedor = (id, temporada, episodio, prazo) -> {
+            JSONObject dados = lerAnimeJson(AnimeSource.api(id, temporada, episodio), prazo);
+            return dados != null && dados.optBoolean("success", false) ? dados.optString("videoUrl", "") : null;
+        };
+        AnimeSource.Result fonte = AnimeSource.resolve(pedido, catalogo, fornecedor, relogio);
+        if (fonte == null) return respostaTexto("application/json", "{\"ok\":false}");
+        try {
+            JSONObject dados = new JSONObject();
+            dados.put("ok", true); dados.put("tipo", "embed"); dados.put("type", "embed"); dados.put("embed", true);
+            dados.put("url", fonte.url); dados.put("source", "Meus Animes · legendado"); dados.put("nome", "Meus Animes · legendado");
+            dados.put("supplierId", AnimeSource.SUPPLIER_ID); dados.put("fonteId", AnimeSource.SUPPLIER_ID);
+            dados.put("audio", "original"); dados.put("legendado", true); dados.put("legenda", "pt-BR");
+            dados.put("legendaPortugues", true); dados.put("legendaEmbutida", true); dados.put("anime", true);
+            dados.put("pagina", fonte.page);
+            JSONObject episodio = new JSONObject(); episodio.put("season", fonte.season); episodio.put("number", fonte.episode);
+            dados.put("episode", episodio);
+            // A preparação do iframe não comprova primeira imagem nem informa resolução.
+            return respostaTexto("application/json", dados.toString());
+        } catch (Exception falha) { return respostaTexto("application/json", "{\"ok\":false}"); }
+    }
+
+    private JSONObject lerAnimeJson(String endereco, long prazo) throws Exception {
+        HttpsURLConnection conexao = null;
+        try {
+            long restante = prazo - SystemClock.elapsedRealtime();
+            if (restante <= 0) return null;
+            URL destino = new URL(endereco);
+            if (!"https".equals(destino.getProtocol()) || destino.getUserInfo() != null ||
+                !("api.themoviedb.org".equals(destino.getHost()) || "serv01.meusdoramas.club".equals(destino.getHost()))) return null;
+            conexao = (HttpsURLConnection) destino.openConnection();
+            conexao.setConnectTimeout((int) Math.min(restante, 6000)); conexao.setReadTimeout((int) Math.min(restante, 6000));
+            conexao.setInstanceFollowRedirects(false);
+            conexao.setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Mobile Safari/537.36");
+            conexao.setRequestProperty("Accept", "application/json");
+            if ("serv01.meusdoramas.club".equals(destino.getHost())) conexao.setRequestProperty("Referer", "https://serv01.meusdoramas.club/");
+            conexao.connect();
+            restante = prazo - SystemClock.elapsedRealtime();
+            if (restante <= 0) return null;
+            conexao.setReadTimeout((int) Math.min(restante, 6000));
+            if (conexao.getResponseCode() != 200 || SystemClock.elapsedRealtime() >= prazo) return null;
+            try (InputStream entrada = conexao.getInputStream(); ByteArrayOutputStream bytes = new ByteArrayOutputStream()) {
+                byte[] bloco = new byte[8192]; int lidos;
+                while (true) {
+                    restante = prazo - SystemClock.elapsedRealtime();
+                    if (restante <= 0) return null;
+                    conexao.setReadTimeout((int) Math.min(restante, 6000));
+                    lidos = entrada.read(bloco);
+                    if (lidos == -1) break;
+                    int limite = "serv01.meusdoramas.club".equals(destino.getHost()) ? 32768 : 1048576;
+                    if (SystemClock.elapsedRealtime() >= prazo || bytes.size() + lidos > limite) return null;
+                    bytes.write(bloco, 0, lidos);
+                }
+                return new JSONObject(new String(bytes.toByteArray(), StandardCharsets.UTF_8));
+            }
+        } finally { if (conexao != null) conexao.disconnect(); }
+    }
+
+    private WebResourceResponse mininovelaPagina(Uri uri) { return mininovelaPagina(uri, 0); }
+    private WebResourceResponse mininovelaPagina(Uri uri, int salto) {
+        String alvo = uri.getQueryParameter("url");
+        if (alvo == null || alvo.length() > 1000) return error(400);
+        Uri destino = Uri.parse(alvo);
+        String host = destino.getHost(), caminho = destino.getEncodedPath();
+        boolean reel = "www.reelshort.com".equals(host) && caminho != null && caminho.matches("/(pt/?|(pt/)?(episodes/([a-z0-9-]|%[a-fA-F0-9]{2})+|full-episodes/([a-z0-9-]|%[a-fA-F0-9]{2})+(/[1-9][0-9]?)?))");
+        boolean box = "www.dramaboxdb.com".equals(host) && caminho != null && caminho.matches("/(pt/?|(pt/)?movie/[0-9]{1,20}/[a-z0-9-]+)");
+        boolean net = "netshort.com".equals(host) && caminho != null && caminho.matches("/(pt/?|(pt/)?episode/[a-z0-9-]+)");
+        boolean dora = "doraminhatv.com.br".equals(host) && caminho != null && destino.getQuery() == null && caminho.matches("/((serie/[a-z0-9-]+-rs[a-f0-9]{24})?)");
+        boolean doraApi = false;
+        if ("doraminhatv.com.br".equals(host) && "/api/hoshiyomi".equals(caminho)) {
+            java.util.Set<String> nomes = destino.getQueryParameterNames();
+            String tipo = destino.getQueryParameter("p"), livro = destino.getQueryParameter("id"), numero = destino.getQueryParameter("ep");
+            boolean parametros = destino.getEncodedQuery() != null && destino.getEncodedQuery().split("&", -1).length == nomes.size();
+            for (String nome : nomes) if (!java.util.Arrays.asList("p","lang","id","ep").contains(nome)) parametros = false;
+            doraApi = parametros && "pt".equals(destino.getQueryParameter("lang")) && livro != null && livro.matches("[a-f0-9]{24}")
+                && (("reelshort/detail".equals(tipo) && nomes.size() == 3) || ("reelshort/episode".equals(tipo) && nomes.size() == 4 && numero != null && numero.matches("[1-9][0-9]{0,3}")));
+        }
+        if (!"https".equals(destino.getScheme()) || destino.getPort() != -1 || destino.getUserInfo() != null || (destino.getQuery() != null && !doraApi) || destino.getFragment() != null || !(reel || box || net || dora || doraApi)) return error(400);
+        HttpsURLConnection conexao = null;
+        try {
+            conexao = (HttpsURLConnection) new URL(alvo).openConnection();
+            conexao.setConnectTimeout(15000); conexao.setReadTimeout((dora || doraApi) ? 50000 : 15000);
+            if (dora || doraApi) conexao.setRequestProperty("Referer", "https://doraminhatv.com.br/");
+            conexao.setInstanceFollowRedirects(false);
+            conexao.setRequestProperty("User-Agent", "Mozilla/5.0");
+            int status = conexao.getResponseCode();
+            if (status == 301 || status == 302 || status == 307 || status == 308) {
+                String location = conexao.getHeaderField("Location");
+                if (salto >= 2 || location == null) return error(502);
+                String proxima = new URL(new URL(alvo), location).toString();
+                return mininovelaPagina(uri.buildUpon().clearQuery().appendQueryParameter("url", proxima).build(), salto + 1);
+            }
+            if (status != 200) return error(502);
+            byte[] corpo;
+            try (InputStream entrada = conexao.getInputStream(); ByteArrayOutputStream saida = new ByteArrayOutputStream()) {
+                byte[] bloco = new byte[8192]; int n;
+                while ((n = entrada.read(bloco)) != -1) {
+                    if (saida.size() + n > 3000000) return error(502);
+                    saida.write(bloco, 0, n);
+                }
+                corpo = saida.toByteArray();
+            }
+            return new WebResourceResponse("text/plain", "UTF-8", 200, "OK", Collections.singletonMap("Cache-Control", "no-store"), new ByteArrayInputStream(corpo));
+        } catch (Exception erro) { return error(502); }
+        finally { if (conexao != null) conexao.disconnect(); }
+    }
+
     private WebView createWebView(boolean trusted) {
         WebView web = new WebView(this);
         web.setBackgroundColor(Color.BLACK);
@@ -817,38 +1059,53 @@ public final class MainActivity extends Activity {
                 }
                 if (!trusted || !local(uri) || !"GET".equals(request.getMethod())) return error(403);
                 String path = uri.getPath();
+                if ("/api/anime-player".equals(path)) return animePlayer(uri);
+                if ("/api/mininovelas/pagina".equals(path)) return mininovelaPagina(uri);
+                if ("/api/relato-nativo".equals(path)) {
+                    // Header não simples impede que uma página externa acione a rota
+                    // por imagem ou fetch sem preflight; só a interface local o envia.
+                    boolean autorizado = false;
+                    for (java.util.Map.Entry<String, String> item : request.getRequestHeaders().entrySet()) {
+                        if ("X-Conecta-Relato".equalsIgnoreCase(item.getKey()) && "1".equals(item.getValue())) autorizado = true;
+                    }
+                    if (!autorizado) return error(403);
+                    return relatoNativo(uri);
+                }
                 if (path != null && path.matches("/api/playback/[0-9]{1,10}")) {
                     String id = path.substring("/api/playback/".length());
+                    java.util.Set<String> exceto = PlaybackSources.exclusions(uri.getQueryParameter("exceto"));
                     // Dublado CONFERIDO primeiro: o arquivo do PipocaCine tem a
                     // faixa em português marcada como padrão. A WatchPlay apenas
                     // "avisa" que é dublada e em alguns títulos entrega o idioma
                     // original (caso do "A Luta pela Esperança", medido em
                     // 08/10/2026 por transcrição do áudio) — por isso vem depois.
-                    WebResourceResponse dublado = pipocaFilme(id);
+                    WebResourceResponse dublado = exceto.contains("pipoca") ? null : pipocaFilme(id);
                     if (dublado != null && dublado.getStatusCode() == 200) return dublado;
-                    WebResourceResponse principal = directPlayback("https://v2.watchplay.shop/movie/" + id);
+                    WebResourceResponse principal = exceto.contains("watchplay") ? null : directPlayback("https://v2.watchplay.shop/movie/" + id);
                     if (principal != null && principal.getStatusCode() == 200) return principal;
                     // A MGEB fica por último entre as dubladas: o catálogo dela é
                     // "latino" e em alguns títulos entrega outro idioma.
-                    WebResourceResponse mgeb = mgebFilme(id);
+                    WebResourceResponse mgeb = exceto.contains("mgeb") ? null : mgebFilme(id);
                     if (mgeb != null && mgeb.getStatusCode() == 200) return mgeb;
                     // Fichas de fonte descobertas pelo caçador (fornecedores novos).
-                    WebResourceResponse ficha = perfilPlayback("movie", id, null, null);
+                    WebResourceResponse ficha = perfilPlayback("movie", id, null, null, exceto);
                     if (ficha != null && ficha.getStatusCode() == 200) return ficha;
                     // Nada dublado? Segunda opção da regra: alta definição
                     // limpa com legenda em português (antes o aparelho ficava
                     // sem nada e o usuário via "nenhuma fonte").
-                    return vixsrcMidia("movie", id, null, null);
+                    return exceto.contains("vixsrc") ? error(502) : vixsrcMidia("movie", id, null, null);
                 }
                 if (path != null && path.matches("/api/playback/serie/[0-9]{1,10}/[0-9]{1,3}/[1-9][0-9]{0,3}")) {
                     String[] partes = path.split("/");
-                    return directEpisode(partes[4], partes[5], partes[6]);
+                    return directEpisode(partes[4], partes[5], partes[6], PlaybackSources.exclusions(uri.getQueryParameter("exceto")));
                 }
                 // Legendas no aparelho: quando o filme toca com o áudio original,
                 // o telefone busca sozinho a legenda em português (sem cadastro).
                 if (path != null && "/api/legendas/online".equals(path)) return legendasOnline(uri);
                 // Encaminhador do vídeo (ver encaminharMidia): sem isso o CDN
                 // recusa o pedido que vem do WebView e o anime não abre.
+                if (path != null && "/api/tv/la18hd".equals(path)) return la18Playback();
+                if (path != null && "/api/futebol/agenda".equals(path)) return futebolAgenda(uri);
                 if (path != null && "/api/hls".equals(path)) return encaminharMidia(uri);
                 // Fichas de fonte (o mesmo arquivo que o computador usa): a
                 // interface lê aqui para montar as listas de canais novas.
@@ -863,15 +1120,16 @@ public final class MainActivity extends Activity {
                 }
                 String name = "/".equals(path) ? "index.html" : path.substring(1);
                 // Only the bundled public assets can be served; no arbitrary file paths.
-                if (!name.matches("(?:index\\.html|assistir\\.html|personal\\.js|library\\.js|auth\\.js|jarvis\\.js|acesso\\.js|legendas\\.js|fontes\\.json|catalog\\.js|android\\.js|config\\.json|playback\\.js|hls\\.min\\.js|vidsrc-source\\.js|listas-tv\\.js|perfis\\.json)")) return error(404);
+                if (!name.matches("(?:index\\.html|assistir\\.html|tv\\.css|personal\\.js|library\\.js|auth\\.js|jarvis\\.js|acesso\\.js|legendas\\.js|fontes\\.json|catalog\\.js|android\\.js|config\\.json|playback\\.js|reproducao-sessao\\.js|anime-player\\.js|hls\\.min\\.js|vidsrc-source\\.js|listas-tv\\.js|futebol\\.js|mininovelas\\.js|mininovelas-source\\.js|perfis\\.json)")) return error(404);
                 try {
-                    String mime = name.endsWith(".html") ? "text/html" : name.endsWith(".js") ? "text/javascript" : "application/json";
+                    String mime = name.endsWith(".html") ? "text/html" : name.endsWith(".css") ? "text/css" : name.endsWith(".js") ? "text/javascript" : "application/json";
                     return new WebResourceResponse(mime, "UTF-8", 200, "OK", Collections.singletonMap("Cache-Control", "no-store"), getAssets().open(name));
                 } catch (Exception e) { return error(404); }
             }
             @Override public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
                 Uri uri = request.getUrl();
                 if (trusted && request.isForMainFrame() && request.hasGesture() && local(uri) && "/check-updates".equals(uri.getPath())) { updater.check(true); return true; }
+                if (trusted && request.isForMainFrame() && request.hasGesture() && local(uri) && abrirFutebol(uri)) return true;
                 if (trusted && request.isForMainFrame() && fullscreenAction(uri)) return true;
                 if (trusted && request.isForMainFrame() && local(uri) && "/assistir.html".equals(uri.getPath())) setInlineFullscreen(true);
                 if (trusted && request.isForMainFrame() && local(uri) && "/index.html".equals(uri.getPath())) setInlineFullscreen(false);
@@ -885,6 +1143,7 @@ public final class MainActivity extends Activity {
             @Override public boolean shouldOverrideUrlLoading(WebView view, String url) {
                 Uri uri = Uri.parse(url);
                 if (trusted && local(uri) && "/check-updates".equals(uri.getPath())) { updater.check(true); return true; }
+                if (trusted && local(uri) && abrirFutebol(uri)) return true;
                 if (trusted && fullscreenAction(uri)) return true;
                 if (trusted && local(uri) && "/assistir.html".equals(uri.getPath())) setInlineFullscreen(true);
                 if (trusted && local(uri) && "/remote-pointer".equals(uri.getPath())) { setPointerMode(!pointerMode); return true; }
@@ -1029,7 +1288,14 @@ public final class MainActivity extends Activity {
     private void back() {
         if (pointerMode) { setPointerMode(false); return; }
         if (fullscreen != null) { exitFullscreen(); return; }
-        if (inlineFullscreen) { setInlineFullscreen(false); return; }
+        if (inlineFullscreen) {
+            setInlineFullscreen(false);
+            if (!BuildConfig.TV && getPackageManager().hasSystemFeature(android.content.pm.PackageManager.FEATURE_TOUCHSCREEN)) {
+                // One handset Back press leaves playback and returns to the title page.
+                main.evaluateJavascript("Boolean(window.streamBack && window.streamBack())", null);
+            }
+            return;
+        }
         if (popup != null) { closePopup(); return; }
         Uri current = Uri.parse(main.getUrl() == null ? HOME : main.getUrl());
         if (local(current) && "/assistir.html".equals(current.getPath())) { main.loadUrl(HOME); return; }
@@ -1056,3 +1322,5 @@ public final class MainActivity extends Activity {
         closePopup(); exitFullscreen(); root.removeView(main); main.destroy(); super.onDestroy();
     }
 }
+
+

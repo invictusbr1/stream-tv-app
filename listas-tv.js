@@ -1,7 +1,7 @@
 // Listas de canais ao vivo do Conecta TV — o mesmo conteúdo no computador e no
 // aplicativo do celular/TV.
 //
-// As listas do projeto iptv-org são públicas, grátis e sem anúncio. O caçador
+// As listas do projeto iptv-org são públicas e gratuitas. O caçador
 // da central mede cada uma (quantos canais respondem, qualidade, velocidade) e
 // pode acrescentar listas novas sem ninguém mexer no código: elas chegam pelo
 // arquivo de fichas publicado pela central.
@@ -48,6 +48,36 @@
         return juntas.sort((a, b) => (Number(b.nota) || 0) - (Number(a.nota) || 0));
     }
 
-    root.StreamListasTv = { LISTAS, comExtras };
+
+    function textoBusca(s) { return String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase(); }
+    function gruposTv(grupo, nome, lista) {
+        const partes=String(grupo||'').split(';').map(p=>textoBusca(p.trim())).filter(p=>p&&p!=='undefined');
+        const aliases={esportes:'sports',noticias:'news',filmes:'movies',series:'series',infantil:'kids',musica:'music',documentarios:'documentary',geral:'general'};
+        if(partes.length)return [...new Set(partes.map(p=>aliases[p]||p))];
+        const fallback={esportes:'sports',noticias:'news',filmes:'movies',series:'series',infantil:'kids',animacao:'animation',musica:'music',documentarios:'documentary',ciencia:'science',cultura:'culture',comedia:'comedy',familia:'family',viagens:'travel',culinaria:'cooking',clima:'weather'};
+        if(fallback[lista])return [fallback[lista]];
+        if(/sport|esporte|futebol|xsports|espn/.test(textoBusca(nome)))return ['sports'];
+        if(/news|noticias|cnn|bandnews/.test(textoBusca(nome)))return ['news'];
+        return ['general'];
+    }
+    function parseM3u(texto, lista) {
+        const canais=[],vistos=new Set();let info='';
+        for(const raw of String(texto||'').split(/\r?\n/)) {
+            const linha=raw.trim();
+            if(/^#EXTINF/i.test(linha)){info=linha;continue;}
+            if(!linha||linha.startsWith('#'))continue;
+            if(!info)continue;
+            const meta=info;info='';let url;
+            try { url=new URL(linha);if(url.protocol!=='https:'||url.username||url.password)continue; }catch{continue;}
+            if(vistos.has(url.href))continue;vistos.add(url.href);
+            const atributos={};const cab=meta.replace(/"[^"]*"/g,m=>' '.repeat(m.length));const virgula=cab.indexOf(',');
+            for(const m of meta.matchAll(/([\w-]+)="([^"]*)"/g))atributos[m[1].toLowerCase()]=m[2];
+            const nome=(virgula>=0?meta.slice(virgula+1):'Canal').replace(/\s*\[[^\]]*\]/g,'').trim().slice(0,70)||'Canal';
+            const categorias=gruposTv(atributos['group-title'],nome,lista);
+            canais.push({nome,logo:/^https:\/\//i.test(atributos['tvg-logo']||'')?atributos['tvg-logo']:'',grupo:categorias.join(';'),categorias,url:url.href,lista});
+        }
+        return canais;
+    }
+    root.StreamListasTv = { LISTAS, comExtras, parseM3u, gruposTv, textoBusca };
     if (typeof module !== 'undefined' && module.exports) module.exports = root.StreamListasTv;
 })(typeof globalThis !== 'undefined' ? globalThis : this);

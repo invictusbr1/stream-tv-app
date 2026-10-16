@@ -29,21 +29,8 @@ async function canais(idLista) {
     if (guardado && guardado.expira > Date.now()) return guardado.canais;
 
     const resposta = await axios.get(lista.url, { headers: { 'User-Agent': UA }, timeout: 30000, responseType: 'text', maxContentLength: 16 * 1024 * 1024 });
-    const linhas = String(resposta.data || '').split('\n').map(l => l.trim());
-    const canais = [];
-    for (let i = 0; i < linhas.length; i++) {
-        if (!/^#EXTINF/i.test(linhas[i])) continue;
-        const endereco = linhas[i + 1];
-        if (!endereco || endereco.startsWith('#')) continue;
-        if (!/^https:\/\//i.test(endereco)) continue;
-        const nome = ((linhas[i].match(/,(.*)$/) || [])[1] || 'Canal').replace(/\s*\[[^\]]*\]/g, '').trim().slice(0, 70);
-        const logo = (linhas[i].match(/tvg-logo="([^"]*)"/i) || [])[1] || '';
-        const grupo = (linhas[i].match(/group-title="([^"]*)"/i) || [])[1] || '';
-        // Libera o servidor de vídeo no encaminhamento do aplicativo (usado
-        // quando o provedor não deixa o navegador falar direto com ele).
-        try { midia.liberarHost(new URL(endereco).hostname); } catch { /* endereço inválido */ }
-        canais.push({ nome, logo: /^https:\/\//i.test(logo) ? logo : '', grupo: grupo.slice(0, 40), url: endereco, lista: lista.id });
-    }
+    const canais = listasCompartilhadas.parseM3u(resposta.data, lista.id);
+    for (const canal of canais) midia.liberarHost(new URL(canal.url).hostname);
     cache.set(lista.id, { canais, expira: Date.now() + VALIDADE });
     return canais;
 }

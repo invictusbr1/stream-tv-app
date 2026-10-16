@@ -1,0 +1,7 @@
+(function(root){'use strict';
+ function endpoint(value){var u=new URL(String(value).trim());if(u.username||u.password||u.search||u.hash||u.pathname!=='/')throw Error('Use apenas o endereço base do Conecta TV.');var lan=/^(192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+)$/.test(u.hostname);if(u.protocol!=='https:'&&!(u.protocol==='http:'&&lan))throw Error('Use HTTPS ou o endereço da rede de casa.');return u.origin;}
+ function queue(storage){var key='conecta-samsung-eventos-v1',items=[];try{items=JSON.parse(storage.getItem(key)||'[]');if(!Array.isArray(items))items=[];}catch(e){}items=items.slice(-100);var dropped=0;
+ function save(){storage.setItem(key,JSON.stringify(items));}
+ return {add:function(event){var copy=JSON.parse(JSON.stringify(event));copy.eventoId=Date.now().toString(36)+'-'+Math.random().toString(36).slice(2);copy.em=new Date().toISOString();if(items.length>=100){items.shift();dropped++;}items.push(copy);save();return copy;},count:function(){return items.length;},dropped:function(){return dropped;},flush:function(send){var batch=items.slice();return batch.reduce(function(p,item){return p.then(function(){return send(item).then(function(confirmed){if(!confirmed)throw Error('A central ainda não confirmou o relato.');items=items.filter(function(e){return e.eventoId!==item.eventoId;});save();});});},Promise.resolve());}};}
+ var api={endpoint:endpoint,queue:queue};if(typeof module!=='undefined')module.exports=api;else root.SamsungCore=api;
+})(this);

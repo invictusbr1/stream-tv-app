@@ -105,7 +105,127 @@ test('a mesma fonte guarda filme e série na mesma ficha', () => {
 test('validação exige dois títulos abrindo de verdade', async () => {
     const ficha = { id: 'x', nome: 'X', urlMovie: 'https://site.test/f/{id}', passos: [{ tipo: 'texto' }] };
     const buscar = async () => 'https://cdn.exemplo.test/v.m3u8';
-    // sondagemRapida vai bater na rede e falhar aqui: sem dois "abriu", reprova.
-    const resultado = await perfis.validar(ficha, [{ id: '1', titulo: 'Um', tipo: 'movie' }, { id: '2', titulo: 'Dois', tipo: 'movie' }], { buscar });
+    const resultado = await perfis.validar(ficha, [{ id: '1', titulo: 'Um', tipo: 'movie' }, { id: '2', titulo: 'Dois', tipo: 'movie' }], { buscar, sondar: async () => ({ viva: false }) });
     assert.equal(resultado.aprovada, false);
+});
+
+const FICHA_VALIDACAO = { id: 'teste-validacao', nome: 'Teste', ativo: false, urlMovie: 'https://site.test/f/{id}', passos: [{ tipo: 'texto' }] };
+const AMOSTRAS_VALIDACAO = [{ id: '101', titulo: 'Um', tipo: 'movie' }, { id: '202', titulo: 'Dois', tipo: 'movie' }];
+const buscarValidacao = async endereco => 'https://cdn.test/' + new URL(endereco).pathname.split('/').pop() + '.m3u8';
+
+test('ficha nova exige duas provas em HD e português e anuncia a qualidade comum', async () => {
+    const resultado = await perfis.validar(FICHA_VALIDACAO, AMOSTRAS_VALIDACAO, {
+        buscar: buscarValidacao,
+        sondar: async url => ({ viva: true, altura: url.includes('/101.') ? 1080 : 720, dublado: true, evidencia: 'faixa padrão em português' }),
+    });
+    assert.equal(resultado.aprovada, true);
+    assert.equal(resultado.ajustes.ativo, true);
+    assert.equal(resultado.ajustes.dublado, true);
+    assert.equal(resultado.ajustes.qualidade, '720p');
+});
+
+test('vídeo vivo em baixa definição não ativa uma ficha', async () => {
+    const resultado = await perfis.validar(FICHA_VALIDACAO, AMOSTRAS_VALIDACAO, {
+        buscar: buscarValidacao, sondar: async () => ({ viva: true, altura: 360, dublado: true }),
+    });
+    assert.equal(resultado.aprovada, false);
+    assert.equal(resultado.emAnalise, true);
+    assert.equal(resultado.ajustes.ativo, false);
+});
+
+test('idioma original ou desconhecido não passa por causa da declaração da ficha', async () => {
+    for (const dublado of [false, null, undefined]) {
+        const resultado = await perfis.validar({ ...FICHA_VALIDACAO, dublado: true, qualidade: '1080p' }, AMOSTRAS_VALIDACAO, {
+            buscar: buscarValidacao, sondar: async () => ({ viva: true, altura: 1080, dublado }),
+        });
+        assert.equal(resultado.aprovada, false);
+        assert.equal(resultado.emAnalise, true);
+    }
+});
+
+test('duas repetições do mesmo título não são duas provas independentes', async () => {
+    let sondagens = 0;
+    const resultado = await perfis.validar(FICHA_VALIDACAO, [AMOSTRAS_VALIDACAO[0], { ...AMOSTRAS_VALIDACAO[0], titulo: 'Nome alternativo' }], {
+        buscar: buscarValidacao, sondar: async () => { sondagens++; return { viva: true, altura: 1080, dublado: true }; },
+    });
+    assert.equal(resultado.aprovada, false);
+    assert.equal(sondagens, 1);
+});
+
+test('dois títulos que entregam a mesma prévia não comprovam o catálogo', async () => {
+    const resultado = await perfis.validar(FICHA_VALIDACAO, AMOSTRAS_VALIDACAO, {
+        buscar: async () => 'https://cdn.test/previa.m3u8', sondar: async () => ({ viva: true, altura: 1080, dublado: true }),
+    });
+    assert.equal(resultado.aprovada, false);
+    assert.match(resultado.provas[1].motivo, /mesmo vídeo/);
+});
+
+test('outra amostra em áudio original impede a aprovação dublada', async () => {
+    const resultado = await perfis.validar(FICHA_VALIDACAO, [...AMOSTRAS_VALIDACAO, { id: '303', titulo: 'Três' }], {
+        buscar: buscarValidacao, sondar: async url => ({ viva: true, altura: 1080, dublado: !url.includes('/303.') }),
+    });
+    assert.equal(resultado.aprovada, false);
+    assert.equal(resultado.provas.filter(p => p.atendePadrao).length, 2);
+});
+
+test('metadados incompletos preservam a ficha ativa e sua receita validada', () => {
+    const pasta = fs.mkdtempSync(path.join(os.tmpdir(), 'perfis-preservar-'));
+    try {
+        const anterior = { ...FICHA_VALIDACAO, ativo: true, dublado: true, nota: 8, qualidade: '1080p', tipos: ['movie'], referer: 'https://site.test/', passos: [{ tipo: 'texto' }] };
+        perfis.registrarFicha(pasta, anterior);
+        for (let i = 0; i < 4; i++) {
+            const resultado = perfis.registrarFicha(pasta, { ...anterior, ativo: false, dublado: false, nota: 0, qualidade: '360p', urlMovie: 'https://outro.test/f/{id}', passos: [{ tipo: 'endereco', url: 'https://outro.test/previa.m3u8' }] }, {
+                aprovada: false, emAnalise: true, ajustes: { ativo: false }, provas: [{ ok: true, altura: 360, dublado: null }],
+            });
+            assert.equal(resultado.ativo, true);
+            assert.equal(resultado.urlMovie, anterior.urlMovie);
+            assert.deepEqual(resultado.passos, anterior.passos);
+            assert.equal(resultado.qualidade, '1080p');
+            assert.equal(resultado.dublado, true);
+            assert.equal(resultado.falhasDeValidacao, 0);
+        }
+    } finally { fs.rmSync(pasta, { recursive: true, force: true }); }
+});
+
+test('indisponibilidade repetida mantém o castigo existente de três falhas', () => {
+    const pasta = fs.mkdtempSync(path.join(os.tmpdir(), 'perfis-castigo-'));
+    try {
+        const anterior = { ...FICHA_VALIDACAO, ativo: true, dublado: true, nota: 8, qualidade: '1080p' };
+        perfis.registrarFicha(pasta, anterior);
+        for (let i = 1; i <= 3; i++) {
+            const resultado = perfis.registrarFicha(pasta, { ...anterior, ativo: false }, { aprovada: false, emAnalise: false, ajustes: { ativo: false }, provas: [{ ok: false }] });
+            assert.equal(resultado.ativo, i < 3);
+            assert.equal(resultado.falhasDeValidacao, i);
+        }
+    } finally { fs.rmSync(pasta, { recursive: true, force: true }); }
+});
+
+test('falha ao substituir o JSON preserva os dados anteriores e limpa o temporário', t => {
+    const pasta = fs.mkdtempSync(path.join(os.tmpdir(), 'perfis-atomico-'));
+    try {
+        assert.equal(perfis.gravar(pasta, { perfis: [{ id: 'anterior', ativo: true }] }), true);
+        const destino = perfis.arquivo(pasta);
+        const antes = fs.readFileSync(destino, 'utf8');
+        t.mock.method(fs, 'renameSync', () => { throw new Error('falha de disco simulada'); });
+        assert.equal(perfis.gravar(pasta, { perfis: [{ id: 'novo', ativo: true }] }), false);
+        assert.equal(fs.readFileSync(destino, 'utf8'), antes);
+        assert.deepEqual(fs.readdirSync(pasta), ['perfis.json']);
+    } finally { t.mock.restoreAll(); fs.rmSync(pasta, { recursive: true, force: true }); }
+});
+
+test('publicação envia a suspensão e preserva receitas ativas sem publicar receita rejeitada', async () => {
+    const pasta = fs.mkdtempSync(path.join(os.tmpdir(), 'perfis-publicar-'));
+    try {
+        perfis.gravar(pasta, { perfis: [{ ...FICHA_VALIDACAO, id: 'ativa', ativo: true }, { ...FICHA_VALIDACAO, id: 'suspensa', ativo: false }] });
+        let publicado;
+        const api = {
+            get: async () => ({ data: { sha: 'anterior' } }),
+            put: async (_url, corpo) => { publicado = JSON.parse(Buffer.from(corpo.content, 'base64').toString('utf8')); assert.equal(corpo.sha, 'anterior'); },
+        };
+        const resultado = await perfis.publicar(pasta, 'token-de-teste', { api });
+        assert.equal(resultado.ok, true);
+        assert.equal(resultado.perfis, 1);
+        assert.equal(publicado.perfis.find(p => p.id === 'ativa').urlMovie, FICHA_VALIDACAO.urlMovie);
+        assert.deepEqual(publicado.perfis.find(p => p.id === 'suspensa'), { id: 'suspensa', ativo: false });
+    } finally { fs.rmSync(pasta, { recursive: true, force: true }); }
 });

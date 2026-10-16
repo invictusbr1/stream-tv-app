@@ -46,3 +46,14 @@ android/app/src/main/assets/assistir.html
 android/app/src/main/assets/catalog.js
 # Pasta legada mantida só no computador
 stream-tv/
+.oracle-atualizacao-pausada
+
+# Arquivos de backup locais (nunca publicar)
+*.bak
+*.bak-*
+*.antes-da-correcao-audio.bak
+
+# Atalhos do Windows e relatorios gerados pelo proprio app
+*.lnk
+relatorios/vigia-fontes.json
+*.pdf

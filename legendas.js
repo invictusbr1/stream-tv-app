@@ -26,9 +26,11 @@
         } catch { return []; }
     }
 
-    async function buscarOnline(id, titulo) {
+    async function buscarOnline(id, titulo, tipo) {
         try {
-            const resposta = await fetch(`/api/legendas/online?id=${encodeURIComponent(id || '')}&filme=${encodeURIComponent(titulo || '')}`, { cache: 'no-store' });
+            // O tipo (tv/movie) decide a ficha do TMDB: sem ele o IMDb da série não é achado.
+            const endereco = `/api/legendas/online?id=${encodeURIComponent(id || '')}&tipo=${encodeURIComponent(tipo || '')}&filme=${encodeURIComponent(titulo || '')}`;
+            const resposta = await fetch(endereco, { cache: 'no-store' });
             if (!resposta.ok) return [];
             const dados = await resposta.json();
             return Array.isArray(dados.encontradas)
@@ -37,15 +39,15 @@
         } catch { return []; }
     }
 
-    async function buscar(id, titulo) {
+    async function buscar(id, titulo, tipo) {
         const locais = await buscarLocal(id, titulo);
         if (locais.length) return locais;
-        return buscarOnline(id, titulo);
+        return buscarOnline(id, titulo, tipo);
     }
 
     async function anexar(video, filme) {
         if (!video || !filme) return 0;
-        const arquivos = await buscar(filme.id, filme.titulo);
+        const arquivos = await buscar(filme.id, filme.titulo, filme.tipo);
         let anexadas = 0;
         for (const item of arquivos.slice(0, 3)) {
             try {

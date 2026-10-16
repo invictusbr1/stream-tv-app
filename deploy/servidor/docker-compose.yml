@@ -19,15 +19,19 @@ services:
       TZ: ${TZ:-America/Sao_Paulo}
       ACESSO_CODIGO: ${ACESSO_CODIGO:?defina ACESSO_CODIGO no .env}
       CENTRAL_URL: http://central:4100
-      CENTRAL_TOKEN: ${CENTRAL_TOKEN:-}
+      CENTRAL_TOKEN: ${CENTRAL_TOKEN:?defina CENTRAL_TOKEN no .env}
       ORIGENS_PERMITIDAS: ${ORIGENS_PERMITIDAS:-}
       GROQ_API_KEY: ${GROQ_API_KEY:-}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       SUPABASE_URL: ${SUPABASE_URL:-}
       SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY:-}
       DADOS_DIR: /dados
+      CENTRAL_IDIOMAS: /app/central/dados/idiomas.json
     volumes:
       - dados-app:/dados
+      - dados-central:/app/central/dados:ro
+      - saude-app:/app/relatorios
+      - perfis-app:/root/.conecta-tv
     ports:
       - "3000:3000"
     healthcheck:
@@ -46,12 +50,19 @@ services:
       PORT: "4100"
       TZ: ${TZ:-America/Sao_Paulo}
       CENTRAL_KEY: ${CENTRAL_KEY:?defina CENTRAL_KEY no .env}
-      CENTRAL_TOKEN: ${CENTRAL_TOKEN:-}
+      CENTRAL_TOKEN: ${CENTRAL_TOKEN:?defina CENTRAL_TOKEN no .env}
       CENTRAL_DADOS: /dados
+      APP_URL: http://app:3000
+      APP_ACESSO_CODIGO: ${ACESSO_CODIGO:?defina ACESSO_CODIGO no .env}
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
     volumes:
       - dados-central:/dados
+      - saude-central:/app/relatorios
+      - perfis-central:/home/node/.conecta-tv
+    shm_size: 512mb
     ports:
-      - "4100:4100"
+      # Painel administrativo acessível por túnel SSH ou proxy HTTPS.
+      - "127.0.0.1:4100:4100"
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4100/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 30s
@@ -61,3 +72,7 @@ services:
 volumes:
   dados-app:
   dados-central:
+  saude-app:
+  saude-central:
+  perfis-app:
+  perfis-central:

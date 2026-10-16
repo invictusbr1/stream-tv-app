@@ -100,23 +100,62 @@ function notaDaFonte(medida) {
 
     // 1) Idiomas — a regra número um. Vale a MELHOR prova disponível:
     //    ouvir da central > faixa padrão do arquivo > faixa existir > aviso da fonte.
-    if (idiomaVerificado === 'outro') { nota -= 6; detalhes.idioma = 'a central ouviu outro idioma'; }
+    if (idiomaVerificado === 'outro') {
+        // A central OUVIU outro idioma: prova definitiva de que NÃO é dublado.
+        // A punição precisa ser grande o bastante para perder de qualquer fonte
+        // ainda não medida — que pode muito bem ser dublada. Com -6, o Matrix
+        // (WatchPlay em inglês) ainda ganhava de uma fonte não medida e tocava
+        // em inglês. Só entra se não houver mais nada.
+        nota -= 50;
+        detalhes.idioma = 'a central ouviu outro idioma — só entra se não houver mais nada';
+        detalhes.audioEmOutroIdioma = true;
+    }
     else if (idiomaVerificado === 'pt') { nota += 3; detalhes.idioma = 'português confirmado pela central'; }
     else if (sonda && sonda.padraoPortugues) { nota += 2.5; detalhes.idioma = 'faixa em português é a padrão do arquivo'; }
     else if (sonda && sonda.portuguesa) { nota += 2.2; detalhes.idioma = 'o arquivo tem faixa em português'; }
     else if (sonda && sonda.audios && sonda.audios.some(a => /^pt|por/.test(a.lang || ''))) { nota += 2.2; detalhes.idioma = 'lista com faixa em português'; }
-    else if (dados.audio === 'pt-BR') { nota += 2; detalhes.idioma = 'a fonte informa dublado'; }
+    // A fonte DECLARAR "pt-BR" não é prova: o avaliador de um fornecedor conhecido
+    // informa dublado e entrega áudio original. A declaração só vale quando a
+    // medição/lista confirma que existe faixa em português no arquivo. Sem essa
+    // checagem, a fonte que mente ganhava +2 de vantagem sobre a que diz
+    // honestamente "som original" — e vencia a disputa sem ter dublado.
+    else if (dados.audio === 'pt-BR') {
+        const listaTemPortugues = Boolean(sonda && (
+            sonda.padraoPortugues || sonda.portuguesa ||
+            (sonda.audios && sonda.audios.some(a => /^pt|por/.test(a.lang || '')))
+        ));
+        const provaDePortugues = idiomaVerificado === 'pt' || listaTemPortugues;
+        // A lista nem sempre declara o idioma (o WatchPlay entrega HLS de uma faixa
+        // só). Nesse caso vale o que o PRÓPRIO FORNECEDOR declara na página — é a
+        // mesma prova que o aplicativo Android usa. Vale menos que uma faixa em
+        // português confirmada no arquivo, e menos que a central ter ouvido.
+        const fornecedorDeclaraDublado = /dublado|dual/i.test(String(dados.source || '') + ' ' + String(dados.fonte || ''));
+        if (provaDePortugues) { nota += 2; detalhes.idioma = 'a fonte informa dublado'; }
+        else if (fornecedorDeclaraDublado) {
+            nota += 1.5;
+            detalhes.idioma = 'a lista não declara o idioma; o fornecedor informa dublado';
+            detalhes.dubladoNaoConfirmado = true;
+        }
+        else {
+            detalhes.idioma = 'a fonte DIZ dublado, mas o arquivo não confirma faixa em português';
+            detalhes.dubladoNaoConfirmado = true;
+        }
+    }
     else if (dados.audio === 'original') { detalhes.idioma = 'som original (com legenda)'; }
     else { detalhes.idioma = 'idioma não informado'; }
 
     // 2) Qualidade — medida quando possível; senão, a informada pela fonte.
-    const alturaMedida = sonda && sonda.altura ? sonda.altura : 0;
+    // A reserva de conversão usa só o rótulo da fonte, ainda sem sondar o
+    // vídeo. Ela não pode transformar a promessa em uma medição.
+    const alturaMedida = sonda && !sonda.conversao && sonda.altura ? sonda.altura : 0;
     const alturaInformada = Number(String(dados.resolucao || '').replace(/\D/g, '')) || 0;
-    const altura = Math.max(alturaMedida, alturaInformada);
-    if (altura >= 1080) { nota += 2; detalhes.qualidade = altura + 'p medido'; }
-    else if (altura >= 720) { nota += 1.5; detalhes.qualidade = altura + 'p'; }
-    else if (altura >= 480) { nota += 0.6; detalhes.qualidade = altura + 'p'; }
-    else { nota += 0.4; detalhes.qualidade = 'não mediu a altura'; }
+    const altura = alturaMedida || alturaInformada;
+    const evidenciaQualidade = alturaMedida ? 'medido' : 'informado pela fonte';
+    if (altura >= 1080) nota += 2;
+    else if (altura >= 720) nota += 1.5;
+    else if (altura >= 480) nota += 0.6;
+    else nota += 0.4;
+    detalhes.qualidade = altura > 0 ? `${altura}p ${evidenciaQualidade}` : 'não mediu a altura';
 
     // 3) Taxa de bits (quando a lista informa).
     const banda = (sonda && sonda.banda) || 0;

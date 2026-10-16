@@ -50,6 +50,31 @@ test('resolve a ficha inteira buscando a página', async () => {
     assert.equal(pronto.url, 'https://cdn.exemplo.test/filme.m3u8');
     assert.equal(pronto.fonteId, 'exemplo');
     assert.equal(pronto.type, 'hls');
+    assert.equal(pronto.audio, 'pt-BR', 'a ficha dublada usa o idioma aceito pelo player compartilhado');
+    assert.equal(pronto.referer, ficha.referer);
+});
+
+test('a ficha não transforma áudio original ou sem prova em português', async () => {
+    const buscar = async () => 'file:"https://cdn.exemplo.test/filme.m3u8"';
+    const original = await perfis.resolver({ ...ficha, dublado: false }, { tipo: 'movie', tmdbId: '1' }, { buscar });
+    assert.equal(original.audio, 'original');
+    const { dublado, ...semIdioma } = ficha;
+    const desconhecida = await perfis.resolver(semIdioma, { tipo: 'movie', tmdbId: '1' }, { buscar });
+    assert.equal(desconhecida.audio, 'desconhecido');
+});
+
+test('referenciador inválido da ficha não vira cabeçalho HTTP ou base dos passos', async () => {
+    for (const referer of ['http://site.test/', 'https://localhost/', 'https://192.168.1.4/', 'https://usuario:senha@site.test/', 'https://site.test/\r\nX-Teste: valor']) {
+        const pedidos = [];
+        const buscar = async (url, referencia) => {
+            pedidos.push({ url, referencia });
+            return 'file:"/filme.m3u8"';
+        };
+        const pronto = await perfis.resolver({ ...ficha, referer }, { tipo: 'movie', tmdbId: '1' }, { buscar });
+        assert.deepEqual(pedidos, [{ url: 'https://exemplo.test/filme/1', referencia: '' }]);
+        assert.equal(pronto.url, 'https://exemplo.test/filme.m3u8');
+        assert.equal(pronto.referer, 'https://exemplo.test/filme/1');
+    }
 });
 
 test('segue dois passos (página → embed → vídeo)', async () => {
@@ -126,4 +151,17 @@ test('ficha com passo de endereço vai direto na chamada do site', async () => {
     const pronto = await perfis.resolver(ficha, { tipo: 'movie', tmdbId: '27205' }, { buscar });
     assert.deepEqual(pedidos, ['https://site.test/__play/27205.json'], 'pediu só a chamada interna');
     assert.equal(pronto.url, 'https://cdn.test/v.m3u8');
+});
+
+test('o molde do passo de endereço permanece intacto entre títulos e chamadas concorrentes', async () => {
+    const passo = Object.freeze({ tipo: 'endereco', url: 'https://cdn.test/{id}.m3u8' });
+    const perfil = { id: 'molde', urlMovie: 'https://site.test/filme/{id}', passos: [passo] };
+    const buscar = async () => { throw new Error('não deve baixar a página'); };
+    const primeiro = await perfis.resolver(perfil, { tipo: 'movie', tmdbId: '101' }, { buscar });
+    const segundo = await perfis.resolver(perfil, { tipo: 'movie', tmdbId: '202' }, { buscar });
+    assert.equal(primeiro.url, 'https://cdn.test/101.m3u8');
+    assert.equal(segundo.url, 'https://cdn.test/202.m3u8');
+    const concorrentes = await Promise.all(['303', '404'].map(tmdbId => perfis.resolver(perfil, { tipo: 'movie', tmdbId }, { buscar })));
+    assert.deepEqual(concorrentes.map(p => p.url), ['https://cdn.test/303.m3u8', 'https://cdn.test/404.m3u8']);
+    assert.equal(perfil.passos[0].url, 'https://cdn.test/{id}.m3u8');
 });

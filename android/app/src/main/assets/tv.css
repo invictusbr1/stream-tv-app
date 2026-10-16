@@ -1,0 +1,64 @@
+/* Layout exclusivo de TV, em pixels CSS: funciona também em boxes 960 × 540. */
+html.modo-tv { --tv-gutter: 3vw; --tv-poster: clamp(128px, 13vw, 216px); scroll-behavior: auto; }
+html.modo-tv body { font-size: clamp(14px, 1.15vw, 19px); overflow-x: hidden; padding-bottom: 0; }
+html.modo-tv *, html.modo-tv *::before, html.modo-tv *::after {
+  backdrop-filter: none !important; -webkit-backdrop-filter: none !important;
+  animation: none !important; transition: none !important; scroll-behavior: auto !important;
+}
+html.modo-tv .header { position: sticky; top: 0; display: flex; flex-wrap: wrap; gap: 10px 20px; padding: 12px var(--tv-gutter) 8px; background: #0b0d12; width: 100%; }
+html.modo-tv .brand { font-size: clamp(18px, 1.7vw, 28px); letter-spacing: 2px; }
+html.modo-tv .acoes { margin-left: auto; flex-shrink: 0; }
+html.modo-tv .nav-chips { display: flex !important; order: 3; width: 100%; gap: 8px; overflow-x: auto; padding: 4px; scrollbar-width: none; }
+html.modo-tv .nav { flex: 0 0 auto; padding: 8px 12px; font-size: clamp(13px, 1.05vw, 18px); border-radius: 6px; background: #151b25; }
+html.modo-tv .nav.ativo { background: #293242; }
+html.modo-tv .nav.ativo::after { display: none; }
+html.modo-tv .busca { display: none; order: 4; width: 100%; margin: 0; }
+html.modo-tv body.busca-aberta .busca { display: flex; }
+html.modo-tv .busca input { flex: 1; width: auto; }
+html.modo-tv .bottom-nav, html.modo-tv .menu-cat, html.modo-tv .gaveta-abrir { display: none !important; }
+html.modo-tv #hero { min-height: clamp(210px, 32vh, 360px); height: auto; align-items: center; padding: 16px var(--tv-gutter) 26px; }
+html.modo-tv .hero-content { max-width: 65%; gap: 4px; }
+html.modo-tv .hero h1 { font-size: clamp(26px, 3vw, 48px); margin: 8px 0; letter-spacing: -1px; }
+html.modo-tv .hero p { font-size: clamp(13px, 1.05vw, 18px); line-height: 1.45; margin: 8px 0; -webkit-line-clamp: 2; }
+html.modo-tv .hero-logo { max-height: clamp(48px, 9vh, 100px); max-width: 34vw; margin: 4px 0; filter: none; }
+html.modo-tv .hero .primary { margin-top: 0; padding: 10px 18px; min-height: 40px; }
+html.modo-tv .hero-actions { margin-top: 8px; }
+html.modo-tv .hero-image { opacity: .55; }
+html.modo-tv .hero-dots { justify-content: flex-end; padding-right: var(--tv-gutter); bottom: 10px; }
+html.modo-tv .hero-dots button { width: 24px; height: 20px; border-radius: 4px; }
+html.modo-tv .top-note { padding: 8px var(--tv-gutter); margin: 0; font-size: 12px; }
+html.modo-tv .top-note:empty { display: none; }
+html.modo-tv .section-head p { margin: 0; }
+html.modo-tv .catalogo, html.modo-tv #catalogo, html.modo-tv #resultados { max-width: 100%; margin: 0; padding: 0; }
+html.modo-tv .secao { padding: 0 0 20px; }
+html.modo-tv .secao > h2 { margin: 8px 0; padding: 0 var(--tv-gutter); font-size: clamp(17px, 1.4vw, 24px); }
+html.modo-tv .secao > small { display: block; padding: 0 var(--tv-gutter) 8px; }
+html.modo-tv .colecao-cabecalho, html.modo-tv .section-head { padding: 10px var(--tv-gutter); margin: 0; }
+html.modo-tv .section-head h2, html.modo-tv .colecao-cabecalho h2 { font-size: clamp(17px, 1.4vw, 24px); margin: 0; }
+html.modo-tv .poster-row { display: grid; grid-auto-flow: column; grid-auto-columns: var(--tv-poster); grid-template-columns: none; gap: 14px; overflow-x: auto; padding: 8px var(--tv-gutter) 12px; scroll-snap-type: none; }
+html.modo-tv .card, html.modo-tv #catalogo .card, html.modo-tv #resultados .card { width: 100%; min-width: 0; max-width: none; flex: initial; padding: 0; transform: none; box-shadow: none; }
+html.modo-tv .card img { width: 100%; height: auto; aspect-ratio: 2 / 3; object-fit: contain; box-shadow: none !important; filter: none !important; }
+html.modo-tv .card-titulo, html.modo-tv .card strong { font-size: clamp(13px, 1.05vw, 18px); line-height: 1.35; text-align: left; min-height: 2.7em; }
+html.modo-tv #resultados .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(var(--tv-poster), 1fr)); gap: 18px; padding: 12px var(--tv-gutter); }
+html.modo-tv button:focus, html.modo-tv a:focus, html.modo-tv input:focus, html.modo-tv select:focus, html.modo-tv [tabindex]:focus { outline: 3px solid #fff; outline-offset: 3px; }
+html.modo-tv .poster-row, html.modo-tv .card { scroll-margin-top: 115px; }
+html.modo-tv #series-dialog { width: min(1100px, 92vw) !important; max-width: 92vw !important; max-height: 88vh !important; margin: auto !important; overflow-x: hidden; font-size: inherit; }
+html.modo-tv #series-dialog .series-body { padding: 12px 20px 20px !important; }
+html.modo-tv #series-dialog .series-cover { min-height: 150px; padding: 20px; }
+html.modo-tv #series-dialog .series-heading { margin-top: 36px; }
+html.modo-tv #series-dialog .series-heading .eyebrow { display: none; }
+html.modo-tv #series-dialog .series-heading h2 { font-size: clamp(24px, 2.5vw, 36px); margin: 4px 0; }
+html.modo-tv #series-dialog .series-heading p { margin: 4px 0; }
+html.modo-tv #series-dialog .series-selos { margin-top: 6px; }
+html.modo-tv #series-dialog .series-assistir { margin-top: 8px; min-height: 38px; padding: 8px 16px; }
+html.modo-tv #series-dialog .series-filtros { margin: 8px 0; gap: 10px; }
+html.modo-tv #series-dialog #episode-status { margin: 6px 0; font-size: 12px; }
+html.modo-tv #series-dialog #episodes { grid-template-columns: minmax(0, 1fr); }
+html.modo-tv #series-dialog .episode-row .episode-art { width: clamp(100px, 12vw, 180px) !important; min-width: clamp(100px, 12vw, 180px) !important; height: auto !important; aspect-ratio: 16 / 9; }
+html.modo-tv #series-dialog .episode-row .episode-info { padding-right: 110px !important; }
+html.modo-tv #series-dialog .episode-row .episode-sinopse { margin: 8px 0 0 !important; width: auto !important; font-size: clamp(13px, 1.05vw, 18px) !important; line-height: 1.5; }
+html.modo-tv #series-dialog .episode-row .episode-check, html.modo-tv #series-dialog .episode-row .episode-baixar { width: 44px !important; height: 44px !important; font-size: 18px !important; }
+html.modo-tv #series-dialog .episode-row .episode-baixar { right: 54px !important; }
+html.modo-tv .options, html.modo-tv .menu-player, html.modo-tv .portao-card { box-shadow: none; }
+html.modo-tv .tv-grade { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); }
+html.modo-tv #player .area-player video { object-fit: contain; width: 100%; height: 100%; }

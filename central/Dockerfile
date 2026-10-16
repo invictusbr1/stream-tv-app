@@ -5,11 +5,23 @@ FROM node:22-alpine
 WORKDIR /app
 ENV NODE_ENV=production
 
+# O caçador verifica reprodução no Chromium e analisa áudio com FFmpeg.
+RUN apk add --no-cache chromium ffmpeg
+RUN printf '#!/bin/sh\nexec /usr/bin/chromium --no-sandbox --disable-dev-shm-usage "$@"\n' > /usr/local/bin/chromium-conecta && chmod 755 /usr/local/bin/chromium-conecta
+ENV CHROME_PATH=/usr/local/bin/chromium-conecta
+ENV FFMPEG_PATH=/usr/bin/ffmpeg
+ENV FFPROBE_PATH=/usr/bin/ffprobe
+
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev --no-audit --no-fund
 
-COPY seguranca.js ./
+# A central também usa os motores e adaptadores da raiz do projeto.
+COPY *.js *.json ./
 COPY central ./central
+
+# O navegador fica isolado no contêiner, sob um usuário sem privilégios.
+RUN mkdir -p /dados /app/relatorios /home/node/.conecta-tv && chown -R node:node /dados /app/relatorios /home/node/.conecta-tv
+USER node
 
 ENV PORT=4100
 EXPOSE 4100

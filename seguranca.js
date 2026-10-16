@@ -76,7 +76,9 @@ function cabecalhos(opcoes = {}) {
         if (origem) {
             let mesmaOrigem = false;
             try { mesmaOrigem = new URL(origem).host === String(req.headers.host || ''); } catch { /* origem inválida */ }
-            if (mesmaOrigem || permitidas.has(origem.replace(/\/$/, ''))) {
+            const relatoAndroid = origem === 'https://appassets.androidplatform.net'
+                && ['/api/acesso', '/api/evento', '/api/jarvis', '/api/entrar'].includes(req.path);
+            if (mesmaOrigem || relatoAndroid || permitidas.has(origem.replace(/\/$/, ''))) {
                 res.setHeader('Access-Control-Allow-Origin', origem);
                 res.setHeader('Vary', 'Origin');
                 res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');

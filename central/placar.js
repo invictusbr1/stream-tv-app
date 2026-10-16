@@ -47,7 +47,6 @@ function identificador(evento) {
 const TIPOS = new Set(['play', 'confirmacao', 'falha']);
 
 function criarPlacar({ arquivoEventos, dias = 21 } = {}) {
-    const limite = Date.now() - dias * 24 * 60 * 60 * 1000;
     let tabela = {};
     let atualizadoEm = '';
     let lidos = 0;
@@ -84,7 +83,6 @@ function criarPlacar({ arquivoEventos, dias = 21 } = {}) {
             }
         } else {
             linha.aberturas += 1;
-            linha.falhasSeguidas = 0;
             if (titulo) {
                 const alvo = linha.titulos[titulo] || (linha.titulos[titulo] = { falhas: 0, aberturas: 0 });
                 alvo.aberturas += 1;
@@ -93,6 +91,7 @@ function criarPlacar({ arquivoEventos, dias = 21 } = {}) {
     }
 
     function atualizar() {
+        const limite = Date.now() - dias * 24 * 60 * 60 * 1000;
         tabela = {};
         lidos = 0;
         let linhas = [];
@@ -104,7 +103,7 @@ function criarPlacar({ arquivoEventos, dias = 21 } = {}) {
             if (!evento || !TIPOS.has(String(evento.tipo || ''))) continue;
             const quando = String(evento.em || '');
             const em = Date.parse(quando);
-            if (Number.isFinite(em) && em < limite) continue;
+            if (!Number.isFinite(em) || em < limite || em > Date.now() + 5 * 60 * 1000) continue;
             anotar(evento, quando);
             lidos += 1;
         }

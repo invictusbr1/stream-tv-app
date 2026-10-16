@@ -1,18 +1,10 @@
-const fs=require('fs'),path=require('path'),os=require('os');
+const fs=require('fs'),path=require('path');
 const root=path.resolve(__dirname,'..'),assets=path.join(__dirname,'app/src/main/assets');
 let localConfig={};try{localConfig=JSON.parse(fs.readFileSync(path.join(root,'config.local.json'),'utf8'));}catch{}
-// A versão Android conversa com a IA direto do aparelho: a chave vai dentro do APK de uso pessoal.
-const CHAVE_JARVIS=(()=>{
-    if(process.env.GROQ_API_KEY)return process.env.GROQ_API_KEY.trim();
-    if(localConfig.groqKey)return String(localConfig.groqKey).trim();
-    for(const file of [path.join(os.homedir(),'OneDrive','Área de Trabalho','api.txt'),path.join(os.homedir(),'Desktop','api.txt')]){
-        try{const chave=fs.readFileSync(file,'utf8').match(/gsk_[A-Za-z0-9_-]{20,}/);if(chave)return chave[0];}catch{}
-    }
-    return '';
-})();
+const jarvisServer=String(process.env.JARVIS_SERVER_URL||localConfig.jarvisServer||'').trim().replace(/\/$/,'');
 let html=fs.readFileSync(path.join(root,'index.html'),'utf8').replace(/\r\n/g,'\n');
 function replace(before,after){if(!html.includes(before))throw Error('UI adapter no longer matches: '+before);html=html.replace(before,after);}
-replace("async function lerJson(url,signal){const r=await fetch(url,{signal});if(!r.ok)throw Error('Indisponível');return r.json();}","async function lerJson(url,signal){if(url.startsWith('/api/playback/')){const r=await fetch(url,{signal});if(!r.ok)throw Error('Indisponível');return r.json();}return (await androidCatalog).request(url,signal);}");
+replace("async function lerJson(url,signal){const r=await fetch(url,{signal});if(!r.ok)throw Error('Indisponível');return r.json();}","async function lerJson(url,signal){if(url.startsWith('/api/playback/')||url.startsWith('/api/anime-player?')||url==='/api/tv/la18hd'||url.startsWith('/api/futebol/agenda?')){const r=await fetch(url,{signal});if(!r.ok)throw Error('Indisponível');return r.json();}return (await androidCatalog).request(url,signal);}");
 replace('<script>\n','<script src="/listas-tv.js"></script><script src="/catalog.js"></script><script src="/android.js"></script>\n<script>\n');
 replace('<script>\n','<script src="/vidsrc-source.js"></script>\n<script>\n');
 // O link de "fonte com anúncios" saiu da interface; se algum dia voltar a
@@ -37,8 +29,15 @@ const CSS_CAPAS="\n/* capas-sem-corte: poster inteiro (sem cortar) */\n.card img
 if(!html.includes("capas-sem-corte"))html=html.replace("</style>",CSS_CAPAS+"</style>");
 const CSS_BUSCA_FINAL="\n/* busca-final: capa inteira (sem corte) e título legível nos resultados da busca */\n#resultados .card{display:block!important;grid-template-columns:1fr!important;background:transparent!important;border:0!important;padding:0!important}\n#resultados .card img,#resultados img,#resultados .capa{width:100%!important;height:auto!important;max-height:none!important;object-fit:contain!important;background:#0f131a!important;border-radius:12px!important;aspect-ratio:2/3}\n#resultados .card-titulo{display:-webkit-box!important;-webkit-line-clamp:2!important;-webkit-box-orient:vertical!important;overflow:hidden!important;white-space:normal!important;width:auto!important;min-height:2.7em;margin:9px 0 0!important;font-size:13px!important;line-height:1.35!important}\n#resultados .card-meta,#resultados .card-stream{white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important}\n#resultados .grid{gap:14px!important;padding-top:6px!important}\nhtml.modo-tv #resultados .grid{grid-template-columns:repeat(auto-fill,minmax(180px,1fr))!important;gap:22px!important}\n";
 if(!html.includes("busca-final"))html=html.replace("</style>",CSS_BUSCA_FINAL+"</style>");
+// Uma só folha de estilos de TV substitui os antigos ajustes conflitantes.
+html=html.split(/\r?\n/).filter(line=>!line.trimStart().startsWith('html.modo-tv ')).join('\n');
+html=html.replace('</head>','<link rel="stylesheet" href="/tv.css?v=2.13.53">\n</head>');
+html=require('./phone-ui.cjs').phonePage(html);
 fs.writeFileSync(path.join(assets,'index.html'),html);
 fs.copyFileSync(path.join(root,'playback.js'),path.join(assets,'playback.js'));
+fs.copyFileSync(path.join(root,'reproducao-sessao.js'),path.join(assets,'reproducao-sessao.js'));
+fs.copyFileSync(path.join(root,'futebol.js'),path.join(assets,'futebol.js'));
+for(const name of ['mininovelas.js','mininovelas-source.js'])fs.copyFileSync(path.join(root,name),path.join(assets,name));
 // As legendas do aplicativo (arquivo local e busca na internet) seguem junto
 // com o player — sem isso o celular ficava com uma versão antiga do arquivo.
 fs.copyFileSync(path.join(root,'legendas.js'),path.join(assets,'legendas.js'));
@@ -50,7 +49,7 @@ fs.writeFileSync(path.join(assets,'config.json'),JSON.stringify({
   tmdbKey:key[1],
   supabaseUrl:process.env.SUPABASE_URL||localConfig.supabaseUrl||'',
   supabaseAnonKey:process.env.SUPABASE_ANON_KEY||localConfig.supabaseAnonKey||'',
-  groqKey:CHAVE_JARVIS,
+  jarvisServer,
   // Endereço da central de status (opcional): o aplicativo do celular também
   // reporta quem entrou e o que está assistindo.
   central:String(process.env.CENTRAL_URL||localConfig.central||'').replace(/\/$/,''),
@@ -62,11 +61,21 @@ fs.writeFileSync(path.join(assets,'config.json'),JSON.stringify({
   descoberta:String(process.env.DESCOBERTA_URL||localConfig.descoberta||'https://invictusbr1.github.io/stream-tv-app/endereco.json'),
   // O selo de atualização na tela compara estes números com o aviso publicado no GitHub.
   app:'android',
+  relatosNativos:true,
   versionCode:Number((fs.readFileSync(path.join(__dirname,'app/build.gradle'),'utf8').match(/versionCode\s+(\d+)/)||[])[1]||0),
   versionName:(fs.readFileSync(path.join(__dirname,'app/build.gradle'),'utf8').match(/versionName\s+'([^']+)'/)||[])[1]||''
 }));
 console.log('Android UI synchronized.');
+const tvPath=path.join(__dirname,'app/src/tv/assets/config.json');
+if(fs.existsSync(tvPath)){
+  const tvConfig=JSON.parse(fs.readFileSync(tvPath,'utf8'));
+  const mainConfig=JSON.parse(fs.readFileSync(path.join(assets,'config.json'),'utf8'));
+  tvConfig.versionName=mainConfig.versionName;tvConfig.versionCode=mainConfig.versionCode;tvConfig.relatosNativos=true;
+  tvConfig.descoberta=mainConfig.descoberta;tvConfig.jarvisServer=mainConfig.jarvisServer;delete tvConfig.groqKey;
+  fs.writeFileSync(tvPath,JSON.stringify(tvConfig));
+}
 
+fs.copyFileSync(path.join(root,'anime-player.js'),path.join(assets,'anime-player.js'));
 fs.copyFileSync(path.join(root,'library.js'),path.join(assets,'library.js'));
 // Resolvedor de alta definição usado pelo aplicativo do celular (sem servidor).
 fs.copyFileSync(path.join(root,'vidsrc-source.js'),path.join(assets,'vidsrc-source.js'));

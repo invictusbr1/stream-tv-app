@@ -1,0 +1,17 @@
+{
+  "versionCode": 397,
+  "versionName": "2.13.67",
+  "apkUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.67/Conecta-TV-Android-2.13.67.apk",
+  "sha256": "1251e0a863064ace7d43b4ba9453a15f08f861702e11aadefd51fc8c3e96e04b",
+  "bytes": 409202,
+  "notes": "Correcao da fonte MGEB: Sobrevivencia reproduzido em teste em 720p com audio portugues confirmado. Preserva referencia do fornecedor, considera resolucao medida e melhora troca de fontes no Android. Cacador com fila persistente, limites de rede, recuperacao de dados e pausa. Mantem a interface nova do celular. 295 testes aprovados; quatro pacotes compilados e verificados. Full HD em portugues desse filme ainda nao confirmado.",
+  "exeUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.67/Conecta-TV-2.13.67.exe",
+  "exeSha256": "bb5aebaaa2db2e29fe220368d1c67753865bb03084921d99f6671ac42337ec40",
+  "exeBytes": 120386517,
+  "apkTvUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.67/Conecta-TV-TV-2.13.67.apk",
+  "apkTvSha256": "694b2e14978c6c7a75b769cc67c2069895d720d28083170e275520f8ae9b58a1",
+  "apkTvBytes": 409077,
+  "centralUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.67/Central-Conecta-TV-2.13.67.exe",
+  "centralSha256": "c6a2a5532f1f12c5634e19a600f4ff5ee7fa7f4b91cf276b8f112bfb6d8b9b86",
+  "centralBytes": 120570396
+}

@@ -106,4 +106,4 @@ async function atualizar() {
     }
 }
 
-module.exports = { perfis, listasTv, placar, gravar, atualizar, esquecer, ARQUIVO: ARQUIVO_PROJETO, ARQUIVO_USUARIO, PUBLICADO };
+module.exports = { perfis, listasTv, placar, gravar, atualizar, esquecer, juntar, ARQUIVO: ARQUIVO_PROJETO, ARQUIVO_USUARIO, PUBLICADO };

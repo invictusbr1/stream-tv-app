@@ -19,8 +19,14 @@ const axios = require('axios');
 const { execFile } = require('child_process');
 
 const PASTA = path.join(os.homedir(), '.conecta-central');
-const ARQ_FFMPEG = path.join(PASTA, 'ffmpeg.exe');
-const ARQ_FFPROBE = path.join(PASTA, 'ffprobe.exe');
+// Em Linux/contêiner os binários não têm extensão e vêm do gerenciador de
+// pacotes. Procurar só ".exe" fazia a medição de idioma falhar em silêncio no
+// servidor: sem ffprobe não há faixas de áudio, sem ffmpeg não há transcrição, e
+// aí o "audio: pt-BR" que a fonte DECLARA nunca é desmentido.
+const NOME_FFMPEG = process.platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg';
+const NOME_FFPROBE = process.platform === 'win32' ? 'ffprobe.exe' : 'ffprobe';
+const ARQ_FFMPEG = path.join(PASTA, NOME_FFMPEG);
+const ARQ_FFPROBE = path.join(PASTA, NOME_FFPROBE);
 // Espelhos do pacote oficial: o primeiro (GitHub) costuma ser bem mais rápido.
 const ZIP_URLS = [
     'https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip',
@@ -34,15 +40,37 @@ function pastaDados(central) {
 function arquivoCache(central) {
     return path.join(pastaDados(central), 'idiomas.json');
 }
-
 // ---------------------------------------------------------------- ferramentas
+// Procura o ffmpeg/ffprobe no PATH do sistema (caso do contêiner Linux, onde
+// eles vêm de `apk add ffmpeg` e ficam em /usr/bin).
+function acharNoSistema() {
+    const pastas = String(process.env.PATH || '').split(path.delimiter).filter(Boolean);
+    // Locais comuns, para quando o PATH do serviço vier reduzido.
+    pastas.push('/usr/bin', '/usr/local/bin', '/bin');
+    for (const pasta of pastas) {
+        const ffmpeg = path.join(pasta, NOME_FFMPEG);
+        if (!fs.existsSync(ffmpeg)) continue;
+        const ffprobe = path.join(pasta, NOME_FFPROBE);
+        return { ffmpeg, ffprobe: fs.existsSync(ffprobe) ? ffprobe : '' };
+    }
+    return null;
+}
+
 function acharInstalado() {
     const tentativas = [
         { ffmpeg: process.env.FFMPEG_PATH || '', ffprobe: process.env.FFPROBE_PATH || '' },
         { ffmpeg: ARQ_FFMPEG, ffprobe: ARQ_FFPROBE },
-        { ffmpeg: path.join(__dirname, 'ferramentas', 'ffmpeg.exe'), ffprobe: path.join(__dirname, 'ferramentas', 'ffprobe.exe') },
-        { ffmpeg: path.join(__dirname, '..', 'node_modules', 'ffmpeg-static', 'ffmpeg.exe'), ffprobe: '' },
-    ];
+        {
+            ffmpeg: path.join(__dirname, 'ferramentas', NOME_FFMPEG),
+            ffprobe: path.join(__dirname, 'ferramentas', NOME_FFPROBE),
+        },
+        {
+            ffmpeg: path.join(__dirname, '..', 'node_modules', 'ffmpeg-static', NOME_FFMPEG),
+            ffprobe: '',
+        },
+        // As duas de cima são o caso Windows/empacotado. Esta é a do servidor.
+        acharNoSistema(),
+    ].filter(Boolean);
     for (const opcao of tentativas) {
         if (opcao.ffmpeg && fs.existsSync(opcao.ffmpeg)) {
             const ffprobe = opcao.ffprobe && fs.existsSync(opcao.ffprobe) ? opcao.ffprobe : '';
@@ -256,19 +284,100 @@ function audioTocaNoNavegador(container, codec) {
     return /aac|mp3|ac3|eac3|opus|vorbis|flac|pcm/.test(som);
 }
 
+// O ffmpeg tem uma lista branca de extensões de pedaço em HLS e recusa `.js`
+// (o WatchPlay disfarça os pedaços assim). Ele também só aceita http/https
+// quando a lista vem de um arquivo local, e recusa `-headers` nesse caso.
+// Solução: baixar a lista, deixar cada pedaço com endereço completo e terminar
+// em `.ts`, e apontar o ffmpeg para o arquivo. Sem isso a medição dá "sem medição"
+// e a fonte dublada perde para uma conversão de áudio qualquer.
+async function playListaAceita(url, referer) {
+    const bruto = await textoDe(url, referer);
+    if (!/#EXTM3U/i.test(bruto)) return '';
+    // Lista normal (pedaços .ts/.m4s): o ffmpeg lê direto, sem cópia.
+    if (!/^[^#\s]*\.js(\?|$)/im.test(bruto)) return '';
+    const corte = url.lastIndexOf('/');
+    const base = corte > 8 ? url.slice(0, corte + 1) : '';
+    if (!base) return '';
+    const ajustar = (alvo) => {
+        const completo = /^https?:/i.test(alvo) ? alvo : base + alvo;
+        return completo.includes('?') ? completo + '&x=.ts' : completo + '?x=.ts';
+    };
+    const linhas = bruto.split('\n').map(linha => {
+        const t = linha.trim();
+        if (t.startsWith('#EXT-X-MAP:')) {
+            const achado = /URI="([^"]+)"/.exec(t);
+            return achado ? t.replace(achado[1], ajustar(achado[1])) : linha;
+        }
+        if (t && !t.startsWith('#')) return ajustar(t);
+        return linha;
+    });
+    const guardado = path.join(os.tmpdir(), `conecta-lista-${Date.now()}.m3u8`);
+    fs.writeFileSync(guardado, linhas.join('\n'));
+    return guardado;
+}
+
+// O aplicativo devolve endereços do tipo "/api/convertido/..." e, dentro do
+// contêiner da central, "127.0.0.1" é a PRÓPRIA central — não o aplicativo. Sem
+// apontar para o nome do serviço, o ffmpeg bate na porta errada e a medição
+// termina em "sem medição".
+function enderecoAlcancavel(url, referer) {
+    const bruto = String(url || '').trim();
+    if (!bruto.startsWith('/')) return bruto;
+    // `APP_URL` já vem definido pelo compose (http://app:3000).
+    const doAmbiente = String(process.env.APP_URL || process.env.CONECTA_APP_URL || '').replace(/\/+$/, '');
+    const doReferer = String(referer || '').replace(/\/+$/, '');
+    const base = doAmbiente || doReferer;
+    return /^https?:\/\//i.test(base) ? base + bruto : bruto;
+}
+
+// Cabeçalho completo para o ffmpeg: junta o Referer com os cabeçalhos que a
+// própria fonte registrou (o VidLink entrega MP4 que só abre com User-Agent e
+// Accept certos). Sem isso o ffmpeg baixa 0 byte e a medição dá "sem medição".
+function cabecalhoParaFfmpeg(url, referer) {
+    const linhas = [];
+    const visto = new Set();
+    const juntar = (nome, valor) => {
+        if (!valor || typeof valor !== 'string' || /[\r\n]/.test(valor)) return;
+        if (visto.has(nome.toLowerCase())) return;
+        visto.add(nome.toLowerCase());
+        linhas.push(`${nome}: ${valor}`);
+    };
+    juntar('Referer', referer);
+    try { juntar('Origin', new URL(referer).origin); } catch { /* sem origem */ }
+    try {
+        const registrados = require('../midia-proxy').cabecalhosDaMidia(url) || {};
+        for (const [nome, valor] of Object.entries(registrados)) juntar(nome, valor);
+    } catch { /* segue só com o Referer */ }
+    return linhas.length ? linhas.join('\r\n') + '\r\n' : '';
+}
+
 // Extrai um trecho e manda transcrever — descobre o idioma que está tocando.
 async function ouvirIdioma(url, { referer = '', inicio = 300, segundos = 20, chave = '' } = {}) {
     if (!chave) return null;
+    url = enderecoAlcancavel(url, referer);
+    if (!/^https?:\/\//i.test(url)) return null;
     const f = await garantirFerramentas();
     const arquivo = path.join(os.tmpdir(), `conecta-ouvir-${Date.now()}.webm`);
-    const { erro } = await rodar(f.ffmpeg, [
+    let listaLocal = '';
+    try { listaLocal = await playListaAceita(url, referer); } catch { listaLocal = ''; }
+    const entrada = listaLocal || url;
+    const comuns = [
         '-hide_banner', '-loglevel', 'error',
-        '-headers', cabecalho(referer),
+        // Sem a liberação, o ffmpeg recusa http/https quando lê de arquivo.
+        '-protocol_whitelist', 'file,crypto,data,http,https,tcp,tls',
+    ];
+    // `-headers` é opção do protocolo http(s): só vale quando a entrada é remota.
+    // Com a lista local os pedaços já vêm prontos; o cabeçalho é descartado.
+    const bytesCabecalho = listaLocal ? '' : cabecalhoParaFfmpeg(url, referer);
+    const cabecalhos = bytesCabecalho ? ['-headers', bytesCabecalho] : [];
+    const { erro } = await rodar(f.ffmpeg, [
+        ...comuns, ...cabecalhos,
         '-ss', String(inicio), '-t', String(segundos),
-        '-i', url,
+        '-i', entrada,
         '-vn', '-ac', '1', '-ar', '16000',
         '-f', 'webm', '-y', arquivo,
     ], 180000);
+    if (listaLocal) { try { fs.unlinkSync(listaLocal); } catch { /* já foi */ } }
     if (erro || !fs.existsSync(arquivo)) return null;
     try {
         const conteudo = fs.readFileSync(arquivo);

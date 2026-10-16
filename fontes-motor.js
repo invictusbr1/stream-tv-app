@@ -114,10 +114,25 @@ function anotarFalha(id, motivo) {
     s.falhasSeguidas = (s.falhasSeguidas || 0) + 1;
     // "não entrega vídeo" é defeito da fonte (quebrou, trocou de servidor).
     // "sem resposta" costuma ser tropeço de rede — inclusive porque as fontes
-    // limitam quem pede muito seguido. Por isso o castigo é bem mais curto.
+    // limitam quem pede muito seguido. Por isso o castigo é mais curto.
+    //
+    // Correção de 12/10/2026: o castigo de rede era SEMPRE de 6 minutos, então
+    // uma fonte bloqueada para datacenter voltava a ser tentada a cada 6 minutos,
+    // falhava e era castigada de novo — ficando marcada como "castigada" para
+    // sempre (foi o caso do WatchPlay, com 184 falhas seguidas). Agora ele cresce
+    // com a insistência, sem nunca virar definitivo: quando a fonte voltar, ela é
+    // tentada de novo em no máximo 1 hora.
     const defeito = /não entrega vídeo|endereço/i.test(String(motivo || ''));
-    if (s.falhasSeguidas >= 2) s.castigoAte = Date.now() + (defeito ? CASTIGO : CASTIGO_LEVE);
-    if (defeito && s.falhasSeguidas >= 5) s.castigoAte = Date.now() + CASTIGO_LONGO;
+    const insistencia = Number(s.falhasSeguidas) || 0;
+    if (defeito) {
+        if (insistencia >= 2) s.castigoAte = Date.now() + CASTIGO;
+        if (insistencia >= 5) s.castigoAte = Date.now() + CASTIGO_LONGO;
+    } else {
+        // Rede: 6 min nas primeiras falhas, depois 15, 30 e no máximo 1 hora.
+        const escada = [CASTIGO_LEVE, 15 * 60 * 1000, 30 * 60 * 1000, 60 * 60 * 1000];
+        const passo = Math.min(escada.length - 1, Math.max(0, Math.floor(insistencia / 3) - 1));
+        if (insistencia >= 2) s.castigoAte = Date.now() + escada[passo];
+    }
     s.ultimoMotivo = String(motivo || '').slice(0, 120);
     salvarSaude();
 }
@@ -165,7 +180,7 @@ const FONTES = [
             })();
             const endereco = enderecoWatchPlay(alvo);
             const r = await axios.get(endereco, {
-                timeout: 10000,
+                timeout: 20000,
                 maxRedirects: 0,
                 maxContentLength: 1024 * 1024,
                 responseType: 'text',
@@ -294,6 +309,13 @@ const FONTES = [
             if (!dados || !dados.url) return null;
             return { url: dados.url, audio: 'original', fonte: dados.fonte, resolucao: dados.qualidade || 'Full HD', legendas: [], legendaPortugues: false };
         }
+    },
+    {
+        id: 'vidlink-direto',
+        nome: 'HD original · arquivo sem anúncios',
+        papel: 'hd',
+        peso: 60,
+        resolver: alvo => require('./vidlink-direto').resolver(alvo)
     }
 ];
 
@@ -467,6 +489,11 @@ async function escolher(papel, alvo, opcoes = {}) {
 
     for (const fonte of tentar) {
         let erroDeRede = false;
+        // Guarda o motivo REAL da última falha. Antes, o erro era anotado e logo
+        // em seguida sobrescrito por um texto fixo — por isso 184 falhas seguidas
+        // do WatchPlay apareciam todas como "sem resposta", escondendo se era
+        // timeout, 403 do Cloudflare ou host fora do ar.
+        let ultimoErro = '';
         for (let tentativa = 0; tentativa < 2; tentativa++) {
             let dados = null;
             try {
@@ -475,12 +502,13 @@ async function escolher(papel, alvo, opcoes = {}) {
             } catch (erro) {
                 dados = null;
                 erroDeRede = true;
-                anotarFalha(fonte.id, erro.message);
+                ultimoErro = String(erro && erro.message ? erro.message : erro).slice(0, 160);
+                anotarFalha(fonte.id, ultimoErro);
             }
             if (dados && dados.url) {
                 // Confere se o endereço realmente devolve vídeo antes de
                 // entregar ao player; se não devolver, segue para a próxima.
-                const entrega = await require('./midia-proxy').validarMidia(dados.url, dados.referer).catch(() => true);
+                const entrega = await require('./midia-proxy').validarMidia(dados.url, dados.referer, dados.tempoValidacaoMs || 5000).catch(() => true);
                 if (!entrega) {
                     anotarFalha(fonte.id, 'o endereço não entrega vídeo');
                     anotarSemTitulo(fonte.id, chave);
@@ -496,7 +524,7 @@ async function escolher(papel, alvo, opcoes = {}) {
                 return pronto;
             }
             if (!dados) {
-                if (erroDeRede) { anotarFalha(fonte.id, 'sem resposta'); continue; }
+                if (erroDeRede) { anotarFalha(fonte.id, ultimoErro || 'sem resposta'); continue; }
                 anotarSemTitulo(fonte.id, chave);
                 break; // a fonte respondeu: este título não está lá. Não insiste.
             }
@@ -531,8 +559,10 @@ function prepararParaPlayer(escolhido) {
     let host = '';
     try {
         host = new URL(escolhido.url).hostname;
-        referer = midia.refererPadrao(host);
-        if (!referer) midia.liberarHost(host);
+        referer = perfisMotor.refererSeguro(escolhido.referer) || midia.refererPadrao(host);
+        // O CDN aprendido continua liberado mesmo quando a ficha precisa de
+        // seu próprio referenciador, diferente dos padrões já conhecidos.
+        if (!midia.hostPermitido(host)) midia.liberarHost(host);
     } catch { /* endereço inválido */ }
     return { ...escolhido, urlAplicativo: midia.urlViaProxy(escolhido.url, referer) };
 }

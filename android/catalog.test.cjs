@@ -4,6 +4,19 @@ const fs = require('node:fs');
 const { createCatalog } = require('./app/src/main/assets/catalog.js');
 const good = value => ({ ok: true, json: async () => value });
 
+test('metadados habilitam o player anime somente para animação japonesa ou coreana', async () => {
+    for (const [details, expected] of [
+        [{ genres: [{id:16}], origin_country:['JP'] },true],
+        [{ genres: [{id:16}], origin_country:['KR'] },true],
+        [{ genres: [{id:16}], original_language:'ja' },true],
+        [{ genres: [{id:18}], origin_country:['JP'] },false],
+        [{ genres: [{id:16}], origin_country:['US'], original_language:'en' },false]
+    ]) {
+        const catalog=createCatalog(async()=>good({...details,name:'Teste',seasons:[]}), 'test');
+        assert.equal((await catalog.request('/api/tv/37854')).anime,expected);
+    }
+});
+
 // No aparelho não existe servidor: a página do modo com anúncios precisa responder
 // as rotas /api pelo catálogo local, senão série nenhuma abre.
 test('a página do modo com anúncios usa o catálogo local no aparelho', () => {
@@ -130,9 +143,9 @@ test('a TV ao vivo funciona no aparelho com as listas públicas', async () => {
     const canais = await catalogo.request('/api/tv/canais?lista=brasil');
     assert.equal(canais.canais.length, 2, 'só canais com endereço seguro entram');
     assert.equal(canais.canais[0].nome, 'ESPN Brasil');
-    assert.equal(canais.canais[0].grupo, 'Sports');
+    assert.equal(canais.canais[0].grupo, 'sports');
 
     const categorias = await catalogo.request('/api/tv/categorias?lista=brasil');
-    assert.deepEqual(categorias.categorias.map((c) => c.nome).sort(), ['News', 'Sports']);
-    assert.equal(categorias.categorias.find((c) => c.nome === 'News').total, 1);
+    assert.deepEqual(categorias.categorias.map((c) => c.nome).sort(), ['news', 'sports']);
+    assert.equal(categorias.categorias.find((c) => c.nome === 'news').total, 1);
 });

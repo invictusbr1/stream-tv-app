@@ -66,7 +66,7 @@ test('a memória de "não tem este título" vale só para aquele título', async
     assert.equal(dois.fonte, 'Primeira', 'no outro título a fonte principal volta a ser tentada');
 });
 
-test('quando o dublado não existe, o motor entrega a alta definição', async () => {
+test('pedido explícito do motor HD fica separado do caminho dublado do aplicativo', async () => {
     comFontesDeTeste([
         { id: 'dub1', nome: 'Dublado', papel: 'dublado', peso: 100, resolver: async () => null },
         { id: 'hd9', nome: 'HD', papel: 'hd', peso: 80, resolver: async () => ({ url: 'https://exemplo/pl/xyz/master.m3u8', audio: 'original', fonte: 'HD', resolucao: 'Full HD' }) }
@@ -132,6 +132,38 @@ test('a memória é por papel: dublado guardado não vaza para a alta definiçã
 test('o endereço entregue ao player passa pelo encaminhamento do aplicativo', () => {
     const preparado = motor.prepararParaPlayer({ url: 'https://vixsrc.to/playlist/1?token=abc', audio: 'original', fonte: 'Vixsrc' });
     assert.match(preparado.urlAplicativo, /^\/api\/hls\?u=/);
+});
+
+test('referenciador da ficha chega à playlist e aos segmentos do CDN descoberto', () => {
+    const midia = require('./midia-proxy');
+    const url = 'https://cdn-ficha.exemplo.test/fullhd/master.m3u8';
+    const referer = 'https://fornecedor.exemplo.test/player/123';
+    const preparado = motor.prepararParaPlayer({ url, referer, audio: 'pt-BR', fonte: 'Ficha nova' });
+    const consulta = new URL(preparado.urlAplicativo, 'https://conecta.test').searchParams;
+    assert.equal(midia.textoDeBase64url(consulta.get('r')), referer);
+    assert.equal(midia.textoDeBase64url(consulta.get('u')), url);
+    assert.equal(midia.hostPermitido(new URL(url).hostname), true);
+    const lista = midia.reescreverPlaylist('#EXTM3U\n#EXTINF:6,\nsegmento1.ts\n', url, referer);
+    const segmento = new URL(lista.split('\n')[2], 'https://conecta.test').searchParams;
+    assert.equal(midia.textoDeBase64url(segmento.get('r')), referer);
+    assert.equal(midia.textoDeBase64url(segmento.get('u')), 'https://cdn-ficha.exemplo.test/fullhd/segmento1.ts');
+});
+
+test('referenciador explícito seguro prevalece sobre o padrão do CDN conhecido', () => {
+    const midia = require('./midia-proxy');
+    const referer = 'https://fornecedor.exemplo.test/player/123';
+    const preparado = motor.prepararParaPlayer({ url: 'https://vixsrc.to/master.m3u8', referer });
+    const consulta = new URL(preparado.urlAplicativo, 'https://conecta.test').searchParams;
+    assert.equal(midia.textoDeBase64url(consulta.get('r')), referer);
+});
+
+test('referenciador inválido não segue ao player e mantém o padrão conhecido', () => {
+    const midia = require('./midia-proxy');
+    for (const referer of ['http://site.test/', 'https://localhost/', 'https://192.168.1.4/', 'https://usuario:senha@site.test/', 'https://site.test/\r\nX-Teste: valor']) {
+        const preparado = motor.prepararParaPlayer({ url: 'https://vixsrc.to/master.m3u8', referer });
+        const consulta = new URL(preparado.urlAplicativo, 'https://conecta.test').searchParams;
+        assert.equal(midia.textoDeBase64url(consulta.get('r')), 'https://vixsrc.to/');
+    }
 });
 
 test('a fonte dublada principal usa o caminho de série que não pede login', () => {

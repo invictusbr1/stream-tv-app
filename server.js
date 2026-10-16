@@ -302,9 +302,15 @@ app.get('/api/legendas/online', async (req, res) => {
         const legendasOnline = require('./legendas-online');
         let imdb = String(req.query.imdb || '').trim();
         if (!/^tt\d{5,10}$/i.test(imdb) && /^\d{1,10}$/.test(String(req.query.id || ''))) {
-            imdb = String(await getImdbId(String(req.query.id)).catch(() => '') || '');
+            // O tipo decide a rota do TMDB. A interface do aparelho ainda pede só o id:
+            // quando a ficha de filme não traz o código, o título é série — tenta a de série.
+            const tipoDoPedido = String(req.query.tipo || '').toLowerCase();
+            imdb = String(await getImdbId(String(req.query.id), tipoDoPedido).catch(() => '') || '');
+            // A ficha de filme pode devolver um código de OUTRO título (o TMDB tem filmes com o mesmo número): só vale o que tem formato de IMDb.
+            if (!tipoDoPedido && !/^tt\d{5,10}$/i.test(imdb)) imdb = String(await getImdbId(String(req.query.id), 'tv').catch(() => '') || '');
         }
-        const encontradas = imdb ? await legendasOnline.listar(imdb) : [];
+        // Base sem o título (série, por exemplo) não é erro: devolve lista vazia.
+        const encontradas = imdb ? await legendasOnline.listar(imdb).catch(() => []) : [];
         res.json({ fonte: 'YIFY', imdb, encontradas });
     } catch (erro) {
         res.status(502).json({ error: 'Não foi possível buscar as legendas agora.', encontradas: [] });
@@ -337,6 +343,7 @@ app.get('/hls.min.js', (req, res) => res.type('js').send(fs.readFileSync(path.jo
 // O player vai sem cache: a atualização vale na hora, sem o navegador ficar
 // com a versão antiga guardada.
 app.get('/playback.js', (req, res) => { res.setHeader('Cache-Control', 'no-store'); res.type('js').send(fs.readFileSync(path.join(__dirname, 'playback.js'))); });
+app.get('/reproducao-sessao.js', (req, res) => { res.setHeader('Cache-Control', 'no-store'); res.type('js').send(fs.readFileSync(path.join(__dirname, 'reproducao-sessao.js'))); });
 
 // ============================================================
 // ENCAMINHAMENTO DO VÍDEO — o provedor de mídia exige um "referer"
@@ -358,9 +365,12 @@ app.get('/api/hls', async (req, res) => {
     }
     // Só https, só host conhecido e nunca a rede de casa (proteção contra SSRF).
     if (endereco.protocol !== 'https:' || !midia.hostPermitido(endereco.hostname) || seguranca.hostInterno(endereco.hostname)) return res.sendStatus(403);
+    const transferencia = new AbortController();
+    res.once('close', () => transferencia.abort());
     const cabecalhosBase = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
-        Accept: '*/*'
+        Accept: '*/*',
+        ...midia.cabecalhosDaMidia(endereco.href)
     };
     if (req.headers.range) cabecalhosBase.Range = req.headers.range;
     // Alguns provedores só liberam o vídeo quando o pedido vem da própria página
@@ -376,7 +386,7 @@ app.get('/api/hls', async (req, res) => {
             try { cabecalhos.Origin = new URL(referencia).origin; } catch { /* referer sem origem */ }
         }
         try {
-            const r = await fetch(endereco.href, { headers: cabecalhos, redirect: 'follow' });
+            const r = await fetch(endereco.href, { headers: cabecalhos, redirect: 'follow', signal: transferencia.signal });
             if (r.ok || r.status === 206 || tentativas.length === 1) { resposta = { r, referencia }; break; }
         } catch { /* tenta a próxima referência */ }
     }
@@ -409,7 +419,9 @@ app.get('/api/hls', async (req, res) => {
         }
         if (!respostaFinal.body) return res.end();
         const { Readable } = require('stream');
-        return Readable.fromWeb(respostaFinal.body).pipe(res);
+        const fluxo = Readable.fromWeb(respostaFinal.body);
+        fluxo.on('error', () => { if (!res.destroyed) res.destroy(); });
+        return fluxo.pipe(res);
     } catch {
         res.sendStatus(502);
     }
@@ -457,7 +469,9 @@ app.get('/api/playback/:id', async (req, res) => {
             // original, sem perda.
             if (escolhido.converter) {
                 const conversor = require('./conversor');
-                const trabalho = await conversor.iniciar(escolhido.url, { titulo: `filme-${req.params.id}`, referer: escolhido.referer || '' });
+                // `id` estável: o mesmo filme reaproveita a conversão em vez de criar
+                // uma pasta nova a cada abertura (era isso que enchia o disco).
+                const trabalho = await conversor.iniciar(escolhido.url, { titulo: `filme-${req.params.id}`, id: `filme-${req.params.id}`, referer: escolhido.referer || '' });
                 return res.json({
                     url: `/api/convertido/${trabalho.id}/index.m3u8`,
                     audio: escolhido.audio || 'pt-BR',
@@ -513,7 +527,8 @@ app.get('/api/playback/serie/:id/:season/:episode', async (req, res) => {
         if (!escolhido) throw new Error('sem fonte');
         if (escolhido.converter) {
             const conversor = require('./conversor');
-            const trabalho = await conversor.iniciar(escolhido.url, { titulo: `serie-${id}-T${season}E${episode}`, referer: escolhido.referer || '' });
+            // `id` estável por episódio: reaproveita a conversão já feita.
+            const trabalho = await conversor.iniciar(escolhido.url, { titulo: `serie-${id}-T${season}E${episode}`, id: `serie-${id}-T${season}E${episode}`, referer: escolhido.referer || '' });
             return res.json({
                 url: `/api/convertido/${trabalho.id}/index.m3u8`,
                 audio: escolhido.audio || 'pt-BR',
@@ -717,6 +732,17 @@ app.get('/api/convertido/:id/:pedaco', (req, res) => {
 // FULL HD SEM ANÚNCIO — resolvedor do Vixsrc (endereço direto do vídeo).
 // Usado como opção de melhor qualidade; o áudio é o da fonte (normalmente original).
 // ============================================================
+app.get('/anime-player.js',(req,res)=>{res.setHeader('Cache-Control','no-store');res.type('js').send(fs.readFileSync(path.join(__dirname,'anime-player.js')));});
+app.get('/api/anime-player',async(req,res)=>{
+ const id=String(req.query.id||''),temporada=String(req.query.temporada||''),episodio=String(req.query.episodio||''),audio=String(req.query.audio||'legendado');
+ res.setHeader('Cache-Control','no-store');
+ if(!/^[1-9]\d{0,9}$/.test(id)||!/^\d{1,3}$/.test(temporada)||!/^\d{1,4}$/.test(episodio)||Number(temporada)<1||Number(episodio)<1||!['legendado','dublado'].includes(audio)||(req.query.tipo&&req.query.tipo!=='tv'))return res.status(400).json({ok:false});
+ const controller=new AbortController();const cancelar=()=>{if(!res.writableEnded)controller.abort();};res.once('close',cancelar);
+ try{const dados=await require('./anime-source').resolverEpisodio({tmdbId:id,temporada,episodio,audio,tmdbKey:TMDB_KEY,signal:controller.signal});if(!res.destroyed)res.json(dados||{ok:false,motivo:'Fonte legendada indisponível para este episódio agora.'});}
+ catch{if(!res.destroyed)res.json({ok:false,motivo:'Fonte legendada indisponível para este episódio agora.'});}
+ finally{res.removeListener('close',cancelar);}
+});
+
 app.get('/api/stream-hd', async (req, res) => {
     const tipo = String(req.query.tipo || 'movie') === 'tv' ? 'tv' : 'movie';
     const id = String(req.query.id || '');
@@ -736,6 +762,8 @@ app.get('/api/stream-hd', async (req, res) => {
                 url: pronto.final ? pronto.url : (pronto.urlAplicativo || pronto.url),
                 urlAplicativo: pronto.final ? pronto.url : pronto.urlAplicativo,
                 qualidade: pronto.resolucao || 'Full HD',
+                type: pronto.type || 'hls',
+                fonteId: pronto.fonteId || '',
                 legendas: pronto.legendas || [],
                 legendaPortugues: Boolean(pronto.legendaPortugues),
                 fonte: pronto.fonte || 'Alta definição'
@@ -776,6 +804,36 @@ app.post('/api/vigia/rodar', async (req, res) => {
 // da central aprovou com nota acima de 8.
 // ============================================================
 const tvAoVivo = require('./tv-ao-vivo');
+const futebolCache = new Map();
+app.get('/futebol.js', (req,res) => {res.setHeader('Cache-Control','no-store');res.type('js').send(fs.readFileSync(path.join(__dirname,'futebol.js')));});
+app.get('/api/futebol/agenda', async (req,res) => {
+    res.setHeader('Cache-Control','no-store');
+    const agenda = require('./futebol');
+    const league = String(req.query.liga || ''), date = String(req.query.data || '');
+    if (!Object.hasOwn(agenda.leagues,league) || !agenda.validDate(date)) return res.status(400).json({error:'Escolha campeonato e data válidos.'});
+    const key = league + date;
+    const cached = futebolCache.get(key);
+    if(cached && Date.now()-cached.at < 45000) return res.json(cached.data);
+    try {
+        const response = await axios.get('https://site.api.espn.com/apis/site/v2/sports/soccer/'+league+'/scoreboard', {params:{dates:date.replace(/-/g,''),limit:100,lang:'pt',region:'br'},timeout:18000,maxContentLength:4*1024*1024});
+        if(!Array.isArray(response.data?.events)) throw Error('Agenda indisponível');
+        if(futebolCache.size>=30) futebolCache.delete(futebolCache.keys().next().value);
+        futebolCache.set(key,{at:Date.now(),data:response.data});res.json(response.data);
+    } catch {res.status(502).json({error:'Não foi possível consultar esta programação agora.'});}
+});
+app.get('/api/tv/la18hd', async (req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    try {
+        const source = await require('./la18hd-source').resolve(async (url, referer) => {
+            const r = await axios.get(url, {timeout:15000, maxRedirects:0, responseType:'text', maxContentLength:1024*1024,
+                headers:{'User-Agent':'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36', Referer:referer}});
+            return r.data;
+        });
+        const proxy = require('./midia-proxy');
+        proxy.liberarHost(new URL(source.url).hostname);
+        res.json({...source, url:proxy.urlViaProxy(source.url, source.referer)});
+    } catch { res.status(502).json({error:'LA18HD não respondeu. Tente novamente ou escolha outra transmissão.'}); }
+});
 app.get('/api/tv/listas', (req, res) => {
     res.setHeader('Cache-Control', 'no-store');
     res.json({ listas: tvAoVivo.LISTAS.map(l => ({ id: l.id, nome: l.nome, nota: l.nota })) });
@@ -813,6 +871,18 @@ app.get('/api/tv/categorias', async (req, res) => {
         res.status(502).json({ error: 'Não foi possível listar as categorias agora.' });
     }
 });
+
+// Catálogo público de mininovelas; não aceita destinos arbitrários nem redirecionamentos.
+app.get('/api/mininovelas/pagina', async (req, res) => {
+    const url = String(req.query.url || '');
+    if (!require('./mininovelas-source').paginaPermitida(url)) return res.status(400).json({ error: 'Página não permitida' });
+    try {
+        const html = await require('./mininovelas-http').buscarPagina(url);
+        res.setHeader('Cache-Control', 'no-store'); res.type('text/plain').send(html);
+    } catch { res.status(502).json({ error: 'Fornecedor indisponível' }); }
+});
+app.get('/mininovelas-source.js', (req, res) => res.sendFile(path.join(__dirname, 'mininovelas-source.js')));
+app.get('/mininovelas.js', (req, res) => res.sendFile(path.join(__dirname, 'mininovelas.js')));
 
 const libraryCatalog=require('./android/app/src/main/assets/catalog').createCatalog(async (url,options)=>{const r=await axios.get(url,{signal:options?.signal});return {ok:true,json:async()=>r.data};},TMDB_KEY);
 app.get(['/api/explore','/api/genres','/api/top-br','/api/alta',/^\/api\/(tv|season|episode)\//],async(req,res)=>{try{res.json(await libraryCatalog.request(req.originalUrl));}catch{res.status(502).json({error:'Catálogo indisponível'});}});
@@ -1003,10 +1073,12 @@ function getFontes(filmeId, imdbId) {
 // BUSCA IMDB ID pelo TMDB ID
 // Necessário para fontes que usam IMDB (watchcdn, ultraembed)
 // ============================================================
-async function getImdbId(tmdbId) {
+async function getImdbId(tmdbId, tipo = 'movie') {
     try {
+        // Série só resolve o IMDb na rota /tv/ — em /movie/ o TMDB devolve imdb_id null
+        const rota = ['tv', 'serie', 'series'].includes(String(tipo).toLowerCase()) ? 'tv' : 'movie';
         const r = await axios.get(
-            `https://api.themoviedb.org/3/movie/${tmdbId}/external_ids?api_key=${TMDB_KEY}`,
+            `https://api.themoviedb.org/3/${rota}/${tmdbId}/external_ids?api_key=${TMDB_KEY}`,
             { timeout: 5000 }
         );
         return r.data.imdb_id || null; // ex: "tt1234567"

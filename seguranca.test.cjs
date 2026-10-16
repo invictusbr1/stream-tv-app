@@ -65,11 +65,36 @@ test('o limite de uso protege a API e é mais generoso com o vídeo', () => {
     assert.equal(passar('/api/hls').seguiu, false);
 });
 
+test('WebView recebe CORS para relatos e Jarvis, preservando o portão', () => {
+    const middleware = seguranca.cabecalhos();
+    for (const rota of ['/api/acesso', '/api/evento', '/api/jarvis', '/api/entrar']) {
+        const res = resposta();
+        let passou = false;
+        middleware(pedido({ method: 'OPTIONS', path: rota, headers: {
+            origin: 'https://appassets.androidplatform.net', host: 'servidor.test',
+            'access-control-request-method': 'POST', 'access-control-request-headers': 'content-type'
+        } }), res, () => { passou = true; });
+        assert.equal(res.statusCode, 204);
+        assert.equal(passou, false);
+        assert.equal(res.cabecalhos['access-control-allow-origin'], 'https://appassets.androidplatform.net');
+        assert.match(res.cabecalhos['access-control-allow-headers'], /Content-Type/);
+        const post = resposta();
+        middleware(pedido({ method: 'POST', path: rota, headers: { origin: 'https://appassets.androidplatform.net' } }), post, () => {});
+        assert.equal(post.cabecalhos['access-control-allow-origin'], 'https://appassets.androidplatform.net');
+    }
+    const restrita = resposta();
+    middleware(pedido({ path: '/api/dispositivos', headers: { origin: 'https://appassets.androidplatform.net' } }), restrita, () => {});
+    assert.equal(restrita.cabecalhos['access-control-allow-origin'], undefined);
+});
+
 test('com código configurado, só entra aparelho autorizado', async () => {
     const pasta = fs.mkdtempSync(path.join(os.tmpdir(), 'conecta-seg-'));
     const arquivo = path.join(pasta, 'autorizados.json');
     const portao = seguranca.criarPortao({ codigo: 'segredo-da-familia', arquivo });
 
+    const jarvisSemCracha = resposta();
+    portao.middleware(pedido({ path: '/api/jarvis', headers: { accept: 'application/json', origin: 'https://appassets.androidplatform.net' } }), jarvisSemCracha, () => { throw Error('Jarvis precisa de acesso'); });
+    assert.equal(jarvisSemCracha.statusCode, 401);
     const semCracha = resposta();
     portao.middleware(pedido({ headers: { accept: 'application/json' } }), semCracha, () => { throw Error('não podia passar'); });
     assert.equal(semCracha.statusCode, 401);

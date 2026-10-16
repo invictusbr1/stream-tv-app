@@ -61,6 +61,12 @@ tbody tr:hover{background:#ffffff06}
 .erro-topo{margin:0 0 16px;background:#3a1717;border:1px solid #ff6b6b44;color:#ffd0d0;border-radius:12px;padding:12px 14px;font-size:13px;display:none}
 .rodape{color:var(--fraco);font-size:12px;text-align:center;padding:8px 0 30px}
 code{background:#ffffff10;padding:2px 6px;border-radius:6px;font-size:12.5px}
+.reproducao-sessao{border-top:1px solid var(--borda)}
+.reproducao-sessao:first-child{border-top:0}
+.reproducao-sessao summary{cursor:pointer;padding:12px 16px}
+.reproducao-sessao summary .fraco{font-size:12px;margin-left:8px}
+.reproducao-tabela{overflow-x:auto}
+.reproducao-motivo{display:block;white-space:normal;max-width:280px;font-size:12px;margin-top:4px}
 </style>
 </head>
 <body>
@@ -70,7 +76,7 @@ code{background:#ffffff10;padding:2px 6px;border-radius:6px;font-size:12.5px}
   <span class="ao-vivo"><span class="ponto"></span>ao vivo</span>
   <div class="direita">
     <span id="atualizado">carregando…</span>
-    <span id="fonte-dados" class="tag">dados locais</span>
+    <span id="fonte-dados" class="tag">conectando ao site…</span>
   </div>
 </header>
 <main>
@@ -95,6 +101,11 @@ code{background:#ffffff10;padding:2px 6px;border-radius:6px;font-size:12.5px}
         <tbody id="linha-eventos"></tbody></table>
       </section>
       <section class="bloco">
+        <h2>Reprodução por tentativa <small id="reproducao-total"></small></h2>
+        <p class="mini" id="reproducao-nota">Tempo até a primeira imagem, travamentos e troca de fonte. Fechar uma reprodução não conta como falha de fornecedor.</p>
+        <div id="reproducao-sessoes"></div>
+      </section>
+      <section class="bloco">
         <h2>Qualidade por título <small id="titulos-total"></small></h2>
         <p class="mini" style="padding:0 14px 6px">O que o avaliador escolheu e o que o player mediu de verdade em cada título (altura, taxa e áudio). Passar o mouse mostra a disputa das fontes.</p>
         <table><thead><tr><th>Título</th><th>Fonte escolhida</th><th>Qualidade medida</th><th>Áudio</th><th>Quando</th></tr></thead>
@@ -115,6 +126,7 @@ code{background:#ffffff10;padding:2px 6px;border-radius:6px;font-size:12.5px}
         <div style="padding:10px 14px 0;display:flex;gap:10px;flex-wrap:wrap">
           <button class="botao" id="botao-cacar">Rodar o caçador nesta categoria</button>
           <button class="botao" id="botao-profunda" title="Varre muito mais fornecedores, procura o vídeo dentro das páginas e valida fichas de fonte">Caçada profunda</button>
+          <button class="botao" id="botao-pausar" hidden>Pausar busca</button>
         </div>
         <p class="mini" id="cacador-andamento" style="padding:8px 14px 0"></p>
         <table><thead><tr><th>Fonte</th><th>Nota</th><th>Destino</th><th id="coluna-extra">Dublado</th><th>Qualidade</th><th>Resposta</th></tr></thead>
@@ -139,7 +151,7 @@ code{background:#ffffff10;padding:2px 6px;border-radius:6px;font-size:12.5px}
         <h2>Agente de investigação <small id="agente-resumo"></small></h2>
         <table><thead><tr><th>Título</th><th>Situação</th><th>Onde abriu</th><th>Tentativas</th></tr></thead>
         <tbody id="linha-investigacoes"></tbody></table>
-        <p class="mini" style="padding:0 14px 14px">Quando um player não abre, o agente testa as fontes sozinho (dublado e depois alta definição) e anota por qual delas o título funcionou. Nada é alterado no aplicativo.</p>
+        <p class="mini" style="padding:0 14px 14px">Quando um player não abre, o agente testa as fontes sem anúncios: primeiro dubladas e, como última alternativa, áudio original em HD. A reprodução precisa ser confirmada no aparelho.</p>
       </section>
       <section class="bloco">
         <h2>Alertas</h2>
@@ -176,12 +188,49 @@ function quando(minutos) {
 // O resultado na tela é honesto: só diz "abriu" quando há fonte registrada,
 // e diz "não abriu" para qualquer relato de falha.
 function resultado(e) {
+  if (e.tipo === 'reproducao') return resultadoReproducao(e.resultado);
   if (e.ok === false || e.tipo === 'falha') return selo('não abriu', 'ruim');
   if (e.tipo === 'confirmacao') return selo('tocou de verdade', 'on');
   if (!e.fonte) return selo('sem confirmação', 'medio');
   return selo('abriu', 'on');
 }
+function resultadoReproducao(valor) {
+  const rotulos = { abriu: ['tocou', 'on'], falhou: ['falhou', 'ruim'], fechou: ['encerrado', 'off'], concluiu: ['concluído', 'on'], trocou: ['fonte substituída', 'medio'], aguardando: ['aguardando imagem', 'medio'] };
+  const [rotulo, classe] = rotulos[valor] || rotulos.aguardando;
+  return selo(rotulo, classe);
+}
+function tempoMedido(ms) { return ms === null || ms === undefined ? '—' : (Number(ms) / 1000).toLocaleString('pt-BR', { maximumFractionDigits: 1 }) + ' s'; }
+function posicaoMedida(segundos) {
+  if (segundos === null || segundos === undefined) return '—';
+  const n = Math.max(0, Math.floor(Number(segundos) || 0));
+  return Math.floor(n / 60) + ':' + String(n % 60).padStart(2, '0');
+}
+function pintarReproducao(dados) {
+  const diagnostico = dados.reproducaoDiagnostico || { sessoes: [] };
+  const alvo = el('reproducao-sessoes');
+  const abertas = new Set([...alvo.querySelectorAll('details[open]')].map(d => d.dataset.sessao));
+  const primeiraVez = !alvo.children.length;
+  const sessoes = diagnostico.sessoes || [];
+  const total = diagnostico.total || 0;
+  el('reproducao-total').textContent = `${total} ${total === 1 ? 'sessão' : 'sessões'} no histórico`;
+  el('reproducao-nota').textContent = diagnostico.persistenciaErro || 'Tempo até a primeira imagem, travamentos e troca de fonte. Fechar uma reprodução não conta como falha de fornecedor.';
+  alvo.innerHTML = sessoes.length ? sessoes.map((s, indice) => {
+    const chave = `${s.dispositivo || ''}:${s.sessao}`;
+    const aberto = abertas.has(chave) || primeiraVez && indice === 0;
+    const recuperacoes = s.recuperacoes ? ` · ${s.recuperacoes} ${s.recuperacoes === 1 ? 'recuperação' : 'recuperações'}` : '';
+    const em = new Date(s.atualizadoEm || '').toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+    return `<details class="reproducao-sessao" data-sessao="${escapar(chave)}"${aberto ? ' open' : ''}>
+      <summary><span class="nome">${escapar(s.titulo || 'Título sem nome')}</span> ${resultadoReproducao(s.resultado)}<br>
+      <span class="fraco">${escapar(s.nome || 'Anônimo')} · ${escapar(s.aparelho || s.app || 'Aparelho')} · ${escapar(em)}${escapar(recuperacoes)}</span></summary>
+      <div class="reproducao-tabela"><table><thead><tr><th>Tentativa</th><th>Fonte</th><th>Primeira imagem</th><th>Travamentos</th><th>Posição</th><th>Qualidade</th><th>Resultado / motivo</th></tr></thead><tbody>
+      ${(s.tentativas || []).map(t => `<tr><td>${t.tentativa}</td><td>${escapar(t.fonte || t.fonteId || 'sem fonte')}</td>
+      <td>${tempoMedido(t.tempoAberturaMs)}</td><td>${t.travamentos || 0} · ${tempoMedido(t.tempoTravadoMs || 0)}</td>
+      <td>${posicaoMedida(t.posicao)}</td><td>${escapar(t.resolucao || 'sem medição')}</td><td>${resultadoReproducao(t.resultado)}${t.motivo ? `<span class="fraco reproducao-motivo">${escapar(t.motivo)}</span>` : ''}</td></tr>`).join('')}
+      </tbody></table></div></details>`;
+  }).join('') : '<p class="vazio">As próximas reproduções dos aplicativos atualizados aparecerão aqui por sessão e tentativa.</p>';
+}
 function pintar(dados) {
+  pintarReproducao(dados);
   const r = dados.resumo;
   el('cartoes').innerHTML = [
     ['pessoas', r.pessoas, 'pessoas cadastradas'],
@@ -279,7 +328,7 @@ function pintar(dados) {
   // -------------------------------------------------- caçador de fornecedores
   const CATEGORIAS = [
     ['filme', 'Filmes'], ['serie', 'Séries'], ['anime', 'Animes'],
-    ['dorama', 'Doramas e novelas'], ['tv-online', 'TV ao vivo']
+    ['dorama', 'Doramas e novelas'], ['tv-online', 'TV ao vivo'], ['short-drama', 'Mininovelas']
   ];
   const porCategoria = (dados.fontesCacadas && dados.fontesCacadas.porCategoria) || {};
   let categoriaAtual = localStorage.getItem('central-categoria') || 'filme';
@@ -321,10 +370,35 @@ function pintar(dados) {
       await fetch('/api/cacar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ categoria: categoriaAtual, profundo: true }) }).catch(() => {});
     };
     const andamento = dados.cacadorAndamento;
+    const pausar = el('botao-pausar');
+    pausar.hidden = !dados.cacadorRodando;
+    pausar.disabled = false;
+    pausar.textContent = 'Pausar busca';
+    pausar.onclick = async () => {
+      pausar.disabled = true;
+      pausar.textContent = 'Encerrando verificação…';
+      try {
+        const r = await fetch('/api/cacar/pausar', { method:'POST' });
+        if (!r.ok) throw Error('Não foi possível pausar');
+      } catch { pausar.disabled = false; pausar.textContent = 'Tentar pausar novamente'; }
+    };
     el('cacador-andamento').innerHTML = andamento
       ? '<b style="color:#e0b64d">Agora:</b> ' + escapar(andamento.etapa || 'trabalhando') +
         (andamento.total ? ' <span class="fraco">(' + (andamento.feitos || 0) + ' de ' + andamento.total + ')</span>' : '')
       : (dados.cacadorRodando ? '<b style="color:#e0b64d">Caçador rodando…</b>' : '');
+    const fila = dados.cacadorFila || {}, diagnostico = dados.cacadorDiagnostico || {};
+    const rede = diagnostico.rede || {}, rodada = dados.fontesCacadas?.ultimaRodada;
+    const resumoBusca = [];
+    if (andamento?.iniciadoEm) resumoBusca.push(Math.max(0, Math.floor((Date.now()-andamento.iniciadoEm)/60000)) + ' min de busca');
+    if (typeof fila.total === 'number') resumoBusca.push(fila.total + ' descobertas na fila · ' + (fila.esperando || 0) + ' prontas para testar');
+    if (rede.dominiosEmPausa) resumoBusca.push(rede.dominiosEmPausa + ' fornecedores em pausa');
+    if (!andamento && rodada?.estado === 'pausada') resumoBusca.push('Última busca pausada; resultados anteriores preservados');
+    if (!andamento && rodada?.estado === 'parcial') resumoBusca.push('Última busca incompleta; confira o diagnóstico');
+    if (diagnostico.ultimaFalha) resumoBusca.push(diagnostico.ultimaFalha);
+    if (diagnostico.persistenciaErro) resumoBusca.push(diagnostico.persistenciaErro);
+    if (fila.persistencia?.erroGravacao) resumoBusca.push('A fila está na memória; não foi possível salvá-la no disco');
+    if (fila.persistencia?.recuperada) resumoBusca.push('A fila foi recuperada da cópia de segurança');
+    if (resumoBusca.length) el('cacador-andamento').innerHTML += '<br><span class="fraco">' + resumoBusca.map(escapar).join(' · ') + '</span>';
 
     // -------------------------------------------------- fichas de fonte
     const fichas = dados.fichas || [];
@@ -404,7 +478,7 @@ function pintar(dados) {
   const ag = dados.investigacoes || { lista: [] };
   el('agente-resumo').textContent = `${ag.resolvidos || 0} resolvidos · ${ag.pendentes || 0} em análise · ${ag.semSolucao || 0} sem solução`;
   el('linha-investigacoes').innerHTML = (ag.lista || []).length ? ag.lista.map(i => {
-    const situacao = i.estado === 'resolvido' ? selo('resolvido', 'on') : i.estado === 'sem solucao' ? selo('sem solução', 'ruim') : selo('testando', 'medio');
+    const situacao = i.estado === 'resolvido' ? selo('resolvido', 'on') : i.estado === 'sem solucao' ? selo('sem solução', 'ruim') : i.estado === 'aguardando confirmacao' ? selo('aguardando reprodução no aparelho', 'medio') : selo('testando', 'medio');
     const onde = i.solucao ? `${escapar(i.solucao.caminho)} · ${escapar(i.solucao.fonte || '')}${i.solucao.audio === 'pt-BR' ? ' · dublado' : ''}` : '—';
     return `<tr><td>${escapar(i.titulo || '—')}</td><td>${situacao}</td><td class="fraco">${onde}</td><td class="fraco">${i.tentativas}</td></tr>`;
   }).join('') : '<tr><td colspan="4" class="vazio">Nenhuma falha registrada até agora — nada para o agente investigar.</td></tr>';
@@ -436,6 +510,8 @@ function pintar(dados) {
     : '<tr><td class="vazio">Sem versões registradas.</td></tr>';
 
   el('atualizado').textContent = 'atualizado ' + new Date(dados.atualizadoEm).toLocaleTimeString('pt-BR');
+  el('fonte-dados').textContent = (dados.instalacao || 'Neste computador') + (dados.aparelhosApp?.ok ? ' · site conectado' : ' · site sem resposta');
+  document.title = 'Central Conecta TV · ' + (dados.instalacao || 'Neste computador');
 }
 async function carregar() {
   try {

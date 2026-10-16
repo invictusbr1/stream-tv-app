@@ -86,6 +86,8 @@
     async function registrar(extra) {
         const dados = guardado();
         if (!dados?.nome) return null;
+        const nativo = (await lerConfig()).relatosNativos === true && location.origin === 'https://appassets.androidplatform.net';
+        const destinos = nativo ? [] : await enderecosDaCentral();
         const corpo = {
             nome: dados.nome,
             aparelho: dados.aparelho || aparelho(),
@@ -97,15 +99,16 @@
             navegador: (navigator.userAgent || '').slice(0, 160),
             assistindo: extra?.assistindo || null
         };
+        if (nativo) return enviarNativo('acesso', corpo);
         try {
             const resposta = await fetch('/api/acesso', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(corpo) });
             if (resposta.ok) return resposta.json();
         } catch { /* talvez esteja no aplicativo Android, que não tem servidor local */ }
-        for (const central of await enderecosDaCentral()) {
+        for (const central of destinos) {
             try {
                 const resposta = await fetch(`${central}/api/acesso`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(corpo) });
                 if (resposta.ok) return resposta.json();
-            } catch { /* tenta o próximo endereço */ }
+            } catch (erro) { console.warn('[ConectaRelato] Falha no acesso:', erro.message); }
         }
         return null;
     }
@@ -115,6 +118,8 @@
     // Conta para a central o que está sendo assistido e como terminou.
     async function reportar(evento) {
         const dados = guardado();
+        const nativo = (await lerConfig()).relatosNativos === true && location.origin === 'https://appassets.androidplatform.net';
+        const destinos = nativo ? [] : await enderecosDaCentral();
         const corpo = {
             nome: dados?.nome || 'Anônimo',
             aparelho: dados?.aparelho || aparelho(),
@@ -125,17 +130,33 @@
             navegador: (navigator.userAgent || '').slice(0, 160),
             ...evento
         };
+        if (nativo) return Boolean(await enviarNativo('evento', corpo));
         try {
             const resposta = await fetch('/api/evento', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(corpo) });
             if (resposta.ok) return true;
         } catch { /* no aplicativo Android não existe servidor local */ }
-        for (const central of await enderecosDaCentral()) {
+        for (const central of destinos) {
             try {
                 const resposta = await fetch(`${central}/api/evento`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(corpo) });
                 if (resposta.ok) return true;
-            } catch { /* tenta o próximo endereço */ }
+            } catch (erro) { console.warn('[ConectaRelato] Falha no evento:', erro.message); }
         }
         return false;
+    }
+
+    async function enviarNativo(rota, corpo) {
+        try {
+            const resposta = await fetch('/api/relato-nativo?rota=' + rota + '&dados=' + encodeURIComponent(JSON.stringify(corpo)), {
+                cache: 'no-store', headers: { 'X-Conecta-Relato': '1' }
+            });
+            if (!resposta.ok) throw new Error('HTTP ' + resposta.status);
+            const resultado = await resposta.json();
+            if (!resultado.ok) throw new Error('Relato não confirmado');
+            return resultado;
+        } catch (erro) {
+            console.error('[ConectaRelato] Envio nativo falhou:', rota, erro.message);
+            return null;
+        }
     }
 
     function mostrarPortao() {

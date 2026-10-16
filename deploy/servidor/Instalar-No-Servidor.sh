@@ -39,7 +39,7 @@ if ! command -v docker >/dev/null 2>&1; then
     fi
 fi
 $SUDO systemctl enable --now docker >/dev/null 2>&1 || true
-ok "Docker pronto: $(docker --version)"
+ok "Docker pronto: $($SUDO docker --version)"
 
 # ------------------------------------------------------------------ 2. Código
 titulo "Baixando o aplicativo"
@@ -90,20 +90,33 @@ ok "Segredos guardados em $ARQ_ENV (só o dono lê)"
 # ------------------------------------------------------------------ 4. Subir
 titulo "Construindo e subindo os aplicativos"
 cd "$PASTA"
-docker compose --env-file "$ARQ_ENV" -f deploy/servidor/docker-compose.yml up -d --build
-sleep 5
-docker compose --env-file "$ARQ_ENV" -f deploy/servidor/docker-compose.yml ps
+$SUDO docker compose --env-file "$ARQ_ENV" -f deploy/servidor/docker-compose.yml up -d --build
+pronto=0
+for tentativa in $(seq 1 45); do
+    prontos=0
+    for servico in app central; do
+        container="$($SUDO docker compose --env-file "$ARQ_ENV" -f deploy/servidor/docker-compose.yml ps -q "$servico")"
+        estado="$($SUDO docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "$container" 2>/dev/null || true)"
+        if [ "$estado" = healthy ]; then prontos=$((prontos + 1)); fi
+    done
+    if [ "$prontos" = 2 ]; then pronto=1; break; fi
+    sleep 2
+done
+$SUDO docker compose --env-file "$ARQ_ENV" -f deploy/servidor/docker-compose.yml ps
+if [ "$pronto" != 1 ]; then
+    aviso "Os serviços ainda não passaram na verificação de saúde. Confira os logs antes de publicar."
+    exit 1
+fi
 
 # ------------------------------------------------------------------ 5. Firewall
 titulo "Liberando as portas"
 if command -v ufw >/dev/null 2>&1 && $SUDO ufw status 2>/dev/null | grep -q "Status: active"; then
     $SUDO ufw allow 3000/tcp >/dev/null 2>&1 || true
-    $SUDO ufw allow 4100/tcp >/dev/null 2>&1 || true
-    ok "ufw liberado nas portas 3000 e 4100"
+    ok "ufw liberado na porta 3000"
 fi
 if command -v iptables >/dev/null 2>&1; then
     # As imagens da Oracle vêm com regras que recusam tudo menos SSH.
-    for PORTA in 3000 4100; do
+    for PORTA in 3000; do
         $SUDO iptables -C INPUT -p tcp --dport "$PORTA" -j ACCEPT 2>/dev/null || \
             $SUDO iptables -I INPUT 5 -p tcp --dport "$PORTA" -j ACCEPT 2>/dev/null || true
     done
@@ -117,12 +130,13 @@ IP="$(curl -fsS --max-time 8 https://api.ipify.org || hostname -I | awk '{print 
 # ------------------------------------------------------------------ 6. Resumo
 titulo "Pronto!"
 echo "  Conecta TV ........: http://$IP:3000"
-echo "  Central do painel .: http://$IP:4100"
+echo "  Central do painel .: http://localhost:4100 (via túnel SSH)"
 echo "  Código de acesso ..: $ACESSO_CODIGO"
 echo "  Chave da central ..: $CENTRAL_KEY"
 nota ""
-nota "Na Oracle, além disto, libere as portas 3000 e 4100 na Security List da VCN"
-nota "(Rede → Sub-rede → Security List → Add Ingress Rule: 0.0.0.0/0, TCP, 3000,4100)."
+nota "Na Oracle, libere a porta 3000 na Security List da VCN para o teste inicial."
+nota "Para produção, configure HTTPS em um proxy e libere 80/443. Não libere 4100."
+nota "Para abrir a Central no seu PC: ssh -L 4100:127.0.0.1:4100 usuario@$IP"
 nota "E reserve o IP público (Rede → IPs públicos reservados) para ele nunca mudar."
 nota ""
 nota "Atualizar depois de uma mudança no projeto:"

@@ -1,0 +1,64 @@
+/* Web-only presentation. Android assets and TV keep their existing UI. */
+html.web-redesign{--bg:#080b12;--panel:#151b28;--accent:#ee4055}
+.web-redesign .header{background:linear-gradient(#080b12f5,#080b12cc);border-bottom:1px solid #ffffff0b;padding:18px 4vw}
+.web-redesign .hero{min-height:70vh;padding-bottom:85px}
+.web-redesign .hero-content{max-width:650px}
+.web-redesign .hero h1{font-size:clamp(36px,5vw,72px)}
+.web-redesign .primary{border-radius:9px;min-height:48px;box-shadow:0 6px 24px #0003}
+.web-redesign .colecao-cabecalho h2{font-size:22px}
+.web-redesign .card img{border-radius:9px}
+.web-redesign #series-dialog{position:fixed;inset:0;width:100%!important;max-width:100%!important;height:100dvh;max-height:100dvh!important;margin:0!important;border:0;border-radius:0;padding:0;background:var(--bg);z-index:15;overflow:auto}
+.web-redesign #series-dialog .series-cover{min-height:62vh;padding:100px max(6vw,24px) 40px}
+.web-redesign #series-dialog .series-shade{background:linear-gradient(0deg,#080b12 0%,#080b1244 80%),linear-gradient(90deg,#080b12ee,#080b1230)}
+.web-redesign .series-heading{max-width:760px}
+.web-redesign .series-heading h2{font-size:clamp(34px,5vw,66px);letter-spacing:-1.5px}
+.web-redesign #series-close{top:24px;left:6vw;border:1px solid #ffffff24;min-height:44px}
+.web-redesign #series-fav{top:24px;right:6vw}
+.web-redesign .detail-summary{color:#bdc5d4;line-height:1.75;max-width:720px;margin:22px 0 0;font-size:16px}
+.web-redesign #series-dialog .series-body,.web-redesign #series-dialog .series-abas{padding-left:max(6vw,24px)!important;padding-right:max(6vw,24px)!important;background:var(--bg)}
+.web-redesign #series-dialog .series-body{padding-top:24px;padding-bottom:64px}
+.web-redesign #series-summary{display:block;overflow:visible;-webkit-line-clamp:unset}
+.web-redesign #episodes{grid-template-columns:1fr;gap:0;max-width:1180px}
+.web-redesign #series-dialog .episode-row{padding:24px 0!important}
+.web-redesign #series-dialog .episode-row .episode-art{width:200px!important;height:113px!important;min-width:200px!important;border-radius:8px}
+.web-redesign #series-dialog .episode-row .episode-info strong{font-size:18px!important}
+.web-redesign #series-dialog .episode-row .episode-sinopse{margin:14px 0 0!important;font-size:15px!important;line-height:1.65}
+.web-redesign #series-dialog .episode-row .episode-play-btn{gap:24px!important}
+.web-redesign #episodes .episode-play-btn{background:transparent!important;border:0!important;border-radius:0;padding:0!important}
+.web-redesign #player{height:100dvh}
+.web-redesign #direct-controls .direct-row{display:flex;flex-wrap:nowrap;gap:12px;padding:12px 0 0}
+.web-redesign #direct-controls{padding:50px max(24px,env(safe-area-inset-right)) max(22px,env(safe-area-inset-bottom)) max(24px,env(safe-area-inset-left))}
+.web-redesign #direct-controls .ctl{width:44px;min-width:44px;background:transparent;border-radius:50%;font-size:14px}
+.web-redesign .ctl svg,.web-redesign .icon-btn svg{width:25px;height:25px;display:block;pointer-events:none}
+.web-redesign #direct-toggle{background:#ffffff!important;color:#080b12;width:52px!important;height:52px;border-radius:50%}
+.web-redesign .seek-icon{position:relative;display:grid;place-items:center}
+.web-redesign .seek-icon svg{width:34px;height:34px}
+.web-redesign .seek-icon small{position:absolute;font-size:10px;font-weight:800}
+.web-redesign #volume-range{position:absolute;bottom:90px;left:200px;width:130px;display:none;background:#151b28;border-radius:12px;padding:15px!important;box-sizing:content-box}
+.web-redesign #direct-controls.volume-open #volume-range{display:block}
+.web-redesign .rotate-hint{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);color:#d6dce8;background:#111827d9;border:1px solid #ffffff24;border-radius:16px;padding:16px 22px;max-width:80%;text-align:center;z-index:1;pointer-events:none;font-size:14px}
+.web-redesign #direct-video~.rotate-hint{top:30%}
+@media(pointer:coarse){.web-redesign #volume-toggle,.web-redesign #volume-range{display:none!important}}
+@media(max-width:700px){
+ .web-redesign .hero{min-height:64vh}.web-redesign .hero h1{font-size:38px}
+ .web-redesign #series-dialog .series-cover{min-height:58vh;padding:90px 22px 28px}
+ .web-redesign #series-dialog .series-body,.web-redesign #series-dialog .series-abas{padding-left:22px!important;padding-right:22px!important}
+ .web-redesign #series-dialog .episode-row .episode-art{width:112px!important;height:63px!important;min-width:112px!important}
+ .web-redesign #series-dialog .episode-row .episode-info strong{font-size:15px!important}
+ .web-redesign #series-dialog .episode-row .episode-play-btn{gap:12px!important}
+ .web-redesign #direct-controls .direct-row{gap:5px;flex-wrap:wrap;justify-content:center}
+ .web-redesign #direct-time{font-size:11px;margin-left:auto}
+ .web-redesign #direct-controls{padding:40px 12px max(12px,env(safe-area-inset-bottom))}
+ .web-redesign #direct-controls .direct-gap{display:none}
+ .web-redesign .player-status{display:none}
+ .web-redesign .player-tools{gap:2px;margin-left:0}
+}
+@media(pointer:coarse) and (orientation:landscape){
+ .web-redesign #direct-controls .direct-row{flex-wrap:nowrap;gap:8px}
+ .web-redesign #direct-controls{padding-top:30px;padding-bottom:max(12px,env(safe-area-inset-bottom))}
+ .web-redesign #direct-time{margin-left:8px}.web-redesign #direct-controls .direct-gap{display:block}
+ .web-redesign .player-top{padding:8px max(14px,env(safe-area-inset-left))}
+ .web-redesign .rotate-hint{display:none}
+}
+
+.web-redesign #series-dialog .detail-summary{max-width:720px;line-height:1.75}

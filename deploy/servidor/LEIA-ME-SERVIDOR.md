@@ -4,17 +4,16 @@
 
 | Item | O que a Oracle dá de graça, para sempre |
 | --- | --- |
-| Máquina | até 4 núcleos ARM (Ampere) com 24 GB de memória — sobra para o Conecta TV e a central |
+| Máquina | na conta gratuita, até 2 OCPUs ARM (Ampere) e 12 GB de memória no total |
 | Disco | 200 GB |
 | Tráfego | **10 TB por mês de saída** — é o que decide, porque vídeo consome banda |
 | Endereço | IPv4 público fixo (reserve para nunca mudar) |
 
-Os outros gratuitos não servem para vídeo: o Google dá 1 GB de saída por mês
-(acaba em um filme), o Render dorme e não tem disco, e o ngrok limita a banda.
+Limites conferidos em 14/10/2026 na [documentação oficial da Oracle](https://docs.oracle.com/en-us/iaas/Content/FreeTier/freetier_topic-Always_Free_Resources.htm).
+Confira também a identificação Always Free e o uso total na sua conta antes de criar a máquina.
 
-O que a Oracle pede em troca: cartão de crédito **só para conferir identidade**
-(a conta Always Free não é cobrada) e paciência na criação — a capacidade ARM
-às vezes está cheia, e aí você tenta de novo mais tarde ou em outra região.
+A capacidade ARM pode estar esgotada. Os recursos Always Free devem ser criados
+na região principal da conta; trocar de região pode gerar cobrança.
 
 ## Passo a passo (uma vez só)
 
@@ -22,7 +21,7 @@ O que a Oracle pede em troca: cartão de crédito **só para conferir identidade
    perto do Brasil, por exemplo `Brazil East (São Paulo)` ou `US East (Ashburn)`).
 2. **Criar a máquina:** Menu → Compute → Instances → **Create instance**
    - Image: **Ubuntu 22.04** (ou Oracle Linux 9)
-   - Shape: **VM.Standard.A1.Flex** — 2 OCPU e 12 GB já bastam (pode usar 4/24)
+   - Shape: **VM.Standard.A1.Flex** — até 2 OCPUs e 12 GB no total da conta gratuita
    - Adicione sua chave SSH (ou deixe a Oracle gerar e baixe a chave)
    - Em Networking, marque **Assign a public IPv4 address**
 3. **Reservar o IP** (para o endereço nunca mudar): Networking → Reserved public
@@ -31,7 +30,7 @@ O que a Oracle pede em troca: cartão de crédito **só para conferir identidade
 4. **Liberar as portas na rede:** Networking → Virtual Cloud Networks → sua VCN →
    Security Lists → Default → **Add Ingress Rules**:
    - Source `0.0.0.0/0`, IP Protocol `TCP`, Destination Port Range `3000`
-   - Repita com `4100`
+   - Não abra `4100`: a Central fica disponível só no próprio servidor.
    (Pode trocar o Source pelo seu IP de casa para ficar mais fechado.)
 5. **Conectar por SSH** (Windows: abra o PowerShell na pasta da chave):
 
@@ -50,7 +49,7 @@ O que a Oracle pede em troca: cartão de crédito **só para conferir identidade
 
    ```
    Conecta TV ........: http://SEU-IP:3000
-   Central do painel .: http://SEU-IP:4100
+   Central do painel .: http://localhost:4100 (via túnel SSH)
    Código de acesso ..: (gerado)
    Chave da central ..: (gerada)
    ```
@@ -63,9 +62,12 @@ O que a Oracle pede em troca: cartão de crédito **só para conferir identidade
 
 - Abra `http://SEU-IP:3000` no celular: vai pedir o **código de acesso** na
   primeira vez e guardar o crachá por 6 meses.
-- O painel da central abre em `http://SEU-IP:4100` com a **chave da central**.
-- Quer usar no celular como aplicativo? Use "Adicionar à Tela de Início" (é um
-  PWA) — fica com ícone, sem barra do navegador.
+- Para abrir a Central com segurança, execute no PC `ssh -L 4100:127.0.0.1:4100 ubuntu@SEU-IP`
+  (acrescente `-i caminho-da-chave` quando necessário). Com a conexão aberta,
+  entre em `http://localhost:4100` usando a **chave da central**. Se a Central local
+  já ocupar essa porta, use `-L 14100:127.0.0.1:4100` e abra `http://localhost:14100`.
+- Antes do uso contínuo, configure HTTPS. O endereço HTTP por IP serve para o
+  teste inicial; recursos de instalação PWA podem exigir HTTPS.
 - Quer domínio bonito e HTTPS (`https://tv.suacasa.com`)? Aponte um domínio para
   o IP e rode o `Endereco-Fixo-Cloudflare.ps1`/Caddy, ou use o Cloudflare como
   proxy na frente do IP.
@@ -88,8 +90,8 @@ docker compose --env-file deploy/servidor/.env -f deploy/servidor/docker-compose
 
 - Servidor público = qualquer pessoa que descubra o endereço tenta usar. O
   código de acesso é o que segura; use um código grande e troque se vazar.
-- A Oracle cancela contas Always Free paradas por muito tempo — mantenha a
-  máquina em uso.
+- A Oracle pode recolher instâncias Always Free consideradas ociosas.
+  Mantenha cópias dos dados; o plano gratuito não garante permanência da máquina.
 - Assim como qualquer hospedagem, o provedor pode reclamar do tipo de conteúdo.
   Se um dia cair, o mesmo instalador sobe em outra máquina em minutos.
 
