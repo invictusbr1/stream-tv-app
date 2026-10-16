@@ -36,6 +36,13 @@ test('APK reproduz destino sem extensão apenas após conferência nativa; naveg
  }
 });
 
+test('player aceita somente o manifesto interno exato da exceção Crystal Lake',async()=>{
+ const s=harness();await videoTocando(s,null,{url:'/api/crystal-lake/1/1/master.m3u8',audio:'pt-BR',fonteId:'crystal-lake-dublado',type:'hls'});s.controller.stop();
+ for(const bad of ['/api/crystal-lake/2/1/master.m3u8','/api/crystal-lake/1/9/master.m3u8','/api/crystal-lake/1/1/master.m3u8?u=https://evil.test','/api/crystal-lake/1/1/other.m3u8']){
+  const invalid=harness();invalid.fetch(async()=>({url:bad,audio:'pt-BR'}));assert.equal(await invalid.controller.start(213562,1),false);
+ }
+});
+
 test('falha após imagem pede uma única troca e preserva a posição exata',async()=>{
  const s=harness(),trocas=[];const v=await videoTocando(s,{onInterrupted:d=>{trocas.push(d);return true;}});
  v.currentTime=127.5;v.error={code:2};v.fire('error');v.fire('error');

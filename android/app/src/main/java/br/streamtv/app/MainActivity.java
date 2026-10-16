@@ -870,7 +870,64 @@ public final class MainActivity extends Activity {
         return exceto.contains("vixsrc")?error(502):vixsrcMidia(tipo,id,temporada,episodio);
     }
 
+    private final java.util.Map<String,CrystalLakeSource.Result> crystalLakeCache=new java.util.concurrent.ConcurrentHashMap<>();
+
+    private synchronized CrystalLakeSource.Result crystalLakeResolve(String episode)throws Exception {
+        if(!CrystalLakeSource.applies("213562","1",episode))return null;
+        long now=System.currentTimeMillis();CrystalLakeSource.Result cached=crystalLakeCache.get(episode);
+        if(cached!=null&&cached.until>now)return cached;
+        Long previousDeadline=qualityDeadline.get();if(previousDeadline==null)qualityDeadline.set(QualitySelector.now()+14000);
+        try{
+        String embed=CrystalLakeSource.ORIGIN+"/embed2/213562-1-"+episode;
+        CrystalLakeSource.Settings settings=CrystalLakeSource.settings(lerPagina(embed,CrystalLakeSource.REFERER));
+        if(settings==null)return null;
+        JSONObject config=new JSONObject(settings.json);JSONArray ads=config.optJSONArray("advertising");JSONObject fields=config.optJSONObject("fields");
+        if(fields==null||!("213562-1-"+episode).equals(fields.optString("imdb"))||ads==null||ads.length()!=0||!Boolean.FALSE.equals(config.opt("popactive"))||!"0".equals(String.valueOf(config.opt("poplimit")))||!"".equals(config.opt("popurl"))||!Boolean.FALSE.equals(config.opt("p2p")))return null;
+        HttpsURLConnection connection=null;String raw;
+        try{
+            connection=(HttpsURLConnection)new URL(CrystalLakeSource.ORIGIN+"/player/index.php?data="+settings.hash+"&do=getVideo").openConnection();
+            connection.setConnectTimeout(qualityTimeout(5000));connection.setReadTimeout(qualityTimeout(5000));connection.setInstanceFollowRedirects(false);connection.setRequestMethod("POST");connection.setDoOutput(true);
+            connection.setRequestProperty("Content-Type","application/x-www-form-urlencoded");connection.setRequestProperty("X-Requested-With","XMLHttpRequest");connection.setRequestProperty("Referer",embed);
+            byte[] body=("hash="+settings.hash+"&r="+java.net.URLEncoder.encode(CrystalLakeSource.REFERER,"UTF-8")).getBytes(StandardCharsets.UTF_8);
+            connection.setFixedLengthStreamingMode(body.length);try(java.io.OutputStream output=connection.getOutputStream()){output.write(body);}
+            if(connection.getResponseCode()!=200)return null;
+            byte[] bytes=lerBytes(connection.getInputStream());if(bytes.length>262144)return null;raw=new String(bytes,StandardCharsets.UTF_8);
+        }finally{if(connection!=null)connection.disconnect();}
+        JSONObject data=new JSONObject(raw);String url=data.optString("securedLink"),source=data.optString("videoSource");
+        if(!CrystalLakeSource.validLink(data.optBoolean("hls"),source,url,System.currentTimeMillis()))return null;
+        String playlist=CrystalLakeSource.portuguesePlaylist(lerPagina(url,null));if(playlist==null)return null;
+        java.util.Set<String> children=new java.util.HashSet<>();Matcher child=Pattern.compile("URI=\"([^\"]+)\"").matcher(playlist);while(child.find())children.add(child.group(1));
+        for(String line:playlist.split("\\n"))if(!line.trim().isEmpty()&&!line.startsWith("#"))children.add(line.trim());
+        if(children.size()>8)return null;
+        for(String target:children)if(!CrystalLakeSource.cleanMediaPlaylist(lerPagina(target,null)))return null;
+        CrystalLakeSource.Result result=new CrystalLakeSource.Result(url,playlist,Math.min(System.currentTimeMillis()+300000,CrystalLakeSource.expiry(url)-90000));
+        crystalLakeCache.put(episode,result);return result;
+        }finally{if(previousDeadline==null)qualityDeadline.remove();else qualityDeadline.set(previousDeadline);}
+    }
+
+    private WebResourceResponse crystalLakePlaylist(String episode){
+        try{
+            CrystalLakeSource.Result data=crystalLakeResolve(episode);if(data==null)return error(502);
+            StringBuilder output=new StringBuilder();
+            for(String line:data.playlist.split("\\n")){
+                if(line.startsWith("#")){
+                    Matcher target=Pattern.compile("URI=\"([^\"]+)\"").matcher(line);StringBuffer rewritten=new StringBuffer();
+                    while(target.find())target.appendReplacement(rewritten,Matcher.quoteReplacement("URI=\""+enderecoEncaminhado(target.group(1),"")+"\""));
+                    target.appendTail(rewritten);output.append(rewritten);
+                }else if(!line.trim().isEmpty())output.append(enderecoEncaminhado(line.trim(),""));
+                output.append('\n');
+            }
+            return respostaTexto("application/vnd.apple.mpegurl",output.toString());
+        }catch(Exception unavailable){return error(502);}
+    }
+
     private WebResourceResponse directEpisode(String id,String temporada,String episodio,java.util.Set<String> exceto) {
+        if(CrystalLakeSource.applies(id,temporada,episodio)&&!exceto.contains(CrystalLakeSource.ID)){
+            try{if(crystalLakeResolve(episodio)!=null){
+                JSONObject data=new JSONObject();data.put("url","/api/crystal-lake/1/"+episodio+"/master.m3u8");data.put("audio","pt-BR");data.put("type","hls");data.put("source","Crystal Lake · dublado (480p)");data.put("fonteId",CrystalLakeSource.ID);data.put("resolucao","480p");
+                return respostaTexto("application/json",data.toString());
+            }}catch(Exception unavailable){ /* Mantém as alternativas atuais se a exceção falhar. */ }
+        }
         return qualityPlayback("tv",id,temporada,episodio,exceto);
     }
 
@@ -1241,6 +1298,7 @@ public final class MainActivity extends Activity {
                 // recusa o pedido que vem do WebView e o anime não abre.
                 if (path != null && "/api/tv/la18hd".equals(path)) return la18Playback();
                 if (path != null && "/api/futebol/agenda".equals(path)) return futebolAgenda(uri);
+                if (path != null && path.matches("/api/crystal-lake/1/[1-8]/master\\.m3u8")) return crystalLakePlaylist(path.split("/")[4]);
                 if (path != null && "/api/hls".equals(path)) return encaminharMidia(uri);
                 // Fichas de fonte (o mesmo arquivo que o computador usa): a
                 // interface lê aqui para montar as listas de canais novas.

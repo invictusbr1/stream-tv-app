@@ -504,6 +504,15 @@ app.get('/api/playback/:id', async (req, res) => {
 // A sessão da fonte dublada (opcional) vem de config.local.json
 // (watchplayCookie) ou da variável WATCHPLAY_COOKIE.
 // ============================================================
+app.get('/api/crystal-lake/1/:episode/master.m3u8', async (req, res) => {
+    if (!/^[1-8]$/.test(req.params.episode)) return res.sendStatus(404);
+    try {
+        const lista = await require('./crystal-lake-source').playlist(req.params.episode);
+        res.setHeader('Cache-Control', 'no-store');
+        res.type('application/vnd.apple.mpegurl').send(lista);
+    } catch { res.sendStatus(502); }
+});
+
 app.get('/api/playback/serie/:id/:season/:episode', async (req, res) => {
     // (a rota usa o conversor quando a fonte só existe em arquivo que o
     // navegador toca mudo — ver abaixo)
@@ -514,9 +523,9 @@ app.get('/api/playback/serie/:id/:season/:episode', async (req, res) => {
     try {
         const exceto = String(req.query.exceto || '').split(',').map(item => item.trim()).filter(Boolean);
         const alvo = { tipo: 'tv', tmdbId: id, temporada: season, episodio: episode };
-        let escolhido = null;
+        let escolhido = await require('./crystal-lake-source').resolver(alvo, { exceto });
         let avaliacao = null;
-        if (process.env.AVALIADOR !== '0') {
+        if (!escolhido && process.env.AVALIADOR !== '0') {
             const resultado = await require('./avaliador').escolherMelhor('dublado', alvo, { exceto }).catch(() => null);
             if (resultado) {
                 escolhido = require('./fontes-motor').prepararParaPlayer(resultado.escolhido);
