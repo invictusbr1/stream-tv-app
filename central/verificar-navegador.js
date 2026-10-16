@@ -61,6 +61,35 @@ function criarVerificadorNavegador(deps = {}) {
     const cliente = deps.axios || axios;
     const rede = deps.http || http;
     const arquivos = deps.fs || fs;
+    // Argumentos de economia para o Chromium. Numa instância pequena (1 GB,
+    // 2 núcleos) cada navegador disputa CPU com a medição seguinte: sem estes
+    // limites o robô chegou a 693% de CPU e deixou 17 processos pendurados
+    // depois da caçada. Nada aqui muda o que a página entrega — só o que o
+    // navegador desenha por conta própria.
+    const ARGS_ECONOMIA = [
+        '--no-first-run',
+        '--no-default-browser-check',
+        '--disable-dev-shm-usage',
+        '--disable-background-networking',
+        '--disable-background-timer-throttling',
+        '--disable-backgrounding-occluded-windows',
+        '--disable-breakpad',
+        '--disable-client-side-phishing-detection',
+        '--disable-component-update',
+        '--disable-default-apps',
+        '--disable-extensions',
+        '--disable-hang-monitor',
+        '--disable-popup-blocking',
+        '--disable-prompt-on-repost',
+        '--disable-renderer-backgrounding',
+        '--disable-sync',
+        '--disable-translate',
+        '--metrics-recording-only',
+        '--mute-audio',
+        '--no-service-autorun',
+        '--password-store=basic',
+        '--use-mock-keychain',
+    ];
     const carregar = deps.carregarPuppeteer || carregarPuppeteer;
     const encontrar = deps.acharNavegador || acharNavegador;
     const pausa = deps.esperar || esperar;
@@ -219,7 +248,7 @@ function criarVerificadorNavegador(deps = {}) {
             const porta = encaminhador.porta;
             const destino = `http://127.0.0.1:${porta}/${tipo === 'file' ? 'video' : 'api/hls'}?u=${midia.base64url(url)}${referer ? '&r=' + midia.base64url(referer) : ''}`;
             browser = await abrirNavegador(puppeteer, { executablePath: navegador, headless: true,
-                args: ['--no-first-run', '--mute-audio', '--autoplay-policy=no-user-gesture-required', '--disable-blink-features=AutomationControlled'],
+                args: [...ARGS_ECONOMIA, '--autoplay-policy=no-user-gesture-required', '--disable-blink-features=AutomationControlled'],
                 defaultViewport: { width: 1280, height: 720 } }, signal);
             ultimoErroDoRobo = '';
             const pag = await comPrazo(browser.newPage(), limites.etapaMs, signal);
@@ -297,7 +326,7 @@ function criarVerificadorNavegador(deps = {}) {
         try {
             liberar = await reservar(signal);
             browser = await abrirNavegador(puppeteer, { executablePath: navegador, headless: 'new',
-                args: ['--no-sandbox', '--disable-dev-shm-usage', '--disable-gpu', '--mute-audio', '--autoplay-policy=no-user-gesture-required'] }, signal);
+                args: [...ARGS_ECONOMIA, '--no-sandbox', '--disable-gpu', '--autoplay-policy=no-user-gesture-required'] }, signal);
             ultimoErroDoRobo = '';
             const pag = await comPrazo(browser.newPage(), limites.etapaMs, signal);
             await comPrazo(pag.setUserAgent(UA), limites.etapaMs, signal);
