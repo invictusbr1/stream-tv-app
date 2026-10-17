@@ -3,7 +3,12 @@
 const fenix = require('./fenix-source');
 const BASE = 'https://fenixflix.fenixhub.online';
 function candidatos(streams) {
-    return (Array.isArray(streams) ? streams : []).filter(s => {
+    return (Array.isArray(streams) ? streams : []).map(s => {
+        // This approved addon advertises HTTP even though the same endpoint
+        // supports HTTPS. Upgrade only its exact host, as the regular motor does.
+        try { const u=new URL(s?.url); if(u.protocol==='http:'&&u.hostname==='fenixflix.fenixhub.online'&&!u.username&&!u.password&&!u.port){u.protocol='https:';return {...s,url:u.href};} }catch{}
+        return s;
+    }).filter(s => {
         if (!s || !/dublado|dual|pt-br/i.test(String(s.title || '')) || /legendado/i.test(String(s.title || ''))) return false;
         try { const u = new URL(s.url); return u.origin === BASE && !u.username && !u.password && /\/video\.mp4$/.test(u.pathname); } catch { return false; }
     }).slice(0, 8);

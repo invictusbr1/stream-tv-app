@@ -2,6 +2,10 @@ const test=require('node:test'),assert=require('node:assert/strict');
 const {criar,candidatos,escolher}=require('./fenix-compativel');
 const stream=(n,title='Dublado')=>({url:`https://fenixflix.fenixhub.online/${n}/video.mp4`,title,name:n});
 const medida=(codec='h264',w=1920,h=1080,idioma='por',pixels='yuv420p')=>({imagem:{codec,largura:w,altura:h,pixels},faixas:[{idioma,padrao:true,codec:'aac'}]});
+test('anúncio HTTP do host aprovado é elevado a HTTPS sem aceitar outros hosts ou portas',()=>{
+ const x=stream('ok');assert.equal(candidatos([{...x,url:x.url.replace('https:','http:')}])[0].url,x.url);
+ assert.equal(candidatos([{...x,url:'http://fenixflix.fenixhub.online:8080/video.mp4'},{...x,url:'http://outro.example/video.mp4'}]).length,0);
+});
 test('só usa arquivos do fornecedor aprovado, dublados e sem páginas externas',()=>{
  const good=stream('ok');assert.deepEqual(candidatos([good,stream('en','Legendado'),{...good,url:'https://localhost/video.mp4'},{...good,url:'https://outro.example/video.mp4'},{...good,url:'https://fenixflix.fenixhub.online/embed.html'},{...good,url:'https://user:secret@fenixflix.fenixhub.online/video.mp4'}]),[good]);
 });
