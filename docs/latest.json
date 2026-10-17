@@ -1,14 +1,14 @@
 {
-  "versionCode": 408,
-  "versionName": "2.13.77",
-  "apkUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.77/Conecta-TV-Android-2.13.77.apk",
-  "sha256": "82306c3d6208e46c9fb0938a72572f0f50d92c582562f08f92bb7a13d039bea1",
-  "bytes": 464240,
-  "notes": "Celular: um único ícone nos controles para ampliar e diminuir a imagem. Ajuste automático discreto quando a fonte permite analisar as bordas. Mantém o enquadramento original em caso de dúvida.",
+  "versionCode": 409,
+  "versionName": "2.13.78",
+  "apkUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.78/Conecta-TV-Android-2.13.78.apk",
+  "sha256": "2a0628852162e75eb4ad77e7310701b5b92bdecca96534b261c323633c09e485",
+  "bytes": 514140,
+  "notes": "Celular: organiza Continuar assistindo em duas colunas, recupera capas ausentes e preserva os pontos salvos. Melhora o uso da tela em modo deitado e o botão de ampliar para reduzir bordas restantes. Mantém apenas um ícone para ampliar e diminuir.",
   "exeUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.68/Conecta-TV-2.13.68.exe",
   "exeSha256": "40914a57b0e3ad375615c9954839f8c3f7bb138d8739472772de3ee28d3ff015",
   "exeBytes": 120409967,
-  "apkTvUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.77/Conecta-TV-TV-2.13.77.apk",
-  "apkTvSha256": "fc3006c909b5f4ab158b5531db75c2858713f7981a137e44a023b9f5c5cff242",
-  "apkTvBytes": 464220
+  "apkTvUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.78/Conecta-TV-TV-2.13.78.apk",
+  "apkTvSha256": "4e26a312c841df5714131526a0e762290cc7b1b7707b5d2663c3cefbf1f4a789",
+  "apkTvBytes": 513872
 }
