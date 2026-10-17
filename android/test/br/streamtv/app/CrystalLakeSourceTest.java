@@ -2,6 +2,15 @@ package br.streamtv.app;
 public final class CrystalLakeSourceTest {
     static void check(boolean value){if(!value)throw new AssertionError();}
     public static void main(String[] args){
+        String hd="#EXTM3U\n#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"a\",NAME=\"Portuguese\",LANGUAGE=\"portuguese\",DEFAULT=YES,URI=\"https://audio.s1q2105.com/pt.m3u8\"\n#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"a\",NAME=\"English\",LANGUAGE=\"english\",DEFAULT=NO,URI=\"https://audio.s1q2105.com/en.m3u8\"\n#EXT-X-STREAM-INF:RESOLUTION=1280x720,AUDIO=\"a\"\nhttps://video.97bf1.com/index.m3u8\n";
+        check(CrystalLakeSource.hdPlaylist(hd)!=null);check(!CrystalLakeSource.hdPlaylist(hd).contains("English"));
+        check(CrystalLakeSource.hdPlaylist(hd.replace("https://video.97bf1.com/index.m3u8","index.m3u8"),"https://video.97bf1.com/master.m3u8").contains("https://video.97bf1.com/index.m3u8"));
+        check(CrystalLakeSource.hdPlaylist(hd+"#EXT-X-CUE-OUT:30")==null);
+        check(CrystalLakeSource.hdPlaylist(hd.replace("1280x720","842x480"))==null);
+        check(CrystalLakeSource.hdPlaylist(hd.replace("LANGUAGE=\"portuguese\"","LANGUAGE=\"english\""))==null);
+        check(!CrystalLakeSource.hdUrl("https://97bf1.com.evil.test/a"));
+        check(CrystalLakeSource.cleanHdMedia("#EXTM3U\n#EXTINF:8,\npart.woff2\n#EXT-X-ENDLIST","https://video.97bf1.com/index.m3u8"));
+        check(!CrystalLakeSource.cleanHdMedia("#EXTM3U\n#EXTINF:8,\nhttps://evil.test/p.ts\n#EXT-X-ENDLIST","https://video.97bf1.com/index.m3u8"));
         check(CrystalLakeSource.applies("213562","1","1"));check(CrystalLakeSource.applies("213562","1","8"));
         check(!CrystalLakeSource.applies("1399","1","1"));check(!CrystalLakeSource.applies("213562","2","1"));check(!CrystalLakeSource.applies("213562","1","9"));
         String hash="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",asset="bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";

@@ -884,7 +884,36 @@ public final class MainActivity extends Activity {
 
     private final java.util.Map<String,CrystalLakeSource.Result> crystalLakeCache=new java.util.concurrent.ConcurrentHashMap<>();
 
+    private CrystalLakeSource.Result crystalLakeHd(String episode)throws Exception {
+        String html=MgebHttp.read("https://mgeb.top/embed/213562/1/"+episode,QualitySelector.now()+14000);
+        Matcher block=Pattern.compile("var\\s+sources\\s*=\\s*(\\[[\\s\\S]*?\\]);").matcher(html==null?"":html);if(!block.find())return null;
+        JSONArray sources=new JSONArray(block.group(1));CrystalLakeSource.Result best=null;
+        for(int i=0;i<sources.length()&&i<8;i++){
+            JSONObject source=sources.optJSONObject(i);if(source==null)continue;String url=source.optString("file");
+            if(!CrystalLakeSource.hdUrl(url)||!new URL(url).getPath().endsWith(".m3u8"))continue;
+            String playlist=CrystalLakeSource.hdPlaylist(lerPagina(url,"https://mgeb.top/"),url);if(playlist==null)continue;
+            java.util.Set<String> targets=new java.util.HashSet<>();Matcher match=Pattern.compile("URI=\"([^\"]+)\"").matcher(playlist);while(match.find())targets.add(match.group(1));
+            for(String l:playlist.split("\\n"))if(!l.trim().isEmpty()&&!l.startsWith("#"))targets.add(l.trim());
+            if(targets.size()>16)continue;boolean valid=true;
+            for(String child:targets)if(!CrystalLakeSource.cleanHdMedia(lerPagina(child,"https://mgeb.top/"),child)){valid=false;break;}
+            if(!valid)continue;
+            CrystalLakeSource.Result candidate=new CrystalLakeSource.Result(url,playlist,System.currentTimeMillis()+300000,"https://mgeb.top/");
+            if(best==null||(long)candidate.width*candidate.height>(long)best.width*best.height)best=candidate;
+        }
+        return best;
+    }
     private synchronized CrystalLakeSource.Result crystalLakeResolve(String episode,boolean refresh)throws Exception {
+        if(!CrystalLakeSource.applies("213562","1",episode))return null;
+        CrystalLakeSource.Result cached=crystalLakeCache.get(episode);if(!refresh&&cached!=null&&cached.until>System.currentTimeMillis())return cached;
+        CrystalLakeSource.Result original=null,hd=null;
+        Long previous=qualityDeadline.get();qualityDeadline.set(QualitySelector.now()+14000);
+        try{hd=crystalLakeHd(episode);}catch(Exception unavailable){ /* Usa a reserva aprovada. */ }
+        finally{if(previous==null)qualityDeadline.remove();else qualityDeadline.set(previous);}
+        try{original=crystalLakeOriginal(episode,refresh);}catch(Exception unavailable){ /* HD pode seguir disponível. */ }
+        CrystalLakeSource.Result chosen=hd!=null&&(original==null||(long)hd.width*hd.height>(long)original.width*original.height)?hd:original;
+        if(chosen!=null)crystalLakeCache.put(episode,chosen);return chosen;
+    }
+    private CrystalLakeSource.Result crystalLakeOriginal(String episode,boolean refresh)throws Exception {
         if(!CrystalLakeSource.applies("213562","1",episode))return null;
         long now=System.currentTimeMillis();CrystalLakeSource.Result cached=crystalLakeCache.get(episode);
         if(!refresh&&cached!=null&&cached.until>now)return cached;
@@ -924,9 +953,9 @@ public final class MainActivity extends Activity {
             for(String line:data.playlist.split("\\n")){
                 if(line.startsWith("#")){
                     Matcher target=Pattern.compile("URI=\"([^\"]+)\"").matcher(line);StringBuffer rewritten=new StringBuffer();
-                    while(target.find())target.appendReplacement(rewritten,Matcher.quoteReplacement("URI=\""+enderecoEncaminhado(target.group(1),"")+"\""));
+                    while(target.find())target.appendReplacement(rewritten,Matcher.quoteReplacement("URI=\""+enderecoEncaminhado(target.group(1),data.referer)+"\""));
                     target.appendTail(rewritten);output.append(rewritten);
-                }else if(!line.trim().isEmpty())output.append(enderecoEncaminhado(line.trim(),""));
+                }else if(!line.trim().isEmpty())output.append(enderecoEncaminhado(line.trim(),data.referer));
                 output.append('\n');
             }
             return respostaTexto("application/vnd.apple.mpegurl",output.toString());

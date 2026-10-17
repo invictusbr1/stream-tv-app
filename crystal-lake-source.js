@@ -84,13 +84,13 @@ function listaMediaLimpa(text) {
         try { const u = new URL(value); return u.protocol === 'https:' && /^nense(?:c|[f-i]|[l-u])\.xyz$/.test(u.hostname) && !u.username && !u.password && !u.port && !u.hash; } catch { return false; }
     });
 }
-function criar({ get, post, now = Date.now } = {}) {
+function criar({ get, post, now = Date.now, hd = async () => null } = {}) {
     const axios = require('axios');
     const options = { timeout: 5000, maxRedirects: 0, maxContentLength: 262144, responseType: 'text', validateStatus: s => s === 200 };
     get ||= async (url, referer, signal) => (await axios.get(url, { ...options, signal, headers: { Referer: referer, Accept: '*/*' } })).data;
     post ||= async (url, body, referer, signal) => (await axios.post(url, body, { ...options, signal, headers: { Referer: referer, 'Content-Type': 'application/x-www-form-urlencoded', 'X-Requested-With': 'XMLHttpRequest' } })).data;
     const cache = new Map(), inflight = new Map();
-    async function obter(episodio, atualizar = false) {
+    async function obterOriginal(episodio, atualizar = false) {
         if (!/^[1-8]$/.test(String(episodio))) throw new Error('Episódio fora da exceção');
         const previous = cache.get(String(episodio));
         if (!atualizar && previous && previous.until > now()) return previous;
@@ -113,6 +113,18 @@ function criar({ get, post, now = Date.now } = {}) {
         inflight.set(String(episodio), task);
         try { return await task; } finally { inflight.delete(String(episodio)); }
     }
+    const escolhidas=new Map(), buscando=new Map();
+    async function obter(episodio,atualizar=false){
+        if(!/^[1-8]$/.test(String(episodio)))throw new Error('Episódio fora da exceção');
+        const key=String(episodio),old=escolhidas.get(key);if(!atualizar&&old?.until>now())return old;
+        if(buscando.has(key))return buscando.get(key);
+        const task=(async()=>{
+            const r=await Promise.allSettled([obterOriginal(episodio,atualizar),hd(episodio,get,AbortSignal.timeout(14000))]);
+            const options=r.filter(v=>v.status==='fulfilled'&&v.value).map(v=>v.value).sort((a,b)=>b.largura*b.altura-a.largura*a.altura);
+            if(!options.length)throw new Error('Sem fonte aprovada');
+            escolhidas.set(key,options[0]);return options[0];
+        })();buscando.set(key,task);try{return await task;}finally{buscando.delete(key);}
+    }
     async function resolver(alvo, { exceto = [] } = {}) {
         if (!seAplica(alvo) || exceto.includes(ID)) return null;
         try {
@@ -123,8 +135,9 @@ function criar({ get, post, now = Date.now } = {}) {
     async function playlist(episodio) {
         const item = await obter(episodio), midia = require('./midia-proxy');
         midia.liberarHost('vaiquecol.com');
-        return midia.reescreverPlaylist(item.playlist, item.url, '');
+        for(const m of item.playlist.matchAll(/https:\/\/([^/\s"]+)/g))if(require('./crystal-lake-hd').segura('https://'+m[1]+'/'))midia.liberarHost(m[1]);
+        return midia.reescreverPlaylist(item.playlist, item.url, item.referer || '');
     }
     return { resolver, playlist };
 }
-module.exports = { ID, seAplica, configuracao, linkSeguro, playlistPortuguesa, qualidadeDaPlaylist, listaMediaLimpa, criar, ...criar() };
+module.exports = { ID, seAplica, configuracao, linkSeguro, playlistPortuguesa, qualidadeDaPlaylist, listaMediaLimpa, criar, ...criar({hd:(...args)=>require('./crystal-lake-hd').resolver(...args)}) };

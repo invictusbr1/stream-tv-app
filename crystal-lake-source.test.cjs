@@ -70,3 +70,10 @@ test('mudança para anúncios ou resposta inválida não é oferecida como víde
   assert.equal(await source.resolver({tipo:'tv',tmdbId:'213562',temporada:'1',episodio:'1'}),null);
  }
 });
+test('compara as fontes da série e preserva upgrade superior ao HD',async()=>{
+ const target={tipo:'tv',tmdbId:'213562',temporada:'1',episodio:'1'};
+ for(const [size,expected] of [['842x480','720p'],['1920x1080','1080p']]){
+  const source=c.criar({now:()=>now,get:async url=>url.includes('/embed2/')?packed(settings(1)):url.includes('/cdn/hls/')?master.replace(/RESOLUTION=\d+x\d+/g,'RESOLUTION='+size):media,post:async()=>JSON.stringify(data()),hd:async()=>({url:'https://video.97bf1.com/master.m3u8',playlist:'',largura:1280,altura:720,resolucao:'720p',until:now+300000})});
+  assert.equal((await source.resolver(target)).resolucao,expected);
+ }
+});

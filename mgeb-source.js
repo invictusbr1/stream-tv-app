@@ -99,14 +99,14 @@ async function pegarPagina(caminho) {
     return String(resposta.data || '');
 }
 
-async function resolver(tipo, tmdbId, temporada, episodio) {
+async function resolver(tipo, tmdbId, temporada, episodio, opcoes = {}) {
     const id = String(tmdbId || '').trim();
     if (!/^\d{1,10}$/.test(id)) return null;
     const ehSerie = tipo === 'tv';
     const caminho = ehSerie ? `/embed/${id}/${temporada || 1}/${episodio || 1}` : `/embed/${id}`;
     const chave = ehSerie ? `tv:${id}:${temporada}:${episodio}` : `movie:${id}`;
     const guardado = cache.get(chave);
-    if (guardado && guardado.expira > Date.now()) return guardado.valor;
+    if (guardado && guardado.expira > Date.now() && !opcoes.semCache) return guardado.valor;
 
     let dados = null;
     try {

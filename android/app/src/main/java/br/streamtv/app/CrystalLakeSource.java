@@ -13,8 +13,51 @@ final class CrystalLakeSource {
         Settings(String hash,String json){this.hash=hash;this.json=json;}
     }
     static final class Result {
-        final String url,playlist,resolution;final int width,height;final long until;
-        Result(String url,String playlist,long until){this.url=url;this.playlist=playlist;this.until=until;int[] size=quality(playlist);width=size[0];height=size[1];double equivalent=Math.max(Math.min(width,height),Math.max(width,height)*9.0/16);resolution=equivalent>0?Math.round(equivalent)+"p":"";}
+        final String url,playlist,resolution,referer;final int width,height;final long until;
+        Result(String url,String playlist,long until){this(url,playlist,until,"");}
+        Result(String url,String playlist,long until,String referer){this.url=url;this.playlist=playlist;this.until=until;this.referer=referer;int[] size=quality(playlist);width=size[0];height=size[1];double equivalent=Math.max(Math.min(width,height),Math.max(width,height)*9.0/16);resolution=equivalent>0?Math.round(equivalent)+"p":"";}
+    }
+    static boolean hdUrl(String raw){
+        try{URI u=new URI(raw);return "https".equals(u.getScheme())&&u.getUserInfo()==null&&u.getPort()==-1&&u.getFragment()==null&&u.getHost()!=null&&u.getHost().matches("(?:[a-z0-9-]+\\.)*(?:97bf1\\.com|s1q2105\\.com)");}catch(Exception invalid){return false;}
+    }
+    static boolean adTags(String text){return Pattern.compile("#EXT-X-(?:DATERANGE|CUE-|DISCONTINUITY|SESSION-DATA)|SCTE|INTERSTITIAL",Pattern.CASE_INSENSITIVE).matcher(text).find();}
+    private static String hdAbsolute(URI origin,String raw)throws Exception{URI u=origin.resolve(raw);return new URI(u.getScheme(),u.getUserInfo(),u.getHost(),u.getPort(),u.getPath().replaceAll("/{2,}","/"),u.getQuery(),u.getFragment()).toString();}
+    static String hdPlaylist(String text){return hdPlaylist(text,"");}
+    static String hdPlaylist(String text,String base){
+        if(text==null||text.length()>131072||!text.startsWith("#EXTM3U")||adTags(text))return null;
+        try{URI origin=new URI(base);StringBuilder normalized=new StringBuilder();for(String raw:text.split("\\r?\\n")){
+            if(raw.startsWith("#")){Matcher urls=Pattern.compile("URI=\"([^\"]+)\"").matcher(raw);StringBuffer line=new StringBuffer();while(urls.find())urls.appendReplacement(line,Matcher.quoteReplacement("URI=\""+hdAbsolute(origin,urls.group(1))+"\""));urls.appendTail(line);normalized.append(line);}
+            else if(!raw.trim().isEmpty())normalized.append(hdAbsolute(origin,raw));
+            normalized.append('\n');
+        }text=normalized.toString();}catch(Exception invalid){return null;}
+        String[] lines=text.split("\\r?\\n");java.util.Set<String> groups=new java.util.HashSet<>();
+        Pattern pt=Pattern.compile("LANGUAGE=\"(?:por|pt(?:-BR)?|portuguese)\"",Pattern.CASE_INSENSITIVE);
+        for(String l:lines)if(l.startsWith("#EXT-X-MEDIA:TYPE=AUDIO")&&pt.matcher(l).find()){Matcher g=Pattern.compile("GROUP-ID=\"([^\"]+)\"").matcher(l);if(g.find())groups.add(g.group(1));}
+        StringBuilder out=new StringBuilder();boolean audio=false,video=false;
+        for(int i=0;i<lines.length;i++){
+            String l=lines[i];
+            if(l.startsWith("#EXT-X-MEDIA:TYPE=AUDIO")){if(!pt.matcher(l).find())continue;audio=true;l=l.replaceAll("DEFAULT=(YES|NO)","DEFAULT=YES");}
+            if(l.startsWith("#EXT-X-I-FRAME-STREAM-INF:"))continue;
+            if(l.startsWith("#EXT-X-STREAM-INF:")){
+                Matcher g=Pattern.compile("AUDIO=\"([^\"]+)\"").matcher(l),size=Pattern.compile("RESOLUTION=(\\d+)x(\\d+)").matcher(l);
+                if(++i>=lines.length)return null;String target=lines[i];
+                if(!g.find()||!groups.contains(g.group(1)))continue;
+                if(!size.find()||Integer.parseInt(size.group(2))<720||!hdUrl(target))return null;
+                video=true;out.append(l).append('\n').append(target).append('\n');continue;
+            }
+            if(!l.startsWith("#")&&!l.trim().isEmpty())return null;
+            Matcher urls=Pattern.compile("URI=\"([^\"]+)\"").matcher(l);while(urls.find())if(!hdUrl(urls.group(1)))return null;
+            out.append(l).append('\n');
+        }
+        return audio&&video?out.toString():null;
+    }
+    static boolean cleanHdMedia(String text,String base){
+        if(text==null||text.length()>262144||!text.startsWith("#EXTM3U")||!text.contains("#EXT-X-ENDLIST")||adTags(text)||Pattern.compile("#EXT-X-KEY:.*METHOD=(?!NONE)",Pattern.CASE_INSENSITIVE).matcher(text).find())return false;
+        boolean segment=false;
+        try{URI origin=new URI(base);for(String l:text.split("\\r?\\n")){
+            if(!l.trim().isEmpty()&&!l.startsWith("#")){if(!hdUrl(origin.resolve(l).toString()))return false;segment=true;}
+            Matcher urls=Pattern.compile("URI=\"([^\"]+)\"").matcher(l);while(urls.find())if(!hdUrl(origin.resolve(urls.group(1)).toString()))return false;
+        }}catch(Exception invalid){return false;}return segment;
     }
     private static String base62(int n){return n<62?n<36?Integer.toString(n,36):String.valueOf((char)(n+29)):base62(n/62)+base62(n%62);}
     static Settings settings(String html){
