@@ -76,10 +76,15 @@ public final class MainActivity extends Activity {
             if (fullscreen == null && !inlineFullscreen) {
                 view.setPadding(insets.getSystemWindowInsetLeft(), insets.getSystemWindowInsetTop(), insets.getSystemWindowInsetRight(), insets.getSystemWindowInsetBottom());
             } else if (Build.VERSION.SDK_INT >= 28 && !BuildConfig.TV) {
-                // Keep touch controls clear of a camera cutout in landscape fullscreen.
+                // Video reaches the edges; only controls avoid the camera cutout.
                 android.view.DisplayCutout cutout = insets.getDisplayCutout();
-                view.setPadding(cutout == null ? 0 : cutout.getSafeInsetLeft(), cutout == null ? 0 : cutout.getSafeInsetTop(),
-                    cutout == null ? 0 : cutout.getSafeInsetRight(), cutout == null ? 0 : cutout.getSafeInsetBottom());
+                view.setPadding(0, 0, 0, 0);
+                if (main != null) {
+                    float density = getResources().getDisplayMetrics().density;
+                    int left = cutout == null ? 0 : Math.round(cutout.getSafeInsetLeft() / density);
+                    int right = cutout == null ? 0 : Math.round(cutout.getSafeInsetRight() / density);
+                    main.evaluateJavascript("document.documentElement.style.setProperty('--player-safe-left','" + left + "px');document.documentElement.style.setProperty('--player-safe-right','" + right + "px');", null);
+                }
             }
             return insets.consumeSystemWindowInsets();
         });
@@ -387,6 +392,13 @@ public final class MainActivity extends Activity {
     }
 
     private void setInlineFullscreen(boolean enabled) {
+        if (Build.VERSION.SDK_INT >= 28 && !BuildConfig.TV) {
+            WindowManager.LayoutParams attributes = getWindow().getAttributes();
+            attributes.layoutInDisplayCutoutMode = enabled
+                ? WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+                : WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_DEFAULT;
+            getWindow().setAttributes(attributes);
+        }
         if (inlineFullscreen == enabled) return;
         inlineFullscreen = enabled;
         if (enabled) {

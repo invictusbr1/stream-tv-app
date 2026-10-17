@@ -70,7 +70,7 @@
     function paint() {
         if (!video) return;
         original();
-        if (mode === 'fill') { video.style.objectFit = 'cover'; status('Preenche a tela; pode cortar parte da imagem e das legendas.'); return; }
+        if (mode === 'fill') { video.style.objectFit = 'cover'; video.style.transform = 'scale(1.12)'; status('Preenche a tela; pode cortar parte da imagem e das legendas.'); return; }
         if (mode === 'original') { status('Imagem completa, com o enquadramento original.'); return; }
         if (captions()) { box = null; status('Imagem completa para preservar as legendas.'); return; }
         if (blocked) { status('Não foi possível conferir as bordas desta fonte. Imagem original preservada.'); return; }

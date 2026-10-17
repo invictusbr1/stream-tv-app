@@ -61,3 +61,18 @@
 .android-phone #series-dialog .episode-row .episode-baixar{grid-area:download!important}
 .android-phone #series-dialog .episode-row .episode-check{grid-area:watched!important}
 .android-phone.phone-details-open .bottom-nav{display:none!important}
+
+/* Continue watching: equal cards, even when an old record has no poster. */
+.android-phone #continuar-view{padding:0 18px 28px}
+.android-phone #continue-items{display:grid;grid-auto-flow:row;grid-auto-columns:auto;grid-template-columns:repeat(2,minmax(0,1fr));gap:22px 14px;overflow:visible;padding:8px 0 18px}
+.android-phone #continue-items .continue-item{min-width:0;display:flex;flex-direction:column;align-items:stretch}
+.android-phone #continue-items .card{display:flex;flex-direction:column;min-width:0;flex:1;margin-bottom:10px}
+.android-phone #continue-items .continue-cover{display:block;width:100%;height:auto;aspect-ratio:2/3;object-fit:cover;border-radius:10px;background:#202631}
+.android-phone #continue-items .continue-placeholder{display:grid;place-items:center;background:linear-gradient(145deg,#243446,#151c28);font-size:28px;color:#8d9db0}
+.android-phone #continue-items .card-titulo{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:38px;font-size:13px;line-height:19px;margin:10px 0 6px;width:100%;overflow-wrap:anywhere}
+.android-phone #continue-items .card-meta{width:100%;min-height:34px;font-size:11px;line-height:17px;white-space:normal;overflow-wrap:anywhere}
+.android-phone #continue-items .continue-progress{margin-top:8px}
+.android-phone #continue-items .continue-item>.quiet{align-self:flex-start;min-height:40px;padding:8px 12px;font-size:12px}
+@media(min-width:650px){.android-phone #continue-items{grid-template-columns:repeat(4,minmax(0,1fr))}}
+/* Only controls reserve the camera cutout; the picture uses the full display. */
+.android-phone #player .player-top,.android-phone #direct-controls{padding-left:max(12px,var(--player-safe-left,0px),env(safe-area-inset-left));padding-right:max(12px,var(--player-safe-right,0px),env(safe-area-inset-right))}

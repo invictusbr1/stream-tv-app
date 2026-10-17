@@ -511,6 +511,21 @@ html.web-redesign{--bg:#080b12;--panel:#151b28;--accent:#ee4055}
 .android-phone #series-dialog .episode-row .episode-baixar{grid-area:download!important}
 .android-phone #series-dialog .episode-row .episode-check{grid-area:watched!important}
 .android-phone.phone-details-open .bottom-nav{display:none!important}
+
+/* Continue watching: equal cards, even when an old record has no poster. */
+.android-phone #continuar-view{padding:0 18px 28px}
+.android-phone #continue-items{display:grid;grid-auto-flow:row;grid-auto-columns:auto;grid-template-columns:repeat(2,minmax(0,1fr));gap:22px 14px;overflow:visible;padding:8px 0 18px}
+.android-phone #continue-items .continue-item{min-width:0;display:flex;flex-direction:column;align-items:stretch}
+.android-phone #continue-items .card{display:flex;flex-direction:column;min-width:0;flex:1;margin-bottom:10px}
+.android-phone #continue-items .continue-cover{display:block;width:100%;height:auto;aspect-ratio:2/3;object-fit:cover;border-radius:10px;background:#202631}
+.android-phone #continue-items .continue-placeholder{display:grid;place-items:center;background:linear-gradient(145deg,#243446,#151c28);font-size:28px;color:#8d9db0}
+.android-phone #continue-items .card-titulo{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:38px;font-size:13px;line-height:19px;margin:10px 0 6px;width:100%;overflow-wrap:anywhere}
+.android-phone #continue-items .card-meta{width:100%;min-height:34px;font-size:11px;line-height:17px;white-space:normal;overflow-wrap:anywhere}
+.android-phone #continue-items .continue-progress{margin-top:8px}
+.android-phone #continue-items .continue-item>.quiet{align-self:flex-start;min-height:40px;padding:8px 12px;font-size:12px}
+@media(min-width:650px){.android-phone #continue-items{grid-template-columns:repeat(4,minmax(0,1fr))}}
+/* Only controls reserve the camera cutout; the picture uses the full display. */
+.android-phone #player .player-top,.android-phone #direct-controls{padding-left:max(12px,var(--player-safe-left,0px),env(safe-area-inset-left));padding-right:max(12px,var(--player-safe-right,0px),env(safe-area-inset-right))}
 </style></head><body>
 <header class="header" id="topbar"><button class="icon-btn gaveta-abrir" id="menu-cat-btn" aria-label="Abrir categorias" aria-expanded="false" onclick="alternarMenuCategorias()"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16"></path><path d="M4 12h16"></path><path d="M4 17h16"></path></svg></button><button class="brand" onclick="irParaCategoria('inicio')" aria-label="Conecta TV — início">CONECTA<span>TV</span></button><nav class="nav-chips" aria-label="Categorias"><button class="nav ativo" data-cat="inicio" onclick="irParaCategoria('inicio')">Início</button><button class="nav" data-cat="video" onclick="irParaCategoria('video')">Filmes e séries</button><button class="nav" data-cat="dorama" onclick="irParaCategoria('dorama')">Doramas</button><button class="nav" data-cat="short-drama" onclick="irParaCategoria('short-drama')">Mininovelas</button><button class="nav" data-cat="anime" onclick="irParaCategoria('anime')">Animes</button><button class="nav" data-cat="favoritos" id="nav-favoritos" onclick="irParaCategoria('favoritos')">★ Favoritos</button><button class="nav" data-cat="futebol" onclick="irParaCategoria('futebol')">⚽ Futebol</button><button class="nav" data-cat="tv" onclick="irParaCategoria('tv')">📺 TV ao vivo</button></nav><div class="acoes"><button class="icon-btn" id="busca-abrir" aria-label="Buscar" onclick="document.body.classList.toggle('busca-aberta');document.getElementById('q').focus()"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.6-3.6"></path></svg></button><button class="icon-btn" id="jarvis-open" aria-label="Jarvis, assistente de IA" title="Jarvis, assistente de IA"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5l1.7 4.6 4.6 1.7-4.6 1.7L12 16.1l-1.7-4.6L5.7 9.8l4.6-1.7z"></path><path d="M18.6 15.4l.7 1.9 1.9.7-1.9.7-.7 1.9-.7-1.9-1.9-.7 1.9-.7z"></path></svg></button><a class="icon-btn" id="update-link" href="/check-updates" hidden aria-label="Atualizações do aplicativo" title="Atualizações"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v10"></path><path d="M8 10.5l4 4 4-4"></path><path d="M5 19h14"></path></svg><span class="dot" id="update-dot" hidden></span></a><button class="icon-btn" id="account-open" aria-label="Entrar">Entrar</button></div><form class="busca" onsubmit="event.preventDefault();window.StreamLibrary?StreamLibrary.search():buscar()">
       <input id="q" placeholder="Buscar filmes e séries" aria-label="Buscar filmes e séries" autocomplete="off"><button type="submit">Buscar</button></form></header>
@@ -553,8 +568,8 @@ html.web-redesign{--bg:#080b12;--panel:#151b28;--accent:#ee4055}
 
 <button class="primary" id="direct-resume" hidden onclick="StreamPlayback.play()">▶ Reproduzir</button><div id="loading" role="status" aria-live="polite"><div class="spinner"></div><div id="load-msg"></div><div id="load-sub"></div><div id="acoes-erro" hidden><button class="primary" onclick="tentarNovamente()">Tentar novamente</button><button class="quiet" onclick="abrirOpcoes()">Ver opções</button></div></div></div>
 <div class="scrim" id="opcoes" hidden onclick="if(event.target===this) fecharOpcoes()"><aside class="options" role="dialog" aria-modal="true" aria-labelledby="options-title"><div class="options-head"><h2 id="options-title">Fontes e ajustes</h2><button class="icon-btn" id="options-close" onclick="fecharOpcoes()" aria-label="Fechar">×</button></div><p id="options-status" class="options-status">O aplicativo escolhe a fonte sozinho e troca de fonte quando uma não inicia.</p><div class="options-label">Fontes</div><div id="fontes"></div><button class="quiet retry" id="proxima" onclick="proximaFonte()">Tentar a próxima automaticamente</button><p class="regras-fontes">Só entram fontes dubladas, sem anúncio e em HD. Quando o título não tem dublagem em nenhuma fonte, o aplicativo abre a alta definição com legenda em português — e avisa na tela.</p></aside></div></section></section>
-<script src="/listas-tv.js?v1792268575051"></script><script src="/catalog.js?v1792268575051"></script><script src="/android.js?v1792268575051"></script>
-<script src="/vidsrc-source.js?v1792268575051"></script>
+<script src="/listas-tv.js?v1792271266273"></script><script src="/catalog.js?v1792271266273"></script><script src="/android.js?v1792271266273"></script>
+<script src="/vidsrc-source.js?v1792271266273"></script>
 <script>
 const API = '/api';
 let players=[],playerRequest=null,playerTimer=null,playerVersion=0,fonteAtual=-1,filmeAtual=null,ultimoFoco=null,fontesParaPular=[];
@@ -947,7 +962,7 @@ async function alternarFullHd(){
 function fechar(){if(fonteAtual>=0&&players[fonteAtual])lembrarFonte(players[fonteAtual].nome);if(contextoReproducao){contextoReproducao.ativo=false;contextoReproducao.recuperando=false;}window.StreamExitFullscreen?.();++playerVersion;playerRequest?.abort();pararFrame(true);if(document.fullscreenElement)document.exitFullscreen().catch(()=>{});el('player').classList.remove('expanded');fecharOpcoes(false);el('player').classList.remove('ativo');el('loading').classList.remove('vis');el('abrir-externo')?.removeAttribute('href');players=[];fonteAtual=-1;document.body.style.overflow='';ultimoFoco?.focus();window.StreamPersonal?.render();}
 document.addEventListener('keydown',e=>{if(!el('player').classList.contains('ativo'))return;if(e.key==='Escape'){e.preventDefault();if(!el('opcoes').hidden)fecharOpcoes();else fechar();}if(e.key==='Tab'&&!el('opcoes').hidden){const nodes=[...el('opcoes').querySelectorAll('button:not(:disabled),select,a[href],summary')].filter(n=>n.getClientRects().length);const first=nodes[0],last=nodes[nodes.length-1];if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus();}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus();}}});
 carregarRankings();
-</script><script src="/hls.min.js?v1792268575051"></script><script src="/reproducao-sessao.js?v1792268575051"></script><script src="/anime-player.js?v1792268575051"></script><script src="/enquadramento.js?v1792268575051"></script><script src="/playback.js?v1792268575051"></script><script src="/library.js?v1792268575051"></script><script src="/personal.js?v1792268575051"></script><script src="/episodios.js?v1792268575051"></script><script src="/auth.js?v1792268575051"></script><script src="/jarvis.js?v1792268575051"></script><script src="/acesso.js?v1792268575051"></script><script src="/legendas.js?v1792268575051"></script>
+</script><script src="/hls.min.js?v1792271266273"></script><script src="/reproducao-sessao.js?v1792271266273"></script><script src="/anime-player.js?v1792271266273"></script><script src="/enquadramento.js?v1792271266273"></script><script src="/playback.js?v1792271266273"></script><script src="/library.js?v1792271266273"></script><script src="/personal.js?v1792271266273"></script><script src="/episodios.js?v1792271266273"></script><script src="/auth.js?v1792271266273"></script><script src="/jarvis.js?v1792271266273"></script><script src="/acesso.js?v1792271266273"></script><script src="/legendas.js?v1792271266273"></script>
 <div id="update-aviso" class="toast" hidden><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" style="fill:none;stroke:#ff5566;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round"><path d="M12 4v10"></path><path d="M8 10.5l4 4 4-4"></path><path d="M5 19h14"></path></svg><strong>Nova versão disponível</strong><span>Atualize sem perder o histórico.</span><a href="/check-updates">Atualizar</a><button class="fechar" aria-label="Fechar aviso" onclick="document.getElementById('update-aviso').hidden=true">×</button></div>
 <script>
 (function(){
@@ -1016,9 +1031,9 @@ async function lerManifesto(){
     })();
 })();
 </script>
-<script src="/futebol.js?v1792268575051"></script>
-<script src="/mininovelas-source.js?v1792268575051"></script>
-<script src="/mininovelas.js?v1792268575051"></script>
+<script src="/futebol.js?v1792271266273"></script>
+<script src="/mininovelas-source.js?v1792271266273"></script>
+<script src="/mininovelas.js?v1792271266273"></script>
 <script id="android-phone-details">/* Loaded only by the browser page adapter. */
 (()=>{
  'use strict';
