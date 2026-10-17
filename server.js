@@ -343,6 +343,7 @@ app.get('/api/legenda-online', async (req, res) => {
 app.get('/hls.min.js', (req, res) => res.type('js').send(fs.readFileSync(path.join(__dirname, 'node_modules/hls.js/dist/hls.min.js'))));
 // O player vai sem cache: a atualização vale na hora, sem o navegador ficar
 // com a versão antiga guardada.
+app.get('/enquadramento.js', (req, res) => { res.setHeader('Cache-Control', 'no-store'); res.type('js').send(fs.readFileSync(path.join(__dirname, 'enquadramento.js'))); });
 app.get('/playback.js', (req, res) => { res.setHeader('Cache-Control', 'no-store'); res.type('js').send(fs.readFileSync(path.join(__dirname, 'playback.js'))); });
 app.get('/reproducao-sessao.js', (req, res) => { res.setHeader('Cache-Control', 'no-store'); res.type('js').send(fs.readFileSync(path.join(__dirname, 'reproducao-sessao.js'))); });
 
