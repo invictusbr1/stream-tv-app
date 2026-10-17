@@ -153,6 +153,23 @@ public final class MainActivity extends Activity {
         }
     }
 
+    private String avisosEndereco="";
+    private long avisosDescobertaAte=0;
+    private synchronized WebResourceResponse notificacoesServidor(){
+        try{
+            if(avisosEndereco.isEmpty()||System.currentTimeMillis()>=avisosDescobertaAte){
+                JSONObject config;try(InputStream in=getAssets().open("config.json")){config=new JSONObject(lerTexto(in));}
+                JSONObject atual=new JSONObject(RelatoHttp.enviar(config.optString("descoberta"),null));
+                String base=atual.getString("endereco").replaceAll("/+$","");URL u=new URL(base);
+                if(!"https".equals(u.getProtocol())||u.getUserInfo()!=null||(u.getPort()!=-1&&u.getPort()!=443)||!u.getPath().isEmpty()||u.getQuery()!=null||u.getRef()!=null)return error(502);
+                avisosEndereco=base;avisosDescobertaAte=System.currentTimeMillis()+60000;
+            }
+            String response=RelatoHttp.enviar(avisosEndereco+"/api/notificacoes",null);
+            if(new JSONObject(response).optJSONArray("avisos")==null)return error(502);
+            return respostaTexto("application/json",response);
+        }catch(Exception unavailable){return error(502);}
+    }
+
     // ---------------------------------------------------------------- fichas
     // Fornecedor novo descoberto pelo caçador da central: aqui o aparelho lê a
     // FICHA (endereço por título + regra de leitura do vídeo) e resolve sozinho,
@@ -1311,6 +1328,7 @@ public final class MainActivity extends Activity {
                 }
                 if (!trusted || !local(uri) || !"GET".equals(request.getMethod())) return error(403);
                 String path = uri.getPath();
+                if("/api/notificacoes".equals(path))return notificacoesServidor();
                 if ("/api/anime-player".equals(path)) return animePlayer(uri);
                 if ("/api/mininovelas/pagina".equals(path)) return mininovelaPagina(uri);
                 if ("/api/relato-nativo".equals(path)) {
@@ -1354,7 +1372,7 @@ public final class MainActivity extends Activity {
                 }
                 String name = "/".equals(path) ? "index.html" : path.substring(1);
                 // Only the bundled public assets can be served; no arbitrary file paths.
-                if (!name.matches("(?:index\\.html|assistir\\.html|tv\\.css|personal\\.js|episodios\\.js|library\\.js|auth\\.js|jarvis\\.js|acesso\\.js|legendas\\.js|fontes\\.json|catalog\\.js|android\\.js|config\\.json|enquadramento\\.js|playback\\.js|reproducao-sessao\\.js|anime-player\\.js|hls\\.min\\.js|vidsrc-source\\.js|listas-tv\\.js|futebol\\.js|mininovelas\\.js|mininovelas-source\\.js|perfis\\.json)")) return error(404);
+                if (!name.matches("(?:index\\.html|assistir\\.html|tv\\.css|personal\\.js|episodios\\.js|avisos-servidor\\.js|library\\.js|auth\\.js|jarvis\\.js|acesso\\.js|legendas\\.js|fontes\\.json|catalog\\.js|android\\.js|config\\.json|enquadramento\\.js|playback\\.js|reproducao-sessao\\.js|anime-player\\.js|hls\\.min\\.js|vidsrc-source\\.js|listas-tv\\.js|futebol\\.js|mininovelas\\.js|mininovelas-source\\.js|perfis\\.json)")) return error(404);
                 try {
                     String mime = name.endsWith(".html") ? "text/html" : name.endsWith(".css") ? "text/css" : name.endsWith(".js") ? "text/javascript" : "application/json";
                     return new WebResourceResponse(mime, "UTF-8", 200, "OK", Collections.singletonMap("Cache-Control", "no-store"), getAssets().open(name));

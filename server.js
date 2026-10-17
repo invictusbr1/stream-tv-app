@@ -60,6 +60,8 @@ app.use(seguranca.criarLimitador({
 }));
 const portao = seguranca.criarPortao({ codigo: ACESSO_CODIGO, arquivo: path.join(DADOS_DIR, 'autorizados.json') });
 app.post('/api/entrar', (req, res) => portao.rotaEntrada(req, res));
+// Avisos públicos de manutenção, sem dados pessoais e sem rota HTTP de escrita.
+app.get('/api/notificacoes', (req,res)=>{res.setHeader('Cache-Control','no-store');res.json({avisos:require('./avisos-servidor-store.cjs').ler(path.join(DADOS_DIR,'avisos-servidor.json'))});});
 app.use((req, res, next) => portao.middleware(req, res, next));
 
 // ============================================================
@@ -911,6 +913,7 @@ const libraryCatalog=require('./android/app/src/main/assets/catalog').createCata
 app.get(['/api/explore','/api/genres','/api/top-br','/api/alta',/^\/api\/(tv|season|episode)\//],async(req,res)=>{try{res.json(await libraryCatalog.request(req.originalUrl));}catch{res.status(502).json({error:'Catálogo indisponível'});}});
 app.get('/personal.js',(req,res)=>{res.setHeader('Cache-Control','no-store');res.sendFile(path.join(__dirname,'personal.js'));});
 app.get('/episodios.js',(req,res)=>{res.setHeader('Cache-Control','no-store');res.sendFile(path.join(__dirname,'episodios.js'));});
+app.get('/avisos-servidor.js',(req,res)=>{res.setHeader('Cache-Control','no-store');res.type('js').sendFile(path.join(__dirname,'avisos-servidor.js'));});
 app.get('/library.js',(req,res)=>{res.setHeader('Cache-Control','no-store');res.type('js').send(fs.readFileSync(path.join(__dirname,'library.js')));});
 app.get('/auth.js',(req,res)=>{res.setHeader('Cache-Control','no-store');res.type('js').send(fs.readFileSync(path.join(__dirname,'auth.js')));});
 app.get('/jarvis.js',(req,res)=>{res.setHeader('Cache-Control','no-store');res.type('js').send(fs.readFileSync(path.join(__dirname,'jarvis.js')));});

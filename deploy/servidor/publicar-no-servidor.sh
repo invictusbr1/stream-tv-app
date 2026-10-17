@@ -28,11 +28,17 @@ record validating 'Validando pacote e configuração.'
 STAGE="$(mktemp -d "$STATE/work/release-XXXXXXXX")"
 BACKUP="$(mktemp -d "$STATE/backups/anterior-XXXXXXXX")"
 CHANGED=0
+NOTICE_READY=0
 OLD_APP=''
 OLD_CENTRAL=''
 OLD_HTTPS=''
 dc() { docker compose -p servidor --env-file "$ENVFILE" -f "$ROOT/deploy/servidor/docker-compose.yml" -f "$ROOT/deploy/servidor/docker-compose.oracle.yml" "$@"; }
 stage_dc() { docker compose -p servidor --env-file "$ENVFILE" -f "$STAGE/deploy/servidor/docker-compose.yml" -f "$STAGE/deploy/servidor/docker-compose.oracle.yml" "$@"; }
+notice() {
+    [ "$NOTICE_READY" = 1 ] || return 0
+    # Usa o disco persistente do app, inclusive ao publicar sobre uma versão antiga.
+    dc exec -T app node - "$ID" "$1" < "$STAGE/avisos-servidor-store.cjs"
+}
 sync_code() {
     rsync -a --delete --exclude='.env' --exclude='config.local.json' --exclude='app.local.json' \
       --exclude='acessos.json' --exclude='autorizados.json' --exclude='bloqueados.json' \
@@ -60,9 +66,10 @@ rollback() {
             if [ "$a" = healthy ] && [ "$c" = healthy ]; then restored=1; break; fi
             sleep 2
         done
-        if [ "$restored" = 1 ]; then record rolled_back 'A nova versão falhou. A versão anterior foi restaurada e passou na verificação de saúde.'
-        else record failed 'A publicação e a recuperação precisam de verificação manual.'; fi
+        if [ "$restored" = 1 ]; then notice restaurada || true; record rolled_back 'A nova versão falhou. A versão anterior foi restaurada e passou na verificação de saúde.'
+        else notice falha || true; record failed 'A publicação e a recuperação precisam de verificação manual.'; fi
     else
+        notice cancelada || true
         record failed 'O pacote não foi publicado. Os serviços anteriores foram mantidos.'
     fi
     exit "${code:-1}"
@@ -109,6 +116,7 @@ assert services['central']['image']=='conecta-tv-central:servidor'
 assert services['https']['image']=='caddy:2-alpine'
 PY
 stage_dc config --format json | python3 "$STATE/validar-compose.py" "$ENVFILE"
+NOTICE_READY=1
 ENV_HASH="$(sha256sum "$ENVFILE" | cut -d' ' -f1)"
 OLD_APP="$(docker inspect --format '{{.Image}}' servidor-app-1)"
 OLD_CENTRAL="$(docker inspect --format '{{.Image}}' servidor-central-1)"
@@ -117,8 +125,12 @@ docker tag "$OLD_APP" "conecta-tv:anterior-${ID:0:12}"
 docker tag "$OLD_CENTRAL" "conecta-tv-central:anterior-${ID:0:12}"
 docker tag "$OLD_HTTPS" "conecta-tv-https:anterior-${ID:0:12}"
 record building 'Construindo os serviços, um de cada vez. A versão atual continua atendendo.'
+notice preparando
 stage_dc build app
 stage_dc build central
+notice reiniciando
+record notifying 'Avisando quem está assistindo. Reinício em 45 segundos.'
+sleep 45
 record installing 'Aplicando a nova versão e preservando dados e senhas.'
 rsync -a --exclude='.env' --exclude='config.local.json' --exclude='app.local.json' --exclude='dados/' "$ROOT/" "$BACKUP/"
 OLD_CADDY="$(sha256sum "$ROOT/deploy/servidor/Caddyfile" | cut -d' ' -f1)"
@@ -163,6 +175,7 @@ print(ipaddress.IPv4Address(values['PUBLIC_IP'].strip().strip('"').strip("'")))
 PY
 )"
 curl --fail --silent --show-error --max-time 20 "https://$PUBLIC_IP/api/health" | python3 -c 'import json,sys; assert json.load(sys.stdin).get("status")=="ok"'
+notice concluida
 record healthy 'Versão publicada e verificada. Dados, volumes e códigos de acesso foram preservados.'
 cp "$STATE/results/$ID.json" "$STATE/current.json"
 # Limita históricos de código e pacotes; nunca remove volumes de dados.

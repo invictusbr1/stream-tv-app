@@ -15,6 +15,7 @@ const DEPLOY_FILES = ['docker-compose.yml', 'docker-compose.oracle.yml', 'Caddyf
     'Instalar-No-Servidor.sh', 'LEIA-ME-SERVIDOR.md', 'publicar-automatico.cjs',
     'publicar-no-servidor.sh', 'ATUALIZACAO-AUTOMATICA.md'];
 const REQUIRED = ['package.json', 'package-lock.json', 'server.js', 'index.html', 'Dockerfile',
+    'avisos-servidor.js', 'avisos-servidor-store.cjs',
     'central/servidor.js', 'central/Dockerfile', 'deploy/servidor/docker-compose.yml',
     'deploy/servidor/docker-compose.oracle.yml', 'deploy/servidor/Caddyfile',
     'android/app/src/main/assets/catalog.js', 'android/app/src/main/assets/assistir.html'];
@@ -100,7 +101,9 @@ async function packageSource(expected, root = ROOT, directory = STATE) {
         fs.writeFileSync(listing, [...expected.names, '.conecta-release.json'].join('\n') + '\n');
         await run('tar.exe', ['-czf', archive, '-C', snapshot, '-T', listing]);
         fs.unlinkSync(listing);
-        return { archive, sha256: crypto.createHash('sha256').update(fs.readFileSync(archive)).digest('hex') };
+        const publisher=path.join(directory,expected.id+'.publicar.sh');
+        fs.writeFileSync(publisher,fs.readFileSync(path.join(snapshot,'deploy/servidor/publicar-no-servidor.sh'),'utf8').replace(/\r\n/g,'\n'));
+        return { archive, publisher, sha256: crypto.createHash('sha256').update(fs.readFileSync(archive)).digest('hex') };
     } finally {
         // A pasta é criada por mkdtemp acima, sempre dentro do estado do monitor.
         if (path.dirname(path.resolve(snapshot)) !== path.resolve(directory)) throw new Error('Pasta de trabalho fora do diretório esperado');
@@ -122,6 +125,10 @@ async function publish(expected) {
     const remoteFile = '/home/' + config.user + '/conecta-updates/' + expected.id + '.tar.gz';
     status({ fase: 'enviando' });
     await remote.upload(bundle.archive, remoteFile);
+    // Instala o publicador desta versão antes da execução (inclui os avisos prévios).
+    const remoteScript='/home/'+config.user+'/conecta-updates/'+expected.id+'.publicar.sh';
+    await remote.upload(bundle.publisher,remoteScript);
+    await remote.ssh('sudo install -o root -g root -m 0750 '+remoteScript+' /usr/local/sbin/conecta-publicar');
     const unit = 'conecta-publicar-' + expected.id.slice(0, 12) + '-' + Date.now();
     await remote.ssh('sudo systemd-run --quiet --collect --unit=' + unit + ' /usr/local/sbin/conecta-publicar ' + expected.id + ' ' + bundle.sha256);
     const deadline = Date.now() + 30 * 60 * 1000;

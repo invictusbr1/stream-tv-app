@@ -57,3 +57,5 @@ stream-tv/
 *.lnk
 relatorios/vigia-fontes.json
 *.pdf
+
+/avisos-servidor.json

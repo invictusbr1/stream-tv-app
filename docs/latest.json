@@ -1,14 +1,14 @@
 {
-  "versionCode": 410,
-  "versionName": "2.13.80",
-  "apkUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.80/Conecta-TV-Android-2.13.80.apk",
-  "sha256": "5b74ef2d602912e2ca2b461854cdeecb2b3bb0d485cb7a6024a02b6713bea67d",
-  "bytes": 558949,
-  "notes": "Crystal Lake: prioriza a fonte HD dublada sem anuncios, compara a qualidade a cada abertura e conserva a fonte anterior como reserva. Outros titulos mantem sua selecao de qualidade.",
+  "versionCode": 411,
+  "versionName": "2.13.81",
+  "apkUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.81/Conecta-TV-Android-2.13.81.apk",
+  "sha256": "250f67fe2ad33439842aa22f5ce9a55d0a1a07c29e3ab3558c002a819d8668be",
+  "bytes": 521193,
+  "notes": "Notificacoes de manutencao: sino com historico e aviso discreto durante a reproducao, inclusive em tela cheia. O servidor passa a avisar antes das proximas atualizacoes e quando voltar. Nao pausa nem recarrega o video.",
   "exeUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.68/Conecta-TV-2.13.68.exe",
   "exeSha256": "40914a57b0e3ad375615c9954839f8c3f7bb138d8739472772de3ee28d3ff015",
   "exeBytes": 120409967,
-  "apkTvUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.80/Conecta-TV-TV-2.13.80.apk",
-  "apkTvSha256": "b9d7792427077eab7d41fb202bd784be333e6bdcca7ca2db769c0d6b700b171f",
-  "apkTvBytes": 558272
+  "apkTvUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.81/Conecta-TV-TV-2.13.81.apk",
+  "apkTvSha256": "8d9620eec3888fa14a445284cff94a850c6d7ba372b8b82d7bdbd8525169a271",
+  "apkTvBytes": 520837
 }
