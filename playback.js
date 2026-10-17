@@ -169,6 +169,18 @@ window.StreamPlayback = (() => {
         // toca): acompanha o andamento e começa assim que houver trecho pronto —
         // o resto continua convertendo em segundo plano.
         if(token!==generation||(signal&&signal.aborted)||version!==playerVersion)return false;
+        const consulta = caminho || ('/api/playback/'+id);
+        const podeCompat = !urlDireta && !android && !televisao && /^\/api\/playback\/(?:\d+|serie\/\d+\/\d+\/\d+)(?:\?|$)/.test(consulta);
+        let compatTentada = false;
+        const consultarCompat = async () => {
+            compatTentada = true;
+            try { return await lerJson(consulta+(consulta.includes('?')?'&':'?')+'compat=avc',signal); } catch { return null; }
+        };
+        if (podeCompat && /^(hevc|h265)$/.test(data?.videoCodec||'') && !document.createElement('video').canPlayType('video/mp4; codecs="hvc1.2.4.L153.B0"')) {
+            data = await consultarCompat();
+            if(token!==generation||(signal&&signal.aborted)||version!==playerVersion)return false;
+            if(!data)return false;
+        }
         if(data&&data.conversao&&retomadaAlvo>0){
             fonteIdUsada=String(data.fonteId||'');fonteUsada=String(data.source||'');
             analiseAtual?.fonte({fonteId:fonteIdUsada,fonte:fonteUsada});
@@ -198,7 +210,7 @@ window.StreamPlayback = (() => {
                 if(retomadaAlvo>0&&Number.isFinite(video.duration)&&video.currentTime+1<Math.min(retomadaAlvo,Math.max(0,video.duration-1)))return;
                 if(!imagemConfirmada){imagemConfirmada=true;ultimaPosicao=Number(video.currentTime)||retomadaAlvo||0;qualityInfo();analiseAtual?.fonte({resolucao:alturaAtual?alturaAtual+'p':''});analiseAtual?.imagem(ultimaPosicao);}
                 clearTimeout(startupTimer);el('loading').classList.remove('vis');const done=settle;settle=null;if(done)done(true);};
-            let recovered=false, nativeFallback=false;
+            let recovered=false, nativeFallback=false, compatEmCurso=false;
             const awaitPicture=()=>{
                 if(!current())return;
                 const decoded=video.getVideoPlaybackQuality?.().totalVideoFrames??video.webkitDecodedFrameCount;
@@ -206,8 +218,20 @@ window.StreamPlayback = (() => {
                 if(video.requestVideoFrameCallback){if(frameCallback===null)frameCallback=video.requestVideoFrameCallback(()=>{frameCallback=null;if(current())ready();});}
                 else {const frames=video.getVideoPlaybackQuality?.().totalVideoFrames??video.webkitDecodedFrameCount;if(frames>0||(frames===undefined&&video.readyState>=2))ready();}
             };
-            const pictureTimeout=()=>{
-                if(!current())return;
+            const pictureTimeout=async()=>{
+                if(!current()||compatEmCurso)return;
+                if(!imagemConfirmada&&data.type==='file'&&podeCompat&&!compatTentada){
+                    compatEmCurso=true;clearTimeout(startupTimer);video.pause();
+                    const nova=await consultarCompat();compatEmCurso=false;
+                    if(!current())return;
+                    if(nova?.type==='file'&&nova.audio==='pt-BR'&&enderecoDeMidia(String(nova.url||''))&&nova.url!==data.url){
+                        data=nova;fonteIdUsada=String(nova.fonteId||'');fonteUsada=String(nova.source||'');
+                        analiseAtual?.fonte({fonteId:fonteIdUsada,fonte:fonteUsada,audio:'Dublado'});
+                        resumeApplied=false;video.src=nova.url;
+                        startupTimer=setTimeout(()=>{if(current())failure('a fonte não apresentou imagem');},12000);play();return;
+                    }
+                    failure('a fonte não apresentou imagem');return;
+                }
                 if((android||televisao)&&hls&&!nativeFallback&&video.canPlayType('application/vnd.apple.mpegurl')){
                     nativeFallback=true;resumeApplied=false;hls.destroy();hls=null;video.pause();video.src=data.url;
                     el('direct-quality').hidden=false;el('quality-select').hidden=true;
@@ -232,7 +256,7 @@ video.addEventListener('playing',()=>{if(!current())return;intencaoTocar=true;li
             video.addEventListener('seeked',()=>{if(current()){ultimaPosicao=Number(video.currentTime)||0;analiseAtual?.tocando(ultimaPosicao);awaitPicture();}});
             video.addEventListener('click',()=>showControls(true));
             video.textTracks?.addEventListener?.('addtrack',()=>{if(!current())return;subtitleMenu();if(!escolherLegendaAutomatica())setSubtitle(subtitleChoice);});
-            video.addEventListener('error',()=>{if(current())failure();});
+            video.addEventListener('error',()=>{if(!current()||compatEmCurso)return;if(!imagemConfirmada&&data.type==='file'&&podeCompat&&!compatTentada)pictureTimeout();else failure();});
             // Arquivo direto (MP4 progressivo): toca no próprio player, sem
             // hls.js. É o caso da fonte dublada alternativa.
             if(data.type==='file'){

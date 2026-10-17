@@ -94,6 +94,7 @@ async function sondarArquivo(url, referer) {
         mestre: false,
         altura: faixas.imagem ? faixas.imagem.altura : 0,
         largura: faixas.imagem ? faixas.imagem.largura : 0,
+        videoCodec: faixas.imagem?.codec || '',
         banda: 0,
         audios: faixas.faixas.map(f => ({ lang: f.idioma, name: f.codec, padrao: f.padrao })),
         legendas: [],
@@ -165,7 +166,10 @@ function avaliarConferidas(conferidas, idiomas) {
         const { nota, detalhes } = notaDaFonte(medida);
         return { fonteId: registro.item.fonte.id, fonte: registro.item.dados.fonte || registro.item.fonte.nome,
             nota: Math.round((nota + Math.max(0, 0.15 - i * 0.05)) * 100) / 100,
-            detalhes: { ...detalhes, ordemNoMotor: i + 1 }, dados: registro.item.dados, ms: registro.item.ms, prioridade: prioridadeDaFonte(medida) };
+            detalhes: { ...detalhes, ordemNoMotor: i + 1 }, dados: { ...registro.item.dados,
+                ...(sonda?.videoCodec ? {videoCodec:sonda.videoCodec} : {}),
+                ...(sonda?.altura && sonda?.largura ? {resolucao:Math.round(alturaEquivalente(sonda.largura,sonda.altura))+'p'} : {})
+            }, ms: registro.item.ms, prioridade: prioridadeDaFonte(medida) };
     }).sort((a, b) => compararPrioridade(a.prioridade, b.prioridade));
 }
 

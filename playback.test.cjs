@@ -372,3 +372,27 @@ test('com o áudio dublado a legenda segue desligada', async () => {
     s.controller.stop();
     await p;
 });
+
+test('Chrome sem HEVC consulta a versão compatível antes de iniciar o arquivo',async()=>{
+ const s=harness('Chrome'),calls=[];
+ s.fetch(async path=>{calls.push(path);return path.includes('compat=avc')?{url:'/api/hls?u=avc',type:'file',audio:'pt-BR',videoCodec:'h264',fonteId:'fenixflix-fenixhub'}:{url:'/api/hls?u=hevc',type:'file',audio:'pt-BR',videoCodec:'hevc'};});
+ const pending=s.controller.start(1084244,1);await new Promise(setImmediate);
+ assert.equal(calls.length,2);assert(calls[1].includes('compat=avc'));const v=s.el('direct-video');assert.equal(v.src,'/api/hls?u=avc');
+ v.videoWidth=1920;v.videoHeight=1080;v.webkitDecodedFrameCount=1;v.fire('playing');assert.equal(await pending,true);s.controller.stop();
+});
+test('APK com HEVC preserva a fonte 4K sem pedir a reserva do navegador',async()=>{
+ const s=harness('StreamTVAndroid'),calls=[];s.fetch(async path=>{calls.push(path);return {url:'/api/hls?u=hevc',type:'file',audio:'pt-BR',videoCodec:'hevc'};});
+ const pending=s.controller.start(1084244,1);await new Promise(setImmediate);assert.equal(calls.length,1);
+ const v=s.el('direct-video');v.videoWidth=3840;v.videoHeight=2160;v.webkitDecodedFrameCount=1;v.fire('playing');assert.equal(await pending,true);assert.equal(v.src,'/api/hls?u=hevc');s.controller.stop();
+});
+test('erro do arquivo sem imagem tenta outra versão do fornecedor e conserva o ponto',async()=>{
+ const s=harness('Chrome'),calls=[];s.context.filmeAtual={id:1084244,titulo:'Toy Story 5'};s.fetch(async path=>{calls.push(path);return {url:path.includes('compat=avc')?'/api/hls?u=avc':'/api/hls?u=hevc',type:'file',audio:'pt-BR',fonteId:'fenixflix-fenixhub'};});
+ const pending=s.controller.start(1084244,1,null,null,null,false,null,{posicao:240});await new Promise(setImmediate);
+ const v=s.el('direct-video');v.duration=1000;v.fire('loadedmetadata');v.fire('error');await new Promise(setImmediate);
+ assert.equal(calls.length,2);assert.equal(v.src,'/api/hls?u=avc');v.currentTime=0;v.fire('loadedmetadata');assert.equal(v.currentTime,240);
+ v.videoWidth=1920;v.videoHeight=1080;v.webkitDecodedFrameCount=1;v.fire('playing');assert.equal(await pending,true);assert.equal(s.failures(),0);s.controller.stop();
+});
+test('cancelar durante a consulta compatível impede que a resposta antiga abra outro vídeo',async()=>{
+ const s=harness('Chrome');let finish;s.fetch(async path=>path.includes('compat=avc')?new Promise(r=>finish=r):{url:'/api/hls?u=hevc',type:'file',audio:'pt-BR',videoCodec:'hevc'});
+ const pending=s.controller.start(1084244,1);await new Promise(setImmediate);s.controller.stop();finish({url:'/api/hls?u=avc',type:'file',audio:'pt-BR'});assert.equal(await pending,false);assert.equal(s.controller.isActive(),false);
+});

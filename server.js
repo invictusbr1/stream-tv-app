@@ -429,6 +429,14 @@ app.get('/api/hls', async (req, res) => {
     }
 });
 
+async function responderCompatibilidade(req, res, alvo) {
+    if (req.query.compat !== 'avc') return false;
+    const fonte = await require('./fenix-compativel').resolver(alvo);
+    if (!fonte) { res.status(502).json({error:'Não foi encontrada uma versão dublada compatível neste fornecedor.'}); return true; }
+    const pronto = require('./fontes-motor').prepararParaPlayer(fonte);
+    res.json({url:pronto.urlAplicativo,audio:pronto.audio,source:pronto.fonte,fonteId:pronto.fonteId,type:'file',resolucao:pronto.resolucao,videoCodec:pronto.videoCodec});
+    return true;
+}
 app.get('/api/playback/:id', async (req, res) => {
     if (!/^\d{1,10}$/.test(req.params.id)) return res.sendStatus(400);
     res.setHeader('Cache-Control', 'no-store');
@@ -438,6 +446,7 @@ app.get('/api/playback/:id', async (req, res) => {
         const avaliador = require('./avaliador');
         const exceto = String(req.query.exceto || '').split(',').map(item => item.trim()).filter(Boolean);
         const alvo = { tipo: 'movie', tmdbId: req.params.id };
+        if (await responderCompatibilidade(req,res,alvo)) return;
         // Avaliador em tempo real: testa as melhores fontes do título em
         // paralelo e escolhe a que entrega mais qualidade seguindo as regras.
         let escolhido = null;
@@ -491,6 +500,7 @@ app.get('/api/playback/:id', async (req, res) => {
                 fonteId: pronto.fonteId || '',
                 type: pronto.type || 'hls',
                 resolucao: pronto.resolucao || '',
+                videoCodec: pronto.videoCodec || '',
                 avaliacao: avaliacao || undefined,
             });
         }
@@ -525,6 +535,7 @@ app.get('/api/playback/serie/:id/:season/:episode', async (req, res) => {
     try {
         const exceto = String(req.query.exceto || '').split(',').map(item => item.trim()).filter(Boolean);
         const alvo = { tipo: 'tv', tmdbId: id, temporada: season, episodio: episode };
+        if (await responderCompatibilidade(req,res,alvo)) return;
         let escolhido = await require('./crystal-lake-source').resolver(alvo, { exceto });
         let avaliacao = null;
         if (!escolhido && process.env.AVALIADOR !== '0') {
@@ -557,6 +568,7 @@ app.get('/api/playback/serie/:id/:season/:episode', async (req, res) => {
             fonteId: escolhido.fonteId || '',
             type: escolhido.type || 'hls',
             resolucao: escolhido.resolucao,
+            videoCodec: escolhido.videoCodec || '',
             legendas: escolhido.legendas || [],
             legendaPortugues: Boolean(escolhido.legendaPortugues),
             avaliacao: avaliacao || undefined,

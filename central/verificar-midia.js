@@ -164,7 +164,7 @@ function cabecalho(referer) {
 }
 
 // Faixas de áudio com idioma e marcação de padrão (quando o arquivo informa).
-async function faixasDeAudio(url, referer = '') {
+async function faixasDeAudio(url, referer = '', opcoes = {}) {
     const f = await garantirFerramentas();
     if (!f.ffprobe) return null;
     const { erro, saida } = await rodar(f.ffprobe, [
@@ -172,7 +172,7 @@ async function faixasDeAudio(url, referer = '') {
         '-print_format', 'json',
         '-show_streams', '-show_format',
         url,
-    ], 90000);
+    ], Math.max(1000, Math.min(90000, Number(opcoes.timeout) || 90000)));
     if (erro) return null;
     let dados;
     try { dados = JSON.parse(saida); } catch { return null; }
@@ -182,7 +182,8 @@ async function faixasDeAudio(url, referer = '') {
     return {
         container: dados.format && dados.format.format_name || '',
         duracao: Number((dados.format && dados.format.duration) || 0) || 0,
-        imagem: { largura: Number(video.width) || 0, altura: Number(video.height) || 0 },
+        imagem: { largura: Number(video.width) || 0, altura: Number(video.height) || 0,
+            codec: String(video.codec_name || '').toLowerCase(), pixels: String(video.pix_fmt || '') },
         faixas: audio.map((s, i) => ({
             ordem: i,
             idioma: String((s.tags || {}).language || '').toLowerCase(),
