@@ -5,6 +5,38 @@ const { analisarPlaylist, notaDaFonte } = require('./avaliador');
 require('./midias-memoria.cjs').load=()=>[];
 require('./midias-memoria.cjs').update=()=>{};
 
+test('limita leituras físicas simultâneas e compartilha URL repetida sem baixar os arquivos completos',async()=>{
+ const a=require('./avaliador'),v=require('./central/verificar-midia'),original=v.faixasDeAudio;
+ const resolvers=[];let active=0,max=0,calls=0;
+ try{
+  v.faixasDeAudio=()=>{calls++;active++;max=Math.max(max,active);return new Promise(resolve=>resolvers.push(()=>{active--;resolve({imagem:{largura:3840,altura:2160},faixas:[{idioma:'por',padrao:true}]});}));};
+  const jobs=[1,2,3,1].map(n=>a.sondarArquivo('https://media.invalid/pool-'+n+'.mp4','',{timeout:3000}));
+  assert.equal(calls,2);resolvers.shift()();await new Promise(setImmediate);assert.equal(calls,3);
+  while(resolvers.length)resolvers.shift()();const results=await Promise.all(jobs);
+  assert.equal(max,2);assert.equal(calls,3);assert(results.every(r=>r.largura===3840&&r.padraoPortugues));
+ }finally{while(resolvers.length)resolvers.shift()();v.faixasDeAudio=original;a.limparCache();}
+});
+
+test('segunda leitura recupera 4K da mesma fonte depois de HD e não congela fonte temporariamente ausente',async()=>{
+ const a=require('./avaliador'),motor=require('./fontes-motor'),v=require('./central/verificar-midia'),proxy=require('./midia-proxy');
+ const original=Object.fromEntries(['filaDeFontes','lerIdiomasVerificados','registrarSucesso','anotarEscolha','registrarFalha'].map(k=>[k,motor[k]])),probe=v.faixasDeAudio,validate=proxy.validarMidia,date=Date.now;
+ let phase='retry',reads=0,listingCalls=0,clock=0;
+ const low={url:'https://media.invalid/hd.mp4',type:'file',audio:'pt-BR',resolucao:'720p'},high={url:'https://media.invalid/highest',type:'file',audio:'pt-BR',resolucao:'2160p',exigeProva:true};
+ try{
+  Date.now=()=>date()+clock;
+  motor.filaDeFontes=()=>[{id:'addon',resolverTodos:async()=>{listingCalls++;return phase==='missing'?[low]:[low,high];}},{id:'temporaria',resolver:async()=>phase==='missing'?null:low}];
+  motor.lerIdiomasVerificados=()=>({});motor.registrarSucesso=()=>{};motor.anotarEscolha=()=>{};motor.registrarFalha=()=>{};
+  proxy.validarMidia=async()=>true;
+  v.faixasDeAudio=async url=>{const h=url.includes('highest');if(h&&phase==='retry'&&++reads===1)return null;return {imagem:{largura:h?3840:1280,altura:h?2160:720},faixas:[{idioma:'por',padrao:true,codec:'aac'}]};};
+  const target={tipo:'movie',tmdbId:'9999001'};
+  let result=await a.escolherMelhor('dublado',target);assert.equal(result.escolhido.url,high.url);assert.equal(reads,2);
+  a.limparCache();phase='missing';result=await a.escolherMelhor('dublado',target);assert.equal(result.escolhido.url,low.url);const before=listingCalls;
+  phase='available';clock+=1600;result=await a.escolherMelhor('dublado',target);assert.equal(result.escolhido.url,high.url);assert(listingCalls>before);
+  a.limparCache();v.faixasDeAudio=async url=>url.includes('highest')?null:{imagem:{largura:1280,altura:720},faixas:[{idioma:'por',padrao:true,codec:'aac'}]};
+  result=await a.escolherMelhor('dublado',target);assert.equal(result.escolhido.url,low.url,'endereço sem extensão exige prova; promessa 4K não basta');
+ }finally{Date.now=date;Object.assign(motor,original);v.faixasDeAudio=probe;proxy.validarMidia=validate;a.limparCache();}
+});
+
 test('fonte 4K fora do índice só vence após nova prova de português e imagem; falha ou idioma diferente usa atual',async()=>{
  const a=require('./avaliador'),motor=require('./fontes-motor'),v=require('./central/verificar-midia'),proxy=require('./midia-proxy');
  const original=Object.fromEntries(['filaDeFontes','lerIdiomasVerificados','registrarSucesso','anotarEscolha','registrarFalha'].map(k=>[k,motor[k]])),probe=v.faixasDeAudio,validate=proxy.validarMidia;

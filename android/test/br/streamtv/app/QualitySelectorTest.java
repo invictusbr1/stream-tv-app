@@ -24,6 +24,24 @@ public final class QualitySelectorTest {
     private static QualitySelector.Measure measure(int w,int h,int lang){return new QualitySelector.Measure(w,h,lang,0,true);}
     public static void main(String[] args)throws Exception{
         switch(args[0]){
+        case "double-check":{
+            AtomicInteger probes=new AtomicInteger(),lists=new AtomicInteger();
+            QualitySelector.Candidate hd=candidate("hd"),uhd=candidate("4k");uhd.requiresProof=true;
+            try(QualitySelector q=new QualitySelector()){
+                List<QualitySelector.Source> sources=Arrays.asList(d->hd,d->{lists.incrementAndGet();return uhd;});
+                QualitySelector.Candidate best=q.choose("retry",sources,Collections.emptySet(),(c,d)->{if(c.id.equals("4k")&&probes.incrementAndGet()==1)return null;return c.id.equals("4k")?measure(3840,2160,2):measure(1280,720,2);},2000);
+                check(best.id.equals("4k")&&probes.get()==2);
+            }
+            try(QualitySelector q=new QualitySelector()){
+                AtomicInteger state=new AtomicInteger();List<QualitySelector.Source> sources=Arrays.asList(d->hd,d->state.get()==0?null:uhd);
+                QualitySelector.Probe probe=(c,d)->c.id.equals("4k")?measure(3840,2160,2):measure(1280,720,2);
+                check(q.choose("missing",sources,Collections.emptySet(),probe,2000).id.equals("hd"));state.set(1);
+                check(q.choose("missing",sources,Collections.emptySet(),probe,2000).id.equals("4k"));
+            }
+            try(QualitySelector q=new QualitySelector()){
+                check(q.choose("opaque",Arrays.asList(d->hd,d->uhd),Collections.emptySet(),(c,d)->c.id.equals("4k")?null:measure(1280,720,2),2000).id.equals("hd"));
+            }break;
+        }
         case "history":{
             java.io.File file=java.io.File.createTempFile("conecta-history-",".bin");
             try{

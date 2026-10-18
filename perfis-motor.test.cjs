@@ -2,6 +2,16 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const perfis = require('./perfis-motor');
 
+test('addon compara versões além da primeira e prioriza 4K sem aceitar página, CAM ou original',async()=>{
+ const ficha={id:'addon',nome:'Addon',dublado:true,urlMovie:'https://addon.test/{id}',urlTv:'https://addon.test/{id}/{temporada}/{episodio}',passos:[{tipo:'json',caminho:'streams[0].url'}]};
+ const streams=Array.from({length:9},(_,i)=>({url:'https://media.test/'+i+'.mp4',name:'720p',title:'Dublado'}));
+ streams.push({url:'http://media.test/highest',name:'4K',title:'Dual Áudio'});
+ streams.push({url:'https://media.test/ad.html',name:'4K',title:'Dublado'},{url:'https://media.test/original.mp4',name:'4K',title:'Legendado'},{url:'https://media.test/cam.mp4',name:'4K',title:'Dublado HDCAM'},{url:'https://127.0.0.1/video.mp4',name:'4K',title:'Dublado'});
+ const result=await perfis.resolverTodos(ficha,{tipo:'movie',tmdbId:1},{buscar:async()=>JSON.stringify({streams})});
+ assert.equal(result.length,8);assert.equal(result[0].url,'https://media.test/highest');assert.equal(result[0].resolucao,'2160p');assert.equal(result[0].exigeProva,true);
+ assert(result.every(r=>!r.url.includes('ad.html')&&!r.url.includes('original')&&!r.url.includes('cam.mp4')&&!r.url.includes('127.0.0.1')));
+});
+
 const ficha = {
     id: 'exemplo',
     nome: 'Exemplo · dublado',

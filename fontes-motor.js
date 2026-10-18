@@ -352,6 +352,10 @@ function fontesDePerfil() {
             peso: 60 + nota * 3,
             perfil: true,
             seAplica: alvo => perfisMotor.serve(perfil, alvo, null),
+            resolverTodos: async alvo => {
+                const completo=precisaDeImdb?await comImdb(alvo):alvo;
+                return completo?perfisMotor.resolverTodos(perfil,completo,{buscar:buscarPagina}):[];
+            },
             resolver: async alvo => {
                 const completo = precisaDeImdb ? await comImdb(alvo) : alvo;
                 if (!completo) return null;

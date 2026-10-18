@@ -20,9 +20,9 @@ const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML,
 // Todas as fontes aprovadas e aplicáveis participam. Uma posição fixa na
 // fila não pode esconder a única alternativa de maior qualidade do título.
 const MAX_FONTES = Infinity;
-const TEMPO_RESOLVER = 7000;       // limite por fonte
+const TEMPO_RESOLVER = 3500;       // fontes consultadas em paralelo
 const TEMPO_SONDAR = 4000;         // limite por sonda
-const ORCAMENTO = 6000;            // prazo total da pré-checagem
+const ORCAMENTO = 6500;            // inclui eventual segunda leitura inconclusiva
 const VALIDADE = 10 * 60 * 1000;   // quanto tempo a decisão fica lembrada
 
 const cache = new Map();
@@ -85,9 +85,25 @@ async function sondarLista(url, referer) {
     return analise;
 }
 
+const leiturasPendentes=new Map(),filaDeLeituras=[];let leiturasAtivas=0;
+function liberarLeituras(){
+    while(leiturasAtivas<2&&filaDeLeituras.length){
+        const job=filaDeLeituras.shift(),restante=job.fim-Date.now();
+        if(restante<500){job.resolve(null);continue;}
+        leiturasAtivas++;
+        let leitura;try{leitura=require('./central/verificar-midia').faixasDeAudio(job.url,job.referer,{timeout:Math.max(1000,restante)});}catch{leitura=null;}
+        Promise.resolve(leitura).then(job.resolve,()=>job.resolve(null)).finally(()=>{leiturasAtivas--;liberarLeituras();});
+    }
+}
+function lerArquivoComLimite(url,referer,opcoes){
+    const key=JSON.stringify([url,referer||'']);if(leiturasPendentes.has(key))return leiturasPendentes.get(key);
+    if(filaDeLeituras.length>=64)return Promise.resolve(null);
+    const job={url,referer:referer||'',fim:Date.now()+(opcoes.timeout||6000)};
+    const promise=new Promise(resolve=>{job.resolve=resolve;filaDeLeituras.push(job);liberarLeituras();});
+    leiturasPendentes.set(key,promise);promise.finally(()=>{if(leiturasPendentes.get(key)===promise)leiturasPendentes.delete(key);});return promise;
+}
 async function sondarArquivo(url, referer, opcoes = {}) {
-    const central = require('./central/verificar-midia');
-    const faixas = await central.faixasDeAudio(url, referer || '', opcoes);
+    const faixas = await lerArquivoComLimite(url,referer,opcoes);
     if (!faixas) return null;
     const portuguesa = faixas.faixas.find(f => /^pt|por/.test(f.idioma));
     return {
@@ -104,7 +120,7 @@ async function sondarArquivo(url, referer, opcoes = {}) {
 }
 
 // Sonda o que a fonte realmente entrega (lista ou arquivo).
-async function sondar(dados) {
+async function sondar(dados,opcoes={}) {
     if (!dados || !dados.url) return null;
     const ehLista = dados.type === 'hls' || /\.m3u8(\?|$)/i.test(dados.url);
     const chave = JSON.stringify([dados.url, dados.referer || '']);
@@ -117,7 +133,7 @@ async function sondar(dados) {
     if (medicoesEmCurso.has(chave)) return medicoesEmCurso.get(chave);
     const versao = versaoMedicoes;
     const operacao = (async () => { try {
-        const sonda = ehLista ? await sondarLista(dados.url, dados.referer) : await sondarArquivo(dados.url, dados.referer);
+        const sonda = ehLista ? await sondarLista(dados.url, dados.referer) : await sondarArquivo(dados.url, dados.referer,opcoes);
         if (versao === versaoMedicoes && sonda?.altura > 0) {
             if (medidasDeArquivo.size >= 128) medidasDeArquivo.delete(medidasDeArquivo.keys().next().value);
             medidasDeArquivo.set(chave, { sonda, expira: Date.now() + (ehLista ? 60000 : VALIDADE) });
@@ -284,26 +300,39 @@ async function escolherMelhor(papel, alvo, opcoes = {}) {
     // Resolve todas em paralelo — a primeira que responder já garante a reserva.
     const memoria=opcoes.memoria||require('./midias-memoria.cjs'),tituloKey=require('./midias-memoria.cjs').chave(alvo);
     const conhecidas=papel==='dublado'?memoria.load(tituloKey,fila.map(f=>f.id)):[];
-    const tempoLembrada=10000;
+    const prazoFinal=inicio+ORCAMENTO;
+    let fontesInconclusivas=false;
+    async function conferir(dados,lembrada=false){
+        let prova=await prazo(lembrada?sondarArquivo(dados.url,dados.referer,{timeout:6000}):sondar(dados,{timeout:TEMPO_SONDAR}),lembrada?6000:TEMPO_SONDAR);
+        const restante=prazoFinal-Date.now();
+        if((!prova?.largura||!prova?.altura)&&restante>500&&dados.type==='file'){
+            const limite=Math.min(2500,restante);
+            prova=await prazo(sondarArquivo(dados.url,dados.referer,{timeout:limite}),limite);
+        }
+        return prova;
+    }
     const lembrarJobs=conhecidas.map(r=>{
         const fonte=fila.find(f=>f.id===r.id),dados=r.dados;
-        return {fonte,dados,ms:0,lembrada:true,sonda:prazo(sondarArquivo(dados.url,dados.referer,{timeout:tempoLembrada}),tempoLembrada),validacao:prazo(midia.validarMidia(dados.url,dados.referer,tempoLembrada),tempoLembrada+500,false)};
+        return {fonte,dados,ms:0,lembrada:true,sonda:conferir(dados,true),validacao:prazo(midia.validarMidia(dados.url,dados.referer,6000),6000,false)};
     });
     const resolvidas = (await Promise.all(fila.map(async fonte => {
         const comeco = Date.now();
-        const dados = await prazo(fonte.resolver(alvo), TEMPO_RESOLVER);
-        if (!dados || !dados.url) return null;
+        const resposta = await prazo(typeof fonte.resolverTodos==='function'?fonte.resolverTodos(alvo):fonte.resolver(alvo), TEMPO_RESOLVER);
+        const opcoes=Array.isArray(resposta)?resposta:resposta?[resposta]:[];
+        if(!opcoes.length)fontesInconclusivas=true;
         const ms = Date.now() - comeco;
         // Mede assim que cada endereço chega. Uma fonte lenta não deve consumir
         // o prazo que as outras precisam para comprovar resolução e português.
-        const sonda = prazo(sondar(dados), TEMPO_SONDAR);
+        return opcoes.filter(dados=>dados?.url).map(dados=>{
+        const sonda = conferir(dados);
         const validacao = prazo(midia.validarMidia(dados.url, dados.referer, TEMPO_SONDAR), TEMPO_SONDAR + 500, true);
         return { fonte, dados, ms, sonda, validacao };
-    }))).filter(Boolean).concat(lembrarJobs);
+        });
+    }))).flat().concat(lembrarJobs);
     if (!resolvidas.length) return null;
 
     const idiomas = motor.lerIdiomasVerificados()[motor.chaveDoTitulo(alvo)] || {};
-    const restante = Math.max(1200, (conhecidas.length?tempoLembrada+500:ORCAMENTO) - (Date.now() - inicio));
+    const restante = Math.max(1,prazoFinal-Date.now());
     // Sondagem (o que a fonte promete) e validação (o que ela entrega AGORA)
     // acontecem juntas, dentro do mesmo orçamento de tempo.
     const [sondas, validacoes] = await Promise.all([
@@ -320,7 +349,7 @@ async function escolherMelhor(papel, alvo, opcoes = {}) {
     if(papel==='dublado')memoria.update(tituloKey,registros.map(r=>({id:r.item.fonte.id,dados:r.item.dados,sonda:r.sonda,invalida:!r.valida})));
     const conferidas=registros
         .filter(registro => {
-            if(registro.item.lembrada&&(!registro.sonda?.padraoPortugues||!registro.sonda.largura||!registro.sonda.altura))return false;
+            if((registro.item.lembrada||registro.item.dados.exigeProva)&&(!registro.sonda?.padraoPortugues||!registro.sonda.largura||!registro.sonda.altura))return false;
             if (registro.valida) return true;
             if(!registro.item.lembrada)try { motor.registrarFalha(registro.item.fonte.id, 'o endereço não entrega vídeo', `dublado:${motor.chaveDoTitulo(alvo)}`); } catch { /* segue */ }
             return false;
@@ -332,7 +361,8 @@ async function escolherMelhor(papel, alvo, opcoes = {}) {
     motor.registrarSucesso(resultado.escolhido.fonteId);
     motor.anotarEscolha(papel, alvo, resultado.escolhido);
     if (cache.size >= 256 && !cache.has(chave)) cache.delete(cache.keys().next().value);
-    cache.set(chave, { resultado, conferidas, expira: Date.now() + VALIDADE });
+    const incompleta=fontesInconclusivas||registros.some(r=>!r.sonda?.largura||!r.sonda?.altura);
+    cache.set(chave, { resultado, conferidas, expira: Date.now() + (incompleta?1500:VALIDADE) });
     return resultado;
 }
 

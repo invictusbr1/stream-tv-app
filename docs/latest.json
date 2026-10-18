@@ -1,14 +1,14 @@
 {
-  "versionCode": 412,
-  "versionName": "2.13.82",
-  "apkUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.82/Conecta-TV-Android-2.13.82.apk",
-  "sha256": "da58813e2f8158734fb206b098e7a1791d841b072505a0e6580222df2a0fd1ba",
-  "bytes": 526342,
-  "notes": "Preserva fontes dubladas de alta qualidade já verificadas quando saem da lista do fornecedor. Confere novamente a mídia antes de escolher, mantém a melhor qualidade compatível e recupera a fonte 4K de Homem-Aranha: Um Novo Dia.",
+  "versionCode": 413,
+  "versionName": "2.13.83",
+  "apkUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.83/Conecta-TV-Android-2.13.83.apk",
+  "sha256": "97c9fe1f1d0ef3061942cddada40fbd19018d76a5d6011a764cf05fd5ea22613",
+  "bytes": 618283,
+  "notes": "Compara as versões dubladas da mesma fonte antes de escolher, repete medições inconclusivas dentro de um prazo curto e evita manter HD no cache após uma falha temporária. Preserva a maior qualidade compatível e a reprodução sem anúncios.",
   "exeUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.68/Conecta-TV-2.13.68.exe",
   "exeSha256": "40914a57b0e3ad375615c9954839f8c3f7bb138d8739472772de3ee28d3ff015",
   "exeBytes": 120409967,
-  "apkTvUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.82/Conecta-TV-TV-2.13.82.apk",
-  "apkTvSha256": "cca48ac74a81b86cf2f656e78ea664e97a49142320338c3597e511a811b599ca",
-  "apkTvBytes": 526021
+  "apkTvUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.83/Conecta-TV-TV-2.13.83.apk",
+  "apkTvSha256": "698db30b04ef2c6dedeb95c327fbcc88f317e8d8a150f316bb7b1ca004e9efe6",
+  "apkTvBytes": 617460
 }

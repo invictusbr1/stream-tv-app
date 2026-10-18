@@ -201,6 +201,27 @@ async function resolver(perfil, alvo, { buscar, referer = '' } = {}) {
     };
 }
 
+// Addons podem listar HD antes de 4K. A posição não é evidência de qualidade.
+async function resolverTodos(perfil,alvo,opcoes={}) {
+    const passos=perfil?.passos;
+    if(!Array.isArray(passos)||passos.length!==1||passos[0].tipo!=='json'||passos[0].caminho!=='streams[0].url'){
+        const unica=await resolver(perfil,alvo,opcoes);return unica?[unica]:[];
+    }
+    const endpoint=preencher(alvo.tipo==='tv'?perfil.urlTv:perfil.urlMovie,alvo),ref=refererSeguro(perfil.referer)||endpoint;
+    if(!ehEnderecoSeguro(endpoint)||typeof opcoes.buscar!=='function')return [];
+    let streams;try{streams=JSON.parse(await opcoes.buscar(endpoint,ref)).streams;}catch{return [];}
+    const seen=new Set(),lista=[];
+    for(const stream of Array.isArray(streams)?streams:[]){
+        const label=String(stream?.name||'')+' '+String(stream?.title||'');
+        if(/\b(cam|hdcam|ts|telesync)\b/i.test(label)||!(/\b(dublado|dual(?:[ -]?[áa]udio)?)\b|🇧🇷/i.test(label))||(/\blegendado\b/i.test(label)&&!(/\bdual\b/i.test(label))))continue;
+        const url=String(stream.url||'').replace(/^http:/i,'https:');if(!ehEnderecoSeguro(url)||seen.has(url))continue;
+        const path=new URL(url).pathname,hls=/\.m3u8$/i.test(path),file=/\.mp4$/i.test(path),opaque=!/\.[a-z0-9]{1,5}$/i.test(path);
+        if(!hls&&!file&&!opaque)continue;seen.add(url);
+        const h=/\b(\d{3,4})p\b/i.exec(label),height=/\b(4k|uhd)\b/i.test(label)?2160:h?Number(h[1]):0;
+        lista.push({url,referer:ref,fonte:(perfil.nome||perfil.id)+' · '+String(stream.name||'Dublado'),fonteId:perfil.id,audio:'pt-BR',type:hls?'hls':'file',resolucao:height?height+'p':'',perfil:true,exigeProva:opaque});
+    }
+    return lista.sort((a,b)=>parseInt(b.resolucao||0)-parseInt(a.resolucao||0)).slice(0,8);
+}
 module.exports = {
-    resolver, ordenar, serve, preencher, aplicarPasso, perfisValidos, ehEnderecoSeguro, refererSeguro, valorNoCaminho,
+    resolver, resolverTodos, ordenar, serve, preencher, aplicarPasso, perfisValidos, ehEnderecoSeguro, refererSeguro, valorNoCaminho,
 };

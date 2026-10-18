@@ -843,22 +843,23 @@ public final class MainActivity extends Activity {
                     String ref=ficha.optString("referer",endpoint);String body=lerPagina(endpoint,ref);
                     if(body==null)return Collections.emptyList();JSONArray streams=new JSONObject(body).optJSONArray("streams");
                     List<QualitySelector.Candidate> candidates=new ArrayList<>();
-                    for(int i=0;streams!=null&&i<streams.length()&&candidates.size()<8;i++){
+                    for(int i=0;streams!=null&&i<streams.length()&&i<128;i++){
                         JSONObject stream=streams.optJSONObject(i);if(stream==null)continue;
                         String name=stream.optString("name"),title=stream.optString("title"),label=name+" "+title;
                         if(!AddonPolicy.dubbed(label))continue;
                         String raw=stream.optString("url");if(raw.startsWith("http://"))raw="https://"+raw.substring(7);
                         if(!enderecoSeguro(raw))continue;
                         String path=new URL(raw).getPath().toLowerCase(java.util.Locale.ROOT);
-                        String mediaType=path.endsWith(".m3u8")?"hls":path.endsWith(".mp4")?"file":"";
+                        boolean opaque=!Pattern.compile("\\.[a-z0-9]{1,5}$").matcher(path).find();
+                        String mediaType=path.endsWith(".m3u8")?"hls":path.endsWith(".mp4")||opaque?"file":"";
                         if(mediaType.isEmpty())continue;
-                        int declared=AddonPolicy.height(name);
+                        int declared=AddonPolicy.height(label);
                         JSONObject data=new JSONObject();data.put("url","hls".equals(mediaType)?enderecoEncaminhado(raw,ref):raw);
                         data.put("audio","pt-BR");data.put("type",mediaType);data.put("source",ficha.optString("nome","Fonte")+" · "+name);data.put("fonteId",profileId);
                         data.put("resolucao",declared>0?declared+"p":"");
-                        candidates.add(new QualitySelector.Candidate(profileId,raw,ref,mediaType,data.toString(),declared));
+                        QualitySelector.Candidate candidate=new QualitySelector.Candidate(profileId,raw,ref,mediaType,data.toString(),declared);candidate.requiresProof=opaque;candidates.add(candidate);
                     }
-                    return candidates;
+                    Collections.sort(candidates,(a,b)->Integer.compare(b.declared,a.declared));return candidates.subList(0,Math.min(8,candidates.size()));
                 }finally{qualityDeadline.remove();}
             }
         };
@@ -907,7 +908,7 @@ public final class MainActivity extends Activity {
         }catch(Exception ignored){ /* Segue com as fontes fixas se a ficha não estiver disponível. */ }
         String key=tipo+":"+id+":"+temporada+":"+episodio+":"+new java.util.TreeSet<>(exceto)+":"+(profiles==null?0:profiles.hashCode());
         String title=tv?"tv:"+id+":"+temporada+":"+episodio:"movie:"+id;
-        QualitySelector.Candidate chosen=qualitySelector.choose(key,sources,exceto,NativeMediaProbe::read,12000,title,allowed);
+        QualitySelector.Candidate chosen=qualitySelector.choose(key,sources,exceto,NativeMediaProbe::read,6500,title,allowed);
         if(chosen!=null){
             try{
                 JSONObject data=new JSONObject(chosen.json);QualitySelector.Measure m=chosen.measure;
