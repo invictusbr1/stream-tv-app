@@ -13,12 +13,17 @@ import javax.net.ssl.HttpsURLConnection;
 /** Usa o leitor de mídia do Android; nenhuma página ou script é executado. */
 final class NativeMediaProbe {
     static QualitySelector.Measure read(QualitySelector.Candidate c,long deadline)throws Exception {
-        try{return inspect(c,deadline);}catch(MediaHttp.Unavailable e){return new QualitySelector.Measure(0,0,1,0,false);}
+        return read(c,deadline,false);
     }
-    private static QualitySelector.Measure inspect(QualitySelector.Candidate c,long deadline)throws Exception {
+    // O teto AVC só vale quando o aparelho não decodifica HEVC; sem isso a
+    // própria medição escondia o 4K e a fonte certa perdia a disputa.
+    static QualitySelector.Measure read(QualitySelector.Candidate c,long deadline,boolean allowHevc)throws Exception {
+        try{return inspect(c,deadline,allowHevc);}catch(MediaHttp.Unavailable e){return new QualitySelector.Measure(0,0,1,0,false);}
+    }
+    private static QualitySelector.Measure inspect(QualitySelector.Candidate c,long deadline,boolean allowHevc)throws Exception {
         if("hls".equals(c.type)){
             String text=text(c.url,c.referer,deadline);
-            QualitySelector.Measure manifest=QualitySelector.playlist(text);
+            QualitySelector.Measure manifest=QualitySelector.playlist(text,allowHevc);
             if(manifest==null)return null;
             if(manifest.width>0&&manifest.height>0)return manifest;
             if(Pattern.compile("#EXT-X-KEY:.*METHOD=(?!NONE)",Pattern.CASE_INSENSITIVE).matcher(text).find())return manifest;

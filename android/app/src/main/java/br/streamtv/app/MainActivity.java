@@ -67,11 +67,25 @@ public final class MainActivity extends Activity {
         return (int)Math.min(Math.min(normal,5000),left);
     }
 
+    // O WebView só entrega 4K quando o aparelho decodifica HEVC de verdade.
+    // MediaCodecList responde na hora; sem HEVC o seletor fica no teto AVC.
+    private static boolean hevcSuportado(){
+        try{
+            if(android.os.Build.VERSION.SDK_INT<21)return false;
+            android.media.MediaCodecList lista=new android.media.MediaCodecList(android.media.MediaCodecList.REGULAR_CODECS);
+            for(android.media.MediaCodecInfo info:lista.getCodecInfos()){
+                if(info.isEncoder())continue;
+                for(String tipo:info.getSupportedTypes())if("video/hevc".equalsIgnoreCase(tipo))return true;
+            }
+        }catch(Exception ignored){ /* sem lista de codecs: conserva o teto AVC */ }
+        return false;
+    }
+
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
         VerifiedMediaStore verifiedStore=new VerifiedMediaStore(new File(getFilesDir(),"midias-verificadas.bin"));
         seedVerifiedMedia(verifiedStore);
-        qualitySelector=new QualitySelector(verifiedStore);
+        qualitySelector=new QualitySelector(verifiedStore,hevcSuportado());
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         root = new FrameLayout(this);
         root.setBackgroundColor(Color.BLACK);
@@ -813,8 +827,9 @@ public final class MainActivity extends Activity {
             if(raw.startsWith("/api/hls?")){Uri uri=Uri.parse(raw);raw=decodificar(uri.getQueryParameter("u"));referer=decodificar(uri.getQueryParameter("r"));}
             NativeMediaProbe.safe(raw);
             if(!"hls".equals(type)&&!("file".equals(type)&&new URL(raw).getPath().toLowerCase(java.util.Locale.ROOT).endsWith(".mp4")))return null;
-            Matcher height=Pattern.compile("(?i)(\\d{3,4})\\s*p\\b").matcher(data.optString("resolucao"));
-            int declared=height.find()?Integer.parseInt(height.group(1)):0;
+            // O rótulo da ficha pode ser "4K", "Full HD" ou "1080p". A leitura
+            // antiga só entendia o formato com "p" e tratava 4K como altura zero.
+            int declared=AddonPolicy.height(data.optString("resolucao"));
             data.remove("_referer");
             return new QualitySelector.Candidate(id,raw,referer,type,data.toString(),declared);
         }catch(Exception ignored){return null;}
@@ -940,7 +955,9 @@ public final class MainActivity extends Activity {
         }catch(Exception ignored){ /* Segue com as fontes fixas se a ficha não estiver disponível. */ }
         String key=tipo+":"+id+":"+temporada+":"+episodio+":"+new java.util.TreeSet<>(exceto)+":"+(profiles==null?0:profiles.hashCode());
         String title=tv?"tv:"+id+":"+temporada+":"+episodio:"movie:"+id;
-        QualitySelector.Candidate chosen=qualitySelector.choose(key,sources,exceto,NativeMediaProbe::read,10000,title,allowed);
+        QualitySelector.Candidate chosen=qualitySelector.choose(key,sources,exceto,
+            (candidato,prazo)->NativeMediaProbe.read(candidato,prazo,qualitySelector.podeHevc()),
+            10000,title,allowed);
         if(chosen!=null){
             try{
                 JSONObject data=new JSONObject(chosen.json);QualitySelector.Measure m=chosen.measure;

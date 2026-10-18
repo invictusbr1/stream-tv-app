@@ -82,7 +82,7 @@ window.StreamPlayback = (() => {
     let initialFocus=false, frameCallback=null;
     let hls=null, video=null, generation=0, settle=null, startupTimer=null, controlsTimer=null, direct=false;
     let opcoesAtuais=null,analiseAtual=null,imagemConfirmada=false,ultimaPosicao=0,retomadaAlvo=null;
-    let travamentoTimer=null,ajusteTimer=null,removerAbort=null,verificarAtual=null,intencaoTocar=false,qualidadeEscolhida='best',ajustouConexao=false;
+    let travamentoTimer=null,ajusteTimer=null,voltarMelhorTimer=null,restaurado=false,removerAbort=null,verificarAtual=null,intencaoTocar=false,qualidadeEscolhida='best',ajustouConexao=false;
     function limparEspera(){clearTimeout(travamentoTimer);clearTimeout(ajusteTimer);travamentoTimer=null;ajusteTimer=null;}
     function posicaoAtual(){const ponto=Number(video?.currentTime);return imagemConfirmada?(Number.isFinite(ponto)&&ponto>=0?(video?.error&&ponto===0&&!video.seeking?ultimaPosicao:ponto):ultimaPosicao):Math.max(0,retomadaAlvo||0);}
     function esperando(current){
@@ -91,16 +91,40 @@ window.StreamPlayback = (() => {
         if(travamentoTimer!==null)return;
         ajusteTimer=setTimeout(()=>{
             if(!current()||!intencaoTocar||video.paused||video.seeking||document.hidden)return;
-            if(hls&&qualidadeEscolhida==='best'&&!ajustouConexao){ajustouConexao=true;quality('-1');try{window.mostrarStatus?.('Ajustando a qualidade à conexão…');}catch{}}
+            if(hls&&qualidadeEscolhida==='best'&&!ajustouConexao){
+                ajustouConexao=true;quality('-1');try{window.mostrarStatus?.('Ajustando a qualidade à conexão…');}catch{}
+                // Engasgou: cai para a automática agora, mas a qualidade não pode
+                // ficar rebaixada para o resto da sessão. Depois de 45s tocando sem
+                // parar, tenta a melhor versão de novo — uma única vez, para não oscilar.
+                clearTimeout(voltarMelhorTimer);
+                voltarMelhorTimer=setTimeout(()=>{
+                    if(restaurado||!current()||!intencaoTocar||video.paused||video.seeking||video.ended||document.hidden)return;
+                    restaurado=true;quality('best');try{window.mostrarStatus?.('Voltando à melhor qualidade…');}catch{}
+                },45000);
+            }
         },6000);
         travamentoTimer=setTimeout(()=>{travamentoTimer=null;if(current()&&intencaoTocar&&!video.paused&&!video.seeking&&!video.ended&&!document.hidden)failure('o vídeo ficou sem avançar');},20000);
     }
     function stop(resultado='fechou'){window.StreamFraming?.attach(null);saveProgress();analiseAtual?.encerrar(resultado,posicaoAtual());limparEspera();removerAbort?.();removerAbort=null;intencaoTocar=false;verificarAtual=null;opcoesAtuais=null;analiseAtual=null;imagemConfirmada=false;subtitleChoice=-1;clearTimeout(relogioConfirmacao);if(video&&frameCallback!==null&&video.cancelVideoFrameCallback)video.cancelVideoFrameCallback(frameCallback);frameCallback=null;initialFocus=false;clearTimeout(controlsTimer);el('direct-controls').hidden=true;++generation;clearTimeout(startupTimer);if(settle){settle(false);settle=null;}if(hls){hls.destroy();hls=null;}if(video){video.pause();video.removeAttribute('src');video.load();video.remove();video=null;}direct=false;el('frame').hidden=false;el('direct-resume').hidden=true;el('direct-quality').hidden=true;el('quality-limit').textContent='';subtitleMenu();}
+    // Quem diz o que o aparelho toca é o próprio motor de mídia: se o MediaSource
+    // aceita o codec, a versão de maior resolução é legítima (inclusive 4K HEVC no
+    // APK). Sem essa prova só vale AVC — alguns aparelhos anunciam HEVC e não
+    // conseguem renderizar. Era isso que baixava um 4K para Full HD.
+    function codecSuportado(codec){
+        const nome=String(codec||'').toLowerCase();
+        if(!nome)return true;
+        const avc=/^avc[13]/.test(nome),outro=/^(hvc1|hev1|av01|vp09|mp4v)/.test(nome);
+        if(!avc&&!outro)return true;
+        let mse=false;
+        try{mse=typeof MediaSource!=='undefined'&&typeof MediaSource.isTypeSupported==='function';}catch{mse=false;}
+        if(mse){try{return MediaSource.isTypeSupported('video/mp4; codecs="'+codec+'"');}catch{return avc;}}
+        return avc;
+    }
     function bestLevel(){
         if(!hls?.levels.length)return -1;
-        let candidates=hls.levels.map((level,index)=>({level,index}));
-        // Prefer AVC on Android boxes when offered; some devices advertise HEVC but cannot render it reliably.
-        if(android&&candidates.some(c=>/^avc[13]/i.test(c.level.videoCodec||'')))candidates=candidates.filter(c=>/^avc[13]/i.test(c.level.videoCodec||''));
+        const todos=hls.levels.map((level,index)=>({level,index}));
+        const suportados=todos.filter(c=>codecSuportado(c.level.videoCodec));
+        const candidates=suportados.length?suportados:todos;
         return candidates.reduce((best,c)=>c.level.height>best.level.height||(c.level.height===best.level.height&&(c.level.bitrate||0)>(best.level.bitrate||0))?c:best).index;
     }
     function portuguese(track){return /^(pt|por)(-|_|$)/i.test(track.lang||track.language||'')||/dublad|portugu[eê]s|portuguese|pt[-_ ]?br/i.test(track.name||track.label||'');}

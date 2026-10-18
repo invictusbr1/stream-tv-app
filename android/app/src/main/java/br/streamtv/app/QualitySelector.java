@@ -39,8 +39,12 @@ final class QualitySelector implements AutoCloseable {
     private final Map<String,Entry<Measure>> measures=new LinkedHashMap<>();
     private volatile boolean closed;
     private final VerifiedMediaStore history;
+    // O aparelho declara se decodifica HEVC. Sem isso, a maior resolução da
+    // lista pode ser um 4K HEVC que o WebView não renderiza — e aí o teto é AVC.
+    private final boolean allowHevc;
     QualitySelector(){this(null);}
-    QualitySelector(VerifiedMediaStore history){this.history=history;}
+    QualitySelector(VerifiedMediaStore history){this(history,false);}
+    QualitySelector(VerifiedMediaStore history,boolean allowHevc){this.history=history;this.allowHevc=allowHevc;}
     static long now() { return System.nanoTime()/1000000L; }
 
     Candidate choose(String key,List<Source> sources,Set<String> excluded,Probe probe,long budget) {
@@ -103,6 +107,8 @@ final class QualitySelector implements AutoCloseable {
         }catch(Exception ignored){ /* Sem prova, conserva a alternativa existente sem inventar resolução. */ }
     }
     synchronized void forget(String key){choices.remove(key);}
+    // A capacidade é do aparelho, não do candidato: quem mede precisa dela.
+    boolean podeHevc(){return allowHevc;}
     static double equivalent(int width,int height){return width>0&&height>0?Math.max(Math.min(width,height),Math.max(width,height)*9.0/16):Math.max(0,height);}
     static int compare(Candidate a,Candidate b){
         Measure x=a.measure,y=b.measure;
@@ -114,23 +120,34 @@ final class QualitySelector implements AutoCloseable {
         if(quality!=0)return quality;
         return Long.compare(y==null?0:y.bitrate,x==null?0:x.bitrate);
     }
-    static Measure playlist(String text){
+    static Measure playlist(String text){return playlist(text,false);}
+    static Measure playlist(String text,boolean allowHevc){
         if(text==null||!text.trim().startsWith("#EXTM3U"))return null;
-        int w=0,h=0;long bitrate=0;boolean pt=false,other=false;
-        boolean avc=Pattern.compile("(?im)^#EXT-X-STREAM-INF:[^\\r\\n]*CODECS=\"[^\"]*avc[13]").matcher(text).find();
+        int w=0,h=0,aw=0,ah=0;long bitrate=0,avcRate=0;boolean pt=false,other=false;
+        // Sem o filtro prévio: quem decide é a resolução de cada faixa, e o
+        // teto AVC é aplicado no fim (antes o filtro descartava a lista inteira).
         for(String raw:text.split("\n")){
             String line=raw.trim();
             if(line.startsWith("#EXT-X-STREAM-INF:")){
-                if(avc&&!Pattern.compile("(?i)CODECS=\"[^\"]*avc[13]").matcher(line).find())continue;
+                // Cuidado: o codec real vem completo (avc1.640028 / hvc1.1.6.L150).
+                // A versão anterior exigia a aspa logo depois de avc1 e não casava
+                // com nenhum manifesto de verdade — a lista voltava 0x0.
+                boolean avc=Pattern.compile("(?i)CODECS=\"[^\"]*avc[13]").matcher(line).find();
+                Matcher banda=Pattern.compile("(?:^|,)BANDWIDTH=(\\d+)").matcher(line.substring(line.indexOf(':')+1));
+                long bw=banda.find()?Long.parseLong(banda.group(1)):0;
                 Matcher m=Pattern.compile("RESOLUTION=(\\d{2,5})x(\\d{2,5})",Pattern.CASE_INSENSITIVE).matcher(line);
-                if(m.find()){int nw=Integer.parseInt(m.group(1)),nh=Integer.parseInt(m.group(2));if(equivalent(nw,nh)>equivalent(w,h)){w=nw;h=nh;}}
-                m=Pattern.compile("(?:^|,)BANDWIDTH=(\\d+)").matcher(line.substring(line.indexOf(':')+1));if(m.find())bitrate=Math.max(bitrate,Long.parseLong(m.group(1)));
+                if(m.find()){
+                    int nw=Integer.parseInt(m.group(1)),nh=Integer.parseInt(m.group(2));
+                    if(equivalent(nw,nh)>equivalent(w,h)){w=nw;h=nh;bitrate=bw;}
+                    if(avc&&equivalent(nw,nh)>equivalent(aw,ah)){aw=nw;ah=nh;avcRate=bw;}
+                }
             }
             if(line.startsWith("#EXT-X-MEDIA:")&&line.contains("TYPE=AUDIO")){
                 Matcher m=Pattern.compile("LANGUAGE=\"([^\"]+)\"").matcher(line);
                 if(m.find()){String lang=m.group(1);if(portuguese(lang))pt=true;else if(!lang.equals("und"))other=true;}
             }
         }
+        if(!allowHevc&&aw>0){w=aw;h=ah;bitrate=avcRate;}
         return new Measure(w,h,pt?2:other?-1:1,bitrate,true);
     }
     static boolean portuguese(String value){return value!=null&&value.matches("(?i)(pt|por)([-_].*)?");}

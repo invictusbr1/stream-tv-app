@@ -231,6 +231,17 @@ test('Android prefers an available AVC rendition over a higher HEVC rendition',a
  const s=harness('StreamTVAndroidTV'),p=s.controller.start(1084244,1,new AbortController().signal);await new Promise(setImmediate);
  s.Hls.instance.levels=[{height:2160,videoCodec:'hvc1.1.6.L150'},{height:1080,videoCodec:'avc1.640028'},{height:720,videoCodec:'avc1.64001f'}];s.Hls.instance.emit('manifest');assert.equal(s.Hls.instance.currentLevel,1);s.controller.stop();await p;
 });
+test('Android com decodificador HEVC entrega o 4K em vez de cair para Full HD',async()=>{
+ const s=harness('StreamTVAndroidTV');s.context.MediaSource={isTypeSupported:t=>/hvc1|hev1|avc[13]/i.test(String(t))};
+ const p=s.controller.start(1084244,1,new AbortController().signal);await new Promise(setImmediate);
+ s.Hls.instance.levels=[{height:2160,videoCodec:'hvc1.1.6.L150'},{height:1080,videoCodec:'avc1.640028'},{height:720,videoCodec:'avc1.64001f'}];s.Hls.instance.emit('manifest');
+ assert.equal(s.Hls.instance.currentLevel,0,'o aparelho toca HEVC: a melhor versão é o 4K');s.controller.stop();await p;
+});
+test('sem MediaSource o player continua no teto AVC e não escolhe HEVC no escuro',async()=>{
+ const s=harness('StreamTVAndroidTV'),p=s.controller.start(1084244,1,new AbortController().signal);await new Promise(setImmediate);
+ s.Hls.instance.levels=[{height:2160,videoCodec:'hvc1.1.6.L150'},{height:1080,videoCodec:'avc1.640028'}];s.Hls.instance.emit('manifest');
+ assert.equal(s.Hls.instance.currentLevel,1);s.controller.stop();await p;
+});
 test('media recovery is bounded to one attempt',async()=>{
  const s=harness(),p=s.controller.start(1084244,1,new AbortController().signal);await new Promise(setImmediate);
  const h=s.Hls.instance;h.emit('error',{fatal:true,type:'mediaError'});assert.equal(h.recovered,1);h.emit('error',{fatal:true,type:'mediaError'});assert.equal(await p,false);

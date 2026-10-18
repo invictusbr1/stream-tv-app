@@ -9,7 +9,11 @@ final class AddonPolicy {
             &&(!Pattern.compile("(?i)\\blegendado\\b").matcher(label).find()||Pattern.compile("(?i)\\bdual\\b").matcher(label).find());
     }
     static int height(String name){
-        if(Pattern.compile("(?i)\\b(4k|uhd|2160p)\\b").matcher(name).find())return 2160;
-        Matcher m=Pattern.compile("(?i)\\b(\\d{3,4})p\\b").matcher(name);return m.find()?Integer.parseInt(m.group(1)):0;
+        if(name==null)return 0;
+        if(Pattern.compile("(?i)\\b(4k|uhd)\\b").matcher(name).find())return 2160;
+        Matcher m=Pattern.compile("(?i)\\b(\\d{3,4})p\\b").matcher(name);
+        if(m.find())return Integer.parseInt(m.group(1));
+        if(Pattern.compile("(?i)\\bfull[ -]?hd\\b|\\bfhd\\b").matcher(name).find())return 1080;
+        return Pattern.compile("(?i)\\bhd\\b").matcher(name).find()?720:0;
     }
 }

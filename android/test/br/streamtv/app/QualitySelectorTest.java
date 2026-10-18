@@ -161,8 +161,12 @@ public final class QualitySelectorTest {
             }break;
         }
         case "playlist":{
-            QualitySelector.Measure m=QualitySelector.playlist("#EXTM3U\n#EXT-X-MEDIA:TYPE=AUDIO,LANGUAGE=\"pt-BR\"\n#EXT-X-STREAM-INF:BANDWIDTH=8000000,RESOLUTION=3840x2160,CODECS=\"hvc1\"\n4k.m3u8\n#EXT-X-STREAM-INF:BANDWIDTH=4000000,RESOLUTION=1920x800,CODECS=\"avc1.640028\"\nfhd.m3u8");
+            String lista="#EXTM3U\n#EXT-X-MEDIA:TYPE=AUDIO,LANGUAGE=\"pt-BR\"\n#EXT-X-STREAM-INF:BANDWIDTH=8000000,RESOLUTION=3840x2160,CODECS=\"hvc1\"\n4k.m3u8\n#EXT-X-STREAM-INF:BANDWIDTH=4000000,RESOLUTION=1920x800,CODECS=\"avc1.640028\"\nfhd.m3u8";
+            QualitySelector.Measure m=QualitySelector.playlist(lista);
             check(m.width==1920&&m.height==800&&m.language==2);check(m.bitrate==4000000);
+            // Aparelho que decodifica HEVC: o 4K da mesma lista passa a valer.
+            QualitySelector.Measure uhd=QualitySelector.playlist(lista,true);
+            check(uhd.width==3840&&uhd.height==2160&&uhd.language==2);check(uhd.bitrate==8000000);
             check(QualitySelector.playlist("#EXTM3U\n#EXTINF:6,\nsegment.js").height==0);
             check(QualitySelector.playlist("<html>anúncio</html>")==null);
             check(QualitySelector.playlist("#EXTM3U\n#EXT-X-MEDIA:TYPE=AUDIO,LANGUAGE=\"en\"").language==-1);break;
