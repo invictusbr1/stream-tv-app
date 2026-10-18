@@ -1,14 +1,14 @@
 {
-  "versionCode": 415,
-  "versionName": "2.13.85",
-  "apkUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.85/Conecta-TV-Android-2.13.85.apk",
-  "sha256": "33818d6b465528639dc1caae14eac6706db7914a898f09b27bb4c024fd4fd2e4",
-  "bytes": 478911,
-  "notes": "Busca de qualidade mais completa: compara todas as opções diretas elegíveis do MGEB e dá mais tempo às fontes lentas, evitando escolher 360p antes de concluir a verificação de HD, Full HD e 4K dublados. Mantém reprodução direta e seleção por dimensões reais.",
+  "versionCode": 416,
+  "versionName": "2.13.86",
+  "apkUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.86/Conecta-TV-Android-2.13.86.apk",
+  "sha256": "259f01fe32e627888feaade0799ac844685415968352639f44190d86de671264",
+  "bytes": 480000,
+  "notes": "Corrige a escolha de qualidade: entrega 4K quando o aparelho decodifica HEVC e mantem Full HD quando nao. A fonte de maior qualidade nao e mais descartada e o player recupera o melhor nivel depois de um engasgo.",
   "exeUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.68/Conecta-TV-2.13.68.exe",
   "exeSha256": "40914a57b0e3ad375615c9954839f8c3f7bb138d8739472772de3ee28d3ff015",
   "exeBytes": 120409967,
-  "apkTvUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.85/Conecta-TV-TV-2.13.85.apk",
-  "apkTvSha256": "fda54242240d95ec40d14570001e855842ed776d690dab3ec8725fa0b87ce0ff",
-  "apkTvBytes": 478522
+  "apkTvUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.86/Conecta-TV-TV-2.13.86.apk",
+  "apkTvSha256": "2833d185de707a63de98c5c6905345c2f91cfd1002781bff92704b268a5a9e82",
+  "apkTvBytes": 479736
 }
