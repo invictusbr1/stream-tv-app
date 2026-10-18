@@ -105,6 +105,33 @@ public final class QualitySelectorTest {
             try{MediaHttp.open("https://addon.invalid/a","",null,QualitySelector.now()-1,url->{throw new AssertionError("abriu fora do prazo");});throw new AssertionError();}catch(IOException expected){}
             break;
         }
+        case "referer":{
+            // 1) referer de outro domínio recusado com 403 -> repete sem referer
+            List<HttpURLConnection> pedidos=new ArrayList<>();
+            MediaHttp.Connector cruzado=url->{
+                final int i=pedidos.size();
+                HttpURLConnection c=new HttpURLConnection(url){
+                    public void disconnect(){} public boolean usingProxy(){return false;} public void connect(){}
+                    public int getResponseCode(){return i==0?403:206;}
+                    public String getContentType(){return i==0?"application/json":"video/mp4";}
+                };pedidos.add(c);return c;
+            };
+            HttpURLConnection ok=MediaHttp.open("https://zunderflix.lat/api/media/stream?token=x","https://fenixflix.fenixhub.online/",null,QualitySelector.now()+1000,cruzado);
+            MediaHttp.requireMedia(ok);check(ok.getResponseCode()==206);check(pedidos.size()==2);
+            check("https://fenixflix.fenixhub.online/".equals(pedidos.get(0).getRequestProperty("Referer")));
+            check(pedidos.get(1).getRequestProperty("Referer")==null);
+            // 2) mesmo domínio: a recusa vale e não fica repetindo pedido
+            List<HttpURLConnection> iguais=new ArrayList<>();
+            MediaHttp.Connector mesma=url->{
+                HttpURLConnection c=new HttpURLConnection(url){
+                    public void disconnect(){} public boolean usingProxy(){return false;} public void connect(){}
+                    public int getResponseCode(){return 403;}
+                };iguais.add(c);return c;
+            };
+            HttpURLConnection recusa=MediaHttp.open("https://cdn.invalid/a","https://cdn.invalid/",null,QualitySelector.now()+1000,mesma);
+            check(recusa.getResponseCode()==403);check(iguais.size()==1);
+            break;
+        }
         case "batch":{
             try(QualitySelector s=new QualitySelector()){
                 AtomicInteger queries=new AtomicInteger();
