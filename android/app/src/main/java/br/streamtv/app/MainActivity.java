@@ -64,7 +64,7 @@ public final class MainActivity extends Activity {
         if(deadline==null)return normal;
         long left=deadline-QualitySelector.now();
         if(left<=0)throw new java.io.IOException("Prazo da escolha encerrado");
-        return (int)Math.min(Math.min(normal,3000),left);
+        return (int)Math.min(Math.min(normal,5000),left);
     }
 
     @Override public void onCreate(Bundle state) {
@@ -824,6 +824,38 @@ public final class MainActivity extends Activity {
         return deadline->{qualityDeadline.set(deadline);try{return qualityCandidate(resolver.call());}finally{qualityDeadline.remove();}};
     }
 
+    private QualitySelector.Source qualityMgebSource(String tipo,String id,String temporada,String episodio) {
+        return new QualitySelector.Source(){
+            @Override public QualitySelector.Candidate resolve(long deadline)throws Exception {
+                List<QualitySelector.Candidate> all=resolveAll(deadline);return all.isEmpty()?null:all.get(0);
+            }
+            @Override public List<QualitySelector.Candidate> resolveAll(long deadline)throws Exception {
+                qualityDeadline.set(deadline);
+                try{
+                    String endpoint="https://mgeb.top/embed/"+id+("tv".equals(tipo)?"/"+temporada+"/"+episodio:"");
+                    String html=MgebHttp.read(endpoint,deadline);
+                    Matcher block=Pattern.compile("var\\s+sources\\s*=\\s*(\\[[\\s\\S]*?\\]);").matcher(html==null?"":html);
+                    if(!block.find())return Collections.emptyList();
+                    JSONArray list=new JSONArray(block.group(1));List<MgebSources.Source> options=new ArrayList<>();
+                    for(int i=0;i<list.length()&&i<128;i++){
+                        JSONObject entry=list.optJSONObject(i);if(entry==null)continue;
+                        MgebSources.Source option=MgebSources.parse(entry.optString("file"),entry.optString("label"));
+                        if(option!=null&&enderecoSeguro(option.url))options.add(option);
+                    }
+                    List<QualitySelector.Candidate> result=new ArrayList<>();
+                    for(MgebSources.Source option:MgebSources.order(options)){
+                        String type=option.file?"file":"hls",ref="https://mgeb.top/";
+                        JSONObject data=new JSONObject().put("url",option.file?option.url:enderecoEncaminhado(option.url,ref)).put("type",type).put("audio","pt-BR").put("source","MGEB · dublado").put("fonteId","mgeb").put("resolucao",option.height>0?option.height+"p":"");
+                        // A medição paralela já verifica o arquivo; não faz oito
+                        // requisições de validação em sequência antes dela.
+                        result.add(new QualitySelector.Candidate("mgeb",option.url,ref,type,data.toString(),option.height));if(result.size()>=8)break;
+                    }
+                    return result;
+                }finally{qualityDeadline.remove();}
+            }
+        };
+    }
+
     private QualitySelector.Source qualityProfileSource(JSONObject ficha,String tipo,String id,String temporada,String episodio,java.util.Set<String> excluded) {
         final String profileId=ficha.optString("id");
         return new QualitySelector.Source(){
@@ -894,7 +926,7 @@ public final class MainActivity extends Activity {
         if(!exceto.contains("pipoca")&&!tv)sources.add(qualitySource(()->pipocaFilme(id)));
         if(!exceto.contains("watchplay"))sources.add(qualitySource(()->directPlayback(tv?"https://v2.watchplay.shop/tvshow/"+id+"/"+temporada+"/"+episodio:"https://v2.watchplay.shop/movie/"+id)));
         if(!exceto.contains("pipoca-serie")&&tv)sources.add(qualitySource(()->pipocaEpisodio(id,temporada,episodio)));
-        if(!exceto.contains("mgeb"))sources.add(qualitySource(()->tv?mgebEpisodio(id,temporada,episodio):mgebFilme(id)));
+        if(!exceto.contains("mgeb"))sources.add(qualityMgebSource(tipo,id,temporada,episodio));
         String profiles=perfis();
         try{
             JSONArray lista=new JSONObject(profiles).optJSONArray("perfis");java.util.Set<String> seen=new java.util.HashSet<>();
@@ -908,7 +940,7 @@ public final class MainActivity extends Activity {
         }catch(Exception ignored){ /* Segue com as fontes fixas se a ficha não estiver disponível. */ }
         String key=tipo+":"+id+":"+temporada+":"+episodio+":"+new java.util.TreeSet<>(exceto)+":"+(profiles==null?0:profiles.hashCode());
         String title=tv?"tv:"+id+":"+temporada+":"+episodio:"movie:"+id;
-        QualitySelector.Candidate chosen=qualitySelector.choose(key,sources,exceto,NativeMediaProbe::read,6500,title,allowed);
+        QualitySelector.Candidate chosen=qualitySelector.choose(key,sources,exceto,NativeMediaProbe::read,10000,title,allowed);
         if(chosen!=null){
             try{
                 JSONObject data=new JSONObject(chosen.json);QualitySelector.Measure m=chosen.measure;

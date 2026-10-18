@@ -20,9 +20,9 @@ const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML,
 // Todas as fontes aprovadas e aplicáveis participam. Uma posição fixa na
 // fila não pode esconder a única alternativa de maior qualidade do título.
 const MAX_FONTES = Infinity;
-const TEMPO_RESOLVER = 3500;       // fontes consultadas em paralelo
+const TEMPO_RESOLVER = 8000;       // fontes consultadas em paralelo
 const TEMPO_SONDAR = 4000;         // limite por sonda
-const ORCAMENTO = 6500;            // inclui eventual segunda leitura inconclusiva
+const ORCAMENTO = 10000;           // teto; termina assim que as consultas acabam
 const VALIDADE = 10 * 60 * 1000;   // quanto tempo a decisão fica lembrada
 
 const cache = new Map();
@@ -178,7 +178,12 @@ function avaliarConferidas(conferidas, idiomas) {
     return conferidas.map((registro, i) => {
         const guardada = medidasDeArquivo.get(JSON.stringify([registro.item.dados.url, registro.item.dados.referer || '']));
         const sonda = !registro.item.lembrada && guardada && guardada.expira > Date.now() ? guardada.sonda : registro.sonda;
-        const medida = { dados: registro.item.dados, sonda, idiomaVerificado: idiomas[registro.item.fonte.id] || '', ms: registro.item.ms };
+        // A central guarda idioma por fornecedor/título, enquanto a mesma
+        // ficha agora pode entregar vários arquivos. Essa prova não transforma
+        // outra opção explicitamente inglesa em uma opção dublada.
+        const pt=sonda?.padraoPortugues||sonda?.portuguesa||sonda?.audios?.some(a=>/^(pt|por)(-|$)/i.test(a.lang||''));
+        const estrangeira=!pt&&sonda?.audios?.some(a=>a.lang&&a.lang!=='und'&&!/^(pt|por)(-|$)/i.test(a.lang));
+        const medida = { dados: registro.item.dados, sonda, idiomaVerificado: estrangeira?'outro':idiomas[registro.item.fonte.id] || '', ms: registro.item.ms };
         const { nota, detalhes } = notaDaFonte(medida);
         return { fonteId: registro.item.fonte.id, fonte: registro.item.dados.fonte || registro.item.fonte.nome,
             nota: Math.round((nota + Math.max(0, 0.15 - i * 0.05)) * 100) / 100,
@@ -322,41 +327,37 @@ async function escolherMelhor(papel, alvo, opcoes = {}) {
         });
         return prazo(midia.validarMidia(dados.url,dados.referer,TEMPO_SONDAR),TEMPO_SONDAR+500,!lembrada);
     }
+    const resolvidas=[];
+    async function medir(item){
+        resolvidas.push(item);
+        const restante=Math.max(1,prazoFinal-Date.now());
+        [item.prova,item.valida]=await Promise.all([
+            prazo(item.sonda,restante),prazo(item.validacao,restante,true)
+        ]);
+    }
     const lembrarJobs=conhecidas.map(r=>{
         const fonte=fila.find(f=>f.id===r.id),dados=r.dados;
-        const sonda=conferir(dados,true);return {fonte,dados,ms:0,lembrada:true,sonda,validacao:validar(dados,sonda,true)};
+        const sonda=conferir(dados,true);
+        return medir({fonte,dados,ms:0,lembrada:true,sonda,validacao:validar(dados,sonda,true)});
     });
-    const resolvidas = (await Promise.all(fila.map(async fonte => {
-        const comeco = Date.now();
-        const resposta = await prazo(typeof fonte.resolverTodos==='function'?fonte.resolverTodos(alvo):fonte.resolver(alvo), TEMPO_RESOLVER);
+    const busca=Promise.all([...lembrarJobs,...fila.map(async fonte=>{
+        const comeco=Date.now();
+        const resposta=await prazo(Promise.resolve().then(()=>typeof fonte.resolverTodos==='function'?fonte.resolverTodos(alvo):fonte.resolver(alvo)),TEMPO_RESOLVER);
         const opcoes=Array.isArray(resposta)?resposta:resposta?[resposta]:[];
         if(!opcoes.length)fontesInconclusivas=true;
-        const ms = Date.now() - comeco;
-        // Mede assim que cada endereço chega. Uma fonte lenta não deve consumir
-        // o prazo que as outras precisam para comprovar resolução e português.
-        return opcoes.filter(dados=>dados?.url).map(dados=>{
-        const sonda = conferir(dados);
-        const validacao = validar(dados,sonda);
-        return { fonte, dados, ms, sonda, validacao };
-        });
-    }))).flat().concat(lembrarJobs);
-    if (!resolvidas.length) return null;
-
-    const idiomas = motor.lerIdiomasVerificados()[motor.chaveDoTitulo(alvo)] || {};
-    const restante = Math.max(1,prazoFinal-Date.now());
-    // Sondagem (o que a fonte promete) e validação (o que ela entrega AGORA)
-    // acontecem juntas, dentro do mesmo orçamento de tempo.
-    const [sondas, validacoes] = await Promise.all([
-        Promise.all(resolvidas.map(item => prazo(item.sonda, restante))),
-        Promise.all(resolvidas.map(item => prazo(item.validacao, restante, true))),
-    ]);
-    const lista = sondas || resolvidas.map(() => null);
-
-    // Fonte que responde o título mas devolve página de erro (o caso do
-    // PipocaCine em 09/10/2026) sai da disputa e fica marcada neste título.
-    const registros = resolvidas
-        .map((item, i) => ({ item, sonda: lista[i], valida: validacoes ? validacoes[i] !== false : true }))
-    ;
+        const ms=Date.now()-comeco;
+        await Promise.all(opcoes.filter(dados=>dados?.url).map(dados=>{
+            const sonda=conferir(dados);
+            return medir({fonte,dados,ms,sonda,validacao:validar(dados,sonda)});
+        }));
+    })]);
+    // Não descarta uma consulta aos 3,5s: ela pode ser justamente o HD/4K.
+    // Tudo que terminar cedo libera a abertura imediatamente. Só o trabalho
+    // pendente recebe a margem adicional, com limite absoluto de dez segundos.
+    await prazo(busca,Math.max(1,prazoFinal-Date.now()));
+    if(!resolvidas.length)return null;
+    const idiomas=motor.lerIdiomasVerificados()[motor.chaveDoTitulo(alvo)]||{};
+    const registros=resolvidas.map(item=>({item,sonda:item.prova||null,valida:item.valida!==false}));
     if(papel==='dublado')memoria.update(tituloKey,registros.map(r=>({id:r.item.fonte.id,dados:r.item.dados,sonda:r.sonda,invalida:!r.valida})));
     const conferidas=registros
         .filter(registro => {

@@ -2,6 +2,21 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { extrairPlaylist, extrairFontes } = require('./mgeb-source');
 
+test('MGEB compara todas as opções diretas e compartilha a página com o resolvedor antigo',async t=>{
+    const axios=require('axios'),m=require('./mgeb-source'),original=axios.get;let calls=0;
+    t.after(()=>{axios.get=original;});
+    axios.get=async()=>{calls++;return {data:`<script>var sources = [
+        {"file":"https://cdn.video.test/primeira.mp4","label":"Opção 1"},
+        {"file":"https://cdn.video.test/segunda.mp4","label":"Opção 2"},
+        {"file":"https://cdn.video.test/terceira.m3u8","label":"Opção 3"},
+        {"file":"https://cdn.video.test/quarta.mp4","label":"Opção 4"},
+        {"file":"https://cdn.video.test/embed/anuncio","label":"4K"}
+    ];</script>`};};
+    const all=await m.resolverTodos('movie','910005');assert.equal(all.length,4);
+    assert(all.some(c=>c.url.endsWith('/quarta.mp4')));assert(all.every(c=>c.audio==='pt-BR'&&c.referer===m.BASE+'/'));
+    assert.equal((await m.resolver('movie','910005')).url,all[0].url);assert.equal(calls,1);
+});
+
 // Página real do MGEB (série): o endereço do vídeo vem no HTML, com o "/../"
 // que o próprio provedor usa no caminho.
 const PAGINA = `

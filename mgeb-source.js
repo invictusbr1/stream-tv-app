@@ -99,46 +99,52 @@ async function pegarPagina(caminho) {
     return String(resposta.data || '');
 }
 
-async function resolver(tipo, tmdbId, temporada, episodio, opcoes = {}) {
+async function resolverTodos(tipo, tmdbId, temporada, episodio, opcoes = {}) {
     const id = String(tmdbId || '').trim();
-    if (!/^\d{1,10}$/.test(id)) return null;
+    if (!/^\d{1,10}$/.test(id)) return [];
     const ehSerie = tipo === 'tv';
     const caminho = ehSerie ? `/embed/${id}/${temporada || 1}/${episodio || 1}` : `/embed/${id}`;
     const chave = ehSerie ? `tv:${id}:${temporada}:${episodio}` : `movie:${id}`;
     const guardado = cache.get(chave);
     if (guardado && guardado.expira > Date.now() && !opcoes.semCache) return guardado.valor;
 
-    let dados = null;
+    let dados = [];
     try {
         const html = await pegarPagina(caminho);
-        const fonte = extrairFontes(html)[0];
-        if (fonte) {
-            const ehArquivo = /\.mp4(\?|$)/i.test(fonte.url);
-            dados = {
-                url: fonte.url,
-                audio: 'pt-BR',
-                fonte: 'MGEB · dublado',
-                referer: BASE + '/',
-                // É a indicação do fornecedor, não uma medição. O avaliador
-                // usa a altura real quando a sondagem consegue responder.
-                resolucao: alturaDoRotulo(fonte.label) ? alturaDoRotulo(fonte.label) + 'p' : '',
-                type: ehArquivo ? 'file' : 'hls',
-                // Arquivo MP4 toca direto no player, sem encaminhamento.
-                final: ehArquivo
-            };
+        const fontes = extrairFontes(html).slice(0, 8);
+        if (fontes.length) {
+            dados = fontes.map(fonte => {
+                const ehArquivo = /\.mp4(\?|$)/i.test(fonte.url);
+                return {
+                    url: fonte.url,
+                    audio: 'pt-BR',
+                    fonte: 'MGEB · dublado',
+                    referer: BASE + '/',
+                    // É a indicação do fornecedor, não uma medição. O avaliador
+                    // usa a altura real quando a sondagem consegue responder.
+                    resolucao: alturaDoRotulo(fonte.label) ? alturaDoRotulo(fonte.label) + 'p' : '',
+                    type: ehArquivo ? 'file' : 'hls',
+                    // Arquivo MP4 toca direto no player, sem encaminhamento.
+                    final: ehArquivo
+                };
+            });
         } else {
             const url = extrairPlaylist(html);
-            if (url) dados = { url, audio: 'pt-BR', fonte: 'MGEB · dublado', referer: BASE + '/', resolucao: '', type: 'hls' };
+            if (url) dados = [{ url, audio: 'pt-BR', fonte: 'MGEB · dublado', referer: BASE + '/', resolucao: '', type: 'hls' }];
         }
-    } catch { return null; }
-    if (!dados) return null;
+    } catch { return []; }
+    if (!dados.length) return [];
 
     cache.set(chave, { valor: dados, expira: Date.now() + VALIDADE });
     return dados;
+}
+
+async function resolver(tipo, tmdbId, temporada, episodio, opcoes = {}) {
+    return (await resolverTodos(tipo, tmdbId, temporada, episodio, opcoes))[0] || null;
 }
 
 function resolverEpisodio(tmdbId, temporada, episodio) {
     return resolver('tv', tmdbId, temporada, episodio);
 }
 
-module.exports = { resolver, resolverEpisodio, extrairPlaylist, extrairFontes, limparEndereco, BASE };
+module.exports = { resolver, resolverTodos, resolverEpisodio, extrairPlaylist, extrairFontes, limparEndereco, BASE };

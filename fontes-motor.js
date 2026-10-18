@@ -221,6 +221,7 @@ const FONTES = [
         papel: 'dublado',
         peso: 88,
         seAplica: alvo => alvo.tipo === 'tv' || alvo.tipo === 'movie',
+        resolverTodos: async alvo => require('./mgeb-source').resolverTodos(alvo.tipo, alvo.tmdbId, alvo.temporada, alvo.episodio),
         resolver: async id => {
             if (typeof id !== 'object') return null;
             const mgeb = require('./mgeb-source');

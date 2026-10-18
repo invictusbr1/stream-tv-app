@@ -6,6 +6,19 @@ require('./midias-memoria.cjs').load=()=>[];
 require('./midias-memoria.cjs').update=()=>{};
 require('./mp4-rapido.cjs').ler=async()=>null;
 
+test('consulta lenta e medição tardia não escondem Full HD dublado atrás do 360p',async()=>{
+ const a=require('./avaliador'),m=require('./fontes-motor'),v=require('./central/verificar-midia'),proxy=require('./midia-proxy');
+ const original=Object.fromEntries(['filaDeFontes','lerIdiomasVerificados','registrarSucesso','anotarEscolha','registrarFalha'].map(k=>[k,m[k]])),probe=v.faixasDeAudio,validate=proxy.validarMidia;
+ const wait=ms=>new Promise(r=>setTimeout(r,ms)),data=name=>({url:'https://media.invalid/'+name+'.mp4',type:'file',audio:'pt-BR'});
+ try{
+  m.filaDeFontes=()=>[{id:'rapida',resolver:async()=>data('360')},{id:'lenta',resolverTodos:async()=>{await wait(3700);return [data('1080'),data('foreign4k')];}}];
+  m.lerIdiomasVerificados=()=>({[m.chaveDoTitulo({tipo:'movie',tmdbId:'9999035'})]:{lenta:'pt'}});m.registrarSucesso=()=>{};m.anotarEscolha=()=>{};m.registrarFalha=()=>{};proxy.validarMidia=async()=>true;
+  v.faixasDeAudio=async url=>{const high=url.includes('1080'),foreign=url.includes('foreign');if(high)await wait(3100);return {imagem:{largura:foreign?3840:high?1920:640,altura:foreign?2160:high?800:360},faixas:[{idioma:foreign?'eng':'por',padrao:true}]};};
+  const start=Date.now(),result=await a.escolherMelhor('dublado',{tipo:'movie',tmdbId:'9999035'},{semCache:true});
+  assert.match(result.escolhido.url,/1080/);assert.equal(result.escolhido.resolucao,'1080p');assert(Date.now()-start<10000);
+ }finally{Object.assign(m,original);v.faixasDeAudio=probe;proxy.validarMidia=validate;a.limparCache();}
+});
+
 test('limita leituras físicas simultâneas e compartilha URL repetida sem baixar os arquivos completos',async()=>{
  const a=require('./avaliador'),v=require('./central/verificar-midia'),original=v.faixasDeAudio;
  const resolvers=[];let active=0,max=0,calls=0;

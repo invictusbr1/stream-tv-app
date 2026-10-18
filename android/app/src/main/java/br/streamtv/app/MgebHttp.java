@@ -20,7 +20,7 @@ final class MgebHttp {
         if(Thread.currentThread().isInterrupted())throw new IOException("provider request cancelled");
         if(deadline==Long.MAX_VALUE)return 10000;
         long left=deadline-QualitySelector.now();if(left<=0)throw new IOException("provider deadline exceeded");
-        return (int)Math.min(3000,left);
+        return (int)Math.min(5000,left);
     }
     static String read(String raw,long deadline) throws IOException {
         URL url = safe(raw);
