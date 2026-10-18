@@ -5,6 +5,27 @@ const vm=require('node:vm');
 const {parseWatchPlay}=require('./playback-source');
 const url='https://vid123.hclod.qzz.io/st/movie/playlist.m3u8?expires=123&md5=test';
 const html=(audio='Dublado',source=url)=>`window.MyPlayerAudio=${JSON.stringify(audio)};createMyPlayer({url:${JSON.stringify(source)}})`;
+
+test('resposta de compatibilidade preserva HLS e MP4 para o navegador usar o leitor correto',async()=>{
+ const source=fs.readFileSync(__dirname+'/server.js','utf8'),begin=source.indexOf('async function responderCompatibilidade('),end=source.indexOf("app.get('/api/playback/:id'",begin);
+ for(const type of ['hls','file']){
+  const media={url:'https://media.invalid/video.'+(type==='hls'?'m3u8':'mp4'),urlAplicativo:'/api/hls?u=teste',type,audio:'pt-BR',videoCodec:'h264'};
+  const context=vm.createContext({require:name=>name==='./avaliador'?{escolherMelhor:async()=>({escolhido:media})}:name==='./fontes-motor'?{prepararParaPlayer:x=>x}:null});
+  vm.runInContext(source.slice(begin,end),context);let response;
+  await context.responderCompatibilidade({query:{compat:'avc'}},{json:r=>{response=r;}},{tipo:'movie',tmdbId:'1084244'});
+  assert.equal(response.type,type);assert.equal(response.url,media.urlAplicativo);
+ }
+});
+
+test('falha no MP4 pode recuperar por HLS compatível sem perder a sessão',async()=>{
+ const s=harness(),calls=[];
+ s.fetch(async path=>{calls.push(path);return path.includes('compat=avc')?{url:'/api/hls?u=compat',type:'hls',audio:'pt-BR',videoCodec:'h264',fonteId:'watchplay'}:{url:'https://media.invalid/inicial.mp4',type:'file',audio:'pt-BR',fonteId:'clickhost'};});
+ const pending=s.controller.start(1084244,1);await new Promise(setImmediate);
+ const video=s.el('direct-video');video.fire('error');await new Promise(setImmediate);
+ assert(s.Hls.instance,'a alternativa HLS deve ser conectada ao leitor HLS');assert.equal(calls.length,2);
+ s.Hls.instance.emit('manifest');video.videoWidth=1920;video.videoHeight=1080;video.webkitDecodedFrameCount=1;video.fire('playing');
+ assert.equal(await pending,true);assert.equal(s.failures(),0);s.controller.stop();
+});
 test('reads escaped public HLS configuration without executing scripts',()=>{const r=parseWatchPlay(html().replaceAll('/','\\/'));assert.equal(r.audio,'pt-BR');assert.equal(r.url,url);});
 test('rejects non-dubbed, malformed, and unexpected media hosts',()=>{assert.throws(()=>parseWatchPlay(html('Legendado')));assert.throws(()=>parseWatchPlay('window.MyPlayerAudio="Dublado";url:evil()'));for(const u of ['http://vid123.hclod.qzz.io/a.m3u8','https://localhost/a.m3u8','https://vid123.hclod.qzz.io.evil.test/a.m3u8','https://user:pass@vid123.hclod.qzz.io/a.m3u8'])assert.throws(()=>parseWatchPlay(html('Dublado',u)));});
 function harness(userAgent='Test'){
@@ -393,8 +414,17 @@ test('Chrome sem HEVC consulta a versão compatível antes de iniciar o arquivo'
 });
 test('APK com HEVC preserva a fonte 4K sem pedir a reserva do navegador',async()=>{
  const s=harness('StreamTVAndroid'),calls=[];s.fetch(async path=>{calls.push(path);return {url:'/api/hls?u=hevc',type:'file',audio:'pt-BR',videoCodec:'hevc'};});
+ // Este WebView decodifica HEVC: o app não precisa pedir a reserva em H.264.
+ const criar=s.doc.createElement;s.doc.createElement=tag=>{const n=criar(tag);n.canPlayType=()=> 'probably';return n;};
  const pending=s.controller.start(1084244,1);await new Promise(setImmediate);assert.equal(calls.length,1);
  const v=s.el('direct-video');v.videoWidth=3840;v.videoHeight=2160;v.webkitDecodedFrameCount=1;v.fire('playing');assert.equal(await pending,true);assert.equal(v.src,'/api/hls?u=hevc');s.controller.stop();
+});
+test('APK cujo WebView não toca HEVC pede a versão em H.264 em vez de falhar',async()=>{
+ const s=harness('StreamTVAndroid'),calls=[];s.fetch(async path=>{calls.push(path);return path.includes('compat=avc')?{url:'/api/hls?u=avc',type:'file',audio:'pt-BR',videoCodec:'h264',fonteId:'fenixflix-fenixhub'}:{url:'/api/hls?u=hevc',type:'file',audio:'pt-BR',videoCodec:'hevc'};});
+ const pending=s.controller.start(1084244,1);await new Promise(setImmediate);
+ assert.equal(calls.length,2);assert(calls[1].includes('compat=avc'));
+ const v=s.el('direct-video');assert.equal(v.src,'/api/hls?u=avc');
+ v.videoWidth=1920;v.videoHeight=1080;v.webkitDecodedFrameCount=1;v.fire('playing');assert.equal(await pending,true);s.controller.stop();
 });
 test('erro do arquivo sem imagem tenta outra versão do fornecedor e conserva o ponto',async()=>{
  const s=harness('Chrome'),calls=[];s.context.filmeAtual={id:1084244,titulo:'Toy Story 5'};s.fetch(async path=>{calls.push(path);return {url:path.includes('compat=avc')?'/api/hls?u=avc':'/api/hls?u=hevc',type:'file',audio:'pt-BR',fonteId:'fenixflix-fenixhub'};});

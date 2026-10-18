@@ -6,6 +6,21 @@ require('./midias-memoria.cjs').load=()=>[];
 require('./midias-memoria.cjs').update=()=>{};
 require('./mp4-rapido.cjs').ler=async()=>null;
 
+test('compatibilidade AVC vale também no cache e não recai no HEVC incompatível',async()=>{
+ const a=require('./avaliador'),m=require('./fontes-motor'),v=require('./central/verificar-midia');
+ const original=Object.fromEntries(['filaDeFontes','lerIdiomasVerificados','registrarSucesso','anotarEscolha','registrarFalha'].map(k=>[k,m[k]])),probe=v.faixasDeAudio;
+ try{
+  let onlyHevc=false;
+  m.filaDeFontes=()=>[{id:'teste',resolverTodos:async()=>[...(onlyHevc?[]:[{url:'https://media.invalid/avc.mp4',type:'file',audio:'pt-BR'}]),{url:'https://media.invalid/hevc.mp4',type:'file',audio:'pt-BR'}]}];
+  m.lerIdiomasVerificados=()=>({});m.registrarSucesso=()=>{};m.anotarEscolha=()=>{};m.registrarFalha=()=>{};
+  v.faixasDeAudio=async url=>({imagem:{largura:url.includes('/hevc')?3840:1920,altura:url.includes('/hevc')?2160:1080,codec:url.includes('/hevc')?'hevc':'h264'},faixas:[{idioma:'por',padrao:true,codec:'aac'}]});
+  const target={tipo:'movie',tmdbId:'9999088'};
+  for(let i=0;i<2;i++)assert.match((await a.escolherMelhor('dublado',target,{codec:'avc'})).escolhido.url,/avc/);
+  assert.match((await a.escolherMelhor('dublado',target,{codec:'hevc'})).escolhido.url,/hevc/);
+  a.limparCache();onlyHevc=true;assert.equal(await a.escolherMelhor('dublado',target,{codec:'avc'}),null);
+ }finally{Object.assign(m,original);v.faixasDeAudio=probe;a.limparCache();}
+});
+
 test('checagem conhecida passa à frente das alternativas ainda na fila, mantendo duas leituras físicas',async()=>{
  const a=require('./avaliador'),v=require('./central/verificar-midia'),original=v.faixasDeAudio;
  const pending=[],calls=[];let active=0,max=0;

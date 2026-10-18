@@ -286,14 +286,26 @@ function notaDaFonte(medida) {
 }
 
 // ---------------------------------------------------------------- escolha
+function filtrarPorCodec(registros,codec){
+    // HEVC é uma capacidade adicional, não uma obrigação: AVC continua válido.
+    if(codec!=='avc')return registros;
+    return registros.filter(r=>{
+        const medido=String(r.sonda?.videoCodec||'').toLowerCase();
+        return r.item.dados.type==='hls'&&!medido||/^(h264|avc1|avc3)$/.test(medido);
+    });
+}
 async function escolherMelhor(papel, alvo, opcoes = {}) {
     const inicio = Date.now();
-    const chave = `${papel}:${motor.chaveDoTitulo(alvo)}:${(opcoes.exceto || []).join(',')}`;
+    // O codec entra na chave: aparelho que só toca AVC e aparelho que toca HEVC
+    // não podem compartilhar a mesma decisão guardada.
+    const chave = `${papel}:${motor.chaveDoTitulo(alvo)}:${opcoes.codec || ''}:${(opcoes.exceto || []).join(',')}`;
     const guardado = cache.get(chave);
     if (guardado && guardado.expira > Date.now() && !opcoes.semCache && !guardado.conferidas.some(r=>r.item.lembrada)) {
         // A sonda pode terminar depois do prazo da primeira abertura. Aproveita
         // essa prova na abertura seguinte, sem prender o título à reserva HD.
-        const atualizadas = avaliarConferidas(guardado.conferidas, motor.lerIdiomasVerificados()[motor.chaveDoTitulo(alvo)] || {});
+        const compativeis=filtrarPorCodec(guardado.conferidas,opcoes.codec);
+        if(!compativeis.length)return null;
+        const atualizadas = avaliarConferidas(compativeis, motor.lerIdiomasVerificados()[motor.chaveDoTitulo(alvo)] || {});
         const anterior = guardado.resultado.escolhido.fonteId;
         guardado.resultado = resultadoDasAvaliacoes(atualizadas, guardado.resultado.tempoMs);
         if (anterior !== guardado.resultado.escolhido.fonteId) motor.anotarEscolha(papel, alvo, guardado.resultado.escolhido);
@@ -369,7 +381,13 @@ async function escolherMelhor(papel, alvo, opcoes = {}) {
         });
     if (!conferidas.length) return null;
 
-    const avaliacoes = avaliarConferidas(conferidas, idiomas);
+    // Codec pedido pelo aparelho. O WebView do APK não toca HEVC em arquivo
+    // direto e não pede a versão compatível sozinho, então um 4K HEVC ali vira
+    // tela de erro. Quando o pedido é AVC, a fonte medida em HEVC sai da
+    // disputa — melhor 1080p H.264 tocando do que 4K que não abre.
+    const compativeis=filtrarPorCodec(conferidas,opcoes.codec);
+    if(!compativeis.length)return null;
+    const avaliacoes = avaliarConferidas(compativeis, idiomas);
     const resultado = resultadoDasAvaliacoes(avaliacoes, Date.now() - inicio);
     motor.registrarSucesso(resultado.escolhido.fonteId);
     motor.anotarEscolha(papel, alvo, resultado.escolhido);

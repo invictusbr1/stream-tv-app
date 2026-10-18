@@ -431,12 +431,35 @@ app.get('/api/hls', async (req, res) => {
     }
 });
 
+// O WebView do APK não toca HEVC em arquivo direto e não pede a versão
+// compatível sozinho. Quando o aparelho não confirma suporte (?codec=hevc),
+// a rota entrega o melhor H.264 — melhor 1080p tocando do que 4K que não abre.
+// O navegador (web/TV) continua livre: ele mesmo pede ?compat=avc quando precisa.
+// A partir da 2.13.88 o APK acrescenta " StreamTVHevc" ao agente quando o
+// aparelho tem decodificador HEVC (MediaCodecList). Sem essa marca ele recebe
+// H.264; com ela pode receber 4K HEVC.
+function codecDoPedido(req) {
+    if (req.query.codec === 'hevc') return 'hevc';
+    if (req.query.codec === 'avc') return 'avc';
+    const agente = String(req.headers['user-agent'] || '');
+    if (!/StreamTVAndroid/i.test(agente)) return '';
+    return /StreamTVHevc/i.test(agente) ? 'hevc' : 'avc';
+}
 async function responderCompatibilidade(req, res, alvo) {
     if (req.query.compat !== 'avc') return false;
-    const fonte = await require('./fenix-compativel').resolver(alvo);
-    if (!fonte) { res.status(502).json({error:'Não foi encontrada uma versão dublada compatível neste fornecedor.'}); return true; }
-    const pronto = require('./fontes-motor').prepararParaPlayer(fonte);
-    res.json({url:pronto.urlAplicativo,audio:pronto.audio,source:pronto.fonte,fonteId:pronto.fonteId,type:'file',resolucao:pronto.resolucao,videoCodec:pronto.videoCodec});
+    // Tenta a fila normal só com fontes que comprovadamente tocam em H.264.
+    // Só se nenhuma servir é que cai na conversão do FenixFlix.
+    let pronto = null;
+    try {
+        const resultado = await require('./avaliador').escolherMelhor('dublado', alvo, { semCache: true, codec: 'avc' }).catch(() => null);
+        if (resultado && resultado.escolhido) pronto = require('./fontes-motor').prepararParaPlayer(resultado.escolhido);
+    } catch { /* segue para a conversão */ }
+    if (!pronto) {
+        const fonte = await require('./fenix-compativel').resolver(alvo);
+        if (!fonte) { res.status(502).json({error:'Não foi encontrada uma versão dublada compatível neste fornecedor.'}); return true; }
+        pronto = require('./fontes-motor').prepararParaPlayer(fonte);
+    }
+    res.json({url:pronto.final?pronto.url:pronto.urlAplicativo,audio:pronto.audio,source:pronto.fonte,fonteId:pronto.fonteId,type:pronto.type||'file',resolucao:pronto.resolucao,videoCodec:pronto.videoCodec||''});
     return true;
 }
 app.get('/api/playback/:id', async (req, res) => {
@@ -454,7 +477,7 @@ app.get('/api/playback/:id', async (req, res) => {
         let escolhido = null;
         let avaliacao = null;
         if (process.env.AVALIADOR !== '0') {
-            const resultado = await avaliador.escolherMelhor('dublado', alvo, { exceto }).catch(() => null);
+            const resultado = await avaliador.escolherMelhor('dublado', alvo, { exceto, codec: codecDoPedido(req) }).catch(() => null);
             if (resultado) { escolhido = resultado.escolhido; avaliacao = resultado.avaliacao; }
         }
         if (!escolhido) escolhido = await motor.escolher('dublado', alvo, { exceto });
@@ -541,7 +564,7 @@ app.get('/api/playback/serie/:id/:season/:episode', async (req, res) => {
         let escolhido = await require('./crystal-lake-source').resolver(alvo, { exceto });
         let avaliacao = null;
         if (!escolhido && process.env.AVALIADOR !== '0') {
-            const resultado = await require('./avaliador').escolherMelhor('dublado', alvo, { exceto }).catch(() => null);
+            const resultado = await require('./avaliador').escolherMelhor('dublado', alvo, { exceto, codec: codecDoPedido(req) }).catch(() => null);
             if (resultado) {
                 escolhido = require('./fontes-motor').prepararParaPlayer(resultado.escolhido);
                 avaliacao = resultado.avaliacao;

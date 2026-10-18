@@ -194,7 +194,10 @@ window.StreamPlayback = (() => {
         // o resto continua convertendo em segundo plano.
         if(token!==generation||(signal&&signal.aborted)||version!==playerVersion)return false;
         const consulta = caminho || ('/api/playback/'+id);
-        const podeCompat = !urlDireta && !android && !televisao && /^\/api\/playback\/(?:\d+|serie\/\d+\/\d+\/\d+)(?:\?|$)/.test(consulta);
+        // O Android também pede a versão compatível: o aparelho pode ter o
+        // decodificador HEVC e o WebView não renderizar. Sem isto, um 4K HEVC
+        // que o WebView não toca virava tela de erro em vez de cair para H.264.
+        const podeCompat = !urlDireta && !televisao && /^\/api\/playback\/(?:\d+|serie\/\d+\/\d+\/\d+)(?:\?|$)/.test(consulta);
         let compatTentada = false;
         const consultarCompat = async () => {
             compatTentada = true;
@@ -248,11 +251,11 @@ window.StreamPlayback = (() => {
                     compatEmCurso=true;clearTimeout(startupTimer);video.pause();
                     const nova=await consultarCompat();compatEmCurso=false;
                     if(!current())return;
-                    if(nova?.type==='file'&&nova.audio==='pt-BR'&&enderecoDeMidia(String(nova.url||''))&&nova.url!==data.url){
+                    if(['file','hls'].includes(nova?.type)&&nova.audio==='pt-BR'&&enderecoDeMidia(String(nova.url||''))&&nova.url!==data.url){
                         data=nova;fonteIdUsada=String(nova.fonteId||'');fonteUsada=String(nova.source||'');
                         analiseAtual?.fonte({fonteId:fonteIdUsada,fonte:fonteUsada,audio:'Dublado'});
-                        resumeApplied=false;video.src=nova.url;
-                        startupTimer=setTimeout(()=>{if(current())failure('a fonte não apresentou imagem');},12000);play();return;
+                        resumeApplied=false;if(hls){hls.destroy();hls=null;}video.removeAttribute('src');video.load();
+                        startupTimer=setTimeout(()=>{if(current())failure('a fonte não apresentou imagem');},12000);carregarFonte();return;
                     }
                     failure('a fonte não apresentou imagem');return;
                 }
@@ -283,6 +286,7 @@ video.addEventListener('playing',()=>{if(!current())return;intencaoTocar=true;li
             video.addEventListener('error',()=>{if(!current()||compatEmCurso)return;if(!imagemConfirmada&&data.type==='file'&&podeCompat&&!compatTentada)pictureTimeout();else failure();});
             // Arquivo direto (MP4 progressivo): toca no próprio player, sem
             // hls.js. É o caso da fonte dublada alternativa.
+            function carregarFonte(){
             if(data.type==='file'){
                 video.src=data.url;el('direct-quality').hidden=false;el('quality-select').hidden=true;qualityInfo();subtitleMenu();play();
             }else if(window.Hls?.isSupported()){
@@ -294,6 +298,8 @@ video.addEventListener('playing',()=>{if(!current())return;intencaoTocar=true;li
                 hls.on(Hls.Events.AUDIO_TRACK_SWITCHED,()=>{if(current()&&!originalPermitido)enforceAudio();});
                 hls.on(Hls.Events.ERROR,(_,d)=>{if(!current()||!d.fatal)return;if(d.type==='mediaError'&&!recovered){recovered=true;analiseAtual?.esperar(posicaoAtual());hls.recoverMediaError();clearTimeout(startupTimer);startupTimer=setTimeout(()=>{if(current())failure();},15000);}else failure();});hls.loadSource(data.url);hls.attachMedia(video);
             }else if(video.canPlayType('application/vnd.apple.mpegurl')){video.src=data.url;el('direct-quality').hidden=false;el('quality-select').hidden=true;play();}else failure();
+            }
+            carregarFonte();
         });
     }
     function marcarAtivo(botao,ativo){if(!botao)return;if(ativo)botao.setAttribute('data-ativo','');else botao.removeAttribute('data-ativo');}
