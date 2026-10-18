@@ -1,14 +1,14 @@
 {
-  "versionCode": 416,
-  "versionName": "2.13.86",
-  "apkUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.86/Conecta-TV-Android-2.13.86.apk",
-  "sha256": "259f01fe32e627888feaade0799ac844685415968352639f44190d86de671264",
-  "bytes": 480000,
-  "notes": "Corrige a escolha de qualidade: entrega 4K quando o aparelho decodifica HEVC e mantem Full HD quando nao. A fonte de maior qualidade nao e mais descartada e o player recupera o melhor nivel depois de um engasgo.",
+  "versionCode": 417,
+  "versionName": "2.13.87",
+  "apkUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.87/Conecta-TV-Android-2.13.87.apk",
+  "sha256": "d2a8bfc999555296d262f43597df336d8a9838ccc3ccafd4eee31f97dd11f229",
+  "bytes": 529252,
+  "notes": "Corrige provedores que recusam o referer de outro dominio (403 cross_site): o app repete o pedido sem referer e deixa de descartar streams que so exigem a propria origem.",
   "exeUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.68/Conecta-TV-2.13.68.exe",
   "exeSha256": "40914a57b0e3ad375615c9954839f8c3f7bb138d8739472772de3ee28d3ff015",
   "exeBytes": 120409967,
-  "apkTvUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.86/Conecta-TV-TV-2.13.86.apk",
-  "apkTvSha256": "2833d185de707a63de98c5c6905345c2f91cfd1002781bff92704b268a5a9e82",
-  "apkTvBytes": 479736
+  "apkTvUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.87/Conecta-TV-TV-2.13.87.apk",
+  "apkTvSha256": "9feede1cfc974ced2107b1479a29c4c34fc4d69fe4e4d0fdc82062ec46eafc1c",
+  "apkTvBytes": 528907
 }
