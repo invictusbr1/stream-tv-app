@@ -2,6 +2,22 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { parecePortugues, audioTocaNoNavegador, extrairDoZip, chaveDoTitulo } = require('./verificar-midia');
 
+test('idioma ausente recebe confirmação por fala; idioma estrangeiro explícito não vira português',async()=>{
+ const fs=require('node:fs'),os=require('node:os'),path=require('node:path'),vm=require('node:vm');
+ for(const language of ['und','','eng']){
+  const dir=fs.mkdtempSync(path.join(os.tmpdir(),'conecta-idioma-'));let transcriptions=0;
+  try{
+   if(language==='und')fs.writeFileSync(path.join(dir,'idiomas.json'),JSON.stringify({'fixture|movie:9999002':{idioma:'outro',origem:'faixas',evidencia:'a faixa padrão do arquivo é "und"',em:new Date().toISOString()}}));
+   const module={exports:{}},nativeFs={...fs,existsSync:p=>/ff(?:mpeg|probe)\.exe$/.test(String(p))||fs.existsSync(p)};
+   const fakeChild={execFile(program,args,opts,callback){if(String(program).includes('ffprobe'))callback(null,JSON.stringify({format:{format_name:'mov,mp4'},streams:[{codec_type:'video',codec_name:'h264',width:1920,height:1080},{codec_type:'audio',codec_name:'aac',tags:{language},disposition:{default:1}}]}),'');else{fs.writeFileSync(args[args.length-1],Buffer.from('trecho de teste'));callback(null,'','');}}};
+   const sandbox={module,exports:module.exports,__dirname:__dirname,Buffer,URL,process:{...process,env:{...process.env,FFMPEG_PATH:path.join(dir,'ffmpeg.exe'),FFPROBE_PATH:path.join(dir,'ffprobe.exe')}},require:id=>id==='fs'?nativeFs:id==='child_process'?fakeChild:id==='axios'?{get:async()=>{throw Error('Rede não permitida no teste');},post:async()=>{transcriptions++;return {data:{language:'portuguese',text:'Você não pode fazer isso agora, está tudo bem aqui.'}};}}:require(id)};
+   vm.runInNewContext(fs.readFileSync(path.join(__dirname,'verificar-midia.js'),'utf8'),sandbox);
+   const result=await module.exports.verificarIdioma({url:'https://media.invalid/video.mp4',amostra:{id:'9999002'},fonteId:'fixture',chaveIa:'fixture',central:{pastaDados:dir}});
+   assert.equal(result.idioma,language==='eng'?'outro':'pt');assert.equal(transcriptions,language==='eng'?0:1);
+  }finally{fs.rmSync(dir,{recursive:true,force:true});}
+ }
+});
+
 test('reconhece português numa transcrição (e inglês como outro idioma)', () => {
     assert.equal(parecePortugues('Você não pode fazer isso agora, está tudo bem?'), true);
     assert.equal(parecePortugues('You could come and watch, you get hit every time'), false);

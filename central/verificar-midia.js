@@ -439,7 +439,8 @@ async function verificarIdioma({ url, referer = '', tipo = 'movie', amostra, fon
     if (!url || !amostra) return null;
     const chave = `${fonteId}|${chaveDoTitulo(tipo, amostra)}`;
     const guardado = lerCache(central)[chave];
-    if (guardado && Date.now() - new Date(guardado.em).getTime() < 7 * 24 * 60 * 60 * 1000) return { ...guardado, cache: true };
+    const etiquetaAusente=guardado?.idioma==='outro'&&guardado.origem==='faixas'&&/"(?:und|outro idioma)"/i.test(guardado.evidencia||'');
+    if (guardado && !etiquetaAusente && Date.now() - new Date(guardado.em).getTime() < 7 * 24 * 60 * 60 * 1000) return { ...guardado, cache: true };
 
     const registro = lerCache(central);
     let resultado = null;
@@ -447,7 +448,7 @@ async function verificarIdioma({ url, referer = '', tipo = 'movie', amostra, fon
         const faixas = await faixasDeAudio(url, referer);
         if (faixas && faixas.faixas.length) {
             const pt = faixas.faixas.find(f => /^pt|por/.test(f.idioma));
-            const outraPadrao = faixas.faixas.find(f => f.padrao && !/^pt|por/.test(f.idioma));
+            const outraPadrao = faixas.faixas.find(f => f.padrao && f.idioma && f.idioma !== 'und' && !/^pt|por/.test(f.idioma));
             if (pt && (pt.padrao || !outraPadrao)) {
                 const toca = audioTocaNoNavegador(faixas.container, pt.codec);
                 resultado = {
