@@ -1,14 +1,14 @@
 {
-  "versionCode": 419,
-  "versionName": "2.13.89",
-  "apkUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.89/Conecta-TV-Android-2.13.89.apk",
-  "sha256": "661e0cbe8727aa705f9044cee28b9064ed75b2ee4b567e847ce074733ffcedd6",
-  "bytes": 480628,
-  "notes": "Toy Story 5 em 4K nos aparelhos com HEVC. Aparelho sem HEVC recebe o melhor H.264 automaticamente, sem tela de erro.",
+  "versionCode": 420,
+  "versionName": "2.13.90",
+  "apkUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.90/Conecta-TV-Android-2.13.90.apk",
+  "sha256": "872ee3b9630d8556da370dcf0ba9db7054427aea87137d2157a9a7ce6a409cd0",
+  "bytes": 483030,
+  "notes": "Inclui ClickHost na busca local do APK, mede dimensões e áudio português antes de usar a fonte e consulta links curtos novamente a cada abertura. Corrige o pedido de versão compatível quando HEVC não apresenta imagem, mantendo 4K nos aparelhos compatíveis e as fontes dubladas alternativas.",
   "exeUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.68/Conecta-TV-2.13.68.exe",
   "exeSha256": "40914a57b0e3ad375615c9954839f8c3f7bb138d8739472772de3ee28d3ff015",
   "exeBytes": 120409967,
-  "apkTvUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.89/Conecta-TV-TV-2.13.89.apk",
-  "apkTvSha256": "5282efe73d149892ebab919acad15166977fa5e61df027804a888ba9dfed8ccd",
-  "apkTvBytes": 480283
+  "apkTvUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.90/Conecta-TV-TV-2.13.90.apk",
+  "apkTvSha256": "9610c93fdce169ba8209967ad45b26a5324b73b8632e24f3d017c75324609378",
+  "apkTvBytes": 482688
 }
