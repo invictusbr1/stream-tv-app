@@ -15,7 +15,7 @@ const DEPLOY_FILES = ['docker-compose.yml', 'docker-compose.oracle.yml', 'Caddyf
     'Instalar-No-Servidor.sh', 'LEIA-ME-SERVIDOR.md', 'publicar-automatico.cjs',
     'publicar-no-servidor.sh', 'ATUALIZACAO-AUTOMATICA.md'];
 const REQUIRED = ['package.json', 'package-lock.json', 'server.js', 'index.html', 'Dockerfile',
-    'avisos-servidor.js', 'avisos-servidor-store.cjs', 'midias-memoria.cjs', 'midias-verificadas-seed.json',
+    'avisos-servidor.js', 'avisos-servidor-store.cjs', 'midias-memoria.cjs', 'mp4-rapido.cjs', 'midias-verificadas-seed.json',
     'central/servidor.js', 'central/Dockerfile', 'deploy/servidor/docker-compose.yml',
     'deploy/servidor/docker-compose.oracle.yml', 'deploy/servidor/Caddyfile',
     'android/app/src/main/assets/catalog.js', 'android/app/src/main/assets/assistir.html'];

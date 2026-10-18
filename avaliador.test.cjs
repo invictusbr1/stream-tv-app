@@ -4,6 +4,7 @@ const { analisarPlaylist, notaDaFonte } = require('./avaliador');
 // Testes do avaliador não consultam nem alteram a memória real de fornecedores.
 require('./midias-memoria.cjs').load=()=>[];
 require('./midias-memoria.cjs').update=()=>{};
+require('./mp4-rapido.cjs').ler=async()=>null;
 
 test('limita leituras físicas simultâneas e compartilha URL repetida sem baixar os arquivos completos',async()=>{
  const a=require('./avaliador'),v=require('./central/verificar-midia'),original=v.faixasDeAudio;
