@@ -6,6 +6,18 @@ require('./midias-memoria.cjs').load=()=>[];
 require('./midias-memoria.cjs').update=()=>{};
 require('./mp4-rapido.cjs').ler=async()=>null;
 
+test('checagem conhecida passa à frente das alternativas ainda na fila, mantendo duas leituras físicas',async()=>{
+ const a=require('./avaliador'),v=require('./central/verificar-midia'),original=v.faixasDeAudio;
+ const pending=[],calls=[];let active=0,max=0;
+ try{
+  v.faixasDeAudio=url=>{calls.push(url);max=Math.max(max,++active);return new Promise(resolve=>pending.push(()=>{active--;resolve({imagem:{largura:3840,altura:1600},faixas:[{idioma:'por',padrao:true}]});}));};
+  const read=(name,prioritaria=false)=>a.sondarArquivo('https://media.invalid/'+name+'.mp4','',{timeout:3000,prioritaria});
+  const jobs=[read('ocupada1'),read('ocupada2'),read('alternativa'),read('conhecida',true)];
+  pending.shift()();await new Promise(setImmediate);assert.match(calls[2],/conhecida/);assert.equal(max,2);
+  while(pending.length){pending.shift()();await new Promise(setImmediate);}await Promise.all(jobs);
+ }finally{while(pending.length)pending.shift()();v.faixasDeAudio=original;a.limparCache();}
+});
+
 test('consulta lenta e medição tardia não escondem Full HD dublado atrás do 360p',async()=>{
  const a=require('./avaliador'),m=require('./fontes-motor'),v=require('./central/verificar-midia'),proxy=require('./midia-proxy');
  const original=Object.fromEntries(['filaDeFontes','lerIdiomasVerificados','registrarSucesso','anotarEscolha','registrarFalha'].map(k=>[k,m[k]])),probe=v.faixasDeAudio,validate=proxy.validarMidia;

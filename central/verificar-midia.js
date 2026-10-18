@@ -422,7 +422,19 @@ function lerCache(central) {
 function gravarCache(central) {
     try {
         fs.mkdirSync(pastaDados(central), { recursive: true });
-        fs.writeFileSync(arquivoCache(central), JSON.stringify(cache || {}, null, 1));
+        const arquivo=arquivoCache(central);
+        let disco={};try{disco=JSON.parse(fs.readFileSync(arquivo,'utf8'))||{};}catch{}
+        // Uma verificação em andamento pode ter carregado uma fotografia
+        // antiga. Não apaga provas de outros títulos gravadas depois dela.
+        const combinado={...disco};
+        for(const [chave,valor]of Object.entries(cache||{})){
+            const recente=combinado[chave];
+            if(!recente||(Date.parse(valor?.em)||0)>=(Date.parse(recente?.em)||0))combinado[chave]=valor;
+        }
+        const temporario=arquivo+'.'+process.pid+'.tmp';
+        fs.writeFileSync(temporario,JSON.stringify(combinado,null,1));
+        fs.renameSync(temporario,arquivo);
+        Object.assign(cache||(cache={}),combinado);
     } catch { /* sem permissão: segue só na memória */ }
 }
 

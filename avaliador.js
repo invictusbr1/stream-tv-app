@@ -87,6 +87,7 @@ async function sondarLista(url, referer) {
 
 const leiturasPendentes=new Map(),filaDeLeituras=[];let leiturasAtivas=0;
 function liberarLeituras(){
+    filaDeLeituras.sort((a,b)=>Number(b.prioritaria)-Number(a.prioritaria));
     while(leiturasAtivas<2&&filaDeLeituras.length){
         const job=filaDeLeituras.shift(),restante=job.fim-Date.now();
         if(restante<500){job.resolve(null);continue;}
@@ -98,7 +99,7 @@ function liberarLeituras(){
 function lerArquivoComLimite(url,referer,opcoes){
     const key=JSON.stringify([url,referer||'']);if(leiturasPendentes.has(key))return leiturasPendentes.get(key);
     if(filaDeLeituras.length>=64)return Promise.resolve(null);
-    const job={url,referer:referer||'',rapida:opcoes.rapida===true,fim:Date.now()+(opcoes.timeout||6000)};
+    const job={url,referer:referer||'',rapida:opcoes.rapida===true,prioritaria:opcoes.prioritaria===true,fim:Date.now()+(opcoes.timeout||6000)};
     const promise=new Promise(resolve=>{job.resolve=resolve;filaDeLeituras.push(job);liberarLeituras();});
     leiturasPendentes.set(key,promise);promise.finally(()=>{if(leiturasPendentes.get(key)===promise)leiturasPendentes.delete(key);});return promise;
 }
@@ -308,8 +309,8 @@ async function escolherMelhor(papel, alvo, opcoes = {}) {
     const prazoFinal=inicio+ORCAMENTO;
     let fontesInconclusivas=false;
     async function conferir(dados,lembrada=false){
-        const limiteInicial=Math.max(1,Math.min(dados.type==='file'||lembrada?6000:TEMPO_SONDAR,prazoFinal-Date.now()));
-        let prova=await prazo(lembrada?sondarArquivo(dados.url,dados.referer,{timeout:limiteInicial,rapida:true}):sondar(dados,{timeout:limiteInicial,rapida:dados.type==='file'}),limiteInicial);
+        const limiteInicial=Math.max(1,Math.min(lembrada?ORCAMENTO:dados.type==='file'?6000:TEMPO_SONDAR,prazoFinal-Date.now()));
+        let prova=await prazo(lembrada?sondarArquivo(dados.url,dados.referer,{timeout:limiteInicial,rapida:true,prioritaria:true}):sondar(dados,{timeout:limiteInicial,rapida:dados.type==='file'}),limiteInicial);
         const restante=prazoFinal-Date.now();
         if((!prova?.largura||!prova?.altura)&&restante>500&&dados.type==='file'){
             const limite=Math.min(2500,restante);

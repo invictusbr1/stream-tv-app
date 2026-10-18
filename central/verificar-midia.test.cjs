@@ -2,6 +2,18 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { parecePortugues, audioTocaNoNavegador, extrairDoZip, chaveDoTitulo } = require('./verificar-midia');
 
+test('gravação com cache antigo preserva prova de idioma gravada depois por outra verificação',()=>{
+ const fs=require('node:fs'),os=require('node:os'),path=require('node:path'),v=require('./verificar-midia');
+ const dir=fs.mkdtempSync(path.join(os.tmpdir(),'conecta-idioma-merge-')),central={pastaDados:dir},file=path.join(dir,'idiomas.json');
+ try{
+  fs.writeFileSync(file,JSON.stringify({a:{idioma:'indefinido',em:'2026-10-17T10:00:00Z'}}));v.limparCache();
+  const stale=v.lerCache(central);stale.b={idioma:'pt',em:'2026-10-18T12:00:00Z'};
+  fs.writeFileSync(file,JSON.stringify({a:{idioma:'pt',em:'2026-10-18T11:00:00Z'},c:{idioma:'pt',origem:'transcricao',em:'2026-10-18T11:00:00Z'}}));
+  v.gravarCache(central);const saved=JSON.parse(fs.readFileSync(file,'utf8'));
+  assert.equal(saved.a.idioma,'pt');assert.equal(saved.b.idioma,'pt');assert.equal(saved.c.origem,'transcricao');assert.equal(stale.a.idioma,'pt');
+ }finally{v.limparCache();fs.rmSync(dir,{recursive:true,force:true});}
+});
+
 test('idioma ausente recebe confirmação por fala; idioma estrangeiro explícito não vira português',async()=>{
  const fs=require('node:fs'),os=require('node:os'),path=require('node:path'),vm=require('node:vm');
  for(const language of ['und','','eng']){
