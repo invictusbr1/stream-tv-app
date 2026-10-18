@@ -303,7 +303,8 @@ async function escolherMelhor(papel, alvo, opcoes = {}) {
     const prazoFinal=inicio+ORCAMENTO;
     let fontesInconclusivas=false;
     async function conferir(dados,lembrada=false){
-        let prova=await prazo(lembrada?sondarArquivo(dados.url,dados.referer,{timeout:6000}):sondar(dados,{timeout:TEMPO_SONDAR}),lembrada?6000:TEMPO_SONDAR);
+        const limiteInicial=Math.max(1,Math.min(dados.type==='file'||lembrada?6000:TEMPO_SONDAR,prazoFinal-Date.now()));
+        let prova=await prazo(lembrada?sondarArquivo(dados.url,dados.referer,{timeout:limiteInicial}):sondar(dados,{timeout:limiteInicial}),limiteInicial);
         const restante=prazoFinal-Date.now();
         if((!prova?.largura||!prova?.altura)&&restante>500&&dados.type==='file'){
             const limite=Math.min(2500,restante);

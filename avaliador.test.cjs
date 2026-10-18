@@ -27,9 +27,10 @@ test('segunda leitura recupera 4K da mesma fonte depois de HD e não congela fon
   motor.filaDeFontes=()=>[{id:'addon',resolverTodos:async()=>{listingCalls++;return phase==='missing'?[low]:[low,high];}},{id:'temporaria',resolver:async()=>phase==='missing'?null:low}];
   motor.lerIdiomasVerificados=()=>({});motor.registrarSucesso=()=>{};motor.anotarEscolha=()=>{};motor.registrarFalha=()=>{};
   proxy.validarMidia=async()=>true;
-  v.faixasDeAudio=async url=>{const h=url.includes('highest');if(h&&phase==='retry'&&++reads===1)return null;return {imagem:{largura:h?3840:1280,altura:h?2160:720},faixas:[{idioma:'por',padrao:true,codec:'aac'}]};};
+  v.faixasDeAudio=async (url,ref,options={})=>{const h=url.includes('highest');if(h&&phase==='retry'&&++reads===1)return null;if(h&&phase==='slow'&&options.timeout<4500)return null;return {imagem:{largura:h?3840:1280,altura:h?2160:720},faixas:[{idioma:'por',padrao:true,codec:'aac'}]};};
   const target={tipo:'movie',tmdbId:'9999001'};
   let result=await a.escolherMelhor('dublado',target);assert.equal(result.escolhido.url,high.url);assert.equal(reads,2);
+  a.limparCache();phase='slow';result=await a.escolherMelhor('dublado',target);assert.equal(result.escolhido.url,high.url,'a sonda deve poder concluir em 4,5s dentro do orçamento total');
   a.limparCache();phase='missing';result=await a.escolherMelhor('dublado',target);assert.equal(result.escolhido.url,low.url);const before=listingCalls;
   phase='available';clock+=1600;result=await a.escolherMelhor('dublado',target);assert.equal(result.escolhido.url,high.url);assert(listingCalls>before);
   a.limparCache();v.faixasDeAudio=async url=>url.includes('highest')?null:{imagem:{largura:1280,altura:720},faixas:[{idioma:'por',padrao:true,codec:'aac'}]};
