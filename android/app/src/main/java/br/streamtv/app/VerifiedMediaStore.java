@@ -31,6 +31,7 @@ final class VerifiedMediaStore {
     synchronized void save(String title,List<QualitySelector.Candidate> candidates){
         if(!title(title))return;List<Row> rows=read();
         for(QualitySelector.Candidate c:candidates){
+            if(c.ephemeral){remove(rows,title,c);continue;}
             if(!safe(c)||c.measure==null)continue;QualitySelector.Measure m=c.measure;
             if(m.language<0){remove(rows,title,c);continue;}
             if(!m.playable)continue; // Indisponibilidade temporária não apaga uma fonte já comprovada.

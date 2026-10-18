@@ -90,15 +90,17 @@ test('resolver restringe IPv4 à página MGEB, preserva o prazo e entrega o refe
     const getOriginal = axios.get;
     t.after(() => { axios.get = getOriginal; });
     axios.get = async (url, opcoes) => {
-        assert.equal(url, 'https://mgeb.top/embed/910001');
+        assert.equal(url, mgeb.BASE + '/embed/910001');
         assert.equal(opcoes.timeout, 15000);
         assert.equal(opcoes.httpsAgent.options.family, 4);
-        assert.equal(opcoes.headers.Referer, 'https://mgeb.top/');
+        assert.equal(opcoes.headers.Referer, mgeb.BASE + '/');
         assert.notEqual(axios.defaults.httpsAgent, opcoes.httpsAgent, 'nenhuma configuração global de rede é alterada');
         return { data: PAGINA_OPCOES };
     };
     const dados = await mgeb.resolver('movie', '910001');
-    assert.equal(dados.referer, 'https://mgeb.top/');
+    // O referenciador acompanha o domínio que respondeu (mgeb.top virou
+    // mgeb.site em 18/10/2026), e não um endereço fixo no teste.
+    assert.equal(dados.referer, mgeb.BASE + '/');
     assert.equal(dados.type, 'file');
     assert.equal(dados.final, true);
     assert.equal(dados.audio, 'pt-BR');
@@ -115,7 +117,7 @@ test('resolver conserva resolução declarada no rótulo sem apresentá-la como 
     assert.equal(dados.resolucao, '1080p');
     assert.equal(dados.type, 'hls');
     assert.equal(dados.final, false);
-    assert.equal(dados.referer, 'https://mgeb.top/');
+    assert.equal(dados.referer, mgeb.BASE + '/');
 });
 
 test('a playlist antiga de episódio recebe referenciador e não recebe resolução presumida', async t => {

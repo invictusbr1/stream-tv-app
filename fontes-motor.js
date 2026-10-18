@@ -233,6 +233,25 @@ const FONTES = [
         }
     },
     {
+        // ClickHost (embed-api.clickhost.xyz): descoberto dentro do Kairou em
+        // 18/10/2026. Quando entrega, é Full HD/4K com áudio em português como
+        // faixa padrão (medido no Toy Story 5: 3840x2160 HEVC, áudio "por") e o
+        // arquivo vai direto ao player — nenhuma página de anúncio no caminho.
+        // Só parte dos títulos tem o arquivo direto; nos demais ele não devolve
+        // nada e a fila segue normalmente para as outras fontes dubladas.
+        id: 'clickhost',
+        efemera: true,
+        nome: 'Dublado · ClickHost',
+        papel: 'dublado',
+        peso: 92,
+        seAplica: alvo => alvo.tipo === 'movie' || alvo.tipo === 'tv',
+        resolver: async alvo => {
+            const objeto = typeof alvo === 'object' ? alvo : { tipo: 'movie', tmdbId: alvo };
+            const dados = await require('./clickhost-source').resolver(objeto.tipo, objeto.tmdbId, objeto.temporada, objeto.episodio);
+            return dados && dados.url ? dados : null;
+        }
+    },
+    {
         id: 'pipoca',
         nome: 'PipocaCine · dublado',
         papel: 'dublado',
@@ -478,7 +497,7 @@ async function escolher(papel, alvo, opcoes = {}) {
     // título (aviso do player) nem quando o aplicativo pediu para pulá-la.
     const lembradoBloqueado = lembrado && lembrado.dados
         && (semTitulo.get(`${chave}|${lembrado.dados.fonteId}`) || 0) > Date.now();
-    if (lembrado && lembrado.expira > Date.now() && lembrado.dados && !lembradoBloqueado && !exceto.has(String(lembrado.dados.fonteId))) {
+    if (lembrado && lembrado.expira > Date.now() && lembrado.dados && !lembrado.dados.efemera && !lembradoBloqueado && !exceto.has(String(lembrado.dados.fonteId))) {
         // A memória também passa pela conferência: o endereço pode ter deixado
         // de entregar vídeo (fonte trocou de servidor) desde a última vez.
         const entrega = await require('./midia-proxy').validarMidia(lembrado.dados.url, lembrado.dados.referer).catch(() => true);
@@ -525,7 +544,8 @@ async function escolher(papel, alvo, opcoes = {}) {
                 // resultado vale (ex.: PipocaCine responde 410 depois de um
                 // tempo) — nunca guardamos mais do que isso.
                 const validade = Number(dados.validadeMs) > 0 ? Math.min(Number(dados.validadeMs), VALIDADE_ACERTO) : VALIDADE_ACERTO;
-                acertos.set(chave, { dados: pronto, expira: Date.now() + validade });
+                if(!dados.efemera)acertos.set(chave, { dados: pronto, expira: Date.now() + validade });
+                else acertos.delete(chave);
                 return pronto;
             }
             if (!dados) {
@@ -616,6 +636,7 @@ function registrarSucesso(fonteId) {
 function anotarEscolha(papel, alvo, dados) {
     if (!dados || !dados.url) return;
     const chave = `${papel}:${chaveDoTitulo(alvo)}`;
+    if(dados.efemera){acertos.delete(chave);return;}
     const validade = Number(dados.validadeMs) > 0 ? Math.min(Number(dados.validadeMs), VALIDADE_ACERTO) : VALIDADE_ACERTO;
     acertos.set(chave, { dados: { ...dados }, expira: Date.now() + validade });
 }

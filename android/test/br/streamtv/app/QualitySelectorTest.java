@@ -24,6 +24,38 @@ public final class QualitySelectorTest {
     private static QualitySelector.Measure measure(int w,int h,int lang){return new QualitySelector.Measure(w,h,lang,0,true);}
     public static void main(String[] args)throws Exception{
         switch(args[0]){
+        case "clickhost":{
+            check(ClickHostSource.endpoint("movie","1084244",null,null).endsWith("/filme/1084244?ad_played=1"));
+            check(ClickHostSource.endpoint("tv","1399","1","2").contains("/serie/1399/1/2"));
+            check(ClickHostSource.endpoint("tv","1399","0","2")==null);
+            check(ClickHostSource.endpoint("movie","../1",null,null)==null);
+            ClickHostSource.Link mp4=ClickHostSource.extract("streamUrl: \"https://cdn.example/movie.mp4?sig=a\\u0026x=2\", streamIsHls: false");
+            check(mp4!=null&&mp4.type.equals("file")&&mp4.url.endsWith("sig=a&x=2"));
+            check(ClickHostSource.extract("streamUrl: \"https://cdn.example/master.m3u8\", streamIsHls: true").type.equals("hls"));
+            for(String u:Arrays.asList("http://cdn.example/a.mp4","https://localhost/a.mp4","https://127.0.0.1/a.mp4","https://user:password@cdn.example/a.mp4","https://cdn.example/player.html"))check(ClickHostSource.extract("streamUrl: \""+u+"\"")==null);
+            check(ClickHostSource.extract("streamUrl: null, servers: []")==null);break;
+        }
+        case "ephemeral":{
+            java.io.File file=java.io.File.createTempFile("conecta-ephemeral-",".bin");
+            try{
+                VerifiedMediaStore history=new VerifiedMediaStore(file);AtomicInteger queries=new AtomicInteger(),reads=new AtomicInteger();
+                try(QualitySelector selector=new QualitySelector(history,true)){
+                    QualitySelector.Source source=end->{queries.incrementAndGet();QualitySelector.Candidate c=candidate("clickhost");c.ephemeral=true;c.requiresProof=true;return c;};
+                    for(int i=0;i<2;i++)check(selector.choose("movie:1084244",Arrays.asList(source),Collections.emptySet(),(c,end)->{reads.incrementAndGet();return measure(3840,2160,2);},1000,"movie:1084244",Collections.singleton("clickhost")).measure.width==3840);
+                    check(queries.get()==2&&reads.get()==2);check(history.load("movie:1084244",Collections.singleton("clickhost")).isEmpty());
+                }
+            }finally{file.delete();}break;
+        }
+        case "codec-caches":{
+            try(QualitySelector normal=new QualitySelector(null,true);QualitySelector compatible=new QualitySelector(null,false)){
+                List<QualitySelector.Source> sources=Arrays.asList(d->candidate("hevc"),d->candidate("avc"));
+                QualitySelector.Probe full=(c,d)->measure(c.id.equals("hevc")?3840:1920,c.id.equals("hevc")?2160:1080,2);
+                QualitySelector.Probe avc=(c,d)->c.id.equals("hevc")?new QualitySelector.Measure(3840,2160,2,0,false):measure(1920,1080,2);
+                check(normal.choose("movie:1",sources,Collections.emptySet(),full,1000).id.equals("hevc"));
+                check(compatible.choose("movie:1",sources,Collections.emptySet(),avc,1000).id.equals("avc"));
+                check(normal.choose("movie:1",sources,Collections.emptySet(),full,1000).id.equals("hevc"));
+            }break;
+        }
         case "double-check":{
             AtomicInteger probes=new AtomicInteger(),lists=new AtomicInteger();
             QualitySelector.Candidate hd=candidate("hd"),uhd=candidate("4k");uhd.requiresProof=true;

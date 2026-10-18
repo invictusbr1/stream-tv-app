@@ -1,6 +1,15 @@
 'use strict';
 const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),os=require('node:os');
 const {criar,chave,segura}=require('./midias-memoria.cjs');
+
+test('não guarda endereço efêmero e remove referências antigas desse fornecedor',()=>{
+ const dir=fs.mkdtempSync(path.join(os.tmpdir(),'conecta-memoria-'));
+ try{
+  const m=criar({file:path.join(dir,'memory.json'),seedFile:path.join(dir,'none.json')}),record={id:'clickhost',dados:{url:'https://cdn.example/movie.mp4',type:'file'},sonda:{largura:3840,altura:2160,padraoPortugues:true}};
+  m.update('movie:1084244',[record]);assert.equal(m.load('movie:1084244',['clickhost']).length,1);
+  m.update('movie:1084244',[{...record,dados:{...record.dados,url:'https://cdn.example/new.mp4',efemera:true}}]);assert.equal(m.load('movie:1084244',['clickhost']).length,0);
+ }finally{fs.rmSync(dir,{recursive:true,force:true});}
+});
 test('memória persiste URLs, preserva fonte em falha temporária e remove idioma estrangeiro sem ressuscitar seed',()=>{
  const dir=fs.mkdtempSync(path.join(os.tmpdir(),'conecta-memoria-'));
  try{

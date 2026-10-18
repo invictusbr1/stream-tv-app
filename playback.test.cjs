@@ -6,6 +6,16 @@ const {parseWatchPlay}=require('./playback-source');
 const url='https://vid123.hclod.qzz.io/st/movie/playlist.m3u8?expires=123&md5=test';
 const html=(audio='Dublado',source=url)=>`window.MyPlayerAudio=${JSON.stringify(audio)};createMyPlayer({url:${JSON.stringify(source)}})`;
 
+test('ClickHost extrai só mídia segura e trata links assinados como temporários',async()=>{
+ const source=require('./clickhost-source'),axios=require('axios'),get=axios.get;
+ const good=source.extrair('streamUrl: "https://cdn.example/video.mp4?x=1\\u0026y=2", streamIsHls: false');assert.equal(good.url,'https://cdn.example/video.mp4?x=1&y=2');
+ for(const u of ['https://127.0.0.1/a.mp4','https://user:password@cdn.example/a.mp4','https://cdn.example/player.html'])assert.equal(source.extrair('streamUrl: '+JSON.stringify(u)),null);
+ try{
+  axios.get=async()=>({data:'streamUrl: "https://cdn.example/video.mp4", streamIsHls: false'});
+  const result=await source.resolver('movie','1084244');assert(result.efemera&&result.exigeProva);assert.equal(result.type,'file');
+ }finally{axios.get=get;}
+});
+
 test('resposta de compatibilidade preserva HLS e MP4 para o navegador usar o leitor correto',async()=>{
  const source=fs.readFileSync(__dirname+'/server.js','utf8'),begin=source.indexOf('async function responderCompatibilidade('),end=source.indexOf("app.get('/api/playback/:id'",begin);
  for(const type of ['hls','file']){

@@ -300,7 +300,7 @@ async function escolherMelhor(papel, alvo, opcoes = {}) {
     // não podem compartilhar a mesma decisão guardada.
     const chave = `${papel}:${motor.chaveDoTitulo(alvo)}:${opcoes.codec || ''}:${(opcoes.exceto || []).join(',')}`;
     const guardado = cache.get(chave);
-    if (guardado && guardado.expira > Date.now() && !opcoes.semCache && !guardado.conferidas.some(r=>r.item.lembrada)) {
+    if (guardado && guardado.expira > Date.now() && !opcoes.semCache && !guardado.conferidas.some(r=>r.item.lembrada||r.item.dados.efemera)) {
         // A sonda pode terminar depois do prazo da primeira abertura. Aproveita
         // essa prova na abertura seguinte, sem prender o título à reserva HD.
         const compativeis=filtrarPorCodec(guardado.conferidas,opcoes.codec);
@@ -317,7 +317,7 @@ async function escolherMelhor(papel, alvo, opcoes = {}) {
 
     // Resolve todas em paralelo — a primeira que responder já garante a reserva.
     const memoria=opcoes.memoria||require('./midias-memoria.cjs'),tituloKey=require('./midias-memoria.cjs').chave(alvo);
-    const conhecidas=papel==='dublado'?memoria.load(tituloKey,fila.map(f=>f.id)):[];
+    const conhecidas=papel==='dublado'?memoria.load(tituloKey,fila.filter(f=>!f.efemera).map(f=>f.id)):[];
     const prazoFinal=inicio+ORCAMENTO;
     let fontesInconclusivas=false;
     async function conferir(dados,lembrada=false){
@@ -393,7 +393,7 @@ async function escolherMelhor(papel, alvo, opcoes = {}) {
     motor.anotarEscolha(papel, alvo, resultado.escolhido);
     if (cache.size >= 256 && !cache.has(chave)) cache.delete(cache.keys().next().value);
     const incompleta=fontesInconclusivas||registros.some(r=>!r.sonda?.largura||!r.sonda?.altura);
-    cache.set(chave, { resultado, conferidas, expira: Date.now() + (incompleta?1500:VALIDADE) });
+    if(!registros.some(r=>r.item.dados.efemera))cache.set(chave, { resultado, conferidas, expira: Date.now() + (incompleta?1500:VALIDADE) });
     return resultado;
 }
 

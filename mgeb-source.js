@@ -19,7 +19,10 @@
 const axios = require('axios');
 const https = require('node:https');
 
-const BASE = 'https://mgeb.top';
+// O domínio do MGEB muda de tempo em tempo (mgeb.top → mgeb.site em 18/10/2026).
+// Tenta o mais novo primeiro e mantém o anterior como reserva.
+const BASES = ['https://mgeb.site', 'https://mgeb.top'];
+const BASE = BASES[0];
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36';
 const VALIDADE = 3 * 60 * 60 * 1000;
 const cache = new Map();
@@ -35,20 +38,39 @@ function extrairPlaylist(html) {
     const endereco = achado[0].replace(/\/\.\.\//g, '/');
     try {
         const url = new URL(endereco);
-        if (!/(^|\.)mgeb\.top$/i.test(url.hostname)) return '';
+        if (!/(^|\.)mgeb\.(?:top|site)$/i.test(url.hostname)) return '';
         return url.href;
     } catch { return ''; }
 }
 
-// Padroniza o endereço da opção de vídeo: só aceita arquivo de vídeo (MP4) ou
-// lista (M3U8); troca HTTP por HTTPS (o servidor de arquivos aceita os dois) e
-// tira a porta 80 do caminho.
+// Classifica o endereço pelo que ele entrega, não só pela extensão: alguns
+// servidores do fornecedor escondem o arquivo/lista atrás de um script.
+//   - streamtape.com/get_video?id=...            → arquivo MP4
+//   - *.playercdnx.workers.dev/includes/hls.php  → lista HLS
+function tipoDoEndereco(endereco) {
+    const texto = String(endereco || '');
+    if (/\.mp4(\?|$)/i.test(texto)) return 'file';
+    if (/\.m3u8(\?|$)/i.test(texto)) return 'hls';
+    try {
+        const url = new URL(texto);
+        if (/(^|\.)streamtape\.com$/i.test(url.hostname)) return 'file';
+        if (/playercdnx\.workers\.dev$/i.test(url.hostname) || /\/hls\.php$/i.test(url.pathname)) return 'hls';
+    } catch { /* segue sem tipo */ }
+    return '';
+}
+
+// Padroniza o endereço da opção de vídeo: troca HTTP por HTTPS (o servidor de
+// arquivos aceita os dois) e tira a porta 80 do caminho.
+// O disco www-fontedecanais-live.77zzhf54vdll71.com fica de fora: em 18/10/2026
+// ele passou a responder 403 "Limite de 20 TB atingido" em TODOS os títulos,
+// então ele não é mais uma opção — nem para medir, nem para tocar.
 function limparEndereco(bruto) {
     const texto = String(bruto || '').trim().replace(/&amp;/g, '&');
     if (!/^https?:\/\//i.test(texto)) return '';
-    if (!/\.(mp4|m3u8)(\?|$)/i.test(texto)) return '';
+    if (!tipoDoEndereco(texto)) return '';
     try {
         const url = new URL(texto);
+        if (/(^|\.)77zzhf54vdll71\.com$/i.test(url.hostname) || /fontedecanais/i.test(url.hostname)) return '';
         url.protocol = 'https:';
         url.port = '';
         return url.href;
@@ -81,22 +103,29 @@ function extrairFontes(html) {
         if (!endereco || vistos.has(endereco)) continue;
         vistos.add(endereco);
         const lista = { url: endereco, label: String(item.label || '') };
-        if (/\.mp4(\?|$)/i.test(endereco)) mp4.push(lista);
-        else if (/\.m3u8(\?|$)/i.test(endereco)) hls.push(lista);
+        const tipo = tipoDoEndereco(endereco);
+        if (tipo === 'file') mp4.push(lista);
+        else if (tipo === 'hls') hls.push(lista);
     }
     return [...mp4, ...hls].sort((a, b) => alturaDoRotulo(b.label) - alturaDoRotulo(a.label));
 }
 
 async function pegarPagina(caminho) {
-    const resposta = await axios.get(BASE + caminho, {
-        headers: { 'User-Agent': UA, Accept: 'text/html,application/xhtml+xml,*/*', 'Accept-Language': 'pt-BR,pt;q=0.9', Referer: BASE + '/' },
-        timeout: 15000,
-        httpsAgent: AGENTE_PAGINA,
-        responseType: 'text',
-        maxContentLength: 4 * 1024 * 1024,
-        validateStatus: status => status === 200
-    });
-    return String(resposta.data || '');
+    let ultimo = null;
+    for (const base of BASES) {
+        try {
+            const resposta = await axios.get(base + caminho, {
+                headers: { 'User-Agent': UA, Accept: 'text/html,application/xhtml+xml,*/*', 'Accept-Language': 'pt-BR,pt;q=0.9', Referer: base + '/' },
+                timeout: 15000,
+                httpsAgent: AGENTE_PAGINA,
+                responseType: 'text',
+                maxContentLength: 4 * 1024 * 1024,
+                validateStatus: status => status === 200
+            });
+            return { html: String(resposta.data || ''), base };
+        } catch (erro) { ultimo = erro; }
+    }
+    throw ultimo || new Error('MGEB não respondeu');
 }
 
 async function resolverTodos(tipo, tmdbId, temporada, episodio, opcoes = {}) {
@@ -110,16 +139,18 @@ async function resolverTodos(tipo, tmdbId, temporada, episodio, opcoes = {}) {
 
     let dados = [];
     try {
-        const html = await pegarPagina(caminho);
+        const pagina = await pegarPagina(caminho);
+        const html = pagina.html;
+        const base = pagina.base;
         const fontes = extrairFontes(html).slice(0, 8);
         if (fontes.length) {
             dados = fontes.map(fonte => {
-                const ehArquivo = /\.mp4(\?|$)/i.test(fonte.url);
+                const ehArquivo = tipoDoEndereco(fonte.url) === 'file';
                 return {
                     url: fonte.url,
                     audio: 'pt-BR',
                     fonte: 'MGEB · dublado',
-                    referer: BASE + '/',
+                    referer: base + '/',
                     // É a indicação do fornecedor, não uma medição. O avaliador
                     // usa a altura real quando a sondagem consegue responder.
                     resolucao: alturaDoRotulo(fonte.label) ? alturaDoRotulo(fonte.label) + 'p' : '',
@@ -130,7 +161,7 @@ async function resolverTodos(tipo, tmdbId, temporada, episodio, opcoes = {}) {
             });
         } else {
             const url = extrairPlaylist(html);
-            if (url) dados = [{ url, audio: 'pt-BR', fonte: 'MGEB · dublado', referer: BASE + '/', resolucao: '', type: 'hls' }];
+            if (url) dados = [{ url, audio: 'pt-BR', fonte: 'MGEB · dublado', referer: base + '/', resolucao: '', type: 'hls' }];
         }
     } catch { return []; }
     if (!dados.length) return [];

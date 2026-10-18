@@ -45,6 +45,18 @@
       "verificadoEm": "2026-10-07",
       "situacaoMedida": "arquivo direto pelo aplicativo",
       "observacao": "Entra quando a fonte dublada principal não tem o título. A página do provedor nunca é aberta."
+    },
+    {
+      "nome": "ClickHost · dublado",
+      "papel": "dublado · 4K quando disponível",
+      "semAnuncio": true,
+      "dublado": true,
+      "qualidadeMedida": "3840x2160 (HEVC)",
+      "audioMedido": "por",
+      "status": "funciona",
+      "verificadoEm": "2026-10-18",
+      "situacaoMedida": "arquivo direto pelo aplicativo",
+      "observacao": "Descoberto dentro do Kairou. Só parte dos títulos entrega arquivo direto; o endereço expira em minutos e é resolvido a cada abertura."
     }
   ],
   "series": [

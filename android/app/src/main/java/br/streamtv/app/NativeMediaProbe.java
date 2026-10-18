@@ -31,12 +31,12 @@ final class NativeMediaProbe {
                 String line=raw.trim();if(line.isEmpty()||line.startsWith("#"))continue;
                 URL base=safe(c.url),part=safe(new URL(base,line).toString());
                 if(!base.getAuthority().equals(part.getAuthority())||part.getPath().endsWith(".m3u8"))return manifest;
-                QualitySelector.Measure measured=file(part.toString(),c.referer,deadline,null);
+                QualitySelector.Measure measured=file(part.toString(),c.referer,deadline,null,allowHevc);
                 return measured==null?manifest:new QualitySelector.Measure(measured.width,measured.height,manifest.language==2?2:measured.language,manifest.bitrate,measured.playable);
             }
             return manifest;
         }
-        return file(c.url,c.referer,deadline,c);
+        return file(c.url,c.referer,deadline,c,allowHevc);
     }
     static URL safe(String raw)throws IOException{
         return MediaHttp.safe(raw);
@@ -71,7 +71,7 @@ final class NativeMediaProbe {
             }
         }finally{c.disconnect();}
     }
-    private static QualitySelector.Measure file(String url,String referer,long deadline,QualitySelector.Candidate candidate)throws Exception{
+    private static QualitySelector.Measure file(String url,String referer,long deadline,QualitySelector.Candidate candidate,boolean allowHevc)throws Exception{
         String[] resolved={url};
         BoundedMediaReader reader=new BoundedMediaReader((start,count,end)->block(resolved,referer,start,count,end),deadline);
         MediaDataSource source=new MediaDataSource(){
@@ -91,6 +91,7 @@ final class NativeMediaProbe {
                     for(Mp4Metadata.Track track:metadata.tracks){
                         if(!track.kind.equals("vide")&&!track.kind.equals("soun"))continue;
                         if(track.mime.isEmpty()){playable=false;break;}
+                        if(!allowHevc&&"video/hevc".equals(track.mime)){playable=false;continue;}
                         MediaFormat format=track.kind.equals("vide")?MediaFormat.createVideoFormat(track.mime,track.width,track.height):MediaFormat.createAudioFormat(track.mime,Math.max(1,track.sampleRate),Math.max(1,track.channels));
                         if(codecs.findDecoderForFormat(format)==null)playable=false;
                     }
@@ -102,6 +103,7 @@ final class NativeMediaProbe {
             for(int i=0;i<extractor.getTrackCount();i++){
                 MediaFormat format=extractor.getTrackFormat(i);String mime=format.getString(MediaFormat.KEY_MIME);
                 if(mime!=null&&mime.startsWith("video/")){
+                    if(!allowHevc&&"video/hevc".equals(mime))playable=false;
                     width=format.containsKey(MediaFormat.KEY_WIDTH)?format.getInteger(MediaFormat.KEY_WIDTH):0;
                     height=format.containsKey(MediaFormat.KEY_HEIGHT)?format.getInteger(MediaFormat.KEY_HEIGHT):0;
                     bitrate=format.containsKey(MediaFormat.KEY_BIT_RATE)?format.getInteger(MediaFormat.KEY_BIT_RATE):0;

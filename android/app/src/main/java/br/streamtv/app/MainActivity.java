@@ -56,6 +56,7 @@ public final class MainActivity extends Activity {
     private boolean pointerMode;
     private float pointerX, pointerY;
     private QualitySelector qualitySelector;
+    private QualitySelector compatibleQualitySelector;
     private final ThreadLocal<Long> qualityDeadline = new ThreadLocal<>();
 
     private int qualityTimeout(int normal) throws java.io.IOException {
@@ -86,6 +87,7 @@ public final class MainActivity extends Activity {
         VerifiedMediaStore verifiedStore=new VerifiedMediaStore(new File(getFilesDir(),"midias-verificadas.bin"));
         seedVerifiedMedia(verifiedStore);
         qualitySelector=new QualitySelector(verifiedStore,hevcSuportado());
+        compatibleQualitySelector=new QualitySelector(verifiedStore,false);
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         root = new FrameLayout(this);
         root.setBackgroundColor(Color.BLACK);
@@ -839,6 +841,22 @@ public final class MainActivity extends Activity {
         return deadline->{qualityDeadline.set(deadline);try{return qualityCandidate(resolver.call());}finally{qualityDeadline.remove();}};
     }
 
+    private QualitySelector.Source qualityClickHostSource(String tipo,String id,String temporada,String episodio) {
+        return deadline->{
+            qualityDeadline.set(deadline);
+            try{
+                String endpoint=ClickHostSource.endpoint(tipo,id,temporada,episodio);if(endpoint==null)return null;
+                ClickHostSource.Link link=null;
+                for(int attempt=0;attempt<2&&link==null&&QualitySelector.now()<deadline;attempt++)link=ClickHostSource.extract(lerPagina(endpoint,ClickHostSource.BASE+"/"));
+                if(link==null)return null;
+                String ref=ClickHostSource.BASE+"/";
+                JSONObject data=new JSONObject().put("url","hls".equals(link.type)?enderecoEncaminhado(link.url,ref):link.url).put("type",link.type).put("audio","pt-BR").put("fonteId","clickhost").put("source","ClickHost · dublado");
+                QualitySelector.Candidate c=new QualitySelector.Candidate("clickhost",link.url,ref,link.type,data.toString(),0);
+                c.requiresProof=true;c.ephemeral=true;return c;
+            }finally{qualityDeadline.remove();}
+        };
+    }
+
     private QualitySelector.Source qualityMgebSource(String tipo,String id,String temporada,String episodio) {
         return new QualitySelector.Source(){
             @Override public QualitySelector.Candidate resolve(long deadline)throws Exception {
@@ -933,11 +951,16 @@ public final class MainActivity extends Activity {
     }
 
     private WebResourceResponse qualityPlayback(String tipo,String id,String temporada,String episodio,java.util.Set<String> excluded) {
+        return qualityPlayback(tipo,id,temporada,episodio,excluded,false);
+    }
+    private WebResourceResponse qualityPlayback(String tipo,String id,String temporada,String episodio,java.util.Set<String> excluded,boolean avcOnly) {
+        final QualitySelector selector=avcOnly?compatibleQualitySelector:qualitySelector;
         final java.util.Set<String> exceto=Collections.unmodifiableSet(new java.util.HashSet<>(excluded));
         List<QualitySelector.Source> sources=new ArrayList<>();
         boolean tv="tv".equals(tipo);
         java.util.Set<String> allowed=new java.util.HashSet<>();
-        Collections.addAll(allowed,tv?"pipoca-serie":"pipoca","watchplay","mgeb");
+        Collections.addAll(allowed,tv?"pipoca-serie":"pipoca","watchplay","mgeb","clickhost");
+        if(!exceto.contains("clickhost"))sources.add(qualityClickHostSource(tipo,id,temporada,episodio));
         if(!exceto.contains("pipoca")&&!tv)sources.add(qualitySource(()->pipocaFilme(id)));
         if(!exceto.contains("watchplay"))sources.add(qualitySource(()->directPlayback(tv?"https://v2.watchplay.shop/tvshow/"+id+"/"+temporada+"/"+episodio:"https://v2.watchplay.shop/movie/"+id)));
         if(!exceto.contains("pipoca-serie")&&tv)sources.add(qualitySource(()->pipocaEpisodio(id,temporada,episodio)));
@@ -955,8 +978,8 @@ public final class MainActivity extends Activity {
         }catch(Exception ignored){ /* Segue com as fontes fixas se a ficha não estiver disponível. */ }
         String key=tipo+":"+id+":"+temporada+":"+episodio+":"+new java.util.TreeSet<>(exceto)+":"+(profiles==null?0:profiles.hashCode());
         String title=tv?"tv:"+id+":"+temporada+":"+episodio:"movie:"+id;
-        QualitySelector.Candidate chosen=qualitySelector.choose(key,sources,exceto,
-            (candidato,prazo)->NativeMediaProbe.read(candidato,prazo,qualitySelector.podeHevc()),
+        QualitySelector.Candidate chosen=selector.choose(key,sources,exceto,
+            (candidato,prazo)->NativeMediaProbe.read(candidato,prazo,selector.podeHevc()),
             10000,title,allowed);
         if(chosen!=null){
             try{
@@ -964,13 +987,18 @@ public final class MainActivity extends Activity {
                 if("file".equals(chosen.type)){
                     // O WebView recebe o destino HTTPS final, sem passar pelos
                     // redirecionamentos http publicados por alguns fornecedores.
-                    java.net.HttpURLConnection connection=MediaHttp.open(chosen.deliveryUrl==null?chosen.url:chosen.deliveryUrl,chosen.referer,"bytes=0-2047",QualitySelector.now()+5000);
-                    try{MediaHttp.requireMedia(connection);data.put("url",connection.getURL().toString());data.put("midiaConferida",m!=null&&m.width>0&&m.height>0);}finally{connection.disconnect();}
-                }else if(!entregaVideo(chosen.url,chosen.referer)){qualitySelector.forget(key);return error(502);}
+                    if(chosen.deliveryUrl!=null&&m!=null&&m.playable&&m.width>0&&m.height>0){
+                        // A leitura atual já comprovou a mídia e seguiu os redirects.
+                        data.put("url",MediaHttp.safe(chosen.deliveryUrl).toString());data.put("midiaConferida",true);
+                    }else{
+                        java.net.HttpURLConnection connection=MediaHttp.open(chosen.url,chosen.referer,"bytes=0-2047",QualitySelector.now()+5000);
+                        try{MediaHttp.requireMedia(connection);data.put("url",connection.getURL().toString());data.put("midiaConferida",m!=null&&m.width>0&&m.height>0);}finally{connection.disconnect();}
+                    }
+                }else if(!entregaVideo(chosen.url,chosen.referer)){selector.forget(key);return error(502);}
                 if(m!=null&&m.width>0&&m.height>0){data.put("resolucao",m.height+"p");data.put("largura",m.width);data.put("altura",m.height);data.put("evidenciaQualidade","medido");}
                 else if(chosen.declared>0)data.put("evidenciaQualidade","informado pela fonte");
                 return respostaTexto("application/json",data.toString());
-            }catch(Exception ignored){qualitySelector.forget(key);return error(502);}
+            }catch(Exception ignored){selector.forget(key);return error(502);}
         }
         return exceto.contains("vixsrc")?error(502):vixsrcMidia(tipo,id,temporada,episodio);
     }
@@ -1361,6 +1389,9 @@ public final class MainActivity extends Activity {
         UiModeManager mode = (UiModeManager) getSystemService(UI_MODE_SERVICE);
         if ((mode != null && mode.getCurrentModeType() == Configuration.UI_MODE_TYPE_TELEVISION) || getPackageManager().hasSystemFeature("android.software.leanback") || getPackageManager().hasSystemFeature("android.hardware.type.television")) settings.setUserAgentString(settings.getUserAgentString() + " StreamTVAndroidTV");
         if (!settings.getUserAgentString().contains("StreamTVAndroid")) settings.setUserAgentString(settings.getUserAgentString() + " StreamTVAndroid");
+        // Marca que este aparelho decodifica HEVC: o servidor só manda 4K HEVC
+        // quando vê esta marca. Sem ela, entrega o melhor H.264 (que sempre toca).
+        if (hevcSuportado() && !settings.getUserAgentString().contains("StreamTVHevc")) settings.setUserAgentString(settings.getUserAgentString() + " StreamTVHevc");
         settings.setDomStorageEnabled(true);
         settings.setAllowFileAccess(false);
         settings.setAllowContentAccess(false);
@@ -1420,10 +1451,11 @@ public final class MainActivity extends Activity {
                 if (path != null && path.matches("/api/playback/[0-9]{1,10}")) {
                     String id = path.substring("/api/playback/".length());
                     java.util.Set<String> exceto = PlaybackSources.exclusions(uri.getQueryParameter("exceto"));
-                    return qualityPlayback("movie",id,null,null,exceto);
+                    return qualityPlayback("movie",id,null,null,exceto,"avc".equals(uri.getQueryParameter("compat"))||"avc".equals(uri.getQueryParameter("codec")));
                 }
                 if (path != null && path.matches("/api/playback/serie/[0-9]{1,10}/[0-9]{1,3}/[1-9][0-9]{0,3}")) {
                     String[] partes = path.split("/");
+                    if("avc".equals(uri.getQueryParameter("compat"))||"avc".equals(uri.getQueryParameter("codec")))return qualityPlayback("tv",partes[4],partes[5],partes[6],PlaybackSources.exclusions(uri.getQueryParameter("exceto")),true);
                     return directEpisode(partes[4], partes[5], partes[6], PlaybackSources.exclusions(uri.getQueryParameter("exceto")));
                 }
                 // Legendas no aparelho: quando o filme toca com o áudio original,
@@ -1648,6 +1680,7 @@ public final class MainActivity extends Activity {
     }
     @Override protected void onDestroy() {
         if(qualitySelector!=null)qualitySelector.close();
+        if(compatibleQualitySelector!=null)compatibleQualitySelector.close();
         if (updater != null) updater.close();
         closePopup(); exitFullscreen(); root.removeView(main); main.destroy(); super.onDestroy();
     }

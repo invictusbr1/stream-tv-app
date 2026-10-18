@@ -11,8 +11,12 @@ function criar({file=path.join(process.env.DADOS_DIR||__dirname,'midias-verifica
  function write(d){try{fs.mkdirSync(path.dirname(file),{recursive:true});const temp=file+'.'+process.pid+'.tmp';fs.writeFileSync(temp,JSON.stringify(d),{mode:0o600});fs.renameSync(temp,file);}catch{ /* Memória opcional: não impede reprodução. */ }}
  function valid(r){return r&&validaChave(r.key)&&/^[a-z0-9_-]{1,64}$/.test(r.id)&&r.type==='file'&&segura(r.url)&&(!r.referer||segura(r.referer))&&r.width>0&&r.height>0&&Number.isFinite(r.at)&&r.at>agora()-TTL&&r.at<=agora()+60000;}
  function state(){const d=read();d.items=d.items.filter(valid);try{const seed=JSON.parse(fs.readFileSync(seedFile,'utf8'));if(Number(seed.version)>d.seed){for(const r of seed.items||[])if(valid(r)&&!d.items.some(x=>x.key===r.key&&x.url===r.url&&x.id===r.id))d.items.push(r);d.seed=Number(seed.version);write(d);}}catch{}return d;}
- function load(key,ids){if(!validaChave(key))return [];return state().items.filter(r=>r.key===key&&(!ids||ids.includes(r.id))).sort((a,b)=>b.width*b.height-a.width*a.height).slice(0,3).map(r=>({...r,dados:{url:r.url,referer:r.referer||'',type:'file',audio:'pt-BR',fonteId:r.id,fonte:r.name||r.id,resolucao:Math.round(Math.max(r.height,r.width*9/16))+'p'}}));}
+ // A memória só guarda arquivo direto (o filtro `valid` exige type 'file'),
+ // então o registro volta marcado como final: o player recebe o endereço e baixa
+ // direto do CDN, sem passar pelo encaminhamento local do servidor.
+ function load(key,ids){if(!validaChave(key))return [];return state().items.filter(r=>r.key===key&&(!ids||ids.includes(r.id))).sort((a,b)=>b.width*b.height-a.width*a.height).slice(0,3).map(r=>({...r,dados:{url:r.url,referer:r.referer||'',type:'file',audio:'pt-BR',fonteId:r.id,fonte:r.name||r.id,resolucao:Math.round(Math.max(r.height,r.width*9/16))+'p',final:true}}));}
  function update(key,records){if(!validaChave(key))return;const d=state();for(const r of records){const data=r.dados;if(!data||data.type!=='file'||!segura(data.url))continue;const id=r.id,s=r.sonda;const match=x=>x.key===key&&x.id===id&&x.url===data.url;
+   if(data.efemera){d.items=d.items.filter(x=>!(x.key===key&&x.id===id));continue;}
    if(s&&s.audios?.some(a=>a.padrao&&a.lang&&a.lang!=='und'&&!/^(pt|por)(-|$)/i.test(a.lang))&&!s.padraoPortugues){d.items=d.items.filter(x=>!match(x));continue;}
    if(r.invalida)continue; // Falha temporária não apaga a URL conhecida; carregar exige nova prova.
    if(!s?.largura||!s?.altura||!s.padraoPortugues)continue;

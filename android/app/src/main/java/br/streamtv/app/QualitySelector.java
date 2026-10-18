@@ -21,6 +21,7 @@ final class QualitySelector implements AutoCloseable {
         volatile String deliveryUrl;
         boolean remembered;
         boolean requiresProof;
+        boolean ephemeral;
         Candidate(String id,String url,String referer,String type,String json,int declared) {
             this.id=id;this.url=url;this.referer=referer==null?"":referer;this.type=type;this.json=json;this.declared=declared;
         }
@@ -87,23 +88,23 @@ final class QualitySelector implements AutoCloseable {
         if(history!=null)history.save(title,snapshot);
         if(snapshot.isEmpty())return null;
         boolean verified=complete&&sourcesComplete;long cacheFor=10*60*1000;
-        for(Candidate c:snapshot){if(c.measure==null||c.measure.playable&&(c.measure.width<=0||c.measure.height<=0))verified=false;if(c.measure!=null&&!c.measure.playable)cacheFor=1500;}
+        for(Candidate c:snapshot){if(c.ephemeral||c.measure==null||c.measure.playable&&(c.measure.width<=0||c.measure.height<=0))verified=false;if(c.measure!=null&&!c.measure.playable)cacheFor=1500;}
         synchronized(this){if(!closed&&verified){trim(choices,64);choices.put(key,new Entry<>(snapshot,now()+cacheFor));}}
         for(Candidate c:snapshot)if(c.remembered||c.requiresProof?c.measure!=null&&c.measure.playable&&c.measure.language==2&&c.measure.width>0&&c.measure.height>0:c.measure==null||(c.measure.playable&&c.measure.language>=0))return c;
         return null;
     }
     private void assess(Candidate c,Set<String> excluded,Probe probe,long deadline,List<Candidate> found) {
         if(c==null||excluded.contains(c.id)||now()>=deadline||Thread.currentThread().isInterrupted())return;
-        Candidate original=c;c=new Candidate(c.id,c.url,c.referer,c.type,c.json,c.declared);c.remembered=original.remembered;c.requiresProof=original.requiresProof;
+        Candidate original=c;c=new Candidate(c.id,c.url,c.referer,c.type,c.json,c.declared);c.remembered=original.remembered;c.requiresProof=original.requiresProof;c.ephemeral=original.ephemeral;
         synchronized(found){for(Candidate other:found)if(other.key().equals(c.key()))return;found.add(c);}
-        synchronized(this){Entry<Measure> e=measures.get(c.key());if(!c.remembered&&e!=null&&e.expires>now()){c.measure=e.value;return;}}
+        synchronized(this){Entry<Measure> e=measures.get(c.key());if(!c.ephemeral&&!c.remembered&&e!=null&&e.expires>now()){c.measure=e.value;return;}}
         try {
             Measure m;
             try{m=probe.read(c,Math.min(deadline,now()+6000));}catch(Exception first){m=null;}
             // Uma falha de metadados não deve esconder a versão superior.
             // Repete só a leitura inconclusiva, dentro do prazo total.
             if((m==null||m.playable&&(m.width<=0||m.height<=0))&&deadline-now()>500&&!Thread.currentThread().isInterrupted())m=probe.read(c,Math.min(deadline,now()+2500));
-            if(m!=null){c.measure=m;synchronized(this){if(!closed){trim(measures,128);measures.put(c.key(),new Entry<>(m,now()+(!m.playable?1500:"hls".equals(c.type)?60000:600000)));}}}
+            if(m!=null){c.measure=m;synchronized(this){if(!closed&&!c.ephemeral){trim(measures,128);measures.put(c.key(),new Entry<>(m,now()+(!m.playable?1500:"hls".equals(c.type)?60000:600000)));}}}
         }catch(Exception ignored){ /* Sem prova, conserva a alternativa existente sem inventar resolução. */ }
     }
     synchronized void forget(String key){choices.remove(key);}

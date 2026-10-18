@@ -6,6 +6,20 @@ require('./midias-memoria.cjs').load=()=>[];
 require('./midias-memoria.cjs').update=()=>{};
 require('./mp4-rapido.cjs').ler=async()=>null;
 
+test('fonte com link curto é resolvida novamente e não usa histórico antigo',async()=>{
+ const a=require('./avaliador'),m=require('./fontes-motor'),v=require('./central/verificar-midia');
+ const original=Object.fromEntries(['filaDeFontes','lerIdiomasVerificados','registrarSucesso','anotarEscolha','registrarFalha'].map(k=>[k,m[k]])),probe=v.faixasDeAudio;let calls=0;
+ try{
+  m.filaDeFontes=()=>[{id:'clickhost',efemera:true,resolver:async()=>({url:'https://media.invalid/curto.mp4?token='+ ++calls,type:'file',audio:'pt-BR',efemera:true,exigeProva:true})}];
+  m.lerIdiomasVerificados=()=>({});m.registrarSucesso=()=>{};m.anotarEscolha=()=>{};m.registrarFalha=()=>{};
+  v.faixasDeAudio=async()=>({imagem:{largura:3840,altura:2160,codec:'hevc'},faixas:[{idioma:'por',padrao:true,codec:'aac'}]});
+  const memoria={load:(key,ids)=>{assert(!ids.includes('clickhost'));return [];},update:()=>{}};
+  const target={tipo:'movie',tmdbId:'9999090'};
+  const first=await a.escolherMelhor('dublado',target,{memoria}),second=await a.escolherMelhor('dublado',target,{memoria});
+  assert.equal(calls,2);assert.notEqual(first.escolhido.url,second.escolhido.url);assert.equal(second.escolhido.resolucao,'2160p');
+ }finally{Object.assign(m,original);v.faixasDeAudio=probe;a.limparCache();}
+});
+
 test('compatibilidade AVC vale também no cache e não recai no HEVC incompatível',async()=>{
  const a=require('./avaliador'),m=require('./fontes-motor'),v=require('./central/verificar-midia');
  const original=Object.fromEntries(['filaDeFontes','lerIdiomasVerificados','registrarSucesso','anotarEscolha','registrarFalha'].map(k=>[k,m[k]])),probe=v.faixasDeAudio;
