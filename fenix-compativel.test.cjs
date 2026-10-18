@@ -32,3 +32,12 @@ test('fonte indisponível ou formato sem comprovação não retorna um falso com
  assert.equal(await resolver({tipo:'movie',tmdbId:1084244}),null);
  assert.equal(await resolver({tipo:'movie',tmdbId:'../1'}),null);
 });
+test('recupera AVC português verificado fora da lista mesmo com falha do índice, sem aceitar HEVC ou áudio original',async()=>{
+ for(const fails of [false,true]){
+  const old=stream('old');let probes=0;
+  const resolver=criar({imdbDe:async()=> 'tt22084616',buscar:async()=>{if(fails)throw Error('índice indisponível');return {streams:[]};},lembradas:()=>[{dados:{url:old.url}}],medir:async()=>{probes++;return medida('h264',1920,800);}});
+  assert.equal((await resolver({tipo:'movie',tmdbId:969681})).url,old.url);assert.equal(probes,1);
+ }
+ const resolver=criar({imdbDe:async()=> 'tt22084616',buscar:async()=>({streams:[]}),lembradas:()=>[{dados:{url:stream('old').url}}],medir:async()=>medida('hevc',3832,1600,'por','yuv420p10le')});
+ assert.equal(await resolver({tipo:'movie',tmdbId:969681}),null);
+});

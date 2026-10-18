@@ -99,3 +99,5 @@ try {
 } catch {
   fs.writeFileSync(path.join(assets,'perfis.json'),JSON.stringify({atualizadoEm:'',perfis:[],listasTv:[],placar:[]},null,1));
 }
+
+fs.copyFileSync(path.join(root,'midias-verificadas-seed.json'),path.join(assets,'midias-verificadas-seed.json'));

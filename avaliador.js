@@ -85,9 +85,9 @@ async function sondarLista(url, referer) {
     return analise;
 }
 
-async function sondarArquivo(url, referer) {
+async function sondarArquivo(url, referer, opcoes = {}) {
     const central = require('./central/verificar-midia');
-    const faixas = await central.faixasDeAudio(url, referer || '');
+    const faixas = await central.faixasDeAudio(url, referer || '', opcoes);
     if (!faixas) return null;
     const portuguesa = faixas.faixas.find(f => /^pt|por/.test(f.idioma));
     return {
@@ -161,7 +161,7 @@ function compararPrioridade(a, b) {
 function avaliarConferidas(conferidas, idiomas) {
     return conferidas.map((registro, i) => {
         const guardada = medidasDeArquivo.get(JSON.stringify([registro.item.dados.url, registro.item.dados.referer || '']));
-        const sonda = guardada && guardada.expira > Date.now() ? guardada.sonda : registro.sonda;
+        const sonda = !registro.item.lembrada && guardada && guardada.expira > Date.now() ? guardada.sonda : registro.sonda;
         const medida = { dados: registro.item.dados, sonda, idiomaVerificado: idiomas[registro.item.fonte.id] || '', ms: registro.item.ms };
         const { nota, detalhes } = notaDaFonte(medida);
         return { fonteId: registro.item.fonte.id, fonte: registro.item.dados.fonte || registro.item.fonte.nome,
@@ -268,7 +268,7 @@ async function escolherMelhor(papel, alvo, opcoes = {}) {
     const inicio = Date.now();
     const chave = `${papel}:${motor.chaveDoTitulo(alvo)}:${(opcoes.exceto || []).join(',')}`;
     const guardado = cache.get(chave);
-    if (guardado && guardado.expira > Date.now() && !opcoes.semCache) {
+    if (guardado && guardado.expira > Date.now() && !opcoes.semCache && !guardado.conferidas.some(r=>r.item.lembrada)) {
         // A sonda pode terminar depois do prazo da primeira abertura. Aproveita
         // essa prova na abertura seguinte, sem prender o título à reserva HD.
         const atualizadas = avaliarConferidas(guardado.conferidas, motor.lerIdiomasVerificados()[motor.chaveDoTitulo(alvo)] || {});
@@ -282,6 +282,13 @@ async function escolherMelhor(papel, alvo, opcoes = {}) {
     if (!fila.length) return null;
 
     // Resolve todas em paralelo — a primeira que responder já garante a reserva.
+    const memoria=opcoes.memoria||require('./midias-memoria.cjs'),tituloKey=require('./midias-memoria.cjs').chave(alvo);
+    const conhecidas=papel==='dublado'?memoria.load(tituloKey,fila.map(f=>f.id)):[];
+    const tempoLembrada=10000;
+    const lembrarJobs=conhecidas.map(r=>{
+        const fonte=fila.find(f=>f.id===r.id),dados=r.dados;
+        return {fonte,dados,ms:0,lembrada:true,sonda:prazo(sondarArquivo(dados.url,dados.referer,{timeout:tempoLembrada}),tempoLembrada),validacao:prazo(midia.validarMidia(dados.url,dados.referer,tempoLembrada),tempoLembrada+500,false)};
+    });
     const resolvidas = (await Promise.all(fila.map(async fonte => {
         const comeco = Date.now();
         const dados = await prazo(fonte.resolver(alvo), TEMPO_RESOLVER);
@@ -292,11 +299,11 @@ async function escolherMelhor(papel, alvo, opcoes = {}) {
         const sonda = prazo(sondar(dados), TEMPO_SONDAR);
         const validacao = prazo(midia.validarMidia(dados.url, dados.referer, TEMPO_SONDAR), TEMPO_SONDAR + 500, true);
         return { fonte, dados, ms, sonda, validacao };
-    }))).filter(Boolean);
+    }))).filter(Boolean).concat(lembrarJobs);
     if (!resolvidas.length) return null;
 
     const idiomas = motor.lerIdiomasVerificados()[motor.chaveDoTitulo(alvo)] || {};
-    const restante = Math.max(1200, ORCAMENTO - (Date.now() - inicio));
+    const restante = Math.max(1200, (conhecidas.length?tempoLembrada+500:ORCAMENTO) - (Date.now() - inicio));
     // Sondagem (o que a fonte promete) e validação (o que ela entrega AGORA)
     // acontecem juntas, dentro do mesmo orçamento de tempo.
     const [sondas, validacoes] = await Promise.all([
@@ -307,11 +314,15 @@ async function escolherMelhor(papel, alvo, opcoes = {}) {
 
     // Fonte que responde o título mas devolve página de erro (o caso do
     // PipocaCine em 09/10/2026) sai da disputa e fica marcada neste título.
-    const conferidas = resolvidas
+    const registros = resolvidas
         .map((item, i) => ({ item, sonda: lista[i], valida: validacoes ? validacoes[i] !== false : true }))
+    ;
+    if(papel==='dublado')memoria.update(tituloKey,registros.map(r=>({id:r.item.fonte.id,dados:r.item.dados,sonda:r.sonda,invalida:!r.valida})));
+    const conferidas=registros
         .filter(registro => {
+            if(registro.item.lembrada&&(!registro.sonda?.padraoPortugues||!registro.sonda.largura||!registro.sonda.altura))return false;
             if (registro.valida) return true;
-            try { motor.registrarFalha(registro.item.fonte.id, 'o endereço não entrega vídeo', `dublado:${motor.chaveDoTitulo(alvo)}`); } catch { /* segue */ }
+            if(!registro.item.lembrada)try { motor.registrarFalha(registro.item.fonte.id, 'o endereço não entrega vídeo', `dublado:${motor.chaveDoTitulo(alvo)}`); } catch { /* segue */ }
             return false;
         });
     if (!conferidas.length) return null;

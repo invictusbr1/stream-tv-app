@@ -55,7 +55,7 @@ public final class MainActivity extends Activity {
     private View pointer;
     private boolean pointerMode;
     private float pointerX, pointerY;
-    private final QualitySelector qualitySelector = new QualitySelector();
+    private QualitySelector qualitySelector;
     private final ThreadLocal<Long> qualityDeadline = new ThreadLocal<>();
 
     private int qualityTimeout(int normal) throws java.io.IOException {
@@ -69,6 +69,9 @@ public final class MainActivity extends Activity {
 
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
+        VerifiedMediaStore verifiedStore=new VerifiedMediaStore(new File(getFilesDir(),"midias-verificadas.bin"));
+        seedVerifiedMedia(verifiedStore);
+        qualitySelector=new QualitySelector(verifiedStore);
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         root = new FrameLayout(this);
         root.setBackgroundColor(Color.BLACK);
@@ -861,10 +864,32 @@ public final class MainActivity extends Activity {
         };
     }
 
+    private void seedVerifiedMedia(VerifiedMediaStore store) {
+        try(InputStream in=getAssets().open("midias-verificadas-seed.json")) {
+            ByteArrayOutputStream bytes=new ByteArrayOutputStream();byte[] buffer=new byte[4096];int n;
+            while((n=in.read(buffer))!=-1){if(bytes.size()+n>100000)return;bytes.write(buffer,0,n);}
+            JSONObject seed=new JSONObject(bytes.toString("UTF-8"));int version=seed.optInt("version");
+            android.content.SharedPreferences prefs=getSharedPreferences("verified-media",MODE_PRIVATE);
+            if(version<=prefs.getInt("seed",0)&&store.healthy())return;
+            JSONArray items=seed.optJSONArray("items");
+            for(int i=0;items!=null&&i<items.length();i++){
+                JSONObject r=items.optJSONObject(i);if(r==null||System.currentTimeMillis()-r.optLong("at")>7L*86400000)continue;
+                String id=r.optString("id"),url=r.optString("url"),ref=r.optString("referer");int w=r.optInt("width"),h=r.optInt("height");
+                JSONObject data=new JSONObject().put("url",url).put("referer",ref).put("type","file").put("audio","pt-BR").put("fonteId",id).put("fonte",r.optString("name",id));
+                QualitySelector.Candidate c=new QualitySelector.Candidate(id,url,ref,"file",data.toString(),0);
+                c.measure=new QualitySelector.Measure(w,h,2,0,true);
+                store.save(r.optString("key"),Collections.singletonList(c));
+            }
+            if(store.healthy())prefs.edit().putInt("seed",version).apply();
+        }catch(Exception optional){ /* A descoberta normal segue disponível. */ }
+    }
+
     private WebResourceResponse qualityPlayback(String tipo,String id,String temporada,String episodio,java.util.Set<String> excluded) {
         final java.util.Set<String> exceto=Collections.unmodifiableSet(new java.util.HashSet<>(excluded));
         List<QualitySelector.Source> sources=new ArrayList<>();
         boolean tv="tv".equals(tipo);
+        java.util.Set<String> allowed=new java.util.HashSet<>();
+        Collections.addAll(allowed,tv?"pipoca-serie":"pipoca","watchplay","mgeb");
         if(!exceto.contains("pipoca")&&!tv)sources.add(qualitySource(()->pipocaFilme(id)));
         if(!exceto.contains("watchplay"))sources.add(qualitySource(()->directPlayback(tv?"https://v2.watchplay.shop/tvshow/"+id+"/"+temporada+"/"+episodio:"https://v2.watchplay.shop/movie/"+id)));
         if(!exceto.contains("pipoca-serie")&&tv)sources.add(qualitySource(()->pipocaEpisodio(id,temporada,episodio)));
@@ -877,11 +902,12 @@ public final class MainActivity extends Activity {
                 final String profileId=ficha.optString("id");if(!profileId.matches("[a-z0-9_-]{1,64}")||exceto.contains(profileId)||!seen.add(profileId))continue;
                 if(ficha.optString(tv?"urlTv":"urlMovie").isEmpty())continue;
                 JSONArray tipos=ficha.optJSONArray("tipos");boolean applies=false;for(int j=0;tipos!=null&&j<tipos.length();j++)if(tipo.equals(tipos.optString(j)))applies=true;
-                if(applies)sources.add(qualityProfileSource(ficha,tipo,id,temporada,episodio,exceto));
+                if(applies){allowed.add(profileId);sources.add(qualityProfileSource(ficha,tipo,id,temporada,episodio,exceto));}
             }
         }catch(Exception ignored){ /* Segue com as fontes fixas se a ficha não estiver disponível. */ }
         String key=tipo+":"+id+":"+temporada+":"+episodio+":"+new java.util.TreeSet<>(exceto)+":"+(profiles==null?0:profiles.hashCode());
-        QualitySelector.Candidate chosen=qualitySelector.choose(key,sources,exceto,NativeMediaProbe::read,12000);
+        String title=tv?"tv:"+id+":"+temporada+":"+episodio:"movie:"+id;
+        QualitySelector.Candidate chosen=qualitySelector.choose(key,sources,exceto,NativeMediaProbe::read,12000,title,allowed);
         if(chosen!=null){
             try{
                 JSONObject data=new JSONObject(chosen.json);QualitySelector.Measure m=chosen.measure;
@@ -1571,7 +1597,7 @@ public final class MainActivity extends Activity {
         if (popup != null) popup.onResume();
     }
     @Override protected void onDestroy() {
-        qualitySelector.close();
+        if(qualitySelector!=null)qualitySelector.close();
         if (updater != null) updater.close();
         closePopup(); exitFullscreen(); root.removeView(main); main.destroy(); super.onDestroy();
     }

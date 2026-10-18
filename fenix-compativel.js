@@ -20,7 +20,7 @@ function escolher(medidas) {
             && x.medida.faixas.some(a => /^(pt|por)(-|$)/i.test(a.idioma) && a.padrao && a.codec === 'aac');
     }).sort((a,b) => (b.medida.imagem.largura*b.medida.imagem.altura)-(a.medida.imagem.largura*a.medida.imagem.altura))[0] || null;
 }
-function criar({ buscar, medir, imdbDe = fenix.imdbDe, agora = Date.now } = {}) {
+function criar({ buscar, medir, imdbDe = fenix.imdbDe, agora = Date.now, lembradas = () => [] } = {}) {
     const cache = new Map(), pending = new Map();
     return async function resolver(alvo) {
         const tipo = alvo.tipo === 'tv' ? 'tv' : 'movie';
@@ -32,8 +32,9 @@ function criar({ buscar, medir, imdbDe = fenix.imdbDe, agora = Date.now } = {}) 
         const job=(async()=>{
             const imdb=await imdbDe(alvo.tmdbId,tipo); if(!/^tt\d+$/.test(imdb||''))return null;
             const path=tipo==='tv'?`series/${imdb}:${alvo.temporada}:${alvo.episodio}`:`movie/${imdb}`;
-            const dados=await buscar(`${BASE}/stream/${path}.json`);
-            const medidas=await Promise.all(candidatos(dados?.streams).map(async stream=>{
+            let dados;try{dados=await buscar(`${BASE}/stream/${path}.json`);}catch{dados=null;}
+            const streams=[...lembradas(alvo).map(r=>({url:r.dados.url,title:'Dublado verificado'})),...(dados?.streams||[])].filter((s,i,a)=>a.findIndex(x=>x.url===s.url)===i);
+            const medidas=await Promise.all(candidatos(streams).map(async stream=>{
                 try{return {stream,medida:await medir(stream.url,BASE+'/')};}catch{return null;}
             }));
             const best=escolher(medidas.filter(Boolean)); if(!best)return null;
@@ -46,6 +47,7 @@ function criar({ buscar, medir, imdbDe = fenix.imdbDe, agora = Date.now } = {}) 
     };
 }
 const resolver=criar({
+    lembradas:alvo=>{const m=require('./midias-memoria.cjs');return m.load(m.chave(alvo),['fenixflix-fenixhub']);},
     buscar:async url=>{const r=await require('axios').get(url,{timeout:12000,maxContentLength:500000,headers:{Accept:'application/json'}});return r.data;},
     medir:(url,referer)=>require('./central/verificar-midia').faixasDeAudio(url,referer,{timeout:10000}),
 });

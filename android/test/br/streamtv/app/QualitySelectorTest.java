@@ -24,6 +24,35 @@ public final class QualitySelectorTest {
     private static QualitySelector.Measure measure(int w,int h,int lang){return new QualitySelector.Measure(w,h,lang,0,true);}
     public static void main(String[] args)throws Exception{
         switch(args[0]){
+        case "history":{
+            java.io.File file=java.io.File.createTempFile("conecta-history-",".bin");
+            try{
+                VerifiedMediaStore first=new VerifiedMediaStore(file);
+                QualitySelector.Candidate old=candidate("fenix");old.measure=measure(3832,1600,2);
+                first.save("movie:969681",Arrays.asList(old));
+                VerifiedMediaStore restart=new VerifiedMediaStore(file);
+                check(restart.load("movie:969681",Collections.singleton("fenix")).size()==1);
+                check(restart.load("movie:1",Collections.singleton("fenix")).isEmpty());
+                check(restart.load("movie:969681",Collections.singleton("disabled")).isEmpty());
+                List<QualitySelector.Source> current=Arrays.asList(d->candidate("current"));
+                try(QualitySelector selector=new QualitySelector(restart)){
+                    AtomicInteger probes=new AtomicInteger();
+                    QualitySelector.Probe probe=(c,d)->{probes.incrementAndGet();return measure(c.id.equals("fenix")?3832:1920,c.id.equals("fenix")?1600:800,2);};
+                    QualitySelector.Candidate winner=selector.choose("one",current,Collections.emptySet(),probe,2000,"movie:969681",new HashSet<>(Arrays.asList("fenix","current")));
+                    check(winner.id.equals("fenix")&&winner.measure.width==3832);int before=probes.get();
+                    winner=selector.choose("one",current,Collections.emptySet(),(c,d)->c.id.equals("fenix")?measure(3832,1600,-1):measure(1920,800,2),2000,"movie:969681",new HashSet<>(Arrays.asList("fenix","current")));
+                    check(winner.id.equals("current"));
+                    check(new VerifiedMediaStore(file).load("movie:969681",Collections.singleton("fenix")).isEmpty());
+                    check(before>=2);
+                }
+                first.save("tv:1:1:1",Arrays.asList(old));
+                check(first.load("tv:1:1:2",Collections.singleton("fenix")).isEmpty());
+                try(QualitySelector selector=new QualitySelector(first)){
+                    QualitySelector.Candidate winner=selector.choose("unknown",current,Collections.emptySet(),(c,d)->c.id.equals("fenix")?null:measure(1920,800,2),2000,"tv:1:1:1",new HashSet<>(Arrays.asList("fenix","current")));
+                    check(winner.id.equals("current"));
+                }
+            }finally{file.delete();}break;
+        }
         case "mp4":{
             byte[] data=box("moov",track("vide","avc1",3832,1600,box("stsz",new byte[9*1024*1024])),track("soun","mp4a",0,0,new byte[0]));
             AtomicInteger transferred=new AtomicInteger();

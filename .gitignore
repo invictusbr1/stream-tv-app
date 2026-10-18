@@ -59,3 +59,5 @@ relatorios/vigia-fontes.json
 *.pdf
 
 /avisos-servidor.json
+
+/midias-verificadas.json

@@ -1,6 +1,27 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { analisarPlaylist, notaDaFonte } = require('./avaliador');
+// Testes do avaliador não consultam nem alteram a memória real de fornecedores.
+require('./midias-memoria.cjs').load=()=>[];
+require('./midias-memoria.cjs').update=()=>{};
+
+test('fonte 4K fora do índice só vence após nova prova de português e imagem; falha ou idioma diferente usa atual',async()=>{
+ const a=require('./avaliador'),motor=require('./fontes-motor'),v=require('./central/verificar-midia'),proxy=require('./midia-proxy');
+ const original=Object.fromEntries(['filaDeFontes','lerIdiomasVerificados','registrarSucesso','anotarEscolha','registrarFalha'].map(k=>[k,motor[k]])),probe=v.faixasDeAudio,validate=proxy.validarMidia;
+ const dados=url=>({url:'https://media.invalid/'+url+'.mp4',referer:'https://media.invalid/',type:'file',audio:'pt-BR',fonte:'Dublado'});
+ let state='pt',oldCalls=0,failures=0;
+ try{
+  motor.filaDeFontes=()=>[{id:'fenix',nome:'Dublado',resolver:async()=>dados('atual')}];motor.lerIdiomasVerificados=()=>({});motor.registrarSucesso=()=>{};motor.anotarEscolha=()=>{};motor.registrarFalha=()=>{failures++;};
+  proxy.validarMidia=async url=>!(url.includes('antiga')&&state==='dead');
+  v.faixasDeAudio=async url=>{const old=url.includes('antiga');if(old)oldCalls++;return {imagem:{largura:old?3832:1920,altura:old?1600:800,codec:old?'hevc':'h264'},faixas:[{idioma:old&&state==='en'?'eng':'por',padrao:true,codec:'aac'}]};};
+  const memoria={load:()=>[{id:'fenix',dados:dados('antiga')}],update:()=>{}};
+  const target={tipo:'movie',tmdbId:'969681'};
+  let result=await a.escolherMelhor('dublado',target,{memoria,semCache:true});assert.match(result.escolhido.url,/antiga/);assert.equal(result.escolhido.resolucao,'2156p');
+  // A escolha lembrada precisa ser sondada novamente, inclusive com cache da avaliação.
+  state='en';result=await a.escolherMelhor('dublado',target,{memoria});assert.match(result.escolhido.url,/atual/);assert.equal(oldCalls,2);
+  state='dead';result=await a.escolherMelhor('dublado',target,{memoria,semCache:true});assert.match(result.escolhido.url,/atual/);assert.equal(failures,0);
+ }finally{Object.assign(motor,original);v.faixasDeAudio=probe;proxy.validarMidia=validate;a.limparCache();}
+});
 
 // Os testes usam endereços fictícios: a conferência de entrega de vídeo (feita
 // pela internet) é simulada como "sempre entrega".

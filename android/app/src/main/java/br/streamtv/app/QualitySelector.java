@@ -19,6 +19,7 @@ final class QualitySelector implements AutoCloseable {
         final int declared;
         volatile Measure measure;
         volatile String deliveryUrl;
+        boolean remembered;
         Candidate(String id,String url,String referer,String type,String json,int declared) {
             this.id=id;this.url=url;this.referer=referer==null?"":referer;this.type=type;this.json=json;this.declared=declared;
         }
@@ -36,9 +37,15 @@ final class QualitySelector implements AutoCloseable {
     private final Map<String,Entry<List<Candidate>>> choices=new LinkedHashMap<>();
     private final Map<String,Entry<Measure>> measures=new LinkedHashMap<>();
     private volatile boolean closed;
+    private final VerifiedMediaStore history;
+    QualitySelector(){this(null);}
+    QualitySelector(VerifiedMediaStore history){this.history=history;}
     static long now() { return System.nanoTime()/1000000L; }
 
     Candidate choose(String key,List<Source> sources,Set<String> excluded,Probe probe,long budget) {
+        return choose(key,sources,excluded,probe,budget,"",Collections.emptySet());
+    }
+    Candidate choose(String key,List<Source> sources,Set<String> excluded,Probe probe,long budget,String title,Set<String> allowed) {
         if(closed)return null;
         long deadline=now()+budget;
         List<Candidate> cached;
@@ -48,6 +55,7 @@ final class QualitySelector implements AutoCloseable {
         boolean complete=false;
         try {
             CompletionService<List<Candidate>> finished=new ExecutorCompletionService<>(workers);
+            if(history!=null)for(Candidate c:history.load(title,allowed))futures.add(finished.submit(()->{assess(c,excluded,probe,deadline,found);return Collections.emptyList();}));
             if(cached!=null)for(Candidate c:cached)futures.add(finished.submit(()->{assess(c,excluded,probe,deadline,found);return Collections.emptyList();}));
             else for(Source source:sources)futures.add(finished.submit(()->now()<deadline&&!Thread.currentThread().isInterrupted()?source.resolveAll(deadline):Collections.emptyList()));
             int pending=futures.size();
@@ -69,16 +77,17 @@ final class QualitySelector implements AutoCloseable {
         // Estável nos empates: não deixa a ordem das respostas da rede decidir.
         Collections.sort(snapshot,(a,b)->(a.id+"\n"+a.url).compareTo(b.id+"\n"+b.url));
         Collections.sort(snapshot,QualitySelector::compare);
+        if(history!=null)history.save(title,snapshot);
         if(snapshot.isEmpty())return null;
         synchronized(this){if(!closed&&complete){trim(choices,64);choices.put(key,new Entry<>(snapshot,now()+10*60*1000));}}
-        for(Candidate c:snapshot)if(c.measure==null||(c.measure.playable&&c.measure.language>=0))return c;
+        for(Candidate c:snapshot)if(c.remembered?c.measure!=null&&c.measure.playable&&c.measure.language==2&&c.measure.width>0&&c.measure.height>0:c.measure==null||(c.measure.playable&&c.measure.language>=0))return c;
         return null;
     }
     private void assess(Candidate c,Set<String> excluded,Probe probe,long deadline,List<Candidate> found) {
         if(c==null||excluded.contains(c.id)||now()>=deadline||Thread.currentThread().isInterrupted())return;
-        c=new Candidate(c.id,c.url,c.referer,c.type,c.json,c.declared);
+        Candidate original=c;c=new Candidate(c.id,c.url,c.referer,c.type,c.json,c.declared);c.remembered=original.remembered;
         synchronized(found){for(Candidate other:found)if(other.key().equals(c.key()))return;found.add(c);}
-        synchronized(this){Entry<Measure> e=measures.get(c.key());if(e!=null&&e.expires>now()){c.measure=e.value;return;}}
+        synchronized(this){Entry<Measure> e=measures.get(c.key());if(!c.remembered&&e!=null&&e.expires>now()){c.measure=e.value;return;}}
         try {
             Measure m=probe.read(c,Math.min(deadline,now()+6000));
             if(m!=null){c.measure=m;synchronized(this){if(!closed){trim(measures,128);measures.put(c.key(),new Entry<>(m,now()+("hls".equals(c.type)?60000:600000)));}}}

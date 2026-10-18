@@ -15,7 +15,7 @@ const DEPLOY_FILES = ['docker-compose.yml', 'docker-compose.oracle.yml', 'Caddyf
     'Instalar-No-Servidor.sh', 'LEIA-ME-SERVIDOR.md', 'publicar-automatico.cjs',
     'publicar-no-servidor.sh', 'ATUALIZACAO-AUTOMATICA.md'];
 const REQUIRED = ['package.json', 'package-lock.json', 'server.js', 'index.html', 'Dockerfile',
-    'avisos-servidor.js', 'avisos-servidor-store.cjs',
+    'avisos-servidor.js', 'avisos-servidor-store.cjs', 'midias-memoria.cjs', 'midias-verificadas-seed.json',
     'central/servidor.js', 'central/Dockerfile', 'deploy/servidor/docker-compose.yml',
     'deploy/servidor/docker-compose.oracle.yml', 'deploy/servidor/Caddyfile',
     'android/app/src/main/assets/catalog.js', 'android/app/src/main/assets/assistir.html'];
@@ -46,7 +46,7 @@ function files(root = ROOT) {
         // Cópia antiga de package.json com extensão incorreta; não é código executável.
         if (entry.name === 'package.js') continue;
         if (/\.(js|cjs|css|svg|png|ico|webp)$/i.test(entry.name) ||
-            ['package.json', 'package-lock.json', 'index.html', 'fontes.json', 'perfis.json', 'diagnostico-controle.mp4', 'Dockerfile', '.dockerignore'].includes(entry.name)) add(entry.name);
+            ['package.json', 'package-lock.json', 'index.html', 'fontes.json', 'perfis.json', 'midias-verificadas-seed.json', 'diagnostico-controle.mp4', 'Dockerfile', '.dockerignore'].includes(entry.name)) add(entry.name);
     }
     for (const directory of ['central', 'pwa']) {
         const visit = relative => {
