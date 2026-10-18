@@ -42,23 +42,29 @@ async function analisar(fetcher,{timeout=6000}={}){
  if(!video||!audio.length)throw Error('Sem imagem e áudio');
  return {container:'mov,mp4',imagem:{largura:video.width,altura:video.height,codec:video.codec,pixels:''},faixas:audio.map((t,i)=>({ordem:i,idioma:t.language||'und',padrao:i===0&&t.enabled,codec:t.codec})),leitura:{bytes:used,requests}};
 }
-async function ler(url,referer='',{timeout=6000}={}){
+class Indisponivel extends Error {}
+async function ler(url,referer='',{timeout=6000,falhaExplicita=false}={}){
  try{
-  const axios=require('axios'),safe=require('./perfis-motor').ehEnderecoSeguro;let target=url;
+  const axios=require('axios'),safe=require('./perfis-motor').ehEnderecoSeguro;let target=url,referencia=referer;
   return await analisar(async(position,length,deadline)=>{
    const seen=new Set();
    for(let i=0;i<6;i++){
     target=String(target).replace(/^http:/i,'https:');if(!safe(target)||seen.has(target))throw Error('Destino inválido');seen.add(target);
     const remaining=deadline-Date.now();if(remaining<=0)throw Error('Fim do prazo');
-    const r=await axios.get(target,{headers:{Range:`bytes=${position}-${position+length-1}`,...(referer?{Referer:referer}:{}),'User-Agent':'Mozilla/5.0'},responseType:'stream',maxRedirects:0,validateStatus:()=>true,timeout:remaining,signal:AbortSignal.timeout(remaining)});
+    const r=await axios.get(target,{headers:{Range:`bytes=${position}-${position+length-1}`,...(referencia?{Referer:referencia}:{}),'User-Agent':'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36'},responseType:'stream',maxRedirects:0,validateStatus:()=>true,timeout:remaining,signal:AbortSignal.timeout(remaining)});
     if([301,302,303,307,308].includes(r.status)){r.data.destroy();target=new URL(r.headers.location,target).href;continue;}
+    if([401,403].includes(r.status)&&referencia){
+     const a=new URL(referencia).hostname.toLowerCase(),b=new URL(target).hostname.toLowerCase();
+     if(a!==b&&!a.endsWith('.'+b)&&!b.endsWith('.'+a)){r.data.destroy();referencia='';seen.delete(target);i--;continue;}
+    }
     try{
+     if(r.status<200||r.status>=300||/text\/html|application\/json|text\/xml/i.test(r.headers['content-type']||''))throw new Indisponivel('O destino não entrega mídia');
      const range=/^bytes (\d+)-(\d+)\/(\d+)$/.exec(r.headers['content-range']||'');if(!range||r.status!==206)throw Error('Servidor não oferece faixas');
      const parts=[];let size=0;for await(const part of r.data){size+=part.length;if(size>length)throw Error('Faixa excessiva');parts.push(part);}
      return {status:r.status,start:Number(range[1]),total:Number(range[3]),bytes:Buffer.concat(parts,size),mime:r.headers['content-type']||''};
     }finally{r.data.destroy();}
    }throw Error('Redirecionamentos excessivos');
   },{timeout});
- }catch{return null;}
+ }catch(erro){return falhaExplicita&&erro instanceof Indisponivel?{indisponivel:true}:null;}
 }
 module.exports={ler,analisar};

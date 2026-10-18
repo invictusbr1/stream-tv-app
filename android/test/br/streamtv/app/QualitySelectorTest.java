@@ -24,6 +24,34 @@ public final class QualitySelectorTest {
     private static QualitySelector.Measure measure(int w,int h,int lang){return new QualitySelector.Measure(w,h,lang,0,true);}
     public static void main(String[] args)throws Exception{
         switch(args[0]){
+        case "audio-proof":{
+            AudioProofs proofs=new AudioProofs();String title="movie:1084244";
+            QualitySelector.Candidate full=candidate("fullhd"),hd=candidate("hd");
+            String hash=AudioProofs.identity(title,full);AtomicInteger opens=new AtomicInteger();
+            check(hash.equals("92b211210e212a3c0d348aea45b0d3401fb8b5af49630452d946d9a83749b94b"));
+            QualitySelector.Evidence evidence=new QualitySelector.Evidence(){
+                public void load(long deadline){if(opens.incrementAndGet()>1)proofs.replace(title,Arrays.asList(new AudioProofs.Proof(hash,"pt",System.currentTimeMillis()+60000)));}
+                public QualitySelector.Measure apply(String t,QualitySelector.Candidate c){return proofs.apply(t,c);}
+            };
+            try(QualitySelector selector=new QualitySelector()){
+                List<QualitySelector.Source> sources=Arrays.asList(d->full,d->hd);
+                QualitySelector.Probe probe=(c,d)->c.id.equals("fullhd")?measure(1920,1080,1):measure(1280,720,2);
+                check(selector.choose("cached",sources,Collections.emptySet(),probe,1000,title,Collections.emptySet(),evidence).id.equals("hd"));
+                long before=QualitySelector.now();
+                check(selector.choose("cached",sources,Collections.emptySet(),probe,1000,title,Collections.emptySet(),evidence).id.equals("fullhd"));
+                check(QualitySelector.now()-before<500);
+            }
+            full.measure=measure(1920,1080,1);
+            check(proofs.apply(title,full).language==2);
+            check(proofs.apply("movie:1",full).language==1);
+            QualitySelector.Candidate changed=new QualitySelector.Candidate("fullhd",full.url+"?new=1",full.referer,"file","{}",0);changed.measure=full.measure;
+            check(proofs.apply(title,changed).language==1);
+            full.measure=measure(1920,1080,-1);check(proofs.apply(title,full).language==-1);
+            full.measure=new QualitySelector.Measure(3840,2160,1,0,false);check(!proofs.apply(title,full).playable);
+            proofs.replace(title,Arrays.asList(new AudioProofs.Proof(hash,"pt",System.currentTimeMillis()-1)));
+            full.measure=measure(1920,1080,1);check(proofs.apply(title,full).language==1);
+            break;
+        }
         case "clickhost":{
             check(ClickHostSource.endpoint("movie","1084244",null,null).endsWith("/filme/1084244?ad_played=1"));
             check(ClickHostSource.endpoint("tv","1399","1","2").contains("/serie/1399/1/2"));

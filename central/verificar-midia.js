@@ -16,6 +16,7 @@ const os = require('os');
 const path = require('path');
 const zlib = require('zlib');
 const axios = require('axios');
+const provas = require('../provas-idioma');
 const { execFile } = require('child_process');
 
 const PASTA = path.join(os.homedir(), '.conecta-central');
@@ -431,6 +432,9 @@ function gravarCache(central) {
             const recente=combinado[chave];
             if(!recente||(Date.parse(valor?.em)||0)>=(Date.parse(recente?.em)||0))combinado[chave]=valor;
         }
+        for(const [chave,valor]of Object.entries(combinado)){
+            if(valor?.midiaHash&&!(Date.parse(valor.em)+provas.VALIDADE>Date.now())){delete combinado[chave];if(cache)delete cache[chave];}
+        }
         const temporario=arquivo+'.'+process.pid+'.tmp';
         fs.writeFileSync(temporario,JSON.stringify(combinado,null,1));
         fs.renameSync(temporario,arquivo);
@@ -449,10 +453,14 @@ function chaveDoTitulo(tipo, amostra) {
 // do próprio arquivo (faixa padrão em português); se não houver, ouve.
 async function verificarIdioma({ url, referer = '', tipo = 'movie', amostra, fonteId = '', chaveIa = '', central, registrar = () => {} }) {
     if (!url || !amostra) return null;
-    const chave = `${fonteId}|${chaveDoTitulo(tipo, amostra)}`;
+    const titulo = chaveDoTitulo(tipo, amostra);
+    const midiaHash = provas.identidade(titulo, fonteId, url, referer);
+    const chave = `${fonteId}|${titulo}|${midiaHash}`;
     const guardado = lerCache(central)[chave];
     const etiquetaAusente=guardado?.idioma==='outro'&&guardado.origem==='faixas'&&/"(?:und|outro idioma)"/i.test(guardado.evidencia||'');
-    if (guardado && !etiquetaAusente && Date.now() - new Date(guardado.em).getTime() < 7 * 24 * 60 * 60 * 1000) return { ...guardado, cache: true };
+    const idade=guardado?Date.now()-Date.parse(guardado.em):Infinity;
+    const validade=guardado&&['pt','outro'].includes(guardado.idioma)?provas.VALIDADE:2*60000;
+    if (guardado && !etiquetaAusente && idade>=0 && idade<validade) return { ...guardado, cache: true };
 
     const registro = lerCache(central);
     let resultado = null;
@@ -516,7 +524,7 @@ async function verificarIdioma({ url, referer = '', tipo = 'movie', amostra, fon
         resultado = { idioma: 'indefinido', evidencia: 'não consegui medir agora: ' + String(erro.message).slice(0, 60), origem: 'erro' };
     }
     if (!resultado) resultado = { idioma: 'indefinido', evidencia: 'sem medição', origem: 'erro' };
-    registro[chave] = { ...resultado, fonteId, titulo: chaveDoTitulo(tipo, amostra), em: new Date().toISOString() };
+    registro[chave] = { ...resultado, fonteId, titulo, midiaHash, em: new Date().toISOString() };
     gravarCache(central);
     return registro[chave];
 }

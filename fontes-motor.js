@@ -55,15 +55,18 @@ function caminhosDeIdiomas() {
     return caminhos;
 }
 
-let idiomasVerificados = { lidoEm: 0, mapa: {} };
+let idiomasVerificados = { lidoEm: 0, mapa: {}, registros: {} };
 
 function lerIdiomasVerificados() {
-    if (Date.now() - idiomasVerificados.lidoEm < 60000) return idiomasVerificados.mapa;
+    if (Date.now() - idiomasVerificados.lidoEm < 5000) return idiomasVerificados.mapa;
     const mapa = {};
+    let registros = {};
     for (const arquivo of caminhosDeIdiomas()) {
         try {
             const dados = JSON.parse(fs.readFileSync(arquivo, 'utf8')) || {};
+            registros = dados;
             for (const [chave, valor] of Object.entries(dados)) {
+                if (valor?.midiaHash) continue; // confirmação de um arquivo não vale para os demais
                 const partes = String(chave).split('|');
                 if (partes.length < 2) continue;
                 const fonteId = partes.shift();
@@ -75,11 +78,12 @@ function lerIdiomasVerificados() {
             break;
         } catch { /* tenta o próximo caminho */ }
     }
-    idiomasVerificados = { lidoEm: Date.now(), mapa };
+    idiomasVerificados = { lidoEm: Date.now(), mapa, registros };
     return mapa;
 }
 
-function esquecerIdiomas() { idiomasVerificados = { lidoEm: 0, mapa: {} }; }
+function lerProvasDeIdioma() { lerIdiomasVerificados(); return idiomasVerificados.registros || {}; }
+function esquecerIdiomas() { idiomasVerificados = { lidoEm: 0, mapa: {}, registros: {} }; }
 
 const acertos = new Map();   // chave do título -> { fonte, expira, dados }
 const semTitulo = new Map(); // `chave do título|fonte` -> expira
@@ -641,4 +645,4 @@ function anotarEscolha(papel, alvo, dados) {
     acertos.set(chave, { dados: { ...dados }, expira: Date.now() + validade });
 }
 
-module.exports = { escolher, filaDeFontes, prepararParaPlayer, estado, FONTES, fontesAtivas, fontesDePerfil, enderecoWatchPlay, reiniciarParaTeste, esquecerAcertos, registrarFalha, registrarSucesso, anotarEscolha, chaveDoTitulo, alvoDoEvento, lerIdiomasVerificados, esquecerIdiomas };
+module.exports = { escolher, filaDeFontes, prepararParaPlayer, estado, FONTES, fontesAtivas, fontesDePerfil, enderecoWatchPlay, reiniciarParaTeste, esquecerAcertos, registrarFalha, registrarSucesso, anotarEscolha, chaveDoTitulo, alvoDoEvento, lerIdiomasVerificados, lerProvasDeIdioma, esquecerIdiomas };

@@ -172,6 +172,29 @@ public final class MainActivity extends Activity {
         }
     }
 
+    private final AudioProofs audioProofs=new AudioProofs();
+    private final java.util.Map<String,Long> provasLidas=new java.util.concurrent.ConcurrentHashMap<>();
+    private String provasEndereco="",provasCodigo="";
+    private long provasDescobertaAte=0;
+    private synchronized void carregarProvasIdioma(String titulo,long prazo)throws Exception{
+        if((provasLidas.get(titulo)==null?0:provasLidas.get(titulo))>System.currentTimeMillis())return;
+        if(QualitySelector.now()>=prazo)return;
+        if(provasEndereco.isEmpty()||System.currentTimeMillis()>=provasDescobertaAte){
+            JSONObject config;try(InputStream in=getAssets().open("config.json")){config=new JSONObject(lerTexto(in));}
+            JSONObject atual=new JSONObject(RelatoHttp.enviar(config.optString("descoberta"),null,(int)Math.max(1,Math.min(1200,prazo-QualitySelector.now()))));
+            String base=atual.getString("endereco").replaceAll("/+$","");URL u=new URL(base);
+            if(!"https".equals(u.getProtocol())||u.getUserInfo()!=null||(u.getPort()!=-1&&u.getPort()!=443)||!u.getPath().isEmpty()||u.getQuery()!=null||u.getRef()!=null)return;
+            provasEndereco=base;provasCodigo=config.optString("acessoCodigo",config.optString("codigo",atual.optString("codigo")));
+            provasDescobertaAte=System.currentTimeMillis()+300000;
+        }
+        if(QualitySelector.now()>=prazo)return;
+        JSONObject corpo=new JSONObject();corpo.put("titulo",titulo);corpo.put("codigo",provasCodigo);
+        JSONObject resposta=new JSONObject(RelatoHttp.enviar(provasEndereco+"/api/qualidade/idiomas",corpo.toString(),(int)Math.max(1,Math.min(1500,prazo-QualitySelector.now()))));
+        JSONArray lista=resposta.getJSONArray("provas");List<AudioProofs.Proof> proofs=new ArrayList<>();
+        for(int i=0;i<Math.min(128,lista.length());i++){JSONObject p=lista.optJSONObject(i);if(p!=null)proofs.add(new AudioProofs.Proof(p.optString("hash"),p.optString("idioma"),p.optLong("expira")));}
+        audioProofs.replace(titulo,proofs);
+        if(provasLidas.size()>=64)provasLidas.clear();provasLidas.put(titulo,System.currentTimeMillis()+15000);
+    }
     private String avisosEndereco="";
     private long avisosDescobertaAte=0;
     private synchronized WebResourceResponse notificacoesServidor(){
@@ -980,7 +1003,10 @@ public final class MainActivity extends Activity {
         String title=tv?"tv:"+id+":"+temporada+":"+episodio:"movie:"+id;
         QualitySelector.Candidate chosen=selector.choose(key,sources,exceto,
             (candidato,prazo)->NativeMediaProbe.read(candidato,prazo,selector.podeHevc()),
-            10000,title,allowed);
+            10000,title,allowed,new QualitySelector.Evidence(){
+                public void load(long deadline)throws Exception{carregarProvasIdioma(title,Math.min(deadline,QualitySelector.now()+3000));}
+                public QualitySelector.Measure apply(String target,QualitySelector.Candidate c){return audioProofs.apply(target,c);}
+            });
         if(chosen!=null){
             try{
                 JSONObject data=new JSONObject(chosen.json);QualitySelector.Measure m=chosen.measure;

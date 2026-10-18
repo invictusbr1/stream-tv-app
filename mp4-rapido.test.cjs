@@ -14,3 +14,20 @@ test('Full HD sem etiqueta de idioma continua indefinido, e HTML/faixas inválid
  for(const patch of [{mime:'text/html'},{status:404},{start:5},{total:-1}])await assert.rejects(analisar(async(p,n)=>({...await fetcher(p,n),...patch})));
  const bad=Buffer.from([0,0,0,7,109,111,111,118]);await assert.rejects(analisar(async(p,n)=>({status:206,start:p,total:bad.length,bytes:bad.subarray(p,p+n),mime:'video/mp4'})));
 });
+
+test('repete uma recusa de origem sem referer e distingue erro HTTP/HTML de falta de metadados',async()=>{
+ const axios=require('axios'),{Readable}=require('node:stream'),original=axios.get,{ler}=require('./mp4-rapido.cjs');
+ const data=box('moov',track('vide','avc1',1920,1080,'und'),track('soun','mp4a',0,0,'por'));let refusals=0;
+ try{
+  axios.get=async(url,o)=>{
+   if(o.headers.Referer){refusals++;return {status:403,headers:{'content-type':'application/json'},data:Readable.from(['{}'])};}
+   const [,a,b]=/^bytes=(\d+)-(\d+)$/.exec(o.headers.Range),start=Number(a),end=Math.min(Number(b),data.length-1);
+   return {status:206,headers:{'content-type':'video/mp4','content-range':`bytes ${start}-${end}/${data.length}`},data:Readable.from([data.subarray(start,end+1)])};
+  };
+  const good=await ler('https://cdn.example/video.mp4','https://fonte.example/',{falhaExplicita:true});
+  assert.equal(good.imagem.altura,1080);assert.equal(refusals,1);
+  axios.get=async()=>({status:200,headers:{'content-type':'text/html'},data:Readable.from(['<html>'])});
+  assert.deepEqual(await ler('https://cdn.example/video.mp4','',{falhaExplicita:true}),{indisponivel:true});
+  assert.equal(await ler('https://cdn.example/video.mp4'),null);
+ }finally{axios.get=original;}
+});

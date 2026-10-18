@@ -63,6 +63,15 @@ app.post('/api/entrar', (req, res) => portao.rotaEntrada(req, res));
 // Avisos públicos de manutenção, sem dados pessoais e sem rota HTTP de escrita.
 app.get('/api/notificacoes', (req,res)=>{res.setHeader('Cache-Control','no-store');res.json({avisos:require('./avisos-servidor-store.cjs').ler(path.join(DADOS_DIR,'avisos-servidor.json'))});});
 app.use((req, res, next) => portao.middleware(req, res, next));
+// Só resumos de identidade e idioma: nunca entrega URLs, chaves ou transcrições.
+app.post('/api/qualidade/idiomas', (req,res)=>{
+    const titulo=String(req.body?.titulo || '');
+    const provas=require('./provas-idioma');
+    if(!provas.tituloValido(titulo))return res.status(400).json({error:'Título inválido'});
+    require('./central-reporter').solicitarIdioma(titulo);
+    res.setHeader('Cache-Control','no-store');
+    res.json({provas:provas.publicas(require('./fontes-motor').lerProvasDeIdioma(),titulo)});
+});
 
 // ============================================================
 // APARELHOS — quem entrou no aplicativo, com controle para o dono.

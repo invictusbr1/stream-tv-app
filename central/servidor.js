@@ -181,6 +181,15 @@ app.use(express.json({ limit: '256kb' }));
 app.use(seguranca.criarLimitador({ janelaMs: 60000, maximo: 600, maximoMidia: 600 }));
 
 // ---------------------------------------------------------------- relatos dos apps
+const filaIdiomas=require('./qualidade-idioma').criarFila({verificar:require('./qualidade-idioma').criarVerificador({
+    central:{pastaDados:DADOS},chaveIa:()=>require('./cacador').chaveDaIA(),registrar:mensagem=>console.log(mensagem)
+})});
+app.post('/api/qualidade/idiomas',(req,res)=>{
+    if(!TOKEN_APPS||String(req.headers['x-central']||'')!==TOKEN_APPS)return res.sendStatus(401);
+    const titulo=String(req.body?.titulo||'');
+    if(!require('../provas-idioma').tituloValido(titulo))return res.sendStatus(400);
+    res.json({ok:true,agendado:filaIdiomas.solicitar(titulo)});
+});
 app.post('/api/acesso', (req, res) => {
     if (TOKEN_APPS && String(req.headers['x-central'] || '') !== TOKEN_APPS) return res.status(401).json({ error: 'token da central inválido' });
     const corpo = req.body || {};

@@ -8,9 +8,10 @@ test('gravação com cache antigo preserva prova de idioma gravada depois por ou
  try{
   fs.writeFileSync(file,JSON.stringify({a:{idioma:'indefinido',em:'2026-10-17T10:00:00Z'}}));v.limparCache();
   const stale=v.lerCache(central);stale.b={idioma:'pt',em:'2026-10-18T12:00:00Z'};
-  fs.writeFileSync(file,JSON.stringify({a:{idioma:'pt',em:'2026-10-18T11:00:00Z'},c:{idioma:'pt',origem:'transcricao',em:'2026-10-18T11:00:00Z'}}));
+  fs.writeFileSync(file,JSON.stringify({a:{idioma:'pt',em:'2026-10-18T11:00:00Z'},c:{idioma:'pt',origem:'transcricao',em:'2026-10-18T11:00:00Z'},expirada:{idioma:'pt',midiaHash:'a'.repeat(64),em:new Date(Date.now()-8*86400000).toISOString()}}));
   v.gravarCache(central);const saved=JSON.parse(fs.readFileSync(file,'utf8'));
   assert.equal(saved.a.idioma,'pt');assert.equal(saved.b.idioma,'pt');assert.equal(saved.c.origem,'transcricao');assert.equal(stale.a.idioma,'pt');
+  assert.equal(saved.expirada,undefined);assert.equal(stale.expirada,undefined);
  }finally{v.limparCache();fs.rmSync(dir,{recursive:true,force:true});}
 });
 
@@ -26,6 +27,16 @@ test('idioma ausente recebe confirmação por fala; idioma estrangeiro explícit
    vm.runInNewContext(fs.readFileSync(path.join(__dirname,'verificar-midia.js'),'utf8'),sandbox);
    const result=await module.exports.verificarIdioma({url:'https://media.invalid/video.mp4',amostra:{id:'9999002'},fonteId:'fixture',chaveIa:'fixture',central:{pastaDados:dir}});
    assert.equal(result.idioma,language==='eng'?'outro':'pt');assert.equal(transcriptions,language==='eng'?0:1);
+   if(language==='und'){
+    const options={url:'https://media.invalid/video.mp4',amostra:{id:'9999002'},fonteId:'fixture',chaveIa:'fixture',central:{pastaDados:dir}};
+    assert.equal((await module.exports.verificarIdioma(options)).cache,true);assert.equal(transcriptions,1);
+    await module.exports.verificarIdioma({...options,url:options.url+'?arquivo=novo'});assert.equal(transcriptions,2);
+    const saved=Object.values(JSON.parse(fs.readFileSync(path.join(dir,'idiomas.json'),'utf8'))).filter(r=>r.midiaHash);
+    assert.equal(saved.length,2);assert.notEqual(saved[0].midiaHash,saved[1].midiaHash);
+    const memory=module.exports.lerCache(options.central),key=Object.keys(memory).find(k=>memory[k].midiaHash===result.midiaHash);
+    memory[key]={...memory[key],idioma:'indefinido',em:new Date(Date.now()-3*60000).toISOString()};
+    assert.equal((await module.exports.verificarIdioma(options)).idioma,'pt');assert.equal(transcriptions,3);
+   }
   }finally{fs.rmSync(dir,{recursive:true,force:true});}
  }
 });

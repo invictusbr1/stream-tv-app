@@ -335,6 +335,29 @@ test('medição tardia melhora a próxima abertura sem repetir consulta nem vaza
     } finally { concluir(null);Object.assign(motor, originais);axios.get = getOriginal;verificador.faixasDeAudio = probeOriginal;avaliador.limparCache(); }
 });
 
+test('Full HD sem etiqueta de idioma passa a vencer HD quando a fala do mesmo arquivo é confirmada, inclusive no cache',async()=>{
+ const avaliador=require('./avaliador'),motor=require('./fontes-motor'),v=require('./central/verificar-midia'),axios=require('axios'),provas=require('./provas-idioma');
+ const originais=Object.fromEntries(['filaDeFontes','lerIdiomasVerificados','lerProvasDeIdioma','registrarSucesso','anotarEscolha'].map(k=>[k,motor[k]]));
+ const get=axios.get,probe=v.faixasDeAudio;let registros={},consultas=0;
+ const alvo={tipo:'movie',tmdbId:'99000003'},titulo='movie:99000003',dados={url:'https://qualidade.invalid/sem-etiqueta.mp4',referer:'https://qualidade.invalid/',audio:'pt-BR',type:'file'};
+ try{
+  avaliador.limparCache();motor.lerIdiomasVerificados=()=>({});motor.lerProvasDeIdioma=()=>registros;motor.registrarSucesso=()=>{};motor.anotarEscolha=()=>{};
+  motor.filaDeFontes=()=>[{id:'hd',resolver:async()=>{consultas++;return {url:'https://qualidade.invalid/hd.m3u8',type:'hls',audio:'pt-BR'};}},{id:'fullhd',resolver:async()=>{consultas++;return dados;}}];
+  axios.get=async()=>({data:'#EXTM3U\n#EXT-X-MEDIA:TYPE=AUDIO,LANGUAGE="pt-BR"\n#EXT-X-STREAM-INF:RESOLUTION=1280x720\nhd.m3u8'});
+  v.faixasDeAudio=async()=>({imagem:{largura:1920,altura:1080,codec:'h264'},faixas:[{idioma:'und',padrao:true,codec:'aac'}]});
+  const opcoes={codec:'avc',memoria:{load:()=>[],update:()=>{}}};
+  // HLS e arquivo podem informar o codec em formatos diferentes; sem filtro
+  // aqui a regressão isola apenas a evidência de áudio e a decisão em cache.
+  delete opcoes.codec;
+  assert.equal((await avaliador.escolherMelhor('dublado',alvo,opcoes)).escolhido.fonteId,'hd');
+  registros.a={titulo,midiaHash:provas.identidade(titulo,'fullhd',dados.url,dados.referer),idioma:'pt',em:new Date().toISOString()};
+  const melhor=await avaliador.escolherMelhor('dublado',alvo,opcoes);
+  assert.equal(melhor.escolhido.fonteId,'fullhd');assert.equal(melhor.escolhido.resolucao,'1080p');assert.equal(melhor.cache,true);assert.equal(consultas,2);
+  registros.a={...registros.a,midiaHash:provas.identidade(titulo,'fullhd',dados.url+'outro',dados.referer)};
+  assert.equal((await avaliador.escolherMelhor('dublado',alvo,opcoes)).escolhido.fonteId,'hd');
+ }finally{Object.assign(motor,originais);axios.get=get;v.faixasDeAudio=probe;avaliador.limparCache();}
+});
+
 test('preserva medição confirmada do mesmo arquivo, sem reaproveitar outro endereço ou referenciador', async () => {
     const avaliador = require('./avaliador');
     const verificador = require('./central/verificar-midia');

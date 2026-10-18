@@ -45,4 +45,12 @@ function reportarAcesso(acesso) {
     return enviar('/api/acesso', acesso).catch(() => false);
 }
 
-module.exports = { configurada, endereco: () => ENDERECO, reportar, reportarAcesso };
+const pedidosDeIdioma = new Map();
+function solicitarIdioma(titulo) {
+    if (!require('./provas-idioma').tituloValido(titulo) || !ENDERECO) return;
+    if ((pedidosDeIdioma.get(titulo) || 0) > Date.now()) return;
+    if (pedidosDeIdioma.size >= 256) pedidosDeIdioma.delete(pedidosDeIdioma.keys().next().value);
+    pedidosDeIdioma.set(titulo, Date.now() + 60000);
+    enviar('/api/qualidade/idiomas', { titulo }).then(ok=>{if(!ok)pedidosDeIdioma.delete(titulo);});
+}
+module.exports = { configurada, endereco: () => ENDERECO, reportar, reportarAcesso, solicitarIdioma };

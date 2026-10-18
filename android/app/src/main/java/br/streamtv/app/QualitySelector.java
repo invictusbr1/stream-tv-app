@@ -34,6 +34,10 @@ final class QualitySelector implements AutoCloseable {
         }
     }
     interface Probe { Measure read(Candidate candidate,long deadline) throws Exception; }
+    interface Evidence {
+        void load(long deadline) throws Exception;
+        Measure apply(String title,Candidate candidate);
+    }
     private static final class Entry<T> { final T value;final long expires;Entry(T v,long e){value=v;expires=e;} }
     private final ExecutorService workers=Executors.newFixedThreadPool(6,r->{Thread t=new Thread(r,"conecta-quality");t.setDaemon(true);return t;});
     private final Map<String,Entry<List<Candidate>>> choices=new LinkedHashMap<>();
@@ -52,6 +56,9 @@ final class QualitySelector implements AutoCloseable {
         return choose(key,sources,excluded,probe,budget,"",Collections.emptySet());
     }
     Candidate choose(String key,List<Source> sources,Set<String> excluded,Probe probe,long budget,String title,Set<String> allowed) {
+        return choose(key,sources,excluded,probe,budget,title,allowed,null);
+    }
+    Candidate choose(String key,List<Source> sources,Set<String> excluded,Probe probe,long budget,String title,Set<String> allowed,Evidence evidence) {
         if(closed)return null;
         long deadline=now()+budget;
         List<Candidate> cached;
@@ -62,6 +69,7 @@ final class QualitySelector implements AutoCloseable {
         boolean sourcesComplete=true;
         try {
             CompletionService<List<Candidate>> finished=new ExecutorCompletionService<>(workers);
+            if(evidence!=null)futures.add(finished.submit(()->{try{evidence.load(deadline);}catch(Exception ignored){}return Collections.emptyList();}));
             if(history!=null)for(Candidate c:history.load(title,allowed))futures.add(finished.submit(()->{assess(c,excluded,probe,deadline,found);return Collections.emptyList();}));
             if(cached!=null)for(Candidate c:cached)futures.add(finished.submit(()->{assess(c,excluded,probe,deadline,found);return Collections.emptyList();}));
             else for(Source source:sources)futures.add(finished.submit(()->{List<Candidate> result=now()<deadline&&!Thread.currentThread().isInterrupted()?source.resolveAll(deadline):null;return result==null||result.isEmpty()?null:result;}));
@@ -82,6 +90,7 @@ final class QualitySelector implements AutoCloseable {
         finally { for(Future<List<Candidate>> f:futures)if(!f.isDone())f.cancel(true); }
         List<Candidate> snapshot;
         synchronized(found){snapshot=new ArrayList<>(found);}
+        if(evidence!=null)for(Candidate c:snapshot)c.measure=evidence.apply(title,c);
         // Estável nos empates: não deixa a ordem das respostas da rede decidir.
         Collections.sort(snapshot,(a,b)->(a.id+"\n"+a.url).compareTo(b.id+"\n"+b.url));
         Collections.sort(snapshot,QualitySelector::compare);

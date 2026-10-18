@@ -16,7 +16,7 @@ COPY package.json package-lock.json ./
 RUN npm ci --omit=dev --no-audit --no-fund
 
 # A central também usa os motores e adaptadores da raiz do projeto.
-COPY *.js *.json ./
+COPY *.js *.cjs *.json ./
 COPY central ./central
 
 # O navegador fica isolado no contêiner, sob um usuário sem privilégios.

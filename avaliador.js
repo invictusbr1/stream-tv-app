@@ -92,7 +92,7 @@ function liberarLeituras(){
         const job=filaDeLeituras.shift(),restante=job.fim-Date.now();
         if(restante<500){job.resolve(null);continue;}
         leiturasAtivas++;
-        let leitura;try{leitura=job.rapida?(async()=>{const leve=await require('./mp4-rapido.cjs').ler(job.url,job.referer,{timeout:restante});if(leve)return leve;const sobra=job.fim-Date.now();return sobra>500?require('./central/verificar-midia').faixasDeAudio(job.url,job.referer,{timeout:Math.max(1000,sobra)}):null;})():require('./central/verificar-midia').faixasDeAudio(job.url,job.referer,{timeout:Math.max(1000,restante)});}catch{leitura=null;}
+        let leitura;try{leitura=job.rapida?(async()=>{const leve=await require('./mp4-rapido.cjs').ler(job.url,job.referer,{timeout:restante,falhaExplicita:true});if(leve)return leve;const sobra=job.fim-Date.now();return sobra>500?require('./central/verificar-midia').faixasDeAudio(job.url,job.referer,{timeout:Math.max(1000,sobra)}):null;})():require('./central/verificar-midia').faixasDeAudio(job.url,job.referer,{timeout:Math.max(1000,restante)});}catch{leitura=null;}
         Promise.resolve(leitura).then(job.resolve,()=>job.resolve(null)).finally(()=>{leiturasAtivas--;liberarLeituras();});
     }
 }
@@ -106,6 +106,7 @@ function lerArquivoComLimite(url,referer,opcoes){
 async function sondarArquivo(url, referer, opcoes = {}) {
     const faixas = await lerArquivoComLimite(url,referer,opcoes);
     if (!faixas) return null;
+    if (faixas.indisponivel) return {indisponivel:true};
     const portuguesa = faixas.faixas.find(f => /^pt|por/.test(f.idioma));
     return {
         mestre: false,
@@ -175,7 +176,9 @@ function compararPrioridade(a, b) {
     return 0;
 }
 
-function avaliarConferidas(conferidas, idiomas) {
+function avaliarConferidas(conferidas, idiomas, titulo) {
+    const provas = require('./provas-idioma');
+    const registros = motor.lerProvasDeIdioma();
     return conferidas.map((registro, i) => {
         const guardada = medidasDeArquivo.get(JSON.stringify([registro.item.dados.url, registro.item.dados.referer || '']));
         const sonda = !registro.item.lembrada && guardada && guardada.expira > Date.now() ? guardada.sonda : registro.sonda;
@@ -184,7 +187,8 @@ function avaliarConferidas(conferidas, idiomas) {
         // outra opção explicitamente inglesa em uma opção dublada.
         const pt=sonda?.padraoPortugues||sonda?.portuguesa||sonda?.audios?.some(a=>/^(pt|por)(-|$)/i.test(a.lang||''));
         const estrangeira=!pt&&sonda?.audios?.some(a=>a.lang&&a.lang!=='und'&&!/^(pt|por)(-|$)/i.test(a.lang));
-        const medida = { dados: registro.item.dados, sonda, idiomaVerificado: estrangeira?'outro':idiomas[registro.item.fonte.id] || '', ms: registro.item.ms };
+        const confirmacao = provas.idioma(registros, titulo, registro.item.fonte.id, registro.item.dados);
+        const medida = { dados: registro.item.dados, sonda, idiomaVerificado: estrangeira?'outro':confirmacao || idiomas[registro.item.fonte.id] || '', ms: registro.item.ms };
         const { nota, detalhes } = notaDaFonte(medida);
         return { fonteId: registro.item.fonte.id, fonte: registro.item.dados.fonte || registro.item.fonte.nome,
             nota: Math.round((nota + Math.max(0, 0.15 - i * 0.05)) * 100) / 100,
@@ -295,6 +299,7 @@ function filtrarPorCodec(registros,codec){
     });
 }
 async function escolherMelhor(papel, alvo, opcoes = {}) {
+    if (papel === 'dublado') require('./central-reporter').solicitarIdioma(motor.chaveDoTitulo(alvo));
     const inicio = Date.now();
     // O codec entra na chave: aparelho que só toca AVC e aparelho que toca HEVC
     // não podem compartilhar a mesma decisão guardada.
@@ -305,7 +310,7 @@ async function escolherMelhor(papel, alvo, opcoes = {}) {
         // essa prova na abertura seguinte, sem prender o título à reserva HD.
         const compativeis=filtrarPorCodec(guardado.conferidas,opcoes.codec);
         if(!compativeis.length)return null;
-        const atualizadas = avaliarConferidas(compativeis, motor.lerIdiomasVerificados()[motor.chaveDoTitulo(alvo)] || {});
+        const atualizadas = avaliarConferidas(compativeis, motor.lerIdiomasVerificados()[motor.chaveDoTitulo(alvo)] || {}, motor.chaveDoTitulo(alvo));
         const anterior = guardado.resultado.escolhido.fonteId;
         guardado.resultado = resultadoDasAvaliacoes(atualizadas, guardado.resultado.tempoMs);
         if (anterior !== guardado.resultado.escolhido.fonteId) motor.anotarEscolha(papel, alvo, guardado.resultado.escolhido);
@@ -324,7 +329,7 @@ async function escolherMelhor(papel, alvo, opcoes = {}) {
         const limiteInicial=Math.max(1,Math.min(lembrada?ORCAMENTO:dados.type==='file'?6000:TEMPO_SONDAR,prazoFinal-Date.now()));
         let prova=await prazo(lembrada?sondarArquivo(dados.url,dados.referer,{timeout:limiteInicial,rapida:true,prioritaria:true}):sondar(dados,{timeout:limiteInicial,rapida:dados.type==='file'}),limiteInicial);
         const restante=prazoFinal-Date.now();
-        if((!prova?.largura||!prova?.altura)&&restante>500&&dados.type==='file'){
+        if(!prova?.indisponivel&&(!prova?.largura||!prova?.altura)&&restante>500&&dados.type==='file'){
             const limite=Math.min(2500,restante);
             prova=await prazo(sondarArquivo(dados.url,dados.referer,{timeout:limite,rapida:true}),limite);
         }
@@ -332,6 +337,7 @@ async function escolherMelhor(papel, alvo, opcoes = {}) {
     }
     function validar(dados,sonda,lembrada=false){
         if(dados.type==='file')return sonda.then(s=>{
+            if(s?.indisponivel)return false;
             // A sonda já leu cabeçalhos reais da mídia. Outra requisição ao
             // gateway não pode invalidar essa prova apenas por um timeout.
             if(s?.largura>0&&s?.altura>0)return true;
@@ -374,7 +380,8 @@ async function escolherMelhor(papel, alvo, opcoes = {}) {
     if(papel==='dublado')memoria.update(tituloKey,registros.map(r=>({id:r.item.fonte.id,dados:r.item.dados,sonda:r.sonda,invalida:!r.valida})));
     const conferidas=registros
         .filter(registro => {
-            if((registro.item.lembrada||registro.item.dados.exigeProva)&&(!registro.sonda?.padraoPortugues||!registro.sonda.largura||!registro.sonda.altura))return false;
+            const audioConfirmado=registro.sonda?.padraoPortugues||require('./provas-idioma').idioma(motor.lerProvasDeIdioma(),tituloKey,registro.item.fonte.id,registro.item.dados)==='pt';
+            if((registro.item.lembrada||registro.item.dados.exigeProva)&&(!audioConfirmado||!registro.sonda?.largura||!registro.sonda?.altura))return false;
             if (registro.valida) return true;
             if(!registro.item.lembrada)try { motor.registrarFalha(registro.item.fonte.id, 'o endereço não entrega vídeo', `dublado:${motor.chaveDoTitulo(alvo)}`); } catch { /* segue */ }
             return false;
@@ -387,7 +394,7 @@ async function escolherMelhor(papel, alvo, opcoes = {}) {
     // disputa — melhor 1080p H.264 tocando do que 4K que não abre.
     const compativeis=filtrarPorCodec(conferidas,opcoes.codec);
     if(!compativeis.length)return null;
-    const avaliacoes = avaliarConferidas(compativeis, idiomas);
+    const avaliacoes = avaliarConferidas(compativeis, idiomas, motor.chaveDoTitulo(alvo));
     const resultado = resultadoDasAvaliacoes(avaliacoes, Date.now() - inicio);
     motor.registrarSucesso(resultado.escolhido.fonteId);
     motor.anotarEscolha(papel, alvo, resultado.escolhido);

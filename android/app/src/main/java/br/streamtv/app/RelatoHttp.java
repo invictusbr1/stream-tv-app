@@ -9,6 +9,9 @@ import javax.net.ssl.HttpsURLConnection;
 /** Transporte HTTPS nativo: não depende de cookies nem de CORS do WebView. */
 final class RelatoHttp {
     static String enviar(String endereco, String corpo) throws Exception {
+        return enviar(endereco,corpo,10000);
+    }
+    static String enviar(String endereco, String corpo,int timeout) throws Exception {
         URL url = new URL(endereco);
         if (!"https".equals(url.getProtocol()) || url.getUserInfo() != null
                 || (url.getPort() != -1 && url.getPort() != 443)) {
@@ -16,8 +19,8 @@ final class RelatoHttp {
         }
         HttpsURLConnection conexao = (HttpsURLConnection) url.openConnection();
         try {
-            conexao.setConnectTimeout(10000);
-            conexao.setReadTimeout(10000);
+            conexao.setConnectTimeout(Math.max(1,timeout));
+            conexao.setReadTimeout(Math.max(1,timeout));
             conexao.setInstanceFollowRedirects(false);
             conexao.setRequestProperty("Accept", "application/json");
             if (corpo != null) {
