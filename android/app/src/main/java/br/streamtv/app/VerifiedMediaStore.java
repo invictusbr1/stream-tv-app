@@ -32,7 +32,8 @@ final class VerifiedMediaStore {
         if(!title(title))return;List<Row> rows=read();
         for(QualitySelector.Candidate c:candidates){
             if(!safe(c)||c.measure==null)continue;QualitySelector.Measure m=c.measure;
-            if(!m.playable||m.language<0){remove(rows,title,c);continue;}
+            if(m.language<0){remove(rows,title,c);continue;}
+            if(!m.playable)continue; // Indisponibilidade temporária não apaga uma fonte já comprovada.
             if(m.language!=2||m.width<=0||m.height<=0)continue;
             remove(rows,title,c);Row r=new Row();r.title=title;r.c=c;r.width=m.width;r.height=m.height;r.at=System.currentTimeMillis();rows.add(r);
         }

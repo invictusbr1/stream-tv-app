@@ -48,6 +48,8 @@ public final class QualitySelectorTest {
                 VerifiedMediaStore first=new VerifiedMediaStore(file);
                 QualitySelector.Candidate old=candidate("fenix");old.measure=measure(3832,1600,2);
                 first.save("movie:969681",Arrays.asList(old));
+                QualitySelector.Candidate failed=candidate("fenix");failed.measure=new QualitySelector.Measure(0,0,1,0,false);
+                first.save("movie:969681",Arrays.asList(failed));
                 VerifiedMediaStore restart=new VerifiedMediaStore(file);
                 check(restart.load("movie:969681",Collections.singleton("fenix")).size()==1);
                 check(restart.load("movie:1",Collections.singleton("fenix")).isEmpty());

@@ -1,7 +1,7 @@
 'use strict';
 const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),os=require('node:os');
 const {criar,chave,segura}=require('./midias-memoria.cjs');
-test('memória persiste URLs originais, isola títulos/episódios e remove fonte inválida sem ressuscitar seed',()=>{
+test('memória persiste URLs, preserva fonte em falha temporária e remove idioma estrangeiro sem ressuscitar seed',()=>{
  const dir=fs.mkdtempSync(path.join(os.tmpdir(),'conecta-memoria-'));
  try{
   let now=Date.now();const file=path.join(dir,'history.json'),seedFile=path.join(dir,'seed.json');
@@ -15,7 +15,9 @@ test('memória persiste URLs originais, isola títulos/episódios e remove fonte
   restart.update('tv:1:1:1',[{id:'fenix',dados:data,sonda:{largura:1920,altura:800,padraoPortugues:true}}]);
   assert.equal(restart.load('tv:1:1:1',['fenix']).length,1);assert.equal(restart.load('tv:1:1:2',['fenix']).length,0);
   restart.update(old.key,[{id:'fenix',dados:data,sonda:null}]);assert.equal(restart.load(old.key,['fenix']).length,1);
-  restart.update(old.key,[{id:'fenix',dados:data,invalida:true}]);assert.equal(criar(options).load(old.key,['fenix']).length,0);
+  restart.update(old.key,[{id:'fenix',dados:data,invalida:true}]);assert.equal(criar(options).load(old.key,['fenix']).length,1);
+  restart.update(old.key,[{id:'fenix',dados:data,sonda:{largura:3832,altura:1600,padraoPortugues:false,audios:[{padrao:true,lang:'und'}]}}]);assert.equal(criar(options).load(old.key,['fenix']).length,1);
+  restart.update(old.key,[{id:'fenix',dados:data,sonda:{largura:3832,altura:1600,padraoPortugues:false,audios:[{padrao:true,lang:'eng'}]}}]);assert.equal(criar(options).load(old.key,['fenix']).length,0);
   restart.update('tv:1:1:1',[{id:'fenix',dados:data,sonda:{largura:1920,altura:800,padraoPortugues:false,audios:[{padrao:true,lang:'eng'}]}}]);
   assert.equal(restart.load('tv:1:1:1',['fenix']).length,0);
   restart.update('movie:2',[{id:'fenix',dados:data,sonda:{largura:3840,altura:2160,padraoPortugues:true}}]);

@@ -13,7 +13,8 @@ function criar({file=path.join(process.env.DADOS_DIR||__dirname,'midias-verifica
  function state(){const d=read();d.items=d.items.filter(valid);try{const seed=JSON.parse(fs.readFileSync(seedFile,'utf8'));if(Number(seed.version)>d.seed){for(const r of seed.items||[])if(valid(r)&&!d.items.some(x=>x.key===r.key&&x.url===r.url&&x.id===r.id))d.items.push(r);d.seed=Number(seed.version);write(d);}}catch{}return d;}
  function load(key,ids){if(!validaChave(key))return [];return state().items.filter(r=>r.key===key&&(!ids||ids.includes(r.id))).sort((a,b)=>b.width*b.height-a.width*a.height).slice(0,3).map(r=>({...r,dados:{url:r.url,referer:r.referer||'',type:'file',audio:'pt-BR',fonteId:r.id,fonte:r.name||r.id,resolucao:Math.round(Math.max(r.height,r.width*9/16))+'p'}}));}
  function update(key,records){if(!validaChave(key))return;const d=state();for(const r of records){const data=r.dados;if(!data||data.type!=='file'||!segura(data.url))continue;const id=r.id,s=r.sonda;const match=x=>x.key===key&&x.id===id&&x.url===data.url;
-   if(r.invalida||s&&s.audios?.some(a=>a.padrao&&!/^(pt|por)(-|$)/i.test(a.lang||''))&&!s.padraoPortugues){d.items=d.items.filter(x=>!match(x));continue;}
+   if(s&&s.audios?.some(a=>a.padrao&&a.lang&&a.lang!=='und'&&!/^(pt|por)(-|$)/i.test(a.lang))&&!s.padraoPortugues){d.items=d.items.filter(x=>!match(x));continue;}
+   if(r.invalida)continue; // Falha temporária não apaga a URL conhecida; carregar exige nova prova.
    if(!s?.largura||!s?.altura||!s.padraoPortugues)continue;
    const item={key,id,url:data.url,referer:data.referer||'',type:'file',name:data.fonte||id,width:s.largura,height:s.altura,at:agora()};if(!valid(item))continue;
    d.items=d.items.filter(x=>!match(x));d.items.push(item);

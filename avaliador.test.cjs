@@ -43,14 +43,14 @@ test('fonte 4K fora do índice só vence após nova prova de português e imagem
  const a=require('./avaliador'),motor=require('./fontes-motor'),v=require('./central/verificar-midia'),proxy=require('./midia-proxy');
  const original=Object.fromEntries(['filaDeFontes','lerIdiomasVerificados','registrarSucesso','anotarEscolha','registrarFalha'].map(k=>[k,motor[k]])),probe=v.faixasDeAudio,validate=proxy.validarMidia;
  const dados=url=>({url:'https://media.invalid/'+url+'.mp4',referer:'https://media.invalid/',type:'file',audio:'pt-BR',fonte:'Dublado'});
- let state='pt',oldCalls=0,failures=0;
+ let state='pt',oldCalls=0,failures=0,validations=0;
  try{
   motor.filaDeFontes=()=>[{id:'fenix',nome:'Dublado',resolver:async()=>dados('atual')}];motor.lerIdiomasVerificados=()=>({});motor.registrarSucesso=()=>{};motor.anotarEscolha=()=>{};motor.registrarFalha=()=>{failures++;};
-  proxy.validarMidia=async url=>!(url.includes('antiga')&&state==='dead');
-  v.faixasDeAudio=async url=>{const old=url.includes('antiga');if(old)oldCalls++;return {imagem:{largura:old?3832:1920,altura:old?1600:800,codec:old?'hevc':'h264'},faixas:[{idioma:old&&state==='en'?'eng':'por',padrao:true,codec:'aac'}]};};
+  proxy.validarMidia=async url=>{validations++;return !(url.includes('antiga')&&(state==='pt'||state==='dead'));};
+  v.faixasDeAudio=async url=>{const old=url.includes('antiga');if(old)oldCalls++;if(old&&state==='dead')return null;return {imagem:{largura:old?3832:1920,altura:old?1600:800,codec:old?'hevc':'h264'},faixas:[{idioma:old&&state==='en'?'eng':'por',padrao:true,codec:'aac'}]};};
   const memoria={load:()=>[{id:'fenix',dados:dados('antiga')}],update:()=>{}};
   const target={tipo:'movie',tmdbId:'969681'};
-  let result=await a.escolherMelhor('dublado',target,{memoria,semCache:true});assert.match(result.escolhido.url,/antiga/);assert.equal(result.escolhido.resolucao,'2156p');
+  let result=await a.escolherMelhor('dublado',target,{memoria,semCache:true});assert.match(result.escolhido.url,/antiga/);assert.equal(result.escolhido.resolucao,'2156p');assert.equal(validations,0,'metadados válidos não precisam de uma segunda requisição ao gateway');
   // A escolha lembrada precisa ser sondada novamente, inclusive com cache da avaliação.
   state='en';result=await a.escolherMelhor('dublado',target,{memoria});assert.match(result.escolhido.url,/atual/);assert.equal(oldCalls,2);
   state='dead';result=await a.escolherMelhor('dublado',target,{memoria,semCache:true});assert.match(result.escolhido.url,/atual/);assert.equal(failures,0);

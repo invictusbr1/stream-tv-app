@@ -312,9 +312,19 @@ async function escolherMelhor(papel, alvo, opcoes = {}) {
         }
         return prova;
     }
+    function validar(dados,sonda,lembrada=false){
+        if(dados.type==='file')return sonda.then(s=>{
+            // A sonda já leu cabeçalhos reais da mídia. Outra requisição ao
+            // gateway não pode invalidar essa prova apenas por um timeout.
+            if(s?.largura>0&&s?.altura>0)return true;
+            const sobra=Math.max(1,prazoFinal-Date.now());
+            return prazo(midia.validarMidia(dados.url,dados.referer,sobra),sobra,false);
+        });
+        return prazo(midia.validarMidia(dados.url,dados.referer,TEMPO_SONDAR),TEMPO_SONDAR+500,!lembrada);
+    }
     const lembrarJobs=conhecidas.map(r=>{
         const fonte=fila.find(f=>f.id===r.id),dados=r.dados;
-        return {fonte,dados,ms:0,lembrada:true,sonda:conferir(dados,true),validacao:prazo(midia.validarMidia(dados.url,dados.referer,6000),6000,false)};
+        const sonda=conferir(dados,true);return {fonte,dados,ms:0,lembrada:true,sonda,validacao:validar(dados,sonda,true)};
     });
     const resolvidas = (await Promise.all(fila.map(async fonte => {
         const comeco = Date.now();
@@ -326,7 +336,7 @@ async function escolherMelhor(papel, alvo, opcoes = {}) {
         // o prazo que as outras precisam para comprovar resolução e português.
         return opcoes.filter(dados=>dados?.url).map(dados=>{
         const sonda = conferir(dados);
-        const validacao = prazo(midia.validarMidia(dados.url, dados.referer, TEMPO_SONDAR), TEMPO_SONDAR + 500, true);
+        const validacao = validar(dados,sonda);
         return { fonte, dados, ms, sonda, validacao };
         });
     }))).flat().concat(lembrarJobs);
