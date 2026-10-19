@@ -194,6 +194,28 @@ public final class QualitySelectorTest {
             check(recusa.getResponseCode()==403);check(iguais.size()==1);
             break;
         }
+        case "source-fairness":{
+            java.util.concurrent.CountDownLatch started=new java.util.concurrent.CountDownLatch(1);
+            try(QualitySelector selector=new QualitySelector(null,true)){
+                QualitySelector.Source batch=new QualitySelector.Source(){
+                    public QualitySelector.Candidate resolve(long end){return null;}
+                    public List<QualitySelector.Candidate> resolveAll(long end){
+                        List<QualitySelector.Candidate> list=new ArrayList<>();
+                        for(int i=0;i<8;i++)list.add(candidate("batch-"+i));return list;
+                    }
+                };
+                QualitySelector.Source fresh=end->{
+                    check(started.await(400,java.util.concurrent.TimeUnit.MILLISECONDS));Thread.sleep(50);
+                    QualitySelector.Candidate c=candidate("clickhost");c.requiresProof=true;c.ephemeral=true;return c;
+                };
+                QualitySelector.Probe probe=(c,end)->{
+                    if(c.id.startsWith("batch-")){started.countDown();Thread.sleep(2000);return null;}
+                    return c.id.equals("clickhost")?measure(3840,2160,2):measure(1920,1080,2);
+                };
+                QualitySelector.Candidate result=selector.choose("fair",Arrays.asList(end->candidate("fullhd"),batch,fresh),Collections.emptySet(),probe,900);
+                if(result==null||!result.id.equals("clickhost"))throw new AssertionError("Uma fonte com oito opções ocupou a fila e impediu a medição do 4K já resolvido");
+            }break;
+        }
         case "batch":{
             try(QualitySelector s=new QualitySelector()){
                 AtomicInteger queries=new AtomicInteger();

@@ -80,8 +80,13 @@ final class QualitySelector implements AutoCloseable {
                 pending--;
                 List<Candidate> candidates;try{candidates=done.get();}catch(ExecutionException e){sourcesComplete=false;continue;}
                 if(candidates==null){sourcesComplete=false;continue;}
-                for(Candidate c:candidates){
-                    futures.add(finished.submit(()->{assess(c,excluded,probe,deadline,found);return Collections.emptyList();}));pending++;
+                // Uma medição por lote de fornecedor. As demais opções voltam
+                // ao fim da fila após a leitura atual; oito URLs lentas do mesmo
+                // fornecedor não bloqueiam outra fonte que acabou de resolver.
+                if(!candidates.isEmpty()){
+                    Candidate c=candidates.get(0);
+                    List<Candidate> remaining=new ArrayList<>(candidates.subList(1,candidates.size()));
+                    futures.add(finished.submit(()->{assess(c,excluded,probe,deadline,found);return remaining;}));pending++;
                 }
             }
             complete=pending==0;
