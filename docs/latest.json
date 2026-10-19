@@ -1,14 +1,14 @@
 {
-  "versionCode": 422,
-  "versionName": "2.13.92",
-  "apkUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.92/Conecta-TV-Android-2.13.92.apk",
-  "sha256": "034b5e476b269e146f5a7d4e517e0c531b04525cc8d1f4e84019beb658e1d9dc",
-  "bytes": 485775,
-  "notes": "Corrige a abertura de fontes 4K do ClickHost no Android: redirecionamentos HTTP com porta 80 agora usam o endereço HTTPS correto do mesmo fornecedor. Mantém assinatura do link, verificação de mídia, áudio dublado e limites de compatibilidade do aparelho.",
+  "versionCode": 423,
+  "versionName": "2.13.93",
+  "apkUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.93/Conecta-TV-Android-2.13.93.apk",
+  "sha256": "ac5d2e1ee0a9fced68c46a22e6ea4b8154ef4026453b6e779de5222fdf07cd81",
+  "bytes": 485897,
+  "notes": "Melhora a distribuição das medições entre fornecedores: várias opções lentas de uma mesma fonte não ocupam toda a fila e impedem avaliar outra opção de maior qualidade. Mantém o prazo de busca e a preferência por português comprovado e resolução real, sem anúncios.",
   "exeUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.68/Conecta-TV-2.13.68.exe",
   "exeSha256": "40914a57b0e3ad375615c9954839f8c3f7bb138d8739472772de3ee28d3ff015",
   "exeBytes": 120409967,
-  "apkTvUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.92/Conecta-TV-TV-2.13.92.apk",
-  "apkTvSha256": "5150fee54021e1bafa953ebcc00e4d5aec55aa02477179e4060c3641015b07aa",
-  "apkTvBytes": 485489
+  "apkTvUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.93/Conecta-TV-TV-2.13.93.apk",
+  "apkTvSha256": "d61a483b48682ba095d6e4220d9dfa61a91cedad932304d724af14c9c24676cc",
+  "apkTvBytes": 485578
 }
