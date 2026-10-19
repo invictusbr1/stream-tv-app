@@ -49,7 +49,8 @@ async function ler(url,referer='',{timeout=6000,falhaExplicita=false}={}){
   return await analisar(async(position,length,deadline)=>{
    const seen=new Set();
    for(let i=0;i<6;i++){
-    target=String(target).replace(/^http:/i,'https:');if(!safe(target)||seen.has(target))throw Error('Destino inválido');seen.add(target);
+    const destino=new URL(target);if(destino.protocol==='http:')destino.protocol='https:';target=destino.href;
+    if(!safe(target)||seen.has(target))throw Error('Destino inválido');seen.add(target);
     const remaining=deadline-Date.now();if(remaining<=0)throw Error('Fim do prazo');
     const r=await axios.get(target,{headers:{Range:`bytes=${position}-${position+length-1}`,...(referencia?{Referer:referencia}:{}),'User-Agent':'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36'},responseType:'stream',maxRedirects:0,validateStatus:()=>true,timeout:remaining,signal:AbortSignal.timeout(remaining)});
     if([301,302,303,307,308].includes(r.status)){r.data.destroy();target=new URL(r.headers.location,target).href;continue;}

@@ -150,14 +150,16 @@ public final class QualitySelectorTest {
                 final int i=opened.size();HttpURLConnection c=new HttpURLConnection(url){
                     public void disconnect(){} public boolean usingProxy(){return false;} public void connect(){}
                     public int getResponseCode(){return i==0?307:i==1?302:206;}
-                    public String getHeaderField(String name){return "Location".equals(name)?i==0?"http://cdn.invalid/media.mp4":i==1?"/final.mp4":null:null;}
+                    public String getHeaderField(String name){return "Location".equals(name)?i==0?"http://cdn.invalid:80/media.mp4?signature=a%2Bb&x=1":i==1?"/final.mp4":null:null;}
                     public String getContentType(){return i<2?"text/html":"video/mp4";}
                 };opened.add(c);return c;
             };
             HttpURLConnection finalResponse=MediaHttp.open("https://addon.invalid/r/video.mp4","https://addon.invalid/","bytes=9000-9100",QualitySelector.now()+1000,connector);
             MediaHttp.requireMedia(finalResponse);check(opened.size()==3);check(finalResponse.getURL().toString().equals("https://cdn.invalid/final.mp4"));
+            check(opened.get(1).getURL().getPort()==-1);
+            check(opened.get(1).getURL().getQuery().equals("signature=a%2Bb&x=1"));
             for(HttpURLConnection c:opened){check(c.getURL().getProtocol().equals("https"));check(c.getRequestProperty("Range").equals("bytes=9000-9100"));check(c.getRequestProperty("Referer").equals("https://addon.invalid/"));check(!c.getInstanceFollowRedirects());}
-            for(String target:Arrays.asList("https://127.0.0.1/a","https://192.168.1.2/a","https://user:password@cdn.invalid/a","https://cdn.invalid:8080/a","https://addon.invalid/a")){
+            for(String target:Arrays.asList("https://127.0.0.1/a","https://192.168.1.2/a","http://192.168.1.2:80/a","https://user:password@cdn.invalid/a","http://user:password@cdn.invalid:80/a","https://cdn.invalid:8080/a","https://cdn.invalid:80/a","http://cdn.invalid:8080/a","https://addon.invalid/a")){
                 try{MediaHttp.open("https://addon.invalid/a","","bytes=0-1",QualitySelector.now()+1000,url->new HttpURLConnection(url){public void disconnect(){}public boolean usingProxy(){return false;}public void connect(){}public int getResponseCode(){return 302;}public String getHeaderField(String name){return target;}});throw new AssertionError("destino ou ciclo aceito");}catch(IOException expected){}
             }
             HttpURLConnection html=new HttpURLConnection(new URL("https://cdn.invalid/a")){public void disconnect(){}public boolean usingProxy(){return false;}public void connect(){}public int getResponseCode(){return 404;}public String getContentType(){return "application/json";}};

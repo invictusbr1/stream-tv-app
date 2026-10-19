@@ -31,3 +31,20 @@ test('repete uma recusa de origem sem referer e distingue erro HTTP/HTML de falt
   assert.equal(await ler('https://cdn.example/video.mp4'),null);
  }finally{axios.get=original;}
 });
+
+test('redirecionamento HTTP com porta 80 vira HTTPS padrão, preservando a assinatura e a medição 4K',async()=>{
+ const axios=require('axios'),{Readable}=require('node:stream'),original=axios.get,{ler}=require('./mp4-rapido.cjs');
+ const data=box('moov',track('vide','hvc1',3840,2160,'und'),track('soun','mp4a',0,0,'por')),requests=[];
+ try{
+  axios.get=async(url,o)=>{
+   requests.push(url);
+   if(url==='https://gateway.example/stream')return {status:307,headers:{location:'http://cdn.example:80/movie.mp4?signature=a%2Bb&x=1'},data:Readable.from([])};
+   assert.equal(url,'https://cdn.example/movie.mp4?signature=a%2Bb&x=1');
+   const [,a,b]=/^bytes=(\d+)-(\d+)$/.exec(o.headers.Range),start=Number(a),end=Math.min(Number(b),data.length-1);
+   return {status:206,headers:{'content-type':'video/mp4','content-range':`bytes ${start}-${end}/${data.length}`},data:Readable.from([data.subarray(start,end+1)])};
+  };
+  const result=await ler('https://gateway.example/stream','',{falhaExplicita:true});
+  assert.equal(result.imagem.largura,3840);assert.equal(result.imagem.altura,2160);assert.equal(result.faixas[0].idioma,'por');
+  assert(requests.length>1);assert(requests.every(u=>new URL(u).protocol==='https:'&&new URL(u).port===''));
+ }finally{axios.get=original;}
+});

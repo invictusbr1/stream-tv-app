@@ -57,8 +57,15 @@ final class MediaHttp {
                     String location=c.getHeaderField("Location");if(location==null||location.isEmpty())throw new IOException("Destino ausente");
                     // O fornecedor também publica Location com http. O app usa a
                     // versão HTTPS desse mesmo endereço; nunca habilita tráfego claro.
-                    String next=new URL(url,location).toString();if(next.startsWith("http://"))next="https://"+next.substring(7);
-                    url=safe(next);
+                    URL next=new URL(url,location);
+                    if("http".equalsIgnoreCase(next.getProtocol())){
+                        if(next.getUserInfo()!=null)throw new IOException("Credenciais no destino de mídia");
+                        // A porta explícita 80 é a padrão de HTTP. Ao atualizar
+                        // para HTTPS, usa a porta padrão de HTTPS do mesmo CDN.
+                        int port=next.getPort()==80?-1:next.getPort();
+                        next=new URL("https",next.getHost(),port,next.getFile());
+                    }
+                    url=safe(next.toString());
                     redirecionou=true;
                 }catch(IOException|RuntimeException e){c.disconnect();throw e;}
                 if(redirecionou){c.disconnect();break;}
