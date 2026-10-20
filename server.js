@@ -165,6 +165,7 @@ app.get(['/','/index.html'], (req, res) => {
     res.status(500).send('Interface do Conecta TV não encontrada.');
 });
 app.get('/manifest.webmanifest',(req,res)=>res.type('application/manifest+json').sendFile(path.join(__dirname,'pwa/manifest.webmanifest')));
+app.get('/conecta-mark.svg',(req,res)=>{res.setHeader('Cache-Control','no-cache');res.type('image/svg+xml').sendFile(path.join(__dirname,'conecta-mark.svg'));});
 // Diagnóstico: mostra (na tela e na central) o que o navegador do aparelho
 // consegue tocar. É a ferramenta usada para descobrir por que uma TV não abre
 // o vídeo, sem adivinhar.

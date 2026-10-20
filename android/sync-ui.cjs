@@ -34,6 +34,7 @@ html=html.split(/\r?\n/).filter(line=>!line.trimStart().startsWith('html.modo-tv
 html=html.replace('</head>','<link rel="stylesheet" href="/tv.css?v=2.13.53">\n</head>');
 html=require('./phone-ui.cjs').phonePage(html);
 fs.writeFileSync(path.join(assets,'index.html'),html);
+fs.copyFileSync(path.join(root,'conecta-mark.svg'),path.join(assets,'conecta-mark.svg'));
 fs.copyFileSync(path.join(root,'enquadramento.js'),path.join(assets,'enquadramento.js'));
 fs.copyFileSync(path.join(root,'playback.js'),path.join(assets,'playback.js'));
 fs.copyFileSync(path.join(root,'reproducao-sessao.js'),path.join(assets,'reproducao-sessao.js'));
