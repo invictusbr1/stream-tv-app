@@ -90,6 +90,49 @@ final class QualitySelector implements AutoCloseable {
     QualitySelector(VerifiedMediaStore history,boolean allowHevc){this.history=history;this.allowHevc=allowHevc;}
     static long now() { return System.nanoTime()/1000000L; }
 
+    private static Candidate copy(Candidate c){
+        Candidate n=new Candidate(c.id,c.url,c.referer,c.type,c.json,c.declared);
+        n.measure=c.measure;n.deliveryUrl=c.deliveryUrl;n.secureDeliveryUrl=c.secureDeliveryUrl;n.diagnosticReason=c.diagnosticReason;
+        n.remembered=c.remembered;n.requiresProof=c.requiresProof;n.ephemeral=c.ephemeral;return n;
+    }
+    private static final class Pass {final List<Candidate> candidates=new ArrayList<>();final Map<String,List<Candidate>> discovered=new ConcurrentHashMap<>();}
+    private static boolean reviewable(Check c){return c!=null&&Arrays.asList("prazo_consulta","prazo_midia","tempo_esgotado","conexao_tls","dns","leitura_falhou","verificacao_falhou","http_temporario","sem_metadados","idioma_sem_prova","cancelado").contains(c.reason);}
+    /** Segunda rodada apenas para provas inconclusivas; reserva validada nunca é descartada. */
+    Candidate chooseVerified(String key,List<Source> sources,Set<String> excluded,Probe probe,long firstBudget,long reviewBudget,String title,Set<String> allowed,Evidence evidence){
+        long start=now();Pass first=new Pass();
+        Candidate best=choose(key,sources,excluded,probe,firstBudget,title,allowed,evidence,first);
+        if(closed||Thread.currentThread().isInterrupted()||reviewBudget<=0||best!=null&&drawer(best)>=5)return best;
+        Map<String,Check> checks=new LinkedHashMap<>();for(Check c:audit(key))checks.put(c.id,c);
+        List<Source> retry=new ArrayList<>();
+        for(Source source:sources){
+            if(excluded.contains(source.id()))continue;
+            List<Candidate> pending=new ArrayList<>();
+            List<Candidate> discovered=first.discovered.get(source.id());
+            // Dá oportunidade aos arquivos descobertos que ainda nem foram medidos.
+            if(discovered!=null)for(Candidate c:discovered){boolean seen=false;for(Candidate done:first.candidates)if(c.key().equals(done.key())){seen=true;break;}if(!seen)pending.add(copy(c));}
+            for(Candidate c:first.candidates)if(c.id.equals(source.id())&&(c.measure==null||c.measure.retryable||c.measure.playable&&(c.measure.width<=0||c.measure.height<=0||c.measure.language==1)))pending.add(copy(c));
+            if(pending.isEmpty()&&!reviewable(checks.get(source.id())))continue;
+            retry.add(pending.isEmpty()?source:named(source.id(),new Source(){
+                public Candidate resolve(long end){return pending.get(0);}
+                public List<Candidate> resolveAll(long end){return pending;}
+            }));
+        }
+        if(retry.isEmpty())return best;
+        forget(key);long offset=now()-start;
+        // Vagas próprias: conexões da rodada vencida não bloqueiam a revisão.
+        try(QualitySelector second=new QualitySelector(null,allowHevc)){
+            Candidate alternative=second.choose(key,retry,excluded,probe,reviewBudget,title,allowed,evidence==null?null:new Evidence(){public void load(long end){}public Measure apply(String target,Candidate c){return evidence.apply(target,c);}});
+            if(alternative!=null&&(best==null||compare(alternative,best)<0))best=alternative;
+            for(Check row:second.audit(key)){
+                row.ms+=offset;Check old=checks.get(row.id);
+                if(old==null||!old.reason.equals("validada")||row.reason.equals("validada")&&(row.language>old.language||row.language==old.language&&equivalent(row.width,row.height)>=equivalent(old.width,old.height)))checks.put(row.id,row);
+            }
+        }
+        synchronized(this){audits.put(key,new ArrayList<>(checks.values()));}
+        if(best!=null&&history!=null)history.save(title,Collections.singletonList(best));
+        return best;
+    }
+
     Candidate choose(String key,List<Source> sources,Set<String> excluded,Probe probe,long budget) {
         return choose(key,sources,excluded,probe,budget,"",Collections.emptySet());
     }
@@ -97,6 +140,9 @@ final class QualitySelector implements AutoCloseable {
         return choose(key,sources,excluded,probe,budget,title,allowed,null);
     }
     Candidate choose(String key,List<Source> sources,Set<String> excluded,Probe probe,long budget,String title,Set<String> allowed,Evidence evidence) {
+        return choose(key,sources,excluded,probe,budget,title,allowed,evidence,null);
+    }
+    private Candidate choose(String key,List<Source> sources,Set<String> excluded,Probe probe,long budget,String title,Set<String> allowed,Evidence evidence,Pass pass) {
         if(closed)return null;
         long begun=now(),deadline=begun+budget;Map<String,Check> trace=new LinkedHashMap<>();for(Source src:sources)if(!src.id().isEmpty())check(trace,src.id());
         List<Candidate> cached;
@@ -127,6 +173,7 @@ final class QualitySelector implements AutoCloseable {
                 }
                 if(result==null||result.isEmpty()){sourceCheck.reason=source.problem().isEmpty()?(sourceCheck.reason.equals("consulta")?"sem_endereco":sourceCheck.reason):source.problem();sourceCheck.ms=now()-begun;return null;}
                 result=ordered(result);
+                if(pass!=null){List<Candidate> discovered=new ArrayList<>();for(Candidate c:result)discovered.add(copy(c));pass.discovered.put(source.id(),discovered);}
                 // Conserva a vaga entre resolver e medir a primeira opção:
                 // outras consultas lentas não empurram essa prova para o fim.
                 assess(result.get(0),excluded,probe,deadline,found,trace,begun);
@@ -153,11 +200,14 @@ final class QualitySelector implements AutoCloseable {
         catch(RejectedExecutionException e){return null;}
         finally { for(Future<List<Candidate>> f:futures)if(!f.isDone())f.cancel(true); }
         List<Candidate> snapshot;
-        synchronized(found){snapshot=new ArrayList<>(found);}
+        synchronized(found){snapshot=new ArrayList<>();for(Candidate c:found)snapshot.add(copy(c));}
         if(evidence!=null)for(Candidate c:snapshot)c.measure=evidence.apply(title,c);
-        for(Candidate c:snapshot){Check row=check(trace,c.id);Measure m=c.measure;if(m!=null){row.width=m.width;row.height=m.height;row.language=m.language;row.reason=!m.playable?(!c.diagnosticReason.isEmpty()?c.diagnosticReason:m.retryable?"http_temporario":"midia_indisponivel"):m.width<=0||m.height<=0?"sem_metadados":m.language<0?"idioma_outro":(c.requiresProof||c.remembered)&&m.language!=2?"idioma_sem_prova":"validada";}}
-        List<Check> report=new ArrayList<>();synchronized(trace){for(Check row:trace.values()){if(row.id.isEmpty()||report.size()>=12)continue;if(row.reason.equals("consulta")||row.reason.equals("na_fila"))row.reason="prazo_consulta";report.add(new Check(row));}}
+        Map<String,Candidate> bestByProvider=new LinkedHashMap<>();
+        for(Candidate c:snapshot)if(c.measure!=null){Candidate previous=bestByProvider.get(c.id);if(previous==null||compare(c,previous)<0)bestByProvider.put(c.id,c);}
+        for(Candidate c:bestByProvider.values()){Check row=check(trace,c.id);Measure m=c.measure;row.width=m.width;row.height=m.height;row.language=m.language;row.reason=!m.playable?(!c.diagnosticReason.isEmpty()?c.diagnosticReason:m.retryable?"http_temporario":"midia_indisponivel"):m.width<=0||m.height<=0?"sem_metadados":m.language<0?"idioma_outro":(c.requiresProof||c.remembered)&&m.language!=2?"idioma_sem_prova":"validada";}
+        List<Check> report=new ArrayList<>();synchronized(trace){for(Check sourceRow:trace.values()){if(sourceRow.id.isEmpty()||report.size()>=12)continue;Check row=new Check(sourceRow);if(row.reason.equals("consulta")||row.reason.equals("na_fila")||row.reason.equals("sonda")){row.reason=row.reason.equals("sonda")?"prazo_midia":"prazo_consulta";row.ms=now()-begun;}report.add(row);}}
         synchronized(this){trim(audits,32);audits.put(key,report);}
+        if(pass!=null)pass.candidates.addAll(snapshot);
         // Estável nos empates: não deixa a ordem das respostas da rede decidir.
         Collections.sort(snapshot,(a,b)->(a.id+"\n"+a.url).compareTo(b.id+"\n"+b.url));
         Collections.sort(snapshot,QualitySelector::compare);

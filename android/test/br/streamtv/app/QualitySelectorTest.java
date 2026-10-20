@@ -24,6 +24,51 @@ public final class QualitySelectorTest {
     private static QualitySelector.Measure measure(int w,int h,int lang){return new QualitySelector.Measure(w,h,lang,0,true);}
     public static void main(String[] args)throws Exception{
         switch(args[0]){
+        case "review-tiers":{
+            for(int[] size:new int[][]{{854,480,1280,720},{1280,720,1920,800},{1920,800,2560,1440},{1920,800,3840,1600}})for(int language:new int[]{2,-1})try(QualitySelector q=new QualitySelector(null,true)){
+                AtomicInteger reads=new AtomicInteger();QualitySelector.Candidate high=candidate("high");high.ephemeral=true;high.requiresProof=true;
+                QualitySelector.Candidate winner=q.chooseVerified("tiers",Arrays.asList(QualitySelector.named("high",end->high),QualitySelector.named("low",end->candidate("low"))),Collections.emptySet(),(c,end)->{
+                    if(c.id.equals("low"))return measure(size[0],size[1],2);if(reads.incrementAndGet()==1)Thread.sleep(1000);return measure(size[2],size[3],language);
+                },100,300,"tv:1:1:1",Collections.emptySet(),null);
+                check(winner.id.equals(language==2?"high":"low"));check(winner.measure.width==(language==2?size[2]:size[0]));check(reads.get()==2);
+            }
+            break;
+        }
+        case "targeted-review":{
+            try(QualitySelector q=new QualitySelector(null,true)){
+                AtomicInteger resolves=new AtomicInteger(),lowReads=new AtomicInteger();
+                QualitySelector.Source batch=QualitySelector.named("batch",new QualitySelector.Source(){public QualitySelector.Candidate resolve(long end){return null;}public List<QualitySelector.Candidate> resolveAll(long end){resolves.incrementAndGet();List<QualitySelector.Candidate> out=new ArrayList<>();for(String name:new String[]{"low","slow","high"})out.add(new QualitySelector.Candidate("batch","https://media.invalid/"+name+".mp4","","file","{}",0));return out;}});
+                QualitySelector.Candidate best=q.chooseVerified("batch-review",Collections.singletonList(batch),Collections.emptySet(),(c,end)->{if(c.url.contains("slow"))Thread.sleep(2000);if(c.url.contains("low"))lowReads.incrementAndGet();return c.url.contains("high")?measure(3840,1600,2):measure(1280,720,2);},250,500,"movie:3",Collections.emptySet(),null);
+                check(best.measure.width==3840&&resolves.get()==1&&lowReads.get()==1);check(q.audit("batch-review").get(0).width==3840);
+            }
+            // Falha transitória de medição: reaproveita endereço, sem consultar nem medir a reserva outra vez.
+            for(int language:new int[]{2,-1})try(QualitySelector q=new QualitySelector(null,true)){
+                AtomicInteger resolves=new AtomicInteger(),reads=new AtomicInteger(),lowReads=new AtomicInteger();
+                QualitySelector.Source high=QualitySelector.named("high",end->{resolves.incrementAndGet();QualitySelector.Candidate c=candidate("high");c.ephemeral=true;c.requiresProof=true;return c;});
+                long start=QualitySelector.now();
+                QualitySelector.Candidate winner=q.chooseVerified("review",Arrays.asList(high,QualitySelector.named("low",end->candidate("low"))),Collections.emptySet(),(c,end)->{
+                    if(c.id.equals("low")){lowReads.incrementAndGet();return measure(1280,720,2);}
+                    if(reads.incrementAndGet()==1)Thread.sleep(1000);
+                    return measure(3840,1600,language);
+                },250,500,"movie:157336",Collections.emptySet(),null);
+                check(winner.id.equals(language==2?"high":"low"));check(resolves.get()==1&&reads.get()==2&&lowReads.get()==1);check(QualitySelector.now()-start<1000);
+                for(QualitySelector.Check c:q.audit("review")){check(!c.reason.equals("sonda"));if(c.id.equals("high"))check(c.ms>=250);}
+            }
+            // Fonte incompatível não merece tentativas extras; 4K comprovado não ganha espera artificial.
+            for(boolean playable:new boolean[]{false,true})try(QualitySelector q=new QualitySelector(null,true)){
+                AtomicInteger calls=new AtomicInteger();long start=QualitySelector.now();
+                QualitySelector.Candidate c=q.chooseVerified("fast",Collections.singletonList(QualitySelector.named("one",end->candidate("one"))),Collections.emptySet(),(media,end)->{calls.incrementAndGet();return new QualitySelector.Measure(3840,2160,2,0,playable);},500,500,"movie:1",Collections.emptySet(),null);
+                check(playable?c!=null:c==null);check(calls.get()==1&&QualitySelector.now()-start<400);
+            }
+            // Duas rodadas com fonte indisponível continuam limitadas e o diagnóstico não fica "verificando 0s".
+            try(QualitySelector q=new QualitySelector(null,true)){
+                long start=QualitySelector.now();
+                QualitySelector.Candidate c=q.chooseVerified("limit",Arrays.asList(QualitySelector.named("slow",end->{Thread.sleep(2000);return candidate("slow");}),QualitySelector.named("low",end->candidate("low"))),Collections.emptySet(),(media,end)->measure(640,480,2),200,250,"movie:2",Collections.emptySet(),null);
+                check(c.id.equals("low")&&QualitySelector.now()-start<950);
+                for(QualitySelector.Check row:q.audit("limit"))if(row.id.equals("slow"))check(row.reason.equals("prazo_consulta")&&row.ms>=400);
+            }
+            break;
+        }
         case "secure-delivery":{
             QualitySelector.Candidate c=candidate("clickhost");AtomicInteger lookups=new AtomicInteger();
             QualitySelector.Probe read=(media,end)->{

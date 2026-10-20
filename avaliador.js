@@ -22,7 +22,7 @@ const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML,
 const MAX_FONTES = Infinity;
 const TEMPO_RESOLVER = 8000;       // fontes consultadas em paralelo
 const TEMPO_SONDAR = 4000;         // limite por sonda
-const ORCAMENTO = 10000;           // teto; termina assim que as consultas acabam
+const ORCAMENTO = 12000;           // oito segundos + revisão dirigida de até quatro
 const VALIDADE = 60 * 1000;        // renova a disputa para descobrir melhorias
 
 const cache = new Map();
@@ -311,7 +311,53 @@ function filtrarPorCodec(registros,codec){
         return r.item.dados.type==='hls'&&!medido||/^(h264|avc1|avc3)$/.test(medido);
     });
 }
-async function escolherMelhor(papel, alvo, opcoes = {}) {
+async function escolherMelhor(papel,alvo,opcoes={}){
+    const inicio=Date.now(),estado={fila:[],respostas:new Map(),terminadas:new Set(),avaliacoes:[]};
+    const inicial=Math.max(100,Math.min(8000,opcoes.orcamentoInicial||8000));
+    const revisao=Math.max(0,Math.min(4000,opcoes.orcamentoRevisao??4000));
+    const primeira=await escolherRodada(papel,alvo,{...opcoes,_estado:estado,_orcamento:inicial});
+    if(primeira?.cache||estado.avaliacoes[0]?.prioridade[2]>=5)return primeira;
+    const repetir=estado.fila.filter(f=>{
+        if(!estado.terminadas.has(f.id))return true;
+        return estado.itens?.some(r=>r.item.fonte.id===f.id&&!r.sonda?.indisponivel&&(!r.sonda?.largura||!r.sonda?.altura||r.sonda?.temporaria));
+    });
+    if(!repetir.length||!revisao)return primeira;
+    const reserva={fila:[],respostas:new Map(),terminadas:new Set(),avaliacoes:[]};
+    const fila=repetir.map(f=>{
+        const prontas=estado.respostas.get(f.id);
+        const pendentes=(prontas||[]).filter(d=>!estado.itens?.some(r=>r.item.fonte.id===f.id&&r.item.dados.url===d.url&&r.sonda?.largura>0&&r.sonda?.altura>0&&!r.sonda.temporaria));
+        pendentes.sort((a,b)=>Number(estado.itens?.some(r=>r.item.dados.url===a.url))-Number(estado.itens?.some(r=>r.item.dados.url===b.url)));
+        return pendentes.length?{...f,resolverTodos:async()=>pendentes.map(d=>({...d}))}:f;
+    });
+    await escolherRodada(papel,alvo,{...opcoes,semCache:true,_fila:fila,_semMemoria:true,_estado:reserva,_orcamento:Math.max(1,Math.min(revisao,inicio+inicial+revisao-Date.now()))});
+    const mapa=new Map();
+    for(const a of [...estado.avaliacoes,...reserva.avaliacoes]){
+        const key=a.fonteId+'\n'+a.dados.url,anterior=mapa.get(key);
+        if(!anterior||compararPrioridade(a.prioridade,anterior.prioridade)<=0)mapa.set(key,a);
+    }
+    const avaliacoes=[...mapa.values()].sort((a,b)=>compararPrioridade(a.prioridade,b.prioridade));
+    const chave=`${papel}:${motor.chaveDoTitulo(alvo)}:${opcoes.codec||''}:${(opcoes.exceto||[]).join(',')}`;
+    cache.delete(chave); // busca parcial não se torna escolha definitiva
+    if(!avaliacoes.length)return null;
+    const resultado=resultadoDasAvaliacoes(avaliacoes,Date.now()-inicio);
+    resultado.verificacao={rodadas:2,inconclusivas:repetir.filter(f=>!reserva.terminadas.has(f.id)).map(f=>f.id)};
+    const registros=new Map();
+    for(const r of [...(estado.itens||[]),...(reserva.itens||[])]){
+        const key=r.item.fonte.id+'\n'+r.item.dados.url,anterior=registros.get(key);
+        if(!anterior?.sonda?.altura||r.sonda?.altura)registros.set(key,r);
+    }
+    // Reaproveita a prova que chegar tarde, sem congelar a reserva baixa.
+    const conferidas=[...registros.values()].filter(r=>{
+        if(r.valida===false)return false;
+        if(!r.item.lembrada&&!r.item.dados.exigeProva)return true;
+        const pt=r.sonda?.padraoPortugues||r.sonda?.portuguesa||r.sonda?.audios?.some(a=>/^(pt|por)(-|$)/i.test(a.lang||''))||require('./provas-idioma').idioma(motor.lerProvasDeIdioma(),motor.chaveDoTitulo(alvo),r.item.fonte.id,r.item.dados)==='pt';
+        return pt&&r.sonda?.largura>0&&r.sonda?.altura>0;
+    });
+    if(conferidas.length&&!conferidas.some(r=>r.item.dados.efemera))cache.set(chave,{resultado,conferidas,expira:Date.now()+1500});
+    motor.anotarEscolha(papel,alvo,resultado.escolhido);
+    return resultado;
+}
+async function escolherRodada(papel, alvo, opcoes = {}) {
     if (papel === 'dublado') require('./central-reporter').solicitarIdioma(motor.chaveDoTitulo(alvo));
     const inicio = Date.now();
     // O codec entra na chave: aparelho que só toca AVC e aparelho que toca HEVC
@@ -330,13 +376,14 @@ async function escolherMelhor(papel, alvo, opcoes = {}) {
         return { ...guardado.resultado, cache: true };
     }
 
-    const fila = motor.filaDeFontes(papel, alvo, { exceto: opcoes.exceto || [] }).slice(0, opcoes.maxFontes || MAX_FONTES);
+    const fila = (opcoes._fila||motor.filaDeFontes(papel, alvo, { exceto: opcoes.exceto || [] })).slice(0, opcoes.maxFontes || MAX_FONTES);
+    if(opcoes._estado)opcoes._estado.fila=fila;
     if (!fila.length) return null;
 
     // Resolve todas em paralelo — a primeira que responder já garante a reserva.
     const memoria=opcoes.memoria||require('./midias-memoria.cjs'),tituloKey=require('./midias-memoria.cjs').chave(alvo);
-    const conhecidas=papel==='dublado'?memoria.load(tituloKey,fila.filter(f=>!f.efemera).map(f=>f.id)):[];
-    const prazoFinal=inicio+ORCAMENTO;
+    const conhecidas=papel==='dublado'&&!opcoes._semMemoria?memoria.load(tituloKey,fila.filter(f=>!f.efemera).map(f=>f.id)):[];
+    const prazoFinal=inicio+(opcoes._orcamento||8000);
     let fontesInconclusivas=false;
     async function conferir(dados,lembrada=false){
         const limiteInicial=Math.max(1,Math.min(lembrada?ORCAMENTO:dados.type==='file'?6000:TEMPO_SONDAR,prazoFinal-Date.now()));
@@ -373,6 +420,7 @@ async function escolherMelhor(papel, alvo, opcoes = {}) {
         const sonda=conferir(dados,true);
         return medir({fonte,dados,ms:0,lembrada:true,sonda,validacao:validar(dados,sonda,true)});
     });
+    const estadoRodada=opcoes._estado;
     const busca=Promise.all([...lembrarJobs,...fila.map(async fonte=>{
         const comeco=Date.now();
         const consultar=()=>Promise.resolve().then(()=>typeof fonte.resolverTodos==='function'?fonte.resolverTodos(alvo):fonte.resolver(alvo));
@@ -381,25 +429,29 @@ async function escolherMelhor(papel, alvo, opcoes = {}) {
         const restante=prazoFinal-Date.now();
         if(vazia(resposta)&&restante>1500)resposta=await prazo(consultar(),Math.min(2500,Math.floor(restante/2)));
         const opcoes=(Array.isArray(resposta)?resposta:resposta?[resposta]:[]).slice().sort((a,b)=>alturaDoRotulo(b?.resolucao)-alturaDoRotulo(a?.resolucao));
+        if(estadoRodada)estadoRodada.respostas.set(fonte.id,opcoes.filter(d=>d?.url));
         if(!opcoes.length)fontesInconclusivas=true;
         const ms=Date.now()-comeco;
+        let terminou=true;
         for(const dados of opcoes.filter(dados=>dados?.url)){
-            if(Date.now()>=prazoFinal)break;
+            if(Date.now()>=prazoFinal){terminou=false;break;}
             const sonda=conferir(dados);
             await medir({fonte,dados,ms,sonda,validacao:validar(dados,sonda)});
         }
+        if(estadoRodada&&terminou)estadoRodada.terminadas.add(fonte.id);
     })]);
     // Não descarta uma consulta aos 3,5s: ela pode ser justamente o HD/4K.
     // Tudo que terminar cedo libera a abertura imediatamente. Só o trabalho
-    // pendente recebe a margem adicional, com limite absoluto de dez segundos.
+    // pendente é elegível à segunda rodada, dentro do teto total de doze segundos.
     await prazo(busca,Math.max(1,prazoFinal-Date.now()));
     if(!resolvidas.length)return null;
     const idiomas=motor.lerIdiomasVerificados()[motor.chaveDoTitulo(alvo)]||{};
     const registros=resolvidas.map(item=>({item,sonda:item.prova||null,valida:item.valida!==false}));
+    if(opcoes._estado)opcoes._estado.itens=registros;
     if(papel==='dublado')memoria.update(tituloKey,registros.map(r=>({id:r.item.fonte.id,dados:r.item.dados,sonda:r.sonda,invalida:!r.valida})));
     const conferidas=registros
         .filter(registro => {
-            const audioConfirmado=registro.sonda?.padraoPortugues||require('./provas-idioma').idioma(motor.lerProvasDeIdioma(),tituloKey,registro.item.fonte.id,registro.item.dados)==='pt';
+            const audioConfirmado=registro.sonda?.padraoPortugues||registro.sonda?.portuguesa||registro.sonda?.audios?.some(a=>/^(pt|por)(-|$)/i.test(a.lang||''))||require('./provas-idioma').idioma(motor.lerProvasDeIdioma(),tituloKey,registro.item.fonte.id,registro.item.dados)==='pt';
             if((registro.item.lembrada||registro.item.dados.exigeProva)&&(!audioConfirmado||!registro.sonda?.largura||!registro.sonda?.altura))return false;
             if (registro.valida) return true;
             if(!registro.item.lembrada)try { motor.registrarFalha(registro.item.fonte.id, 'o endereço não entrega vídeo', `dublado:${motor.chaveDoTitulo(alvo)}`); } catch { /* segue */ }
@@ -414,6 +466,7 @@ async function escolherMelhor(papel, alvo, opcoes = {}) {
     const compativeis=filtrarPorCodec(conferidas,opcoes.codec);
     if(!compativeis.length)return null;
     const avaliacoes = avaliarConferidas(compativeis, idiomas, motor.chaveDoTitulo(alvo));
+    if(opcoes._estado)opcoes._estado.avaliacoes=avaliacoes;
     const resultado = resultadoDasAvaliacoes(avaliacoes, Date.now() - inicio);
     motor.registrarSucesso(resultado.escolhido.fonteId);
     motor.anotarEscolha(papel, alvo, resultado.escolhido);

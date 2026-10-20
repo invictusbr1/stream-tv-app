@@ -1018,9 +1018,9 @@ public final class MainActivity extends Activity {
         }catch(Exception ignored){ /* Segue com as fontes fixas se a ficha não estiver disponível. */ }
         String key=tipo+":"+id+":"+temporada+":"+episodio+":"+new java.util.TreeSet<>(exceto)+":"+(profiles==null?0:profiles.hashCode());
         String title=tv?"tv:"+id+":"+temporada+":"+episodio:"movie:"+id;
-        QualitySelector.Candidate chosen=selector.choose(key,sources,exceto,
+        QualitySelector.Candidate chosen=selector.chooseVerified(key,sources,exceto,
             (candidato,prazo)->SecureDelivery.read(candidato,prazo,(delivery,end)->NativeMediaProbe.read(delivery,end,selector.podeHevc()),end->clickHostSecureDelivery(tipo,id,temporada,episodio,candidato.url,end)),
-            10000,title,allowed,new QualitySelector.Evidence(){
+            8000,4000,title,allowed,new QualitySelector.Evidence(){
                 public void load(long deadline)throws Exception{carregarProvasIdioma(title,Math.min(deadline,QualitySelector.now()+3000));}
                 public QualitySelector.Measure apply(String target,QualitySelector.Candidate c){return audioProofs.apply(target,c);}
             });
