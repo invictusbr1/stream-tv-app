@@ -23,7 +23,7 @@ const MAX_FONTES = Infinity;
 const TEMPO_RESOLVER = 8000;       // fontes consultadas em paralelo
 const TEMPO_SONDAR = 4000;         // limite por sonda
 const ORCAMENTO = 10000;           // teto; termina assim que as consultas acabam
-const VALIDADE = 10 * 60 * 1000;   // quanto tempo a decisão fica lembrada
+const VALIDADE = 60 * 1000;        // renova a disputa para descobrir melhorias
 
 const cache = new Map();
 const medidasDeArquivo = new Map();
@@ -87,7 +87,7 @@ async function sondarLista(url, referer) {
 
 const leiturasPendentes=new Map(),filaDeLeituras=[];let leiturasAtivas=0;
 function liberarLeituras(){
-    filaDeLeituras.sort((a,b)=>Number(b.prioritaria)-Number(a.prioritaria));
+    filaDeLeituras.sort((a,b)=>Number(b.prioritaria)-Number(a.prioritaria)||b.gaveta-a.gaveta);
     while(leiturasAtivas<2&&filaDeLeituras.length){
         const job=filaDeLeituras.shift(),restante=job.fim-Date.now();
         if(restante<500){job.resolve(null);continue;}
@@ -99,7 +99,7 @@ function liberarLeituras(){
 function lerArquivoComLimite(url,referer,opcoes){
     const key=JSON.stringify([url,referer||'']);if(leiturasPendentes.has(key))return leiturasPendentes.get(key);
     if(filaDeLeituras.length>=64)return Promise.resolve(null);
-    const job={url,referer:referer||'',rapida:opcoes.rapida===true,prioritaria:opcoes.prioritaria===true,fim:Date.now()+(opcoes.timeout||6000)};
+    const job={url,referer:referer||'',rapida:opcoes.rapida===true,prioritaria:opcoes.prioritaria===true,gaveta:Math.max(0,Math.min(6,Number(opcoes.gaveta)||0)),fim:Date.now()+(opcoes.timeout||6000)};
     const promise=new Promise(resolve=>{job.resolve=resolve;filaDeLeituras.push(job);liberarLeituras();});
     leiturasPendentes.set(key,promise);promise.finally(()=>{if(leiturasPendentes.get(key)===promise)leiturasPendentes.delete(key);});return promise;
 }
@@ -162,13 +162,19 @@ function alturaDoRotulo(valor) {
     return /\bhd\b/i.test(texto) ? 720 : 0;
 }
 
+// Pequenos recortes, como 3832×1600, permanecem na família 4K. O ranking
+// continua comparando as dimensões exatas dentro de cada gaveta.
+function gavetaDaAltura(altura){return altura>=4320*.98?6:altura>=2160*.98?5:altura>=1440*.98?4:altura>=1080*.98?3:altura>=720*.98?2:altura>0?1:0;}
+const NOMES_GAVETAS=['Sem confirmação','Qualidade básica','HD','Full HD','2K','4K','Acima de 4K'];
+
 function prioridadeDaFonte({ dados, sonda, idiomaVerificado, ms }) {
     const pt = sonda?.portuguesa || sonda?.padraoPortugues || sonda?.audios?.some(a => /^(?:pt|por)(?:[-_]|$)/i.test(a.lang || ''));
     const outro = idiomaVerificado === 'outro' || (idiomaVerificado !== 'pt' && !pt && sonda?.audios?.some(a => a.lang && a.lang !== 'und' && !/^(?:pt|por)(?:[-_]|$)/i.test(a.lang)));
     const idioma = outro ? -1 : idiomaVerificado === 'pt' || pt ? 2 : dados.audio === 'pt-BR' ? 1 : 0;
     const medida = sonda && !sonda.conversao && sonda.altura > 0;
     const informada = alturaDoRotulo(dados.resolucao);
-    return [idioma, medida ? 1 : 0, medida ? alturaEquivalente(sonda.largura, sonda.altura) : informada, dados.converter ? 0 : 1, sonda?.banda || 0, -(ms || 0)];
+    const altura=medida?alturaEquivalente(sonda.largura,sonda.altura):informada;
+    return [idioma, medida ? 1 : 0, idioma===2&&medida?gavetaDaAltura(altura):0, altura, dados.converter ? 0 : 1, sonda?.banda || 0, -(ms || 0)];
 }
 
 function compararPrioridade(a, b) {
@@ -192,7 +198,7 @@ function avaliarConferidas(conferidas, idiomas, titulo) {
         const { nota, detalhes } = notaDaFonte(medida);
         return { fonteId: registro.item.fonte.id, fonte: registro.item.dados.fonte || registro.item.fonte.nome,
             nota: Math.round((nota + Math.max(0, 0.15 - i * 0.05)) * 100) / 100,
-            detalhes: { ...detalhes, ordemNoMotor: i + 1 }, dados: { ...registro.item.dados,
+            detalhes: { ...detalhes, gaveta:NOMES_GAVETAS[prioridadeDaFonte(medida)[2]], ordemNoMotor: i + 1 }, dados: { ...registro.item.dados,
                 ...(sonda?.videoCodec ? {videoCodec:sonda.videoCodec} : {}),
                 ...(sonda?.altura && sonda?.largura ? {resolucao:Math.round(alturaEquivalente(sonda.largura,sonda.altura))+'p'} : {})
             }, ms: registro.item.ms, prioridade: prioridadeDaFonte(medida) };
@@ -327,11 +333,12 @@ async function escolherMelhor(papel, alvo, opcoes = {}) {
     let fontesInconclusivas=false;
     async function conferir(dados,lembrada=false){
         const limiteInicial=Math.max(1,Math.min(lembrada?ORCAMENTO:dados.type==='file'?6000:TEMPO_SONDAR,prazoFinal-Date.now()));
-        let prova=await prazo(lembrada?sondarArquivo(dados.url,dados.referer,{timeout:limiteInicial,rapida:true,prioritaria:true}):sondar(dados,{timeout:limiteInicial,rapida:dados.type==='file'}),limiteInicial);
+        const gaveta=gavetaDaAltura(alturaDoRotulo(dados.resolucao));
+        let prova=await prazo(lembrada?sondarArquivo(dados.url,dados.referer,{timeout:limiteInicial,rapida:true,prioritaria:true,gaveta}):sondar(dados,{timeout:limiteInicial,rapida:dados.type==='file',gaveta}),limiteInicial);
         const restante=prazoFinal-Date.now();
         if(!prova?.indisponivel&&(!prova?.largura||!prova?.altura)&&restante>500&&dados.type==='file'){
             const limite=Math.min(2500,restante);
-            prova=await prazo(sondarArquivo(dados.url,dados.referer,{timeout:limite,rapida:true}),limite);
+            prova=await prazo(sondarArquivo(dados.url,dados.referer,{timeout:limite,rapida:true,gaveta}),limite);
         }
         return prova;
     }
@@ -362,7 +369,7 @@ async function escolherMelhor(papel, alvo, opcoes = {}) {
     const busca=Promise.all([...lembrarJobs,...fila.map(async fonte=>{
         const comeco=Date.now();
         const resposta=await prazo(Promise.resolve().then(()=>typeof fonte.resolverTodos==='function'?fonte.resolverTodos(alvo):fonte.resolver(alvo)),TEMPO_RESOLVER);
-        const opcoes=Array.isArray(resposta)?resposta:resposta?[resposta]:[];
+        const opcoes=(Array.isArray(resposta)?resposta:resposta?[resposta]:[]).slice().sort((a,b)=>alturaDoRotulo(b?.resolucao)-alturaDoRotulo(a?.resolucao));
         if(!opcoes.length)fontesInconclusivas=true;
         const ms=Date.now()-comeco;
         await Promise.all(opcoes.filter(dados=>dados?.url).map(dados=>{
@@ -406,4 +413,4 @@ async function escolherMelhor(papel, alvo, opcoes = {}) {
 
 function limparCache() { ++versaoMedicoes; cache.clear(); medidasDeArquivo.clear(); medicoesEmCurso.clear(); }
 
-module.exports = { escolherMelhor, sondar, sondarLista, sondarArquivo, analisarPlaylist, notaDaFonte, prioridadeDaFonte, compararPrioridade, limparCache, MAX_FONTES, ORCAMENTO };
+module.exports = { escolherMelhor, sondar, sondarLista, sondarArquivo, analisarPlaylist, notaDaFonte, prioridadeDaFonte, compararPrioridade, gavetaDaAltura, limparCache, MAX_FONTES, ORCAMENTO };

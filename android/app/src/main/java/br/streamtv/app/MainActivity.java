@@ -983,11 +983,11 @@ public final class MainActivity extends Activity {
         boolean tv="tv".equals(tipo);
         java.util.Set<String> allowed=new java.util.HashSet<>();
         Collections.addAll(allowed,tv?"pipoca-serie":"pipoca","watchplay","mgeb","clickhost");
-        if(!exceto.contains("clickhost"))sources.add(qualityClickHostSource(tipo,id,temporada,episodio));
-        if(!exceto.contains("pipoca")&&!tv)sources.add(qualitySource(()->pipocaFilme(id)));
-        if(!exceto.contains("watchplay"))sources.add(qualitySource(()->directPlayback(tv?"https://v2.watchplay.shop/tvshow/"+id+"/"+temporada+"/"+episodio:"https://v2.watchplay.shop/movie/"+id)));
-        if(!exceto.contains("pipoca-serie")&&tv)sources.add(qualitySource(()->pipocaEpisodio(id,temporada,episodio)));
-        if(!exceto.contains("mgeb"))sources.add(qualityMgebSource(tipo,id,temporada,episodio));
+        if(!exceto.contains("clickhost"))sources.add(QualitySelector.named("clickhost",qualityClickHostSource(tipo,id,temporada,episodio)));
+        if(!exceto.contains("pipoca")&&!tv)sources.add(QualitySelector.named("pipoca",qualitySource(()->pipocaFilme(id))));
+        if(!exceto.contains("watchplay"))sources.add(QualitySelector.named("watchplay",qualitySource(()->directPlayback(tv?"https://v2.watchplay.shop/tvshow/"+id+"/"+temporada+"/"+episodio:"https://v2.watchplay.shop/movie/"+id))));
+        if(!exceto.contains("pipoca-serie")&&tv)sources.add(QualitySelector.named("pipoca-serie",qualitySource(()->pipocaEpisodio(id,temporada,episodio))));
+        if(!exceto.contains("mgeb"))sources.add(QualitySelector.named("mgeb",qualityMgebSource(tipo,id,temporada,episodio)));
         String profiles=perfis();
         try{
             JSONArray lista=new JSONObject(profiles).optJSONArray("perfis");java.util.Set<String> seen=new java.util.HashSet<>();
@@ -996,7 +996,7 @@ public final class MainActivity extends Activity {
                 final String profileId=ficha.optString("id");if(!profileId.matches("[a-z0-9_-]{1,64}")||exceto.contains(profileId)||!seen.add(profileId))continue;
                 if(ficha.optString(tv?"urlTv":"urlMovie").isEmpty())continue;
                 JSONArray tipos=ficha.optJSONArray("tipos");boolean applies=false;for(int j=0;tipos!=null&&j<tipos.length();j++)if(tipo.equals(tipos.optString(j)))applies=true;
-                if(applies){allowed.add(profileId);sources.add(qualityProfileSource(ficha,tipo,id,temporada,episodio,exceto));}
+                if(applies){allowed.add(profileId);sources.add(QualitySelector.named(profileId,qualityProfileSource(ficha,tipo,id,temporada,episodio,exceto)));}
             }
         }catch(Exception ignored){ /* Segue com as fontes fixas se a ficha não estiver disponível. */ }
         String key=tipo+":"+id+":"+temporada+":"+episodio+":"+new java.util.TreeSet<>(exceto)+":"+(profiles==null?0:profiles.hashCode());

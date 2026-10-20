@@ -409,3 +409,31 @@ test('sondagens simultâneas do mesmo arquivo compartilham a leitura e limpar ca
     } finally { concluir(null);verificador.faixasDeAudio=original;avaliador.limparCache(); }
 });
 
+
+test('gavetas só aprovam qualidade medida e português, inclusive recortes de cinema',()=>{
+ const a=require('./avaliador');
+ assert.equal(a.gavetaDaAltura(3832*9/16),5);
+ assert.deepEqual([4320,2160,1440,1080,720,480,0].map(a.gavetaDaAltura),[6,5,4,3,2,1,0]);
+ const base={dados:{audio:'pt-BR',resolucao:'2160p'},sonda:null,ms:1};
+ assert.equal(a.prioridadeDaFonte(base)[2],0);
+ const hd={...base,sonda:{largura:1280,altura:720,padraoPortugues:true}};
+ const fhd={...base,sonda:{largura:1920,altura:800,padraoPortugues:true}};
+ assert.equal(a.prioridadeDaFonte(hd)[2],2);
+ assert.equal(a.prioridadeDaFonte(fhd)[2],3);
+ assert(a.compararPrioridade(a.prioridadeDaFonte(fhd),a.prioridadeDaFonte(hd))<0);
+ assert.equal(a.prioridadeDaFonte({...base,sonda:{largura:7680,altura:4320,audios:[{lang:'en'}]}})[2],0);
+});
+
+test('abre gavetas superiores primeiro na fila e ainda mede a reserva HD',async()=>{
+ const a=require('./avaliador'),v=require('./central/verificar-midia'),original=v.faixasDeAudio;
+ const pending=[],calls=[];
+ try{
+  a.limparCache();v.faixasDeAudio=url=>{calls.push(url);return new Promise(resolve=>pending.push(()=>resolve({imagem:{largura:1920,altura:1080},faixas:[{idioma:'por',padrao:true}]})));};
+  const read=(name,gaveta)=>a.sondarArquivo('https://media.invalid/drawer-'+name+'.mp4','',{timeout:3000,gaveta});
+  const jobs=[read('occupied1',0),read('occupied2',0),read('hd',2),read('4k',5),read('fhd',3)];
+  pending.shift()();await new Promise(setImmediate);assert.match(calls[2],/drawer-4k/);
+  pending.shift()();await new Promise(setImmediate);assert.match(calls[3],/drawer-fhd/);
+  while(pending.length){pending.shift()();await new Promise(setImmediate);}await Promise.all(jobs);
+  assert.equal(calls.length,5);assert.match(calls[4],/drawer-hd/);
+ }finally{while(pending.length)pending.shift()();v.faixasDeAudio=original;a.limparCache();}
+});

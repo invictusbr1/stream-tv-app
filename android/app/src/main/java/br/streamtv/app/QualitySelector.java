@@ -29,6 +29,7 @@ final class QualitySelector implements AutoCloseable {
     }
     interface Source {
         Candidate resolve(long deadline) throws Exception;
+        default String id(){return "";}
         default List<Candidate> resolveAll(long deadline)throws Exception {
             Candidate c=resolve(deadline);return c==null?Collections.emptyList():Collections.singletonList(c);
         }
@@ -42,6 +43,21 @@ final class QualitySelector implements AutoCloseable {
     private final ExecutorService workers=Executors.newFixedThreadPool(6,r->{Thread t=new Thread(r,"conecta-quality");t.setDaemon(true);return t;});
     private final Map<String,Entry<List<Candidate>>> choices=new LinkedHashMap<>();
     private final Map<String,Entry<Measure>> measures=new LinkedHashMap<>();
+    private final Map<String,Entry<Integer>> hints=new LinkedHashMap<>();
+    static Source named(String id,Source source){return new Source(){
+        public String id(){return id;}
+        public Candidate resolve(long deadline)throws Exception{return source.resolve(deadline);}
+        public List<Candidate> resolveAll(long deadline)throws Exception{return source.resolveAll(deadline);}
+    };}
+    // As gavetas só aprovam dimensões medidas e áudio português. Rótulos e
+    // memórias servem para decidir o que verificar primeiro, nunca para aprovar.
+    static int tier(double height){return height>=4320*.98?6:height>=2160*.98?5:height>=1440*.98?4:height>=1080*.98?3:height>=720*.98?2:height>0?1:0;}
+    static int drawer(Candidate c){Measure m=c.measure;return m!=null&&m.playable&&m.language==2&&m.width>0&&m.height>0?tier(equivalent(m.width,m.height)):0;}
+    private static List<Candidate> ordered(List<Candidate> list){
+        List<Candidate> result=new ArrayList<>(list);
+        Collections.sort(result,(a,b)->Integer.compare(b.declared,a.declared));return result;
+    }
+    private static int hint(Map<String,Integer> values,String id){Integer value=values.get(id);return value==null?0:value;}
     private volatile boolean closed;
     private final VerifiedMediaStore history;
     // O aparelho declara se decodifica HEVC. Sem isso, a maior resolução da
@@ -63,6 +79,12 @@ final class QualitySelector implements AutoCloseable {
         long deadline=now()+budget;
         List<Candidate> cached;
         synchronized(this){Entry<List<Candidate>> e=choices.get(key);cached=e!=null&&e.expires>now()?new ArrayList<>(e.value):null;}
+        List<Candidate> remembered=history==null?Collections.emptyList():history.load(title,allowed);
+        Map<String,Integer> preferred=new HashMap<>();
+        synchronized(this){for(Source s:sources){Entry<Integer> e=hints.get(title+"\n"+s.id());if(e!=null&&e.expires>now())preferred.put(s.id(),e.value);}}
+        for(Candidate c:remembered)preferred.put(c.id,Math.max(hint(preferred,c.id),tier(c.declared)));
+        List<Source> scheduled=new ArrayList<>(sources);
+        Collections.sort(scheduled,(a,b)->Integer.compare(hint(preferred,b.id()),hint(preferred,a.id())));
         List<Candidate> found=Collections.synchronizedList(new ArrayList<>());
         List<Future<List<Candidate>>> futures=new ArrayList<>();
         boolean complete=false;
@@ -70,9 +92,17 @@ final class QualitySelector implements AutoCloseable {
         try {
             CompletionService<List<Candidate>> finished=new ExecutorCompletionService<>(workers);
             if(evidence!=null)futures.add(finished.submit(()->{try{evidence.load(deadline);}catch(Exception ignored){}return Collections.emptyList();}));
-            if(history!=null)for(Candidate c:history.load(title,allowed))futures.add(finished.submit(()->{assess(c,excluded,probe,deadline,found);return Collections.emptyList();}));
+            if(history!=null)for(Candidate c:remembered)futures.add(finished.submit(()->{assess(c,excluded,probe,deadline,found);return Collections.emptyList();}));
             if(cached!=null)for(Candidate c:cached)futures.add(finished.submit(()->{assess(c,excluded,probe,deadline,found);return Collections.emptyList();}));
-            else for(Source source:sources)futures.add(finished.submit(()->{List<Candidate> result=now()<deadline&&!Thread.currentThread().isInterrupted()?source.resolveAll(deadline):null;return result==null||result.isEmpty()?null:result;}));
+            else for(Source source:scheduled)futures.add(finished.submit(()->{
+                List<Candidate> result=now()<deadline&&!Thread.currentThread().isInterrupted()?source.resolveAll(deadline):null;
+                if(result==null||result.isEmpty())return null;
+                result=ordered(result);
+                // Conserva a vaga entre resolver e medir a primeira opção:
+                // outras consultas lentas não empurram essa prova para o fim.
+                assess(result.get(0),excluded,probe,deadline,found);
+                return new ArrayList<>(result.subList(1,result.size()));
+            }));
             int pending=futures.size();
             while(pending>0){
                 long left=deadline-now();if(left<=0)break;
@@ -100,8 +130,11 @@ final class QualitySelector implements AutoCloseable {
         Collections.sort(snapshot,(a,b)->(a.id+"\n"+a.url).compareTo(b.id+"\n"+b.url));
         Collections.sort(snapshot,QualitySelector::compare);
         if(history!=null)history.save(title,snapshot);
+        Map<String,Integer> currentHints=new HashMap<>();
+        for(Candidate c:snapshot)if(drawer(c)>0)currentHints.put(c.id,Math.max(hint(currentHints,c.id),drawer(c)));
+        synchronized(this){for(Map.Entry<String,Integer> e:currentHints.entrySet()){trim(hints,192);hints.put(title+"\n"+e.getKey(),new Entry<>(e.getValue(),now()+600000));}}
         if(snapshot.isEmpty())return null;
-        boolean verified=complete&&sourcesComplete;long cacheFor=10*60*1000;
+        boolean verified=complete&&sourcesComplete;long cacheFor=60000;
         for(Candidate c:snapshot){if(c.ephemeral||c.measure==null||c.measure.playable&&(c.measure.width<=0||c.measure.height<=0))verified=false;if(c.measure!=null&&!c.measure.playable)cacheFor=1500;}
         synchronized(this){if(!closed&&verified){trim(choices,64);choices.put(key,new Entry<>(snapshot,now()+cacheFor));}}
         for(Candidate c:snapshot)if(c.remembered||c.requiresProof?c.measure!=null&&c.measure.playable&&c.measure.language==2&&c.measure.width>0&&c.measure.height>0:c.measure==null||(c.measure.playable&&c.measure.language>=0))return c;
@@ -118,7 +151,7 @@ final class QualitySelector implements AutoCloseable {
             // Uma falha de metadados não deve esconder a versão superior.
             // Repete só a leitura inconclusiva, dentro do prazo total.
             if((m==null||m.playable&&(m.width<=0||m.height<=0))&&deadline-now()>500&&!Thread.currentThread().isInterrupted())m=probe.read(c,Math.min(deadline,now()+2500));
-            if(m!=null){c.measure=m;synchronized(this){if(!closed&&!c.ephemeral){trim(measures,128);measures.put(c.key(),new Entry<>(m,now()+(!m.playable?1500:"hls".equals(c.type)?60000:600000)));}}}
+            if(m!=null){c.measure=m;synchronized(this){if(!closed&&!c.ephemeral){trim(measures,128);measures.put(c.key(),new Entry<>(m,now()+(!m.playable?1500:60000)));}}}
         }catch(Exception ignored){ /* Sem prova, conserva a alternativa existente sem inventar resolução. */ }
     }
     synchronized void forget(String key){choices.remove(key);}
@@ -129,6 +162,7 @@ final class QualitySelector implements AutoCloseable {
         Measure x=a.measure,y=b.measure;
         int language=Integer.compare(y==null?1:y.playable?y.language:-2,x==null?1:x.playable?x.language:-2);
         if(language!=0)return language;
+        int drawer=Integer.compare(drawer(b),drawer(a));if(drawer!=0)return drawer;
         boolean xm=x!=null&&x.width>0&&x.height>0,ym=y!=null&&y.width>0&&y.height>0;
         int proof=Boolean.compare(ym,xm);if(proof!=0)return proof;
         int quality=Double.compare(ym?equivalent(y.width,y.height):b.declared,xm?equivalent(x.width,x.height):a.declared);
@@ -167,5 +201,5 @@ final class QualitySelector implements AutoCloseable {
     }
     static boolean portuguese(String value){return value!=null&&value.matches("(?i)(pt|por)([-_].*)?");}
     private static <T> void trim(Map<String,T> map,int limit){if(map.size()>=limit)map.remove(map.keySet().iterator().next());}
-    @Override public synchronized void close(){closed=true;workers.shutdownNow();choices.clear();measures.clear();}
+    @Override public synchronized void close(){closed=true;workers.shutdownNow();choices.clear();measures.clear();hints.clear();}
 }

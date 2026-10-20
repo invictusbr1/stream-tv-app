@@ -194,6 +194,30 @@ public final class QualitySelectorTest {
             check(recusa.getResponseCode()==403);check(iguais.size()==1);
             break;
         }
+        case "drawers":{
+            QualitySelector.Candidate crop=candidate("crop");crop.measure=measure(3832,1600,2);check(QualitySelector.drawer(crop)==5);
+            QualitySelector.Candidate fake=new QualitySelector.Candidate("fake","https://media.invalid/fake.mp4","","file","{}",2160);check(QualitySelector.drawer(fake)==0);
+            fake.measure=measure(1280,720,2);check(QualitySelector.drawer(fake)==2);
+            QualitySelector.Candidate foreign=candidate("foreign");foreign.measure=measure(7680,4320,-1);check(QualitySelector.drawer(foreign)==0);
+            try(QualitySelector selector=new QualitySelector(null,true)){
+                List<String> reads=new ArrayList<>();
+                QualitySelector.Source batch=new QualitySelector.Source(){
+                    public QualitySelector.Candidate resolve(long end){return null;}
+                    public List<QualitySelector.Candidate> resolveAll(long end){return Arrays.asList(new QualitySelector.Candidate("fhd","https://media.invalid/fhd.mp4","","file","{}",1080),fake);}
+                };
+                QualitySelector.Candidate chosen=selector.choose("labels",Collections.singletonList(batch),Collections.emptySet(),(c,end)->{reads.add(c.id);return c.id.equals("fake")?measure(1280,720,2):measure(1920,1080,2);},1000);
+                check(reads.get(0).equals("fake"));check(chosen.id.equals("fhd"));
+                QualitySelector.Source best=QualitySelector.named("best",end->candidate("best"));
+                QualitySelector.Probe probe=(c,end)->measure(3840,2160,2);
+                selector.choose("learn",Collections.singletonList(best),Collections.emptySet(),probe,500,"movie:777",Collections.emptySet());
+                List<QualitySelector.Source> busy=new ArrayList<>();
+                for(int i=0;i<7;i++){final String name="slow-"+i;busy.add(QualitySelector.named(name,end->{Thread.sleep(1200);return null;}));}
+                busy.add(best);
+                check(selector.choose("reuse",busy,Collections.emptySet(),probe,400,"movie:777",Collections.emptySet()).id.equals("best"));
+                // O histórico de um título não altera a gaveta de outro.
+                check(selector.choose("other",busy,Collections.emptySet(),probe,150,"movie:888",Collections.emptySet())==null);
+            }break;
+        }
         case "source-fairness":{
             java.util.concurrent.CountDownLatch started=new java.util.concurrent.CountDownLatch(1);
             try(QualitySelector selector=new QualitySelector(null,true)){
