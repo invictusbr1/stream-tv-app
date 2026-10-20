@@ -14,3 +14,5 @@ Para regenerar, executar `node android/brand-assets.cjs` com o pacote Sharp disp
 Validação: conferência visual do ícone e do cabeçalho em largura de celular, 15 testes de episódios/PWA/arquivos públicos e compilação/análise dos dois canais Android. A contagem automática de próximo episódio permaneceu intacta: cinco segundos após o fim real do vídeo, desde que exista um episódio seguinte disponível no catálogo, com assistir agora e cancelar. Os 11 testes específicos dessa navegação passaram.
 
 Esta versão altera a identidade visual e a entrega do SVG, sem modificar o resolvedor, a medição de resolução, a recuperação HTTPS do ClickHost ou as preferências de reprodução.
+
+APK 2.13.102 (código 432) publicado para celular e TV; manifesto conferido. O pacote do celular foi aberto e comparado com os arquivos de logo e episódios atuais antes do envio. Após a publicação do site, cabeçalho, tipo SVG e hashes do símbolo e do PNG 512 foram conferidos pela rota HTTPS autenticada. O arquivo publicado de episódios também manteve a contagem de cinco segundos e o servidor respondeu saudável.
