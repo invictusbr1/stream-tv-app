@@ -49,7 +49,7 @@ function extrair(html) {
     };
 }
 
-async function resolver(tipo, tmdbId, temporada, episodio) {
+async function resolver(tipo, tmdbId, temporada, episodio, opcoes = {}) {
     const id = String(tmdbId || '').trim();
     const serie = tipo === 'tv' || tipo === 'series';
     if (!/^[1-9]\d{0,9}$/.test(id)) return null;
@@ -58,7 +58,7 @@ async function resolver(tipo, tmdbId, temporada, episodio) {
     // O fornecedor alterna entre servidores: em ~1 de cada 10 leituras a página
     // volta sem o arquivo direto. Uma segunda tentativa resolve quase todos
     // esses casos sem custo perceptível (a página responde em ~300 ms).
-    let achado = null;const fimConsulta=Date.now()+7000;
+    let achado = null;const fimConsulta=Math.min(Date.now()+7000,Number(opcoes.prazo)||Infinity);
     for (let tentativa = 0; tentativa < 2 && !achado && Date.now()<fimConsulta; tentativa++) {
         let html = '';
         try {

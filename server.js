@@ -63,6 +63,13 @@ app.post('/api/entrar', (req, res) => portao.rotaEntrada(req, res));
 // Avisos públicos de manutenção, sem dados pessoais e sem rota HTTP de escrita.
 app.get('/api/notificacoes', (req,res)=>{res.setHeader('Cache-Control','no-store');res.json({avisos:require('./avisos-servidor-store.cjs').ler(path.join(DADOS_DIR,'avisos-servidor.json'))});});
 app.use((req, res, next) => portao.middleware(req, res, next));
+// IDs de catálogo e, opcionalmente, a origem curta restrita do ClickHost.
+// A origem não permite ao cliente escolher outro host, porta ou caminho.
+app.post('/api/qualidade/clickhost',async(req,res)=>{
+    res.setHeader('Cache-Control','no-store');
+    try{const result=await require('./clickhost-delivery.cjs').resolve(req.body);if(result)return res.json(result);}catch{ /* Falha mantém as outras fontes disponíveis. */ }
+    res.status(502).json({error:'Entrega segura indisponível'});
+});
 // Só resumos de identidade e idioma: nunca entrega URLs, chaves ou transcrições.
 app.post('/api/qualidade/idiomas', (req,res)=>{
     const titulo=String(req.body?.titulo || '');

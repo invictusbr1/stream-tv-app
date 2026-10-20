@@ -24,6 +24,23 @@ public final class QualitySelectorTest {
     private static QualitySelector.Measure measure(int w,int h,int lang){return new QualitySelector.Measure(w,h,lang,0,true);}
     public static void main(String[] args)throws Exception{
         switch(args[0]){
+        case "secure-delivery":{
+            QualitySelector.Candidate c=candidate("clickhost");AtomicInteger lookups=new AtomicInteger();
+            QualitySelector.Probe read=(media,end)->{
+                if(media.url.contains("media.invalid"))throw new javax.net.ssl.SSLHandshakeException("TLS de teste");
+                return measure(3840,1608,2);
+            };
+            QualitySelector.Measure m=SecureDelivery.read(c,QualitySelector.now()+4000,read,d->{lookups.incrementAndGet();return "https://valid.media.workers.dev/movie.mp4";});
+            check(m.width==3840&&m.language==2&&c.deliveryUrl.startsWith("https://valid.media.workers.dev/"));
+            SecureDelivery.read(c,QualitySelector.now()+4000,read,d->{throw new AssertionError("Não repetir consulta na segunda medição");});check(lookups.get()==1);
+            for(String url:Arrays.asList("http://valid.media.workers.dev/a","https://localhost/a","https://evil.invalid/a")){
+                boolean rejected=false;try{SecureDelivery.read(candidate("clickhost"),QualitySelector.now()+4000,read,d->url);}catch(javax.net.ssl.SSLException expected){rejected=true;}check(rejected);
+            }
+            boolean rejected=false;try{SecureDelivery.read(candidate("other"),QualitySelector.now()+4000,read,d->{throw new AssertionError();});}catch(javax.net.ssl.SSLException expected){rejected=true;}check(rejected);
+            try{SecureDelivery.read(candidate("clickhost"),QualitySelector.now()+4000,(media,d)->{throw new IOException();},d->{throw new AssertionError();});throw new AssertionError();}catch(IOException expected){}
+            check(!SecureDelivery.read(candidate("clickhost"),QualitySelector.now()+4000,(media,d)->new QualitySelector.Measure(3840,1608,2,0,false),d->{throw new AssertionError();}).playable);
+            break;
+        }
         case "diagnostic":{
             try(QualitySelector selector=new QualitySelector(null,true)){
                 List<QualitySelector.Source> sources=Arrays.asList(QualitySelector.named("clickhost",d->candidate("clickhost")),QualitySelector.named("fallback",d->candidate("fallback")));

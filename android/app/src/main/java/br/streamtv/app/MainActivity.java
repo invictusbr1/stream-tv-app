@@ -976,6 +976,20 @@ public final class MainActivity extends Activity {
         }catch(Exception optional){ /* A descoberta normal segue disponível. */ }
     }
 
+    private String clickHostSecureDelivery(String tipo,String id,String temporada,String episodio,String original,long deadline)throws Exception{
+        String base=provasEndereco,code=provasCodigo;
+        if(base.isEmpty()||System.currentTimeMillis()>=provasDescobertaAte){
+            JSONObject config;try(InputStream in=getAssets().open("config.json")){config=new JSONObject(lerTexto(in));}
+            JSONObject discovery=new JSONObject(RelatoHttp.enviar(config.optString("descoberta"),null,(int)Math.max(1,Math.min(900,deadline-QualitySelector.now()))));
+            base=discovery.getString("endereco").replaceAll("/+$","");
+            code=config.optString("acessoCodigo",config.optString("codigo",discovery.optString("codigo")));
+        }
+        URL trusted=MediaHttp.safe(base);if(!trusted.getPath().isEmpty()||trusted.getQuery()!=null||trusted.getRef()!=null)throw new java.io.IOException("Servidor inválido");
+        long left=deadline-QualitySelector.now();if(left<500)throw new java.io.IOException("Prazo de entrega");
+        JSONObject body=new JSONObject().put("codigo",code).put("tipo",tipo).put("id",id).put("temporada",temporada==null?"":temporada).put("episodio",episodio==null?"":episodio).put("origem",original).put("prazoMs",Math.min(3500,left));
+        JSONObject result=new JSONObject(RelatoHttp.enviar(base+"/api/qualidade/clickhost",body.toString(),(int)Math.min(3500,left)));
+        return result.getString("url");
+    }
     private WebResourceResponse qualityPlayback(String tipo,String id,String temporada,String episodio,java.util.Set<String> excluded) {
         return qualityPlayback(tipo,id,temporada,episodio,excluded,false);
     }
@@ -1005,7 +1019,7 @@ public final class MainActivity extends Activity {
         String key=tipo+":"+id+":"+temporada+":"+episodio+":"+new java.util.TreeSet<>(exceto)+":"+(profiles==null?0:profiles.hashCode());
         String title=tv?"tv:"+id+":"+temporada+":"+episodio:"movie:"+id;
         QualitySelector.Candidate chosen=selector.choose(key,sources,exceto,
-            (candidato,prazo)->NativeMediaProbe.read(candidato,prazo,selector.podeHevc()),
+            (candidato,prazo)->SecureDelivery.read(candidato,prazo,(delivery,end)->NativeMediaProbe.read(delivery,end,selector.podeHevc()),end->clickHostSecureDelivery(tipo,id,temporada,episodio,candidato.url,end)),
             10000,title,allowed,new QualitySelector.Evidence(){
                 public void load(long deadline)throws Exception{carregarProvasIdioma(title,Math.min(deadline,QualitySelector.now()+3000));}
                 public QualitySelector.Measure apply(String target,QualitySelector.Candidate c){return audioProofs.apply(target,c);}

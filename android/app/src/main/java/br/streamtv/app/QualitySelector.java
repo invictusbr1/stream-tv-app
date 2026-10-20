@@ -22,6 +22,7 @@ final class QualitySelector implements AutoCloseable {
         final int declared;
         volatile Measure measure;
         volatile String deliveryUrl;
+        volatile String secureDeliveryUrl;
         volatile String diagnosticReason="";
         boolean remembered;
         boolean requiresProof;
