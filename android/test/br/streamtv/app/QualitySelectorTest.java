@@ -273,6 +273,35 @@ public final class QualitySelectorTest {
             QualitySelector.Candidate promised=new QualitySelector.Candidate("promised","https://media.invalid/promised.mp4","","file","{}",2160);
             check(QualitySelector.compare(hd,promised)<0);break;
         }
+        case "general-recovery":{
+            for(String title:Arrays.asList("movie:1022789","movie:1084244","tv:1399:1:2")){
+                try(QualitySelector selector=new QualitySelector(null,true)){
+                    AtomicInteger queries=new AtomicInteger(),reads=new AtomicInteger();
+                    QualitySelector.Source superior=end->{if(queries.incrementAndGet()==1)throw new IOException("temporaria");return candidate("uhd");};
+                    QualitySelector.Candidate winner=selector.choose(title,Arrays.asList(end->candidate("hd"),superior),Collections.emptySet(),(c,end)->{
+                        if(c.id.equals("uhd")&&reads.incrementAndGet()==1)return new QualitySelector.Measure(0,0,1,0,false,true);
+                        return c.id.equals("uhd")?measure(3840,1608,2):measure(1280,720,2);
+                    },3000);
+                    check(winner!=null&&winner.id.equals("uhd")&&queries.get()==2&&reads.get()==2);
+                }
+            }
+            try(QualitySelector selector=new QualitySelector(null,true)){
+                AtomicInteger reads=new AtomicInteger();
+                check(selector.choose("incompativel",Collections.singletonList(end->candidate("bad")),Collections.emptySet(),(c,end)->{reads.incrementAndGet();return new QualitySelector.Measure(3840,2160,2,0,false);},3000)==null);
+                check(reads.get()==1);
+            }
+            check(MediaHttp.temporary(429)&&MediaHttp.temporary(503)&&!MediaHttp.temporary(404)&&!MediaHttp.temporary(200));
+            try(QualitySelector selector=new QualitySelector(null,true)){
+                AtomicInteger pixels=new AtomicInteger(720),queries=new AtomicInteger();
+                List<QualitySelector.Source> list=Collections.singletonList(end->{queries.incrementAndGet();return candidate("same-url");});
+                QualitySelector.Probe read=(c,end)->measure(pixels.get()==720?1280:3840,pixels.get(),2);
+                check(selector.choose("fresh-low",list,Collections.emptySet(),read,1000).measure.height==720);
+                pixels.set(2160);Thread.sleep(1600);
+                check(selector.choose("fresh-low",list,Collections.emptySet(),read,1000).measure.height==2160);check(queries.get()==2);
+            }
+
+            break;
+        }
         case "parallel":{
             try(QualitySelector s=new QualitySelector()){
                 List<QualitySelector.Source> sources=new ArrayList<>();

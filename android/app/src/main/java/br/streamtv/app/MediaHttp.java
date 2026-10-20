@@ -6,7 +6,8 @@ import java.util.*;
 
 /** Segue somente endereços de mídia HTTPS, conservando Range e o prazo. */
 final class MediaHttp {
-    static final class Unavailable extends IOException { Unavailable(){super("O destino não entrega mídia");} }
+    static boolean temporary(int status){return status==408||status==425||status==429||status>=500&&status<=599;}
+    static final class Unavailable extends IOException { final boolean retryable;Unavailable(int status){super("O destino não entrega mídia");retryable=temporary(status);} }
     interface Connector { HttpURLConnection open(URL url)throws IOException; }
     private static final String UA="Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Mobile Safari/537.36";
     static URL safe(String raw)throws IOException {
@@ -19,7 +20,7 @@ final class MediaHttp {
     }
     static void requireMedia(HttpURLConnection c)throws IOException {
         int status=c.getResponseCode();String mime=c.getContentType();
-        if(status<200||status>=300||mime!=null&&mime.matches("(?is).*(text/html|application/json|text/xml).*"))throw new Unavailable();
+        if(status<200||status>=300||mime!=null&&mime.matches("(?is).*(text/html|application/json|text/xml).*"))throw new Unavailable(status);
     }
     // Provedor que exige a própria origem recusa o referer de outro site com
     // 403 cross_site (o Zunder faz isso). O mesmo pedido sem Referer passa;

@@ -9,9 +9,12 @@ final class QualitySelector implements AutoCloseable {
     static final class Measure {
         final int width, height, language; // 2: português comprovado; 1: não informado; -1: outro idioma
         final long bitrate;
-        final boolean playable;
+        final boolean playable,retryable;
         Measure(int width,int height,int language,long bitrate,boolean playable) {
-            this.width=width;this.height=height;this.language=language;this.bitrate=bitrate;this.playable=playable;
+            this(width,height,language,bitrate,playable,false);
+        }
+        Measure(int width,int height,int language,long bitrate,boolean playable,boolean retryable) {
+            this.width=width;this.height=height;this.language=language;this.bitrate=bitrate;this.playable=playable;this.retryable=retryable;
         }
     }
     static final class Candidate {
@@ -95,7 +98,14 @@ final class QualitySelector implements AutoCloseable {
             if(history!=null)for(Candidate c:remembered)futures.add(finished.submit(()->{assess(c,excluded,probe,deadline,found);return Collections.emptyList();}));
             if(cached!=null)for(Candidate c:cached)futures.add(finished.submit(()->{assess(c,excluded,probe,deadline,found);return Collections.emptyList();}));
             else for(Source source:scheduled)futures.add(finished.submit(()->{
-                List<Candidate> result=now()<deadline&&!Thread.currentThread().isInterrupted()?source.resolveAll(deadline):null;
+                List<Candidate> result=null;
+                try{if(now()<deadline&&!Thread.currentThread().isInterrupted())result=source.resolveAll(deadline);}catch(InterruptedException stopped){Thread.currentThread().interrupt();return null;}catch(Exception ignored){}
+                // Falha/retorno vazio recebe uma segunda consulta, sem ultrapassar
+                // o prazo geral nem ocupar a vaga de outro fornecedor.
+                if((result==null||result.isEmpty())&&deadline-now()>1500&&!Thread.currentThread().isInterrupted()){
+                    long retryEnd=Math.min(deadline,now()+Math.min(2500,(deadline-now())/2));
+                    try{result=source.resolveAll(retryEnd);}catch(InterruptedException stopped){Thread.currentThread().interrupt();return null;}catch(Exception ignored){}
+                }
                 if(result==null||result.isEmpty())return null;
                 result=ordered(result);
                 // Conserva a vaga entre resolver e medir a primeira opção:
@@ -134,8 +144,8 @@ final class QualitySelector implements AutoCloseable {
         for(Candidate c:snapshot)if(drawer(c)>0)currentHints.put(c.id,Math.max(hint(currentHints,c.id),drawer(c)));
         synchronized(this){for(Map.Entry<String,Integer> e:currentHints.entrySet()){trim(hints,192);hints.put(title+"\n"+e.getKey(),new Entry<>(e.getValue(),now()+600000));}}
         if(snapshot.isEmpty())return null;
-        boolean verified=complete&&sourcesComplete;long cacheFor=60000;
-        for(Candidate c:snapshot){if(c.ephemeral||c.measure==null||c.measure.playable&&(c.measure.width<=0||c.measure.height<=0))verified=false;if(c.measure!=null&&!c.measure.playable)cacheFor=1500;}
+        boolean verified=complete&&sourcesComplete;long cacheFor=drawer(snapshot.get(0))<5?1500:60000;
+        for(Candidate c:snapshot){if(c.ephemeral||c.measure==null||c.measure.retryable||c.measure.playable&&(c.measure.width<=0||c.measure.height<=0))verified=false;if(c.measure!=null&&!c.measure.playable)cacheFor=1500;}
         synchronized(this){if(!closed&&verified){trim(choices,64);choices.put(key,new Entry<>(snapshot,now()+cacheFor));}}
         for(Candidate c:snapshot)if(c.remembered||c.requiresProof?c.measure!=null&&c.measure.playable&&c.measure.language==2&&c.measure.width>0&&c.measure.height>0:c.measure==null||(c.measure.playable&&c.measure.language>=0))return c;
         return null;
@@ -150,8 +160,8 @@ final class QualitySelector implements AutoCloseable {
             try{m=probe.read(c,Math.min(deadline,now()+6000));}catch(Exception first){m=null;}
             // Uma falha de metadados não deve esconder a versão superior.
             // Repete só a leitura inconclusiva, dentro do prazo total.
-            if((m==null||m.playable&&(m.width<=0||m.height<=0))&&deadline-now()>500&&!Thread.currentThread().isInterrupted())m=probe.read(c,Math.min(deadline,now()+2500));
-            if(m!=null){c.measure=m;synchronized(this){if(!closed&&!c.ephemeral){trim(measures,128);measures.put(c.key(),new Entry<>(m,now()+(!m.playable?1500:60000)));}}}
+            if((m==null||m.retryable||m.playable&&(m.width<=0||m.height<=0))&&deadline-now()>500&&!Thread.currentThread().isInterrupted())m=probe.read(c,Math.min(deadline,now()+2500));
+            if(m!=null){c.measure=m;synchronized(this){if(!closed&&!c.ephemeral&&!m.retryable){trim(measures,128);measures.put(c.key(),new Entry<>(m,now()+(!m.playable||tier((int)equivalent(m.width,m.height))<5?1500:60000)));}}}
         }catch(Exception ignored){ /* Sem prova, conserva a alternativa existente sem inventar resolução. */ }
     }
     synchronized void forget(String key){choices.remove(key);}

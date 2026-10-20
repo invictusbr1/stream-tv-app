@@ -48,3 +48,11 @@ test('redirecionamento HTTP com porta 80 vira HTTPS padrão, preservando a assin
   assert(requests.length>1);assert(requests.every(u=>new URL(u).protocol==='https:'&&new URL(u).port===''));
  }finally{axios.get=original;}
 });
+
+test('erro 503 e limite 429 podem ser repetidos; 404 e HTML 200 continuam rejeitados',async()=>{
+ const axios=require('axios'),{Readable}=require('node:stream'),original=axios.get,{ler}=require('./mp4-rapido.cjs');
+ try{for(const status of [503,429,404,200]){
+  axios.get=async()=>({status,headers:{'content-type':'text/html'},data:Readable.from(['<html>erro</html>'])});
+  const r=await ler('https://cdn.example/video.mp4','',{falhaExplicita:true});assert.equal(r.indisponivel,true);assert.equal(Boolean(r.temporaria),status===503||status===429);
+ }}finally{axios.get=original;}
+});

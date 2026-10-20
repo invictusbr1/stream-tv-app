@@ -437,3 +437,28 @@ test('abre gavetas superiores primeiro na fila e ainda mede a reserva HD',async(
   assert.equal(calls.length,5);assert.match(calls[4],/drawer-hd/);
  }finally{while(pending.length)pending.shift()();v.faixasDeAudio=original;a.limparCache();}
 });
+
+test('proteção geral recupera consulta vazia e medição 503 antes de aceitar HD, em filmes e episódios',async()=>{
+ const a=require('./avaliador'),m=require('./fontes-motor'),fast=require('./mp4-rapido.cjs'),midia=require('./midia-proxy');
+ const original=Object.fromEntries(['filaDeFontes','lerIdiomasVerificados','registrarSucesso','anotarEscolha','registrarFalha'].map(k=>[k,m[k]])),read=fast.ler,validate=midia.validarMidia;
+ try{
+  m.lerIdiomasVerificados=()=>({});m.registrarSucesso=()=>{};m.anotarEscolha=()=>{};m.registrarFalha=()=>{};midia.validarMidia=async()=>true;
+  for(const target of [{tipo:'movie',tmdbId:'1022789'},{tipo:'movie',tmdbId:'1084244'},{tipo:'tv',tmdbId:'1399',temporada:'1',episodio:'2'}]){
+   a.limparCache();let queries=0,reads=0;
+   m.filaDeFontes=()=>[{id:'hd',resolver:async()=>({url:'https://media.invalid/hd.mp4',type:'file',audio:'pt-BR'})},{id:'uhd',resolverTodos:async()=>++queries===1?[]:[{url:'https://media.invalid/uhd.mp4',type:'file',audio:'pt-BR',exigeProva:true}]}];
+   fast.ler=async url=>{const high=url.includes('/uhd.');if(high&&++reads===1)return {indisponivel:true,temporaria:true};return {imagem:{largura:high?3840:1280,altura:high?1608:720,codec:high?'hevc':'h264'},faixas:[{idioma:'por',padrao:true,codec:'aac'}]};};
+   const r=await a.escolherMelhor('dublado',target,{semCache:true});assert.equal(r.escolhido.fonteId,'uhd');assert.equal(r.escolhido.resolucao,'2160p');assert.equal(queries,2);assert.equal(reads,2);
+  }
+ }finally{Object.assign(m,original);fast.ler=read;midia.validarMidia=validate;a.limparCache();}
+});
+
+test('uma escolha HD e sua medição não prendem o mesmo endereço quando ele passa a entregar 4K',async()=>{
+ const a=require('./avaliador'),m=require('./fontes-motor'),fast=require('./mp4-rapido.cjs'),midia=require('./midia-proxy');
+ const original=Object.fromEntries(['filaDeFontes','lerIdiomasVerificados','registrarSucesso','anotarEscolha','registrarFalha'].map(k=>[k,m[k]])),read=fast.ler,validate=midia.validarMidia,clock=Date.now;let high=false,queries=0,now=clock();
+ try{
+  Date.now=()=>now;m.filaDeFontes=()=>[{id:'same-url',resolver:async()=>{queries++;return {url:'https://media.invalid/changed.mp4',type:'file',audio:'pt-BR'};}}];m.lerIdiomasVerificados=()=>({});m.registrarSucesso=()=>{};m.anotarEscolha=()=>{};m.registrarFalha=()=>{};midia.validarMidia=async()=>true;
+  fast.ler=async()=>({imagem:{largura:high?3840:1280,altura:high?2160:720},faixas:[{idioma:'por',padrao:true,codec:'aac'}]});
+  a.limparCache();const target={tipo:'movie',tmdbId:'9999098'};assert.equal((await a.escolherMelhor('dublado',target)).escolhido.resolucao,'720p');high=true;now+=2000;
+  assert.equal((await a.escolherMelhor('dublado',target)).escolhido.resolucao,'2160p');assert.equal(queries,2);
+ }finally{Date.now=clock;Object.assign(m,original);fast.ler=read;midia.validarMidia=validate;a.limparCache();}
+});

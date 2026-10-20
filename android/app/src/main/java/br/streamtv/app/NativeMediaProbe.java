@@ -18,7 +18,7 @@ final class NativeMediaProbe {
     // O teto AVC só vale quando o aparelho não decodifica HEVC; sem isso a
     // própria medição escondia o 4K e a fonte certa perdia a disputa.
     static QualitySelector.Measure read(QualitySelector.Candidate c,long deadline,boolean allowHevc)throws Exception {
-        try{return inspect(c,deadline,allowHevc);}catch(MediaHttp.Unavailable e){return new QualitySelector.Measure(0,0,1,0,false);}
+        try{return inspect(c,deadline,allowHevc);}catch(MediaHttp.Unavailable e){return new QualitySelector.Measure(0,0,1,0,false,e.retryable);}
     }
     private static QualitySelector.Measure inspect(QualitySelector.Candidate c,long deadline,boolean allowHevc)throws Exception {
         if("hls".equals(c.type)){

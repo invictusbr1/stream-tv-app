@@ -42,7 +42,7 @@ async function analisar(fetcher,{timeout=6000}={}){
  if(!video||!audio.length)throw Error('Sem imagem e áudio');
  return {container:'mov,mp4',imagem:{largura:video.width,altura:video.height,codec:video.codec,pixels:''},faixas:audio.map((t,i)=>({ordem:i,idioma:t.language||'und',padrao:i===0&&t.enabled,codec:t.codec})),leitura:{bytes:used,requests}};
 }
-class Indisponivel extends Error {}
+class Indisponivel extends Error {constructor(status){super('O destino não entrega mídia');this.temporaria=[408,425,429].includes(status)||status>=500&&status<=599;}}
 async function ler(url,referer='',{timeout=6000,falhaExplicita=false}={}){
  try{
   const axios=require('axios'),safe=require('./perfis-motor').ehEnderecoSeguro;let target=url,referencia=referer;
@@ -59,13 +59,13 @@ async function ler(url,referer='',{timeout=6000,falhaExplicita=false}={}){
      if(a!==b&&!a.endsWith('.'+b)&&!b.endsWith('.'+a)){r.data.destroy();referencia='';seen.delete(target);i--;continue;}
     }
     try{
-     if(r.status<200||r.status>=300||/text\/html|application\/json|text\/xml/i.test(r.headers['content-type']||''))throw new Indisponivel('O destino não entrega mídia');
+     if(r.status<200||r.status>=300||/text\/html|application\/json|text\/xml/i.test(r.headers['content-type']||''))throw new Indisponivel(r.status);
      const range=/^bytes (\d+)-(\d+)\/(\d+)$/.exec(r.headers['content-range']||'');if(!range||r.status!==206)throw Error('Servidor não oferece faixas');
      const parts=[];let size=0;for await(const part of r.data){size+=part.length;if(size>length)throw Error('Faixa excessiva');parts.push(part);}
      return {status:r.status,start:Number(range[1]),total:Number(range[3]),bytes:Buffer.concat(parts,size),mime:r.headers['content-type']||''};
     }finally{r.data.destroy();}
    }throw Error('Redirecionamentos excessivos');
   },{timeout});
- }catch(erro){return falhaExplicita&&erro instanceof Indisponivel?{indisponivel:true}:null;}
+ }catch(erro){return falhaExplicita&&erro instanceof Indisponivel?{indisponivel:true,...(erro.temporaria?{temporaria:true}:{})}:null;}
 }
 module.exports={ler,analisar};

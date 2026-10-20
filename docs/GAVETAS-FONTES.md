@@ -30,3 +30,12 @@ melhorias posteriores. A memória persistida nunca dispensa a sonda atual.
 A compatibilidade e a entrega ainda são verificadas. Nenhuma organização
 garante que um fornecedor indisponível volte a responder ou que um arquivo
 medido já tenha reproduzido no aparelho; essa confirmação é separada.
+
+Proteção geral (2.13.98): consulta vazia ou falha recebe uma segunda consulta
+curta quando ainda há pelo menos 1,5 segundo no orçamento. Erros HTTP
+transitórios (408, 425, 429 e 5xx) recebem nova medição limitada; HTML com
+status 200, mídia inválida, idioma estrangeiro e codec incompatível continuam
+rejeitados. Não se flexibilizam certificados ou a exigência de mídia real.
+Escolhas e medições abaixo de 4K expiram em 1,5 segundo para que a próxima
+abertura confira novamente inclusive o mesmo endereço. Continua valendo o
+teto de dez segundos, sem interromper uma reprodução já iniciada.

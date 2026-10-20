@@ -106,7 +106,7 @@ function lerArquivoComLimite(url,referer,opcoes){
 async function sondarArquivo(url, referer, opcoes = {}) {
     const faixas = await lerArquivoComLimite(url,referer,opcoes);
     if (!faixas) return null;
-    if (faixas.indisponivel) return {indisponivel:true};
+    if (faixas.indisponivel) return {indisponivel:true,...(faixas.temporaria?{temporaria:true}:{})};
     const portuguesa = faixas.faixas.find(f => /^pt|por/.test(f.idioma));
     return {
         mestre: false,
@@ -138,7 +138,7 @@ async function sondar(dados,opcoes={}) {
         const sonda = ehLista ? await sondarLista(dados.url, dados.referer) : await sondarArquivo(dados.url, dados.referer,opcoes);
         if (versao === versaoMedicoes && sonda?.altura > 0) {
             if (medidasDeArquivo.size >= 128) medidasDeArquivo.delete(medidasDeArquivo.keys().next().value);
-            medidasDeArquivo.set(chave, { sonda, expira: Date.now() + (ehLista ? 60000 : VALIDADE) });
+            medidasDeArquivo.set(chave, { sonda, expira: Date.now() + (gavetaDaAltura(alturaEquivalente(sonda.largura,sonda.altura))<5?1500:VALIDADE) });
         }
         return sonda;
     } catch { return null; } })();
@@ -336,7 +336,7 @@ async function escolherMelhor(papel, alvo, opcoes = {}) {
         const gaveta=gavetaDaAltura(alturaDoRotulo(dados.resolucao));
         let prova=await prazo(lembrada?sondarArquivo(dados.url,dados.referer,{timeout:limiteInicial,rapida:true,prioritaria:true,gaveta}):sondar(dados,{timeout:limiteInicial,rapida:dados.type==='file',gaveta}),limiteInicial);
         const restante=prazoFinal-Date.now();
-        if(!prova?.indisponivel&&(!prova?.largura||!prova?.altura)&&restante>500&&dados.type==='file'){
+        if((prova?.temporaria||!prova?.indisponivel&&(!prova?.largura||!prova?.altura))&&restante>500&&dados.type==='file'){
             const limite=Math.min(2500,restante);
             prova=await prazo(sondarArquivo(dados.url,dados.referer,{timeout:limite,rapida:true,gaveta}),limite);
         }
@@ -368,7 +368,11 @@ async function escolherMelhor(papel, alvo, opcoes = {}) {
     });
     const busca=Promise.all([...lembrarJobs,...fila.map(async fonte=>{
         const comeco=Date.now();
-        const resposta=await prazo(Promise.resolve().then(()=>typeof fonte.resolverTodos==='function'?fonte.resolverTodos(alvo):fonte.resolver(alvo)),TEMPO_RESOLVER);
+        const consultar=()=>Promise.resolve().then(()=>typeof fonte.resolverTodos==='function'?fonte.resolverTodos(alvo):fonte.resolver(alvo));
+        let resposta=await prazo(consultar(),Math.max(1,Math.min(TEMPO_RESOLVER,prazoFinal-Date.now())));
+        const vazia=x=>!x||(Array.isArray(x)?!x.some(d=>d?.url):!x.url);
+        const restante=prazoFinal-Date.now();
+        if(vazia(resposta)&&restante>1500)resposta=await prazo(consultar(),Math.min(2500,Math.floor(restante/2)));
         const opcoes=(Array.isArray(resposta)?resposta:resposta?[resposta]:[]).slice().sort((a,b)=>alturaDoRotulo(b?.resolucao)-alturaDoRotulo(a?.resolucao));
         if(!opcoes.length)fontesInconclusivas=true;
         const ms=Date.now()-comeco;
@@ -406,7 +410,7 @@ async function escolherMelhor(papel, alvo, opcoes = {}) {
     motor.registrarSucesso(resultado.escolhido.fonteId);
     motor.anotarEscolha(papel, alvo, resultado.escolhido);
     if (cache.size >= 256 && !cache.has(chave)) cache.delete(cache.keys().next().value);
-    const incompleta=fontesInconclusivas||registros.some(r=>!r.sonda?.largura||!r.sonda?.altura);
+    const incompleta=gavetaDaAltura(alturaDoRotulo(resultado.escolhido.resolucao))<5||fontesInconclusivas||registros.some(r=>!r.sonda?.largura||!r.sonda?.altura);
     if(!registros.some(r=>r.item.dados.efemera))cache.set(chave, { resultado, conferidas, expira: Date.now() + (incompleta?1500:VALIDADE) });
     return resultado;
 }
