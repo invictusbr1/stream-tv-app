@@ -53,6 +53,14 @@ public final class QualitySelectorTest {
             break;
         }
         case "clickhost":{
+            AtomicInteger retryPages=new AtomicInteger();long retryDeadline=QualitySelector.now()+10000;
+            ClickHostSource.Link retried=ClickHostSource.resolve("https://example.org",retryDeadline,(endpoint,end)->{
+                check(end<=retryDeadline&&end-QualitySelector.now()<=2500);
+                return retryPages.incrementAndGet()==1?"sem arquivo":"streamUrl: \"https://cdn.example/video.mp4\", streamIsHls: false";
+            });
+            check(retried!=null&&retryPages.get()==2);
+            AtomicInteger unavailable=new AtomicInteger();check(ClickHostSource.resolve("https://example.org",retryDeadline,(endpoint,end)->{unavailable.incrementAndGet();throw new java.io.IOException();})==null);check(unavailable.get()==2);
+
             check(ClickHostSource.endpoint("movie","1084244",null,null).endsWith("/filme/1084244?ad_played=1"));
             check(ClickHostSource.endpoint("tv","1399","1","2").contains("/serie/1399/1/2"));
             check(ClickHostSource.endpoint("tv","1399","0","2")==null);

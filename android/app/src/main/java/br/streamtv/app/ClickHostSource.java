@@ -9,6 +9,15 @@ final class ClickHostSource {
         final String url,type;
         Link(String url,String type){this.url=url;this.type=type;}
     }
+    interface Page { String read(String endpoint,long deadline)throws Exception; }
+    static Link resolve(String endpoint,long deadline,Page page){
+        if(endpoint==null)return null;
+        for(int attempt=0;attempt<2&&deadline-QualitySelector.now()>500&&!Thread.currentThread().isInterrupted();attempt++){
+            try{Link link=extract(page.read(endpoint,Math.min(deadline,QualitySelector.now()+2500)));if(link!=null)return link;}
+            catch(Exception ignored){if(Thread.currentThread().isInterrupted())return null;}
+        }
+        return null;
+    }
     static String endpoint(String type,String id,String season,String episode){
         if(id==null||!id.matches("[1-9][0-9]{0,9}"))return null;
         if("movie".equals(type))return BASE+"/embed/filme/"+id+"?ad_played=1";

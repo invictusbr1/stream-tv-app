@@ -25,7 +25,7 @@ const axios = require('axios');
 
 const BASE = 'https://embed-api.clickhost.xyz';
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36';
-const TEMPO = 12000;
+const TEMPO = 2500; // Duas consultas curtas deixam tempo para medir a mídia no orçamento de 10s.
 
 function caminho(tipo, tmdbId, temporada, episodio) {
     const serie = tipo === 'tv' || tipo === 'series';

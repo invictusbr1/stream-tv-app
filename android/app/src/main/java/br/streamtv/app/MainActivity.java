@@ -869,8 +869,8 @@ public final class MainActivity extends Activity {
             qualityDeadline.set(deadline);
             try{
                 String endpoint=ClickHostSource.endpoint(tipo,id,temporada,episodio);if(endpoint==null)return null;
-                ClickHostSource.Link link=null;
-                for(int attempt=0;attempt<2&&link==null&&QualitySelector.now()<deadline;attempt++)link=ClickHostSource.extract(lerPagina(endpoint,ClickHostSource.BASE+"/"));
+                ClickHostSource.Link link=ClickHostSource.resolve(endpoint,deadline,(url,pageDeadline)->{qualityDeadline.set(pageDeadline);return lerPagina(url,ClickHostSource.BASE+"/");});
+                qualityDeadline.set(deadline);
                 if(link==null)return null;
                 String ref=ClickHostSource.BASE+"/";
                 JSONObject data=new JSONObject().put("url","hls".equals(link.type)?enderecoEncaminhado(link.url,ref):link.url).put("type",link.type).put("audio","pt-BR").put("fonteId","clickhost").put("source","ClickHost · dublado");
@@ -1506,7 +1506,7 @@ public final class MainActivity extends Activity {
                 }
                 String name = "/".equals(path) ? "index.html" : path.substring(1);
                 // Only the bundled public assets can be served; no arbitrary file paths.
-                if (!name.matches("(?:index\\.html|assistir\\.html|tv\\.css|personal\\.js|episodios\\.js|avisos-servidor\\.js|library\\.js|auth\\.js|jarvis\\.js|acesso\\.js|legendas\\.js|fontes\\.json|catalog\\.js|android\\.js|config\\.json|enquadramento\\.js|playback\\.js|reproducao-sessao\\.js|anime-player\\.js|hls\\.min\\.js|vidsrc-source\\.js|listas-tv\\.js|futebol\\.js|mininovelas\\.js|mininovelas-source\\.js|perfis\\.json)")) return error(404);
+                if (!name.matches("(?:index\\.html|assistir\\.html|tv\\.css|personal\\.js|abertura\\.js|episodios\\.js|avisos-servidor\\.js|library\\.js|auth\\.js|jarvis\\.js|acesso\\.js|legendas\\.js|fontes\\.json|catalog\\.js|android\\.js|config\\.json|enquadramento\\.js|playback\\.js|reproducao-sessao\\.js|anime-player\\.js|hls\\.min\\.js|vidsrc-source\\.js|listas-tv\\.js|futebol\\.js|mininovelas\\.js|mininovelas-source\\.js|perfis\\.json)")) return error(404);
                 try {
                     String mime = name.endsWith(".html") ? "text/html" : name.endsWith(".css") ? "text/css" : name.endsWith(".js") ? "text/javascript" : "application/json";
                     return new WebResourceResponse(mime, "UTF-8", 200, "OK", Collections.singletonMap("Cache-Control", "no-store"), getAssets().open(name));
