@@ -953,6 +953,7 @@ const libraryCatalog=require('./android/app/src/main/assets/catalog').createCata
 app.get(['/api/explore','/api/genres','/api/top-br','/api/alta',/^\/api\/(tv|season|episode)\//],async(req,res)=>{try{res.json(await libraryCatalog.request(req.originalUrl));}catch{res.status(502).json({error:'Catálogo indisponível'});}});
 app.get('/personal.js',(req,res)=>{res.setHeader('Cache-Control','no-store');res.sendFile(path.join(__dirname,'personal.js'));});
 app.get('/abertura.js',(req,res)=>{res.setHeader('Cache-Control','no-store');res.type('js').sendFile(path.join(__dirname,'abertura.js'));});
+app.get('/creditos.js',(req,res)=>{res.setHeader('Cache-Control','no-store');res.type('js').sendFile(path.join(__dirname,'creditos.js'));});
 app.get('/episodios.js',(req,res)=>{res.setHeader('Cache-Control','no-store');res.sendFile(path.join(__dirname,'episodios.js'));});
 app.get('/avisos-servidor.js',(req,res)=>{res.setHeader('Cache-Control','no-store');res.type('js').sendFile(path.join(__dirname,'avisos-servidor.js'));});
 app.get('/library.js',(req,res)=>{res.setHeader('Cache-Control','no-store');res.type('js').send(fs.readFileSync(path.join(__dirname,'library.js')));});

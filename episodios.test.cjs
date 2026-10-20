@@ -29,11 +29,33 @@ function clock(){
  let seq=0;const jobs=new Map();return {schedule(fn){const id=++seq;jobs.set(id,fn);return id;},clear(id){jobs.delete(id);},step(){const batch=[...jobs.values()];jobs.clear();batch.forEach(fn=>fn());},size:()=>jobs.size};
 }
 function browser(){
- const time=clock(),panel={hidden:true},label={},detail={};const b={hidden:true,disabled:false},classes=new Set(['ativo']),opened=[],queued=[],calls=[];let resolveSlow;
+ const time=clock(),panel={hidden:true},label={},detail={},video={paused:false,seeking:false},options={hidden:true};const b={hidden:true,disabled:false},classes=new Set(['ativo']),opened=[],queued=[],calls=[];let resolveSlow;
  const window={StreamPlayback:{saveProgress(){calls.push('save');}},StreamPersonal:{queueEpisode:f=>queued.push(f)}};
- const context=vm.createContext({globalThis:window,document:{hidden:false,getElementById:id=>id==='episode-countdown'?panel:id==='episode-countdown-label'?label:id==='episode-countdown-detail'?detail:id==='next-episode'?b:id==='player'?{classList:{contains:c=>classes.has(c)}}:null},AbortController,setTimeout:time.schedule,clearTimeout:time.clear,filmeAtual:target,lerJson:async path=>path.includes('/999/')?new Promise(r=>resolveSlow=r):{episodes:[{number:2},{number:3}]},abrirPlayer:async(...args)=>{opened.push(args);}});
- vm.runInContext(fs.readFileSync(__dirname+'/episodios.js','utf8'),context);return {window,context,b,opened,queued,calls,time,panel,label,detail,resolve:()=>resolveSlow?.({episodes:[{number:2},{number:3}]})};
+ const context=vm.createContext({globalThis:window,document:{hidden:false,getElementById:id=>id==='direct-video'?video:id==='opcoes'?options:id==='episode-countdown'?panel:id==='episode-countdown-label'?label:id==='episode-countdown-detail'?detail:id==='next-episode'?b:id==='player'?{classList:{contains:c=>classes.has(c)}}:null},AbortController,setTimeout:time.schedule,clearTimeout:time.clear,filmeAtual:target,lerJson:async path=>path.includes('/999/')?new Promise(r=>resolveSlow=r):{episodes:[{number:2},{number:3}]},abrirPlayer:async(...args)=>{opened.push(args);}});
+ vm.runInContext(fs.readFileSync(__dirname+'/episodios.js','utf8'),context);return {window,context,b,opened,queued,calls,time,panel,label,detail,video,options,resolve:()=>resolveSlow?.({episodes:[{number:2},{number:3}]})};
 }
+test('créditos iniciam cinco segundos antes de ended, sem antecipar o progresso ou cancelar por buffering',async()=>{
+ const s=browser();await s.window.StreamEpisodes.prepare(target);s.window.StreamEpisodes.credits(target);
+ assert.equal(s.panel.hidden,false);assert.equal(s.queued.length,0);s.window.StreamEpisodes.playing();
+ for(let i=0;i<4;i++)s.time.step();assert.equal(s.opened.length,0);s.time.step();assert.equal(s.opened.length,1);
+});
+test('pausa e opções suspendem a contagem dos créditos; voltar oferece cinco segundos',async()=>{
+ for(const mode of ['pause','options']){
+  const s=browser();await s.window.StreamEpisodes.prepare(target);s.window.StreamEpisodes.credits(target);s.time.step();
+  if(mode==='pause')s.video.paused=true;else s.options.hidden=false;s.window.StreamEpisodes.visibility();
+  for(let i=0;i<6;i++)s.time.step();assert.equal(s.opened.length,0);
+  s.video.paused=false;s.options.hidden=true;s.window.StreamEpisodes.visibility();for(let i=0;i<4;i++)s.time.step();assert.equal(s.opened.length,0);s.time.step();assert.equal(s.opened.length,1);
+ }
+});
+test('cancelar créditos continua permitindo assistir até o fim sem nova troca automática',async()=>{
+ const s=browser();await s.window.StreamEpisodes.prepare(target);s.window.StreamEpisodes.credits(target);s.window.StreamEpisodes.cancelAuto();s.window.StreamEpisodes.finished(target);
+ for(let i=0;i<6;i++)s.time.step();assert.equal(s.opened.length,0);assert.equal(s.panel.hidden,true);
+});
+test('voltar para a cena cancela a contagem; fim real não reinicia uma contagem de créditos ativa',async()=>{
+ const s=browser();await s.window.StreamEpisodes.prepare(target);s.window.StreamEpisodes.credits(target);s.time.step();s.window.StreamEpisodes.leaveCredits(target);
+ for(let i=0;i<6;i++)s.time.step();assert.equal(s.opened.length,0);assert.equal(s.panel.hidden,true);
+ s.window.StreamEpisodes.credits(target);s.time.step();s.time.step();s.window.StreamEpisodes.finished(target);s.time.step();s.time.step();assert.equal(s.opened.length,0);s.time.step();assert.equal(s.opened.length,1);
+});
 test('botão preserva anime, idioma e progresso ao abrir o próximo sem fechar o player',async()=>{
  const s=browser();await s.window.StreamEpisodes.prepare(target);assert.equal(s.b.hidden,false);await s.window.StreamEpisodes.go();assert.deepEqual(s.calls,['save']);
  assert.equal(s.opened[0][1],'Série · T1 E3');assert.deepEqual(JSON.parse(JSON.stringify(s.opened[0][2])),{season:1,number:3,anime:true,audio:'legendado'});

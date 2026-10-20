@@ -85,6 +85,7 @@ fs.copyFileSync(path.join(root,'vidsrc-source.js'),path.join(assets,'vidsrc-sour
 fs.copyFileSync(path.join(root,'personal.js'),path.join(assets,'personal.js'));
 fs.copyFileSync(path.join(root,'episodios.js'),path.join(assets,'episodios.js'));
 fs.copyFileSync(path.join(root,'abertura.js'),path.join(assets,'abertura.js'));
+fs.copyFileSync(path.join(root,'creditos.js'),path.join(assets,'creditos.js'));
 fs.copyFileSync(path.join(root,'avisos-servidor.js'),path.join(assets,'avisos-servidor.js'));
 fs.copyFileSync(path.join(root,'auth.js'),path.join(assets,'auth.js'));
 fs.copyFileSync(path.join(root,'jarvis.js'),path.join(assets,'jarvis.js'));

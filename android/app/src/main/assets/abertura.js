@@ -36,11 +36,11 @@ function createIntro({storage,render=()=>{},status=()=>{}}={}){
   const data={...saved};delete data[key];data[key]=r;const entries=Object.entries(data).slice(-200);try{storage.setItem('conecta-intros-v1',JSON.stringify(Object.fromEntries(entries)));}catch{status('Não foi possível salvar a marcação neste aparelho.');return false;}saved=data;status('Abertura salva apenas para este episódio e esta versão do vídeo.');refresh();return true;
  },remove(){if(!key)return;const data={...saved};delete data[key];try{storage.setItem('conecta-intros-v1',JSON.stringify(data));}catch{status('Não foi possível remover.');return;}saved=data;status('Marcação removida.');refresh();},skip(){refresh();if(!mark||!video||video.currentTime<mark.start||video.currentTime>=mark.end)return false;try{video.currentTime=mark.end;refresh();return true;}catch{return false;}},position(){return video?.currentTime||0;}};
 }
-if(typeof module!=='undefined'&&module.exports){module.exports={createIntro,range,timestamp,chapterRange,mediaKey};return;}
+if(typeof module!=='undefined'&&module.exports){module.exports={createIntro,range,timestamp,format,chapterRange,mediaKey};return;}
 const el=id=>document.getElementById(id);let previous=null;let store;try{store=root.localStorage;}catch{}
 const intro=createIntro({storage:store,status:text=>{el('intro-note').textContent=text;},render:state=>{
  if(el('skip-intro'))el('skip-intro').hidden=!state.show;if(el('intro-settings'))el('intro-settings').hidden=!state.enabled;
  const signature=JSON.stringify(state.mark);if(signature!==previous){previous=signature;if(el('intro-start'))el('intro-start').value=state.mark?format(state.mark.start):'';if(el('intro-end'))el('intro-end').value=state.mark?format(state.mark.end):'';}
 }});
-root.StreamIntro={...intro,save(){return intro.save(el('intro-start').value,el('intro-end').value);},here(which){el(which==='start'?'intro-start':'intro-end').value=format(intro.position());}};
+root.StreamIntro={...intro,mediaKey,timestamp,format,save(){return intro.save(el('intro-start').value,el('intro-end').value);},here(which){el(which==='start'?'intro-start':'intro-end').value=format(intro.position());}};
 })(globalThis);
