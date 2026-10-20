@@ -1,14 +1,14 @@
 {
-  "versionCode": 428,
-  "versionName": "2.13.98",
-  "apkUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.98/Conecta-TV-Android-2.13.98.apk",
-  "sha256": "6c18d97aec438908196fb86ff8f7481c80f2ae8442b00bba0a1b7993110862a8",
-  "bytes": 494852,
-  "notes": "Proteção geral da qualidade: segunda consulta curta para fontes sem resposta, nova medição em erros temporários e renovação rápida de escolhas abaixo de 4K. Prioridade de melhor resolução dublada e fontes sem anúncios preservada, com orçamento total de 10 segundos.",
+  "versionCode": 429,
+  "versionName": "2.13.99",
+  "apkUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.99/Conecta-TV-Android-2.13.99.apk",
+  "sha256": "e4766a43da6bd1ee1052da86b6478967df1a674be228b912f32a2b0dd7a12eda",
+  "bytes": 494866,
+  "notes": "Seleção geral de qualidade aprimorada: leitura leve de metadados separada das análises pesadas, uma opção medida por fornecedor de cada vez e consulta inicial tolerante à concorrência. Preserva as retentativas, melhor qualidade dublada, ausência de anúncios e limite total de 10 segundos.",
   "exeUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.68/Conecta-TV-2.13.68.exe",
   "exeSha256": "40914a57b0e3ad375615c9954839f8c3f7bb138d8739472772de3ee28d3ff015",
   "exeBytes": 120409967,
-  "apkTvUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.98/Conecta-TV-TV-2.13.98.apk",
-  "apkTvSha256": "6a1baebb8b391905a20b14e5e5a3f224225afdb888d55313c91ddeb9efb5ab15",
-  "apkTvBytes": 494545
+  "apkTvUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.99/Conecta-TV-TV-2.13.99.apk",
+  "apkTvSha256": "cbec1f7663cd8492fd78187c19a15bb02f93b35f4ddaace36ec925cd57d20e4e",
+  "apkTvBytes": 494577
 }
