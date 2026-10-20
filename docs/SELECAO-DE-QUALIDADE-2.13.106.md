@@ -55,3 +55,11 @@ O último caso não confirma dublagem por metadados; a bancada não aplica as pr
 O intermediário `dbonline.tech-cdn.top` do ClickHost apresentou timeout em testes independentes. A falha não foi tratada como ausência definitiva do filme. Toy Story utilizou outro caminho e entregou o arquivo 4K. Os testes de rede mostraram variação entre consultas; não há garantia de qualidade máxima absoluta enquanto um fornecedor está inacessível.
 
 Os registros de bancada guardam somente nomes, dimensões, tempos e estados no relatório. Não publicar URLs assinadas, credenciais ou arquivos de mídia.
+
+## Conferência após publicação
+
+APK celular e TV 2.13.106 (código 436) compilados, assinaturas e lint conferidos. O motor no servidor apresentou o mesmo SHA-256 do arquivo testado, versão 2.13.106, orçamento 12000 ms, cache web atualizado e checagem de saúde aprovada.
+
+Na consulta final online, Toy Story 5 confirmou 3840 × 2160 e português em 7,63 s. Interstellar confirmou somente 1280 × 720 em 12,18 s, embora a bancada Java tivesse obtido 3840 × 1600. Uma conferência isolada do FenixHub no servidor retornou zero endereços em 3,08 s. As fichas completas desse fornecedor no servidor e na bancada tinham SHA-256 idêntico. Portanto, não há evidência de ficha desatualizada; as respostas variaram entre acessos/consultas. Isso não comprova qual restrição ou instabilidade do fornecedor causou a diferença.
+
+Não apresentar a publicação como garantia de 4K em todos os títulos ou como resolução de toda indisponibilidade externa. A melhoria é do processo de comparação e revisão, com os limites e resultados reais registrados acima.
