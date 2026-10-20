@@ -39,3 +39,12 @@ rejeitados. Não se flexibilizam certificados ou a exigência de mídia real.
 Escolhas e medições abaixo de 4K expiram em 1,5 segundo para que a próxima
 abertura confira novamente inclusive o mesmo endereço. Continua valendo o
 teto de dez segundos, sem interromper uma reprodução já iniciada.
+
+Concorrência (2.13.99): metadados MP4 usam até quatro leituras leves;
+análises completas mantêm limite de dois processos. Uma leitura leve
+inconclusiva libera a vaga antes de entrar na fila de análise completa,
+sem renovar seu prazo. Cada fornecedor mantém uma medição do seu lote por
+vez no servidor, assim como no APK. A página inicial do ClickHost recebe
+até 4,5s para tolerar a concorrência; a segunda tentativa recebe até 2,5s.
+A resolução no servidor limita as duas consultas a 7s, dentro do teto
+inalterado de 10s da escolha completa.

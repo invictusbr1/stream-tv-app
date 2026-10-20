@@ -25,7 +25,7 @@ const axios = require('axios');
 
 const BASE = 'https://embed-api.clickhost.xyz';
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36';
-const TEMPO = 2500; // Duas consultas curtas deixam tempo para medir a mídia no orçamento de 10s.
+const TEMPO = 4500; // A primeira página tolera a concorrência; a reserva usa o prazo restante.
 
 function caminho(tipo, tmdbId, temporada, episodio) {
     const serie = tipo === 'tv' || tipo === 'series';
@@ -58,13 +58,13 @@ async function resolver(tipo, tmdbId, temporada, episodio) {
     // O fornecedor alterna entre servidores: em ~1 de cada 10 leituras a página
     // volta sem o arquivo direto. Uma segunda tentativa resolve quase todos
     // esses casos sem custo perceptível (a página responde em ~300 ms).
-    let achado = null;
-    for (let tentativa = 0; tentativa < 2 && !achado; tentativa++) {
+    let achado = null;const fimConsulta=Date.now()+7000;
+    for (let tentativa = 0; tentativa < 2 && !achado && Date.now()<fimConsulta; tentativa++) {
         let html = '';
         try {
             const resposta = await axios.get(BASE + caminho(tipo, id, temporada, episodio), {
                 headers: { 'User-Agent': UA, Accept: 'text/html,application/xhtml+xml,*/*', Referer: BASE + '/' },
-                timeout: TEMPO,
+                timeout: Math.max(1,Math.min(tentativa===0?TEMPO:2500,fimConsulta-Date.now())),
                 responseType: 'text',
                 maxContentLength: 2 * 1024 * 1024,
                 validateStatus: status => status === 200,

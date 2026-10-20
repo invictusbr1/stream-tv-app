@@ -85,15 +85,22 @@ async function sondarLista(url, referer) {
     return analise;
 }
 
-const leiturasPendentes=new Map(),filaDeLeituras=[];let leiturasAtivas=0;
+const leiturasPendentes=new Map(),filaDeLeituras=[];let leiturasAtivas=0,leiturasRapidasAtivas=0;
 function liberarLeituras(){
     filaDeLeituras.sort((a,b)=>Number(b.prioritaria)-Number(a.prioritaria)||b.gaveta-a.gaveta);
-    while(leiturasAtivas<2&&filaDeLeituras.length){
-        const job=filaDeLeituras.shift(),restante=job.fim-Date.now();
+    for(;;){
+        const index=filaDeLeituras.findIndex(j=>j.rapida?leiturasRapidasAtivas<4:leiturasAtivas<2);
+        if(index<0)return;
+        const job=filaDeLeituras.splice(index,1)[0],restante=job.fim-Date.now(),rapida=job.rapida;
         if(restante<500){job.resolve(null);continue;}
-        leiturasAtivas++;
-        let leitura;try{leitura=job.rapida?(async()=>{const leve=await require('./mp4-rapido.cjs').ler(job.url,job.referer,{timeout:restante,falhaExplicita:true});if(leve)return leve;const sobra=job.fim-Date.now();return sobra>500?require('./central/verificar-midia').faixasDeAudio(job.url,job.referer,{timeout:Math.max(1000,sobra)}):null;})():require('./central/verificar-midia').faixasDeAudio(job.url,job.referer,{timeout:Math.max(1000,restante)});}catch{leitura=null;}
-        Promise.resolve(leitura).then(job.resolve,()=>job.resolve(null)).finally(()=>{leiturasAtivas--;liberarLeituras();});
+        if(rapida)leiturasRapidasAtivas++;else leiturasAtivas++;
+        let leitura;try{leitura=rapida?require('./mp4-rapido.cjs').ler(job.url,job.referer,{timeout:restante,falhaExplicita:true}):require('./central/verificar-midia').faixasDeAudio(job.url,job.referer,{timeout:Math.max(1000,restante)});}catch{leitura=null;}
+        const terminar=value=>{
+            // Uma leitura leve inconclusiva volta à fila pesada, liberando a
+            // vaga de metadados. Processos de análise continuam limitados a dois.
+            if(rapida&&!value&&job.fim-Date.now()>500){job.rapida=false;filaDeLeituras.push(job);}else job.resolve(value);
+        };
+        Promise.resolve(leitura).then(terminar,()=>terminar(null)).finally(()=>{if(rapida)leiturasRapidasAtivas--;else leiturasAtivas--;liberarLeituras();});
     }
 }
 function lerArquivoComLimite(url,referer,opcoes){
@@ -376,10 +383,11 @@ async function escolherMelhor(papel, alvo, opcoes = {}) {
         const opcoes=(Array.isArray(resposta)?resposta:resposta?[resposta]:[]).slice().sort((a,b)=>alturaDoRotulo(b?.resolucao)-alturaDoRotulo(a?.resolucao));
         if(!opcoes.length)fontesInconclusivas=true;
         const ms=Date.now()-comeco;
-        await Promise.all(opcoes.filter(dados=>dados?.url).map(dados=>{
+        for(const dados of opcoes.filter(dados=>dados?.url)){
+            if(Date.now()>=prazoFinal)break;
             const sonda=conferir(dados);
-            return medir({fonte,dados,ms,sonda,validacao:validar(dados,sonda)});
-        }));
+            await medir({fonte,dados,ms,sonda,validacao:validar(dados,sonda)});
+        }
     })]);
     // Não descarta uma consulta aos 3,5s: ela pode ser justamente o HD/4K.
     // Tudo que terminar cedo libera a abertura imediatamente. Só o trabalho

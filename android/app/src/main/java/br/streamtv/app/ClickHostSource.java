@@ -13,7 +13,7 @@ final class ClickHostSource {
     static Link resolve(String endpoint,long deadline,Page page){
         if(endpoint==null)return null;
         for(int attempt=0;attempt<2&&deadline-QualitySelector.now()>500&&!Thread.currentThread().isInterrupted();attempt++){
-            try{Link link=extract(page.read(endpoint,Math.min(deadline,QualitySelector.now()+2500)));if(link!=null)return link;}
+            try{Link link=extract(page.read(endpoint,Math.min(deadline,QualitySelector.now()+(attempt==0?4500:2500))));if(link!=null)return link;}
             catch(Exception ignored){if(Thread.currentThread().isInterrupted())return null;}
         }
         return null;

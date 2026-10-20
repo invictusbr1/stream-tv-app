@@ -55,7 +55,7 @@ public final class QualitySelectorTest {
         case "clickhost":{
             AtomicInteger retryPages=new AtomicInteger();long retryDeadline=QualitySelector.now()+10000;
             ClickHostSource.Link retried=ClickHostSource.resolve("https://example.org",retryDeadline,(endpoint,end)->{
-                check(end<=retryDeadline&&end-QualitySelector.now()<=2500);
+                check(end<=retryDeadline&&end-QualitySelector.now()<=(retryPages.get()==0?4500:2500));
                 return retryPages.incrementAndGet()==1?"sem arquivo":"streamUrl: \"https://cdn.example/video.mp4\", streamIsHls: false";
             });
             check(retried!=null&&retryPages.get()==2);
