@@ -447,3 +447,14 @@ test('cancelar durante a consulta compatível impede que a resposta antiga abra 
  const s=harness('Chrome');let finish;s.fetch(async path=>path.includes('compat=avc')?new Promise(r=>finish=r):{url:'/api/hls?u=hevc',type:'file',audio:'pt-BR',videoCodec:'hevc'});
  const pending=s.controller.start(1084244,1);await new Promise(setImmediate);s.controller.stop();finish({url:'/api/hls?u=avc',type:'file',audio:'pt-BR'});assert.equal(await pending,false);assert.equal(s.controller.isActive(),false);
 });
+
+test('próximo automático recebe o término real, sem antecipar aos 92% do episódio',async()=>{
+ const s=harness(),finished=[];s.context.window.StreamEpisodes={finished:f=>finished.push(f)};
+ s.context.filmeAtual={id:1399,titulo:'Série',episode:{season:1,number:2}};
+ const pending=s.controller.start(1399,1);await new Promise(setImmediate);
+ const v=s.el('direct-video');v.duration=1000;v.currentTime=0;v.videoWidth=1920;v.videoHeight=1080;v.webkitDecodedFrameCount=1;
+ v.fire('loadedmetadata');v.fire('playing');assert.equal(await pending,true);
+ v.currentTime=960;v.fire('timeupdate');assert.equal(finished.length,0);
+ v.currentTime=1000;v.fire('ended');assert.equal(finished.length,1);assert.equal(finished[0].episode.number,2);
+ s.controller.stop();
+});

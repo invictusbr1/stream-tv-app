@@ -186,7 +186,7 @@ window.StreamChrome=(()=>{
   timer=setTimeout(()=>{if(!el('opcoes').hidden||el('loading').classList.contains('vis')||document.querySelector?.('.menu-player:not([hidden])'))return;const v=el('direct-video');if(v&&v.paused)return;hide();},5000);
  }
  function toggle(event){if(!el('player').classList.contains('ativo'))return;if(el('player').classList.contains('chrome-hidden'))wake();else {hide();if(event)lastTap={x:event.clientX,y:event.clientY};}}
- const interactive=target=>target?.closest?.('button,input,select,textarea,a,.menu-player,.scrim,dialog,[role="dialog"],#direct-controls,.player-top');
+ const interactive=target=>target?.closest?.('button,input,select,textarea,a,#episode-countdown,.menu-player,.scrim,dialog,[role="dialog"],#direct-controls,.player-top');
  const background=target=>target?.closest?.('.area-player')&&!interactive(target);
  const volumeKey=e=>/^(?:Audio)?Volume(?:Up|Down|Mute)$/.test(e.key||'')||[173,174,175].includes(e.keyCode);
  for(const name of ['pointermove','pointerdown','keydown'])document.addEventListener(name,e=>{
