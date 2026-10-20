@@ -162,7 +162,7 @@ test('mudança adaptativa mostra a resolução da imagem e não o máximo anunci
  const s=harness();const v=await videoTocando(s);s.Hls.instance.levels=[{height:2160,width:3840},{height:480,width:854}];
  s.Hls.instance.emit('level',{level:0});assert.equal(s.controller.estado().resolucao,'720p');
  v.videoWidth=854;v.videoHeight=480;v.fire('resize');
- assert.equal(s.controller.estado().resolucao,'480p');assert.equal(s.el('menu-quality-btn').textContent,'480p');s.controller.stop();
+ assert.equal(s.controller.estado().resolucao,'480p');assert.equal(s.el('menu-quality-btn').textContent,'Qualidade · 480p');s.controller.stop();
 });
 
 test('watchdog de buffering não trata pausa e busca manual como falhas',async()=>{

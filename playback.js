@@ -281,7 +281,6 @@ video.addEventListener('playing',()=>{if(!current())return;intencaoTocar=true;li
             video.addEventListener('stalled',()=>esperando(current));
             video.addEventListener('seeking',()=>{if(current()){limparEspera();analiseAtual?.buscar(Number(video.currentTime)||0);}});
             video.addEventListener('seeked',()=>{if(current()){ultimaPosicao=Number(video.currentTime)||0;analiseAtual?.tocando(ultimaPosicao);awaitPicture();}});
-            video.addEventListener('click',()=>showControls(true));
             video.textTracks?.addEventListener?.('addtrack',()=>{if(!current())return;subtitleMenu();if(!escolherLegendaAutomatica())setSubtitle(subtitleChoice);});
             video.addEventListener('error',()=>{if(!current()||compatEmCurso)return;if(!imagemConfirmada&&data.type==='file'&&podeCompat&&!compatTentada)pictureTimeout();else failure();});
             // Arquivo direto (MP4 progressivo): toca no próprio player, sem
@@ -303,7 +302,7 @@ video.addEventListener('playing',()=>{if(!current())return;intencaoTocar=true;li
         });
     }
     function marcarAtivo(botao,ativo){if(!botao)return;if(ativo)botao.setAttribute('data-ativo','');else botao.removeAttribute('data-ativo');}
-    function atualizarBotoesAjuste(){const botaoQualidade=el('menu-quality-btn');if(botaoQualidade){const altura=video?.videoHeight||alturaAtual||0;botaoQualidade.textContent=altura?altura+'p':'HD';}const botaoVelocidade=el('menu-speed-btn');if(botaoVelocidade)botaoVelocidade.textContent=String(speed).replace('.',',')+'×';marcarAtivo(el('menu-subs-btn'),subtitleChoice>=0);marcarAtivo(el('menu-audio-btn'),audioChoice>=0);}
+    function atualizarBotoesAjuste(){const botaoQualidade=el('menu-quality-btn');if(botaoQualidade){const altura=video?.videoHeight||alturaAtual||0;botaoQualidade.textContent=altura?'Qualidade · '+altura+'p':'Qualidade';}const botaoVelocidade=el('menu-speed-btn');if(botaoVelocidade)botaoVelocidade.textContent='Velocidade · '+String(speed).replace('.',',')+'×';marcarAtivo(el('menu-subs-btn'),subtitleChoice>=0);marcarAtivo(el('menu-audio-btn'),audioChoice>=0);}
     // Conta para a central o que realmente aconteceu com a reprodução.
     function relatar(dados){
         try {
@@ -320,7 +319,7 @@ video.addEventListener('playing',()=>{if(!current())return;intencaoTocar=true;li
         } catch { /* a central é opcional */ }
     }
     function clock(seconds){if(!Number.isFinite(seconds))return '--:--';const n=Math.floor(seconds);return Math.floor(n/60)+':'+String(n%60).padStart(2,'0');}
-    function showControls(focus=false){if(!direct)return;window.StreamChrome?.wake();clearTimeout(controlsTimer);el('direct-controls').hidden=false;if(focus)el('direct-toggle').focus();controlsTimer=setTimeout(()=>{if(video&&!video.paused&&el('opcoes').hidden){if(el('direct-controls').contains(document.activeElement))video.focus();el('direct-controls').hidden=true;}},6000);}
+    function showControls(focus=false){if(!direct)return;window.StreamChrome?.wake();clearTimeout(controlsTimer);el('direct-controls').hidden=false;if(focus)el('direct-toggle').focus();}
     function toggle(){if(video){if(video.paused)play();else{intencaoTocar=false;video.pause();}}showControls();}
     function atualizarVolume(){const botao=el('volume-toggle');if(botao)botao.textContent=mudo||volume<=0?'🔇':volume<0.5?'🔉':'🔊';const faixa=el('volume-range');if(faixa&&!faixa.matches?.(':active'))faixa.value=String(Math.round((mudo?0:volume)*100));}
     function setVolume(valor){volume=Math.min(1,Math.max(0,Number(valor)||0));mudo=volume<=0;if(video){try{video.volume=volume;video.muted=mudo;}catch{}}try{localStorage.setItem('streamtv-volume',String(volume));localStorage.setItem('streamtv-mudo',String(mudo));}catch{}atualizarVolume();}
@@ -329,7 +328,7 @@ video.addEventListener('playing',()=>{if(!current())return;intencaoTocar=true;li
     function buscaLivre(){const barra=el('direct-progress');if(!barra)return;barra.addEventListener('pointerdown',()=>{arrastando=true;showControls(true);});barra.addEventListener('touchstart',()=>{arrastando=true;showControls(true);},{passive:true});const soltar=()=>{if(!arrastando)return;arrastando=false;irPara(barra.value);saveProgress();showControls();};barra.addEventListener('change',soltar);barra.addEventListener('pointerup',soltar);barra.addEventListener('touchend',soltar);barra.addEventListener('input',()=>{irPara(barra.value);showControls();});}
     function seek(seconds){if(!aoVivo&&video&&Number.isFinite(video.duration)){const destino=Math.max(0,Math.min(video.duration,video.currentTime+seconds));ultimaPosicao=destino;analiseAtual?.buscar(destino);video.currentTime=destino;}showControls();}
     // Mover o dedo ou o mouse traz os controles de volta enquanto o vídeo roda.
-    document.addEventListener('pointermove',()=>{if(direct&&video)showControls();},{passive:true});
+    // StreamChrome centraliza toque, mouse e o relógio de todos os controles.
     return {start,stop,play,quality,toggle,seek,showControls,setSubtitle,saveProgress,setSpeed,setAudio,audioMenu,setVolume,toggleMute,irPara,isActive:()=>direct,estado:()=>({audio:rotuloAudio,legenda:subtitleChoice,fonte:fonteUsada,fonteId:fonteIdUsada,resolucao:alturaAtual?alturaAtual+'p':'',taxa:taxaAtual,posicao:posicaoAtual()})};
 })();
 function mostrarIconeTelaCheia(ativo){const b=el('fullscreen-toggle');if(!b)return;b.textContent=ativo?'⤡':'⛶';b.setAttribute('aria-label',ativo?'Sair da tela cheia':'Tela cheia');}

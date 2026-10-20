@@ -42,7 +42,7 @@
  }
  function open(){returnFocus=document.activeElement;host().append(dialog);if(!dialog.open)dialog.showModal();for(const a of items)read.add(signature(a));save(READ,[...read].slice(-100));paint();}
  function addBell(parent){if(!parent)return;const b=document.createElement('button');b.className='aviso-sino';b.type='button';b.innerHTML=bellSvg;b.setAttribute('title','Notificações');b.addEventListener('click',open);if(parent.id==='topbar')parent.insertBefore(b,parent.querySelector('.acoes'));else parent.prepend(b);bells.push(b);}
- addBell(document.getElementById('topbar'));addBell(document.getElementById('player-tools'));
+ addBell(document.getElementById('topbar'));
  close.onclick=()=>dialog.close();dialog.addEventListener('close',()=>returnFocus?.focus?.());dismiss.onclick=()=>{toast.hidden=true;};
  document.addEventListener('fullscreenchange',()=>{if(!toast.hidden)host().append(toast);});
  async function poll(){

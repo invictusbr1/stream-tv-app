@@ -4,7 +4,7 @@ function setup(){
  const el=id=>{if(id==='direct-video')return null;if(!nodes.has(id)){const c=new Set();nodes.set(id,{hidden:true,textContent:'',value:'',append(){},addEventListener(){},classList:{add:x=>c.add(x),remove:x=>c.delete(x),contains:x=>c.has(x)},focus(){},replaceChildren(){}});}return nodes.get(id);};
  const handlers={},window={},document={hidden:false,activeElement:null,addEventListener(name,fn){(handlers[name]??=[]).push(fn);}};
  const ctx=vm.createContext({window,document,el,Option:class{},MutationObserver:class{constructor(fn){this.fn=fn;}observe(){}},AbortController,URLSearchParams,Date,timeoutSignal:()=>undefined,lerJson:async url=>{requests.push(url);return {items:[],checkedAt:new Date().toISOString()};},renderizar(){},setTimeout:fn=>{timers.set(++seq,fn);return seq;},clearTimeout:id=>timers.delete(id),setInterval:(fn,ms)=>intervals.push({fn,ms})});
- vm.runInContext(fs.readFileSync(__dirname+'/library.js','utf8'),ctx);return {window,el,timers,intervals,requests,key:(key,keyCode)=>handlers.keydown.forEach(fn=>fn({key,keyCode}))};
+ vm.runInContext(fs.readFileSync(__dirname+'/library.js','utf8'),ctx);return {window,el,timers,intervals,requests,event:(name,event)=>handlers[name]?.forEach(fn=>fn(event)),key:(key,keyCode)=>handlers.keydown.forEach(fn=>fn({key,keyCode}))};
 }
 test('title and controls hide after inactivity and wake together',()=>{const s=setup();s.el('player').classList.add('ativo');s.window.StreamChrome.wake();const fn=[...s.timers.values()].at(-1);fn();assert(s.el('player').classList.contains('chrome-hidden'));s.window.StreamChrome.wake();assert(!s.el('player').classList.contains('chrome-hidden'));});
 test('options stay visible while being used',()=>{const s=setup();s.el('player').classList.add('ativo');s.el('opcoes').hidden=false;s.window.StreamChrome.wake();[...s.timers.values()].at(-1)();assert(!s.el('player').classList.contains('chrome-hidden'));});
@@ -82,4 +82,32 @@ test('com o player aberto a barra de baixo sai da frente e o rodapé do provedor
  assert.match(html,/pararFrame\(\);el\('player'\)\?\.classList\.add\('fonte-externa'\)/,'o recorte só vale para a fonte externa');
  const biblioteca=fs.readFileSync(__dirname+'/library.js','utf8');
  assert.match(biblioteca,/classList\.toggle\('player-aberto',active\)/,'o corpo precisa receber a marca de player aberto');
+});
+
+
+test('toque mostra e esconde os controles sem o pointerdown reabrir antes do clique',()=>{
+ const s=setup(),chrome=s.window.StreamChrome;s.el('player').classList.add('ativo');
+ const area={},video={closest:selector=>selector==='.area-player'?area:null};
+ chrome.wake();s.event('pointerdown',{target:video,pointerType:'touch'});s.event('click',{target:video});
+ assert(s.el('player').classList.contains('chrome-hidden'));
+ s.event('pointermove',{target:video,pointerType:'touch'});assert(s.el('player').classList.contains('chrome-hidden'));
+ s.event('pointerdown',{target:video,pointerType:'touch'});assert(s.el('player').classList.contains('chrome-hidden'));
+ s.event('click',{target:video});assert(!s.el('player').classList.contains('chrome-hidden'));
+});
+
+test('clique nos controles e opções não oculta a interface; modal aberto mantém foco',()=>{
+ const s=setup(),chrome=s.window.StreamChrome;s.el('player').classList.add('ativo');chrome.wake();
+ const button={closest:selector=>selector==='.area-player'?{}:selector.includes('button')?{}:null};
+ s.event('pointerdown',{target:button,pointerType:'touch'});s.event('click',{target:button});
+ assert(!s.el('player').classList.contains('chrome-hidden'));
+ s.el('opcoes').hidden=false;chrome.hide();assert(!s.el('player').classList.contains('chrome-hidden'));
+});
+
+
+test('movimento mínimo do mouse antes do segundo clique não desfaz a alternância',()=>{
+ const s=setup(),video={closest:selector=>selector==='.area-player'?{}:null};s.el('player').classList.add('ativo');s.window.StreamChrome.wake();
+ s.event('click',{target:video,clientX:400,clientY:200});assert(s.el('player').classList.contains('chrome-hidden'));
+ s.event('pointermove',{target:video,pointerType:'mouse',clientX:400,clientY:200});assert(s.el('player').classList.contains('chrome-hidden'));
+ s.event('click',{target:video,clientX:400,clientY:200});assert(!s.el('player').classList.contains('chrome-hidden'));
+ s.event('click',{target:video,clientX:400,clientY:200});s.event('pointermove',{target:video,pointerType:'mouse',clientX:430,clientY:200});assert(!s.el('player').classList.contains('chrome-hidden'));
 });
