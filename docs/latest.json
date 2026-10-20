@@ -1,14 +1,14 @@
 {
-  "versionCode": 425,
-  "versionName": "2.13.95",
-  "apkUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.95/Conecta-TV-Android-2.13.95.apk",
-  "sha256": "4c430f53decc0abaa6feb5e3162c1211eb37fef05feac195d9564400587886fd",
-  "bytes": 489693,
-  "notes": "Player mais limpo: ajustes concentrados nas opções, toque para mostrar e esconder os controles e carregamento com animação leve. Preserva o motor de qualidade, 4K, gavetas e seleção de fontes sem anúncios.",
+  "versionCode": 426,
+  "versionName": "2.13.96",
+  "apkUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.96/Conecta-TV-Android-2.13.96.apk",
+  "sha256": "7534468a335de1f056cc70d5652155d816b750257d0648d5318211935b772e94",
+  "bytes": 490921,
+  "notes": "Contagem discreta de 5 segundos ao terminar episódios, com Assistir agora e Cancelar. Proteção ao trocar de título, rever cenas e retornar do segundo plano. Seleção de fontes e 4K preservadas.",
   "exeUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.68/Conecta-TV-2.13.68.exe",
   "exeSha256": "40914a57b0e3ad375615c9954839f8c3f7bb138d8739472772de3ee28d3ff015",
   "exeBytes": 120409967,
-  "apkTvUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.95/Conecta-TV-TV-2.13.95.apk",
-  "apkTvSha256": "eff42ca5f022f691d0b5cc47173a6e436d07deb27f1ebea54d8292cd84cfa024",
-  "apkTvBytes": 489341
+  "apkTvUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.96/Conecta-TV-TV-2.13.96.apk",
+  "apkTvSha256": "1e8b7c357ec7c03536cf355a0d8dda83d09c0bfa9f2de262c016a600cedb807a",
+  "apkTvBytes": 490576
 }
