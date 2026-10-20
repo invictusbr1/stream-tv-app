@@ -90,27 +90,27 @@ final class NativeMediaProbe {
                     boolean playable=true;MediaCodecList codecs=new MediaCodecList(MediaCodecList.ALL_CODECS);
                     for(Mp4Metadata.Track track:metadata.tracks){
                         if(!track.kind.equals("vide")&&!track.kind.equals("soun"))continue;
-                        if(track.mime.isEmpty()){playable=false;break;}
-                        if(!allowHevc&&"video/hevc".equals(track.mime)){playable=false;continue;}
+                        if(track.mime.isEmpty()){playable=false;if(candidate!=null)candidate.diagnosticReason="codec_desconhecido";break;}
+                        if(!allowHevc&&"video/hevc".equals(track.mime)){playable=false;if(candidate!=null)candidate.diagnosticReason="hevc_desabilitado";continue;}
                         MediaFormat format=track.kind.equals("vide")?MediaFormat.createVideoFormat(track.mime,track.width,track.height):MediaFormat.createAudioFormat(track.mime,Math.max(1,track.sampleRate),Math.max(1,track.channels));
-                        if(codecs.findDecoderForFormat(format)==null)playable=false;
+                        if(codecs.findDecoderForFormat(format)==null){playable=false;if(candidate!=null)candidate.diagnosticReason=track.kind.equals("vide")?"codec_video":"codec_audio";}
                     }
                     if(candidate!=null)candidate.deliveryUrl=resolved[0];
                     return new QualitySelector.Measure(measured.width,measured.height,measured.language,measured.bitrate,playable);
                 }
-            }catch(MediaHttp.Unavailable e){throw e;}catch(IOException ignored){ /* Outros contêineres seguem para o leitor do Android. */ }
+            }catch(MediaHttp.Unavailable e){throw e;}catch(IOException failure){if(candidate!=null)candidate.diagnosticReason=QualitySelector.problem(failure); /* Outros contêineres seguem para o leitor do Android. */ }
             extractor.setDataSource(source);int width=0,height=0;boolean pt=false,other=false,ptDefault=false,otherDefault=false,playable=true;long bitrate=0;
             for(int i=0;i<extractor.getTrackCount();i++){
                 MediaFormat format=extractor.getTrackFormat(i);String mime=format.getString(MediaFormat.KEY_MIME);
                 if(mime!=null&&mime.startsWith("video/")){
-                    if(!allowHevc&&"video/hevc".equals(mime))playable=false;
+                    if(!allowHevc&&"video/hevc".equals(mime)){playable=false;if(candidate!=null)candidate.diagnosticReason="hevc_desabilitado";}
                     width=format.containsKey(MediaFormat.KEY_WIDTH)?format.getInteger(MediaFormat.KEY_WIDTH):0;
                     height=format.containsKey(MediaFormat.KEY_HEIGHT)?format.getInteger(MediaFormat.KEY_HEIGHT):0;
                     bitrate=format.containsKey(MediaFormat.KEY_BIT_RATE)?format.getInteger(MediaFormat.KEY_BIT_RATE):0;
-                    if(new MediaCodecList(MediaCodecList.ALL_CODECS).findDecoderForFormat(format)==null)playable=false;
+                    if(new MediaCodecList(MediaCodecList.ALL_CODECS).findDecoderForFormat(format)==null){playable=false;if(candidate!=null)candidate.diagnosticReason=mime.startsWith("video/")?"codec_video":"codec_audio";}
                 }
                 if(mime!=null&&mime.startsWith("audio/")){
-                    if(new MediaCodecList(MediaCodecList.ALL_CODECS).findDecoderForFormat(format)==null)playable=false;
+                    if(new MediaCodecList(MediaCodecList.ALL_CODECS).findDecoderForFormat(format)==null){playable=false;if(candidate!=null)candidate.diagnosticReason=mime.startsWith("video/")?"codec_video":"codec_audio";}
                     String lang=format.containsKey(MediaFormat.KEY_LANGUAGE)?format.getString(MediaFormat.KEY_LANGUAGE):"";
                     boolean defaultTrack=format.containsKey("is-default")&&format.getInteger("is-default")==1;
                     if(QualitySelector.portuguese(lang)){pt=true;ptDefault|=defaultTrack;}

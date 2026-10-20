@@ -4,8 +4,8 @@ let localConfig={};try{localConfig=JSON.parse(fs.readFileSync(path.join(root,'co
 const jarvisServer=String(process.env.JARVIS_SERVER_URL||localConfig.jarvisServer||'').trim().replace(/\/$/,'');
 let html=fs.readFileSync(path.join(root,'index.html'),'utf8').replace(/\r\n/g,'\n');
 function replace(before,after){if(!html.includes(before))throw Error('UI adapter no longer matches: '+before);html=html.replace(before,after);}
-replace("async function lerJson(url,signal){const r=await fetch(url,{signal});if(!r.ok)throw Error('Indisponível');return r.json();}","async function lerJson(url,signal){if(url.startsWith('/api/playback/')||url.startsWith('/api/anime-player?')||url==='/api/tv/la18hd'||url.startsWith('/api/futebol/agenda?')){const r=await fetch(url,{signal});if(!r.ok)throw Error('Indisponível');return r.json();}return (await androidCatalog).request(url,signal);}");
-replace('<script>\n','<script src="/listas-tv.js"></script><script src="/catalog.js"></script><script src="/android.js"></script>\n<script>\n');
+replace("async function lerJson(url,signal){const r=await fetch(url,{signal});if(!r.ok)throw Error('Indisponível');return r.json();}","async function lerJson(url,signal){if(url.startsWith('/api/playback/')||url.startsWith('/api/anime-player?')||url==='/api/tv/la18hd'||url.startsWith('/api/futebol/agenda?')){const r=await fetch(url,{signal});if(!r.ok)throw Error('Indisponível');const data=await r.json();window.StreamQualityDiagnostic?.receive(data.diagnosticoQualidade);return data;}return (await androidCatalog).request(url,signal);}");
+replace('<script>\n','<script src="/listas-tv.js"></script><script src="/catalog.js"></script><script src="/android.js"></script><script src="/quality-diagnostic.js"></script>\n<script>\n');
 replace('<script>\n','<script src="/vidsrc-source.js"></script>\n<script>\n');
 // O link de "fonte com anúncios" saiu da interface; se algum dia voltar a
 // existir, o Android abre dentro da própria janela.

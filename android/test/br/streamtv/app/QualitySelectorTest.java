@@ -24,6 +24,21 @@ public final class QualitySelectorTest {
     private static QualitySelector.Measure measure(int w,int h,int lang){return new QualitySelector.Measure(w,h,lang,0,true);}
     public static void main(String[] args)throws Exception{
         switch(args[0]){
+        case "diagnostic":{
+            try(QualitySelector selector=new QualitySelector(null,true)){
+                List<QualitySelector.Source> sources=Arrays.asList(QualitySelector.named("clickhost",d->candidate("clickhost")),QualitySelector.named("fallback",d->candidate("fallback")));
+                QualitySelector.Candidate winner=selector.choose("diagnostic",sources,Collections.emptySet(),(c,d)->{
+                    if(c.id.equals("clickhost"))throw new javax.net.ssl.SSLHandshakeException("https://private.invalid/?token=secret");
+                    return measure(1280,720,2);
+                },1000);
+                check(winner!=null&&winner.id.equals("fallback"));
+                List<QualitySelector.Check> rows=selector.audit("diagnostic");check(rows.size()==2);
+                for(QualitySelector.Check row:rows){check(!row.reason.contains("private")&&!row.reason.contains("secret"));if(row.id.equals("clickhost"))check(row.reason.equals("conexao_tls"));else check(row.reason.equals("validada")&&row.width==1280);}
+                rows.get(0).reason="changed";check(!selector.audit("diagnostic").get(0).reason.equals("changed"));
+                check(selector.podeHevc());
+            }
+            break;
+        }
         case "audio-proof":{
             AudioProofs proofs=new AudioProofs();String title="movie:1084244";
             QualitySelector.Candidate full=candidate("fullhd"),hd=candidate("hd");

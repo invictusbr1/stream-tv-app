@@ -22,6 +22,7 @@ final class QualitySelector implements AutoCloseable {
         final int declared;
         volatile Measure measure;
         volatile String deliveryUrl;
+        volatile String diagnosticReason="";
         boolean remembered;
         boolean requiresProof;
         boolean ephemeral;
@@ -30,9 +31,25 @@ final class QualitySelector implements AutoCloseable {
         }
         String key() { return type+"\n"+url+"\n"+referer; }
     }
+    static final class Check {
+        final String id;volatile String reason="na_fila";volatile int width,height,language=1;volatile long ms;
+        Check(String id){this.id=id;}
+        Check(Check c){id=c.id;reason=c.reason;width=c.width;height=c.height;language=c.language;ms=c.ms;}
+    }
+    private final Map<String,List<Check>> audits=new LinkedHashMap<>();
+    synchronized List<Check> audit(String key){List<Check> rows=audits.get(key);List<Check> copy=new ArrayList<>();if(rows!=null)for(Check c:rows)copy.add(new Check(c));return copy;}
+    private static Check check(Map<String,Check> rows,String id){synchronized(rows){Check c=rows.get(id);if(c==null){c=new Check(id);rows.put(id,c);}return c;}}
+    static String problem(Exception e){
+        if(e instanceof javax.net.ssl.SSLException)return "conexao_tls";
+        if(e instanceof java.net.SocketTimeoutException)return "tempo_esgotado";
+        if(e instanceof java.net.UnknownHostException)return "dns";
+        if(e instanceof InterruptedException||Thread.currentThread().isInterrupted())return "cancelado";
+        return e instanceof java.io.IOException?"leitura_falhou":"verificacao_falhou";
+    }
     interface Source {
         Candidate resolve(long deadline) throws Exception;
         default String id(){return "";}
+        default String problem(){return "";}
         default List<Candidate> resolveAll(long deadline)throws Exception {
             Candidate c=resolve(deadline);return c==null?Collections.emptyList():Collections.singletonList(c);
         }
@@ -49,6 +66,7 @@ final class QualitySelector implements AutoCloseable {
     private final Map<String,Entry<Integer>> hints=new LinkedHashMap<>();
     static Source named(String id,Source source){return new Source(){
         public String id(){return id;}
+        public String problem(){return source.problem();}
         public Candidate resolve(long deadline)throws Exception{return source.resolve(deadline);}
         public List<Candidate> resolveAll(long deadline)throws Exception{return source.resolveAll(deadline);}
     };}
@@ -79,7 +97,7 @@ final class QualitySelector implements AutoCloseable {
     }
     Candidate choose(String key,List<Source> sources,Set<String> excluded,Probe probe,long budget,String title,Set<String> allowed,Evidence evidence) {
         if(closed)return null;
-        long deadline=now()+budget;
+        long begun=now(),deadline=begun+budget;Map<String,Check> trace=new LinkedHashMap<>();for(Source src:sources)if(!src.id().isEmpty())check(trace,src.id());
         List<Candidate> cached;
         synchronized(this){Entry<List<Candidate>> e=choices.get(key);cached=e!=null&&e.expires>now()?new ArrayList<>(e.value):null;}
         List<Candidate> remembered=history==null?Collections.emptyList():history.load(title,allowed);
@@ -95,22 +113,22 @@ final class QualitySelector implements AutoCloseable {
         try {
             CompletionService<List<Candidate>> finished=new ExecutorCompletionService<>(workers);
             if(evidence!=null)futures.add(finished.submit(()->{try{evidence.load(deadline);}catch(Exception ignored){}return Collections.emptyList();}));
-            if(history!=null)for(Candidate c:remembered)futures.add(finished.submit(()->{assess(c,excluded,probe,deadline,found);return Collections.emptyList();}));
-            if(cached!=null)for(Candidate c:cached)futures.add(finished.submit(()->{assess(c,excluded,probe,deadline,found);return Collections.emptyList();}));
+            if(history!=null)for(Candidate c:remembered)futures.add(finished.submit(()->{assess(c,excluded,probe,deadline,found,trace,begun);return Collections.emptyList();}));
+            if(cached!=null)for(Candidate c:cached)futures.add(finished.submit(()->{assess(c,excluded,probe,deadline,found,trace,begun);return Collections.emptyList();}));
             else for(Source source:scheduled)futures.add(finished.submit(()->{
-                List<Candidate> result=null;
-                try{if(now()<deadline&&!Thread.currentThread().isInterrupted())result=source.resolveAll(deadline);}catch(InterruptedException stopped){Thread.currentThread().interrupt();return null;}catch(Exception ignored){}
+                Check sourceCheck=check(trace,source.id());sourceCheck.reason="consulta";List<Candidate> result=null;
+                try{if(now()<deadline&&!Thread.currentThread().isInterrupted())result=source.resolveAll(deadline);}catch(InterruptedException stopped){Thread.currentThread().interrupt();return null;}catch(Exception failure){sourceCheck.reason=problem(failure);}
                 // Falha/retorno vazio recebe uma segunda consulta, sem ultrapassar
                 // o prazo geral nem ocupar a vaga de outro fornecedor.
                 if((result==null||result.isEmpty())&&deadline-now()>1500&&!Thread.currentThread().isInterrupted()){
                     long retryEnd=Math.min(deadline,now()+Math.min(2500,(deadline-now())/2));
-                    try{result=source.resolveAll(retryEnd);}catch(InterruptedException stopped){Thread.currentThread().interrupt();return null;}catch(Exception ignored){}
+                    try{result=source.resolveAll(retryEnd);}catch(InterruptedException stopped){Thread.currentThread().interrupt();return null;}catch(Exception failure){sourceCheck.reason=problem(failure);}
                 }
-                if(result==null||result.isEmpty())return null;
+                if(result==null||result.isEmpty()){sourceCheck.reason=source.problem().isEmpty()?(sourceCheck.reason.equals("consulta")?"sem_endereco":sourceCheck.reason):source.problem();sourceCheck.ms=now()-begun;return null;}
                 result=ordered(result);
                 // Conserva a vaga entre resolver e medir a primeira opção:
                 // outras consultas lentas não empurram essa prova para o fim.
-                assess(result.get(0),excluded,probe,deadline,found);
+                assess(result.get(0),excluded,probe,deadline,found,trace,begun);
                 return new ArrayList<>(result.subList(1,result.size()));
             }));
             int pending=futures.size();
@@ -126,7 +144,7 @@ final class QualitySelector implements AutoCloseable {
                 if(!candidates.isEmpty()){
                     Candidate c=candidates.get(0);
                     List<Candidate> remaining=new ArrayList<>(candidates.subList(1,candidates.size()));
-                    futures.add(finished.submit(()->{assess(c,excluded,probe,deadline,found);return remaining;}));pending++;
+                    futures.add(finished.submit(()->{assess(c,excluded,probe,deadline,found,trace,begun);return remaining;}));pending++;
                 }
             }
             complete=pending==0;
@@ -136,6 +154,9 @@ final class QualitySelector implements AutoCloseable {
         List<Candidate> snapshot;
         synchronized(found){snapshot=new ArrayList<>(found);}
         if(evidence!=null)for(Candidate c:snapshot)c.measure=evidence.apply(title,c);
+        for(Candidate c:snapshot){Check row=check(trace,c.id);Measure m=c.measure;if(m!=null){row.width=m.width;row.height=m.height;row.language=m.language;row.reason=!m.playable?(!c.diagnosticReason.isEmpty()?c.diagnosticReason:m.retryable?"http_temporario":"midia_indisponivel"):m.width<=0||m.height<=0?"sem_metadados":m.language<0?"idioma_outro":(c.requiresProof||c.remembered)&&m.language!=2?"idioma_sem_prova":"validada";}}
+        List<Check> report=new ArrayList<>();synchronized(trace){for(Check row:trace.values()){if(row.id.isEmpty()||report.size()>=12)continue;if(row.reason.equals("consulta")||row.reason.equals("na_fila"))row.reason="prazo_consulta";report.add(new Check(row));}}
+        synchronized(this){trim(audits,32);audits.put(key,report);}
         // Estável nos empates: não deixa a ordem das respostas da rede decidir.
         Collections.sort(snapshot,(a,b)->(a.id+"\n"+a.url).compareTo(b.id+"\n"+b.url));
         Collections.sort(snapshot,QualitySelector::compare);
@@ -150,19 +171,19 @@ final class QualitySelector implements AutoCloseable {
         for(Candidate c:snapshot)if(c.remembered||c.requiresProof?c.measure!=null&&c.measure.playable&&c.measure.language==2&&c.measure.width>0&&c.measure.height>0:c.measure==null||(c.measure.playable&&c.measure.language>=0))return c;
         return null;
     }
-    private void assess(Candidate c,Set<String> excluded,Probe probe,long deadline,List<Candidate> found) {
+    private void assess(Candidate c,Set<String> excluded,Probe probe,long deadline,List<Candidate> found,Map<String,Check> trace,long begun) {
         if(c==null||excluded.contains(c.id)||now()>=deadline||Thread.currentThread().isInterrupted())return;
-        Candidate original=c;c=new Candidate(c.id,c.url,c.referer,c.type,c.json,c.declared);c.remembered=original.remembered;c.requiresProof=original.requiresProof;c.ephemeral=original.ephemeral;
+        Check row=check(trace,c.id);row.reason="sonda";Candidate original=c;c=new Candidate(c.id,c.url,c.referer,c.type,c.json,c.declared);c.remembered=original.remembered;c.requiresProof=original.requiresProof;c.ephemeral=original.ephemeral;
         synchronized(found){for(Candidate other:found)if(other.key().equals(c.key()))return;found.add(c);}
         synchronized(this){Entry<Measure> e=measures.get(c.key());if(!c.ephemeral&&!c.remembered&&e!=null&&e.expires>now()){c.measure=e.value;return;}}
         try {
             Measure m;
-            try{m=probe.read(c,Math.min(deadline,now()+6000));}catch(Exception first){m=null;}
+            try{m=probe.read(c,Math.min(deadline,now()+6000));}catch(Exception first){if(c.diagnosticReason.isEmpty())c.diagnosticReason=problem(first);m=null;}
             // Uma falha de metadados não deve esconder a versão superior.
             // Repete só a leitura inconclusiva, dentro do prazo total.
             if((m==null||m.retryable||m.playable&&(m.width<=0||m.height<=0))&&deadline-now()>500&&!Thread.currentThread().isInterrupted())m=probe.read(c,Math.min(deadline,now()+2500));
-            if(m!=null){c.measure=m;synchronized(this){if(!closed&&!c.ephemeral&&!m.retryable){trim(measures,128);measures.put(c.key(),new Entry<>(m,now()+(!m.playable||tier((int)equivalent(m.width,m.height))<5?1500:60000)));}}}
-        }catch(Exception ignored){ /* Sem prova, conserva a alternativa existente sem inventar resolução. */ }
+            if(m!=null){c.measure=m;if(m.playable&&m.width>0&&m.height>0)c.diagnosticReason="";synchronized(this){if(!closed&&!c.ephemeral&&!m.retryable){trim(measures,128);measures.put(c.key(),new Entry<>(m,now()+(!m.playable||tier((int)equivalent(m.width,m.height))<5?1500:60000)));}}}
+        }catch(Exception failure){if(c.diagnosticReason.isEmpty())c.diagnosticReason=problem(failure);}finally{row.ms=now()-begun;row.reason=!c.diagnosticReason.isEmpty()?c.diagnosticReason:c.measure==null?"sem_metadados":"medida";}
     }
     synchronized void forget(String key){choices.remove(key);}
     // A capacidade é do aparelho, não do candidato: quem mede precisa dela.
@@ -211,5 +232,5 @@ final class QualitySelector implements AutoCloseable {
     }
     static boolean portuguese(String value){return value!=null&&value.matches("(?i)(pt|por)([-_].*)?");}
     private static <T> void trim(Map<String,T> map,int limit){if(map.size()>=limit)map.remove(map.keySet().iterator().next());}
-    @Override public synchronized void close(){closed=true;workers.shutdownNow();choices.clear();measures.clear();hints.clear();}
+    @Override public synchronized void close(){closed=true;workers.shutdownNow();choices.clear();measures.clear();hints.clear();audits.clear();}
 }

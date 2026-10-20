@@ -58,6 +58,7 @@ public final class MainActivity extends Activity {
     private QualitySelector qualitySelector;
     private QualitySelector compatibleQualitySelector;
     private final ThreadLocal<Long> qualityDeadline = new ThreadLocal<>();
+    private final ThreadLocal<String> qualityReadProblem = new ThreadLocal<>();
 
     private int qualityTimeout(int normal) throws java.io.IOException {
         Long deadline=qualityDeadline.get();
@@ -511,13 +512,13 @@ public final class MainActivity extends Activity {
             connection.setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Mobile Safari/537.36");
             connection.setRequestProperty("Accept-Language", "pt-BR,pt;q=0.9");
             if (referer != null) connection.setRequestProperty("Referer", referer);
-            if (connection.getResponseCode() != 200) return null;
+            int pageStatus=connection.getResponseCode();if(pageStatus!=200){if(qualityDeadline.get()!=null)qualityReadProblem.set("http_"+pageStatus);return null;}
             try (InputStream input = connection.getInputStream(); ByteArrayOutputStream bytes = new ByteArrayOutputStream()) {
                 byte[] buffer = new byte[8192]; int count;
                 while ((count = input.read(buffer)) != -1) { qualityTimeout(10000);bytes.write(buffer, 0, count); if (bytes.size() > 4194304) return null; }
-                return new String(bytes.toByteArray(), StandardCharsets.UTF_8);
+                if(qualityDeadline.get()!=null)qualityReadProblem.set("");return new String(bytes.toByteArray(), StandardCharsets.UTF_8);
             }
-        } catch (Exception e) { return null; }
+        } catch (Exception e) { if(qualityDeadline.get()!=null)qualityReadProblem.set(QualitySelector.problem(e));return null; }
         finally { if (connection != null) connection.disconnect(); }
     }
 
@@ -865,8 +866,10 @@ public final class MainActivity extends Activity {
     }
 
     private QualitySelector.Source qualityClickHostSource(String tipo,String id,String temporada,String episodio) {
-        return deadline->{
-            qualityDeadline.set(deadline);
+        return new QualitySelector.Source(){
+            private String lastProblem="";public String problem(){return lastProblem;}
+            public QualitySelector.Candidate resolve(long deadline)throws Exception {
+            qualityReadProblem.remove();qualityDeadline.set(deadline);
             try{
                 String endpoint=ClickHostSource.endpoint(tipo,id,temporada,episodio);if(endpoint==null)return null;
                 ClickHostSource.Link link=ClickHostSource.resolve(endpoint,deadline,(url,pageDeadline)->{qualityDeadline.set(pageDeadline);return lerPagina(url,ClickHostSource.BASE+"/");});
@@ -876,8 +879,8 @@ public final class MainActivity extends Activity {
                 JSONObject data=new JSONObject().put("url","hls".equals(link.type)?enderecoEncaminhado(link.url,ref):link.url).put("type",link.type).put("audio","pt-BR").put("fonteId","clickhost").put("source","ClickHost · dublado");
                 QualitySelector.Candidate c=new QualitySelector.Candidate("clickhost",link.url,ref,link.type,data.toString(),0);
                 c.requiresProof=true;c.ephemeral=true;return c;
-            }finally{qualityDeadline.remove();}
-        };
+            }finally{lastProblem=qualityReadProblem.get()==null?"":qualityReadProblem.get();qualityReadProblem.remove();qualityDeadline.remove();}
+        }};
     }
 
     private QualitySelector.Source qualityMgebSource(String tipo,String id,String temporada,String episodio) {
@@ -1010,6 +1013,9 @@ public final class MainActivity extends Activity {
         if(chosen!=null){
             try{
                 JSONObject data=new JSONObject(chosen.json);QualitySelector.Measure m=chosen.measure;
+                JSONObject diagnosis=new JSONObject().put("id",id).put("temporada",temporada==null?"":temporada).put("episodio",episodio==null?"":episodio).put("hevc",selector.podeHevc()).put("escolhida",chosen.id);
+                JSONArray checks=new JSONArray();for(QualitySelector.Check row:selector.audit(key))checks.put(new JSONObject().put("id",row.id).put("motivo",row.reason).put("largura",row.width).put("altura",row.height).put("idioma",row.language).put("ms",row.ms));
+                data.put("diagnosticoQualidade",diagnosis.put("fontes",checks));
                 if("file".equals(chosen.type)){
                     // O WebView recebe o destino HTTPS final, sem passar pelos
                     // redirecionamentos http publicados por alguns fornecedores.
@@ -1506,7 +1512,7 @@ public final class MainActivity extends Activity {
                 }
                 String name = "/".equals(path) ? "index.html" : path.substring(1);
                 // Only the bundled public assets can be served; no arbitrary file paths.
-                if (!name.matches("(?:index\\.html|assistir\\.html|tv\\.css|personal\\.js|abertura\\.js|episodios\\.js|avisos-servidor\\.js|library\\.js|auth\\.js|jarvis\\.js|acesso\\.js|legendas\\.js|fontes\\.json|catalog\\.js|android\\.js|config\\.json|enquadramento\\.js|playback\\.js|reproducao-sessao\\.js|anime-player\\.js|hls\\.min\\.js|vidsrc-source\\.js|listas-tv\\.js|futebol\\.js|mininovelas\\.js|mininovelas-source\\.js|perfis\\.json)")) return error(404);
+                if (!name.matches("(?:index\\.html|assistir\\.html|tv\\.css|personal\\.js|quality-diagnostic\\.js|abertura\\.js|episodios\\.js|avisos-servidor\\.js|library\\.js|auth\\.js|jarvis\\.js|acesso\\.js|legendas\\.js|fontes\\.json|catalog\\.js|android\\.js|config\\.json|enquadramento\\.js|playback\\.js|reproducao-sessao\\.js|anime-player\\.js|hls\\.min\\.js|vidsrc-source\\.js|listas-tv\\.js|futebol\\.js|mininovelas\\.js|mininovelas-source\\.js|perfis\\.json)")) return error(404);
                 try {
                     String mime = name.endsWith(".html") ? "text/html" : name.endsWith(".css") ? "text/css" : name.endsWith(".js") ? "text/javascript" : "application/json";
                     return new WebResourceResponse(mime, "UTF-8", 200, "OK", Collections.singletonMap("Cache-Control", "no-store"), getAssets().open(name));
