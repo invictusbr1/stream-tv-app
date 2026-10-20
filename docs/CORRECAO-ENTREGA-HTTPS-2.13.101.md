@@ -17,5 +17,6 @@ A recuperação é restrita ao ClickHost e à falha TLS: erro HTTP, codec recusa
 - Toy Story 5: 3840×2160 português, em 2914 ms.
 - Homem-Aranha: 3832×1600 português em 3106 ms numa repetição. O primeiro teste foi inconclusivo e recorreu ao 720p; não é evidência de disponibilidade permanente do fornecedor.
 - O transporte Java também verificou o HTTPS do servidor. Os dois canais Android compilaram e passaram na análise e verificação de assinatura.
+- Após a publicação, a rota HTTPS de produção respondeu 200 ao pedido autenticado. O seletor Java utilizou essa rota e escolheu Divertidamente 2 em 3840×1608 português em 5756 ms, acima do 720p. A mesma rota sem acesso respondeu 401. A publicação do servidor terminou saudável (`9cc7ad5abc20`).
 
 O resultado no telefone do usuário ainda precisa ser confirmado após a instalação. O teste Java valida transporte, metadados e seleção; não substitui a decodificação e reprodução no Android físico.
