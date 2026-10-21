@@ -134,3 +134,10 @@ test('botão Full HD identifica fornecedor para permitir recuperação posterior
  const s=setup();playbackRecuperavel(s);await s.run("abrirPlayer(238,'Filme')");await new Promise(setImmediate);
  s.fetch(async()=>({ok:true,json:async()=>({ok:true,urlAplicativo:'/api/hls?u=filme',fonteId:'vidlink-direto',type:'file'})}));await s.run('alternarFullHd()');assert.equal(s.run('aberturas.at(-1).args[6].id'),'vidlink-direto');assert.equal(s.run('aberturas.at(-1).args[6].tipo'),'file');
 });
+
+
+test('busca nativa completa sem fonte não dispara a mesma rodada outra vez',async()=>{
+ const s=setup();s.fetch(async()=>({ok:true,json:async()=>({players:[]})}));
+ s.run('var calls=0;window.StreamPlayback=StreamPlayback={stop(){},estado(){return {buscaEsgotada:true};},async start(){calls++;return false;}}');
+ await s.run("abrirPlayer(153312,'Tulsa King',{season:3,number:3})");assert.equal(s.run('calls'),1);
+});

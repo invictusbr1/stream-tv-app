@@ -64,6 +64,8 @@ final class QualitySelector implements AutoCloseable {
     private final ExecutorService workers=Executors.newFixedThreadPool(6,r->{Thread t=new Thread(r,"conecta-quality");t.setDaemon(true);return t;});
     private final Map<String,Entry<List<Candidate>>> choices=new LinkedHashMap<>();
     private final Map<String,Entry<Measure>> measures=new LinkedHashMap<>();
+    private static final class Reserve { final List<Candidate> candidates;final List<Check> checks;Reserve(List<Candidate> c,List<Check> r){candidates=c;checks=r;} }
+    private final Map<String,Entry<Reserve>> reserves=new LinkedHashMap<>();
     private final Map<String,Entry<Integer>> hints=new LinkedHashMap<>();
     static Source named(String id,Source source){return new Source(){
         public String id(){return id;}
@@ -99,9 +101,31 @@ final class QualitySelector implements AutoCloseable {
     private static boolean reviewable(Check c){return c!=null&&Arrays.asList("prazo_consulta","prazo_midia","tempo_esgotado","conexao_tls","dns","leitura_falhou","verificacao_falhou","http_temporario","sem_metadados","idioma_sem_prova","cancelado").contains(c.reason);}
     /** Segunda rodada apenas para provas inconclusivas; reserva validada nunca é descartada. */
     Candidate chooseVerified(String key,List<Source> sources,Set<String> excluded,Probe probe,long firstBudget,long reviewBudget,String title,Set<String> allowed,Evidence evidence){
-        long start=now();Pass first=new Pass();
+        long start=now();
+        // Uma troca da mesma abertura usa a comparação recém-feita, com nova
+        // leitura de mídia. Não repete consultas lentas a todos os fornecedores.
+        if(!title.isEmpty()&&!excluded.isEmpty()){
+            Entry<Reserve> saved;synchronized(this){saved=reserves.get(title);}
+            if(saved!=null&&saved.expires>now()){
+                List<Source> ready=new ArrayList<>();
+                for(Candidate c:saved.value.candidates)if(!excluded.contains(c.id)&&(allowed.isEmpty()||allowed.contains(c.id))&&eligible(c)&&c.measure.width>0&&c.measure.height>0){
+                    final Candidate reserve=copy(c);ready.add(named(c.id,end->reserve));
+                }
+                if(!ready.isEmpty())try(QualitySelector verification=new QualitySelector(null,allowHevc)){
+                    Candidate next=verification.choose(key,ready,excluded,probe,Math.min(2000,firstBudget),title,allowed,evidence==null?null:new Evidence(){public void load(long end){}public Measure apply(String target,Candidate c){return evidence.apply(target,c);}});
+                    if(next!=null&&!closed){
+                        Map<String,Check> rows=new LinkedHashMap<>();for(Check c:saved.value.checks){Check row=new Check(c);if(excluded.contains(row.id))row.reason="falhou_reproducao";rows.put(row.id,row);}
+                        for(Check row:verification.audit(key))rows.put(row.id,row);
+                        synchronized(this){audits.put(key,new ArrayList<>(rows.values()));}
+                        return next;
+                    }
+                }
+            }
+        }
+        Pass first=new Pass();
         Candidate best=choose(key,sources,excluded,probe,firstBudget,title,allowed,evidence,first);
-        if(closed||Thread.currentThread().isInterrupted()||reviewBudget<=0||best!=null&&drawer(best)>=5)return best;
+        if(closed||Thread.currentThread().isInterrupted())return best;
+        if(reviewBudget<=0||best!=null&&drawer(best)>=5){rememberReserves(title,first.candidates,audit(key));return best;}
         Map<String,Check> checks=new LinkedHashMap<>();for(Check c:audit(key))checks.put(c.id,c);
         List<Source> retry=new ArrayList<>();
         for(Source source:sources){
@@ -117,11 +141,13 @@ final class QualitySelector implements AutoCloseable {
                 public List<Candidate> resolveAll(long end){return pending;}
             }));
         }
-        if(retry.isEmpty())return best;
+        if(retry.isEmpty()){rememberReserves(title,first.candidates,audit(key));return best;}
         forget(key);long offset=now()-start;
         // Vagas próprias: conexões da rodada vencida não bloqueiam a revisão.
         try(QualitySelector second=new QualitySelector(null,allowHevc)){
-            Candidate alternative=second.choose(key,retry,excluded,probe,reviewBudget,title,allowed,evidence==null?null:new Evidence(){public void load(long end){}public Measure apply(String target,Candidate c){return evidence.apply(target,c);}});
+            Pass reviewed=new Pass();
+            Candidate alternative=second.choose(key,retry,excluded,probe,reviewBudget,title,allowed,evidence==null?null:new Evidence(){public void load(long end){}public Measure apply(String target,Candidate c){return evidence.apply(target,c);}},reviewed);
+            first.candidates.addAll(reviewed.candidates);
             if(alternative!=null&&(best==null||compare(alternative,best)<0))best=alternative;
             for(Check row:second.audit(key)){
                 row.ms+=offset;Check old=checks.get(row.id);
@@ -130,7 +156,21 @@ final class QualitySelector implements AutoCloseable {
         }
         synchronized(this){audits.put(key,new ArrayList<>(checks.values()));}
         if(best!=null&&history!=null)history.save(title,Collections.singletonList(best));
+        rememberReserves(title,first.candidates,audit(key));
         return best;
+    }
+
+    private static boolean eligible(Candidate c){
+        Measure m=c.measure;
+        return m!=null&&m.playable&&!m.retryable&&m.language>=0&&(!(c.remembered||c.requiresProof)||(m.language==2&&m.width>0&&m.height>0));
+    }
+    private synchronized void rememberReserves(String title,List<Candidate> candidates,List<Check> checks){
+        if(closed||title.isEmpty())return;
+        Map<String,Candidate> unique=new LinkedHashMap<>();
+        for(Candidate c:candidates){Candidate old=unique.get(c.key());if(eligible(c)&&(old==null||compare(c,old)<0))unique.put(c.key(),copy(c));}
+        if(unique.isEmpty())return;
+        List<Candidate> sorted=new ArrayList<>(unique.values());Collections.sort(sorted,QualitySelector::compare);
+        trim(reserves,32);reserves.put(title,new Entry<>(new Reserve(sorted,checks),now()+30000));
     }
 
     Candidate choose(String key,List<Source> sources,Set<String> excluded,Probe probe,long budget) {
@@ -219,12 +259,12 @@ final class QualitySelector implements AutoCloseable {
         boolean verified=complete&&sourcesComplete;long cacheFor=drawer(snapshot.get(0))<5?1500:60000;
         for(Candidate c:snapshot){if(c.ephemeral||c.measure==null||c.measure.retryable||c.measure.playable&&(c.measure.width<=0||c.measure.height<=0))verified=false;if(c.measure!=null&&!c.measure.playable)cacheFor=1500;}
         synchronized(this){if(!closed&&verified){trim(choices,64);choices.put(key,new Entry<>(snapshot,now()+cacheFor));}}
-        for(Candidate c:snapshot)if(c.remembered||c.requiresProof?c.measure!=null&&c.measure.playable&&c.measure.language==2&&c.measure.width>0&&c.measure.height>0:c.measure==null||(c.measure.playable&&c.measure.language>=0))return c;
+        for(Candidate c:snapshot)if(eligible(c))return c;
         return null;
     }
     private void assess(Candidate c,Set<String> excluded,Probe probe,long deadline,List<Candidate> found,Map<String,Check> trace,long begun) {
         if(c==null||excluded.contains(c.id)||now()>=deadline||Thread.currentThread().isInterrupted())return;
-        Check row=check(trace,c.id);row.reason="sonda";Candidate original=c;c=new Candidate(c.id,c.url,c.referer,c.type,c.json,c.declared);c.remembered=original.remembered;c.requiresProof=original.requiresProof;c.ephemeral=original.ephemeral;
+        Check row=check(trace,c.id);row.reason="sonda";Candidate original=c;c=new Candidate(c.id,c.url,c.referer,c.type,c.json,c.declared);c.remembered=original.remembered;c.requiresProof=original.requiresProof;c.ephemeral=original.ephemeral;c.secureDeliveryUrl=original.secureDeliveryUrl;
         synchronized(found){for(Candidate other:found)if(other.key().equals(c.key()))return;found.add(c);}
         synchronized(this){Entry<Measure> e=measures.get(c.key());if(!c.ephemeral&&!c.remembered&&e!=null&&e.expires>now()){c.measure=e.value;return;}}
         try {
@@ -283,5 +323,5 @@ final class QualitySelector implements AutoCloseable {
     }
     static boolean portuguese(String value){return value!=null&&value.matches("(?i)(pt|por)([-_].*)?");}
     private static <T> void trim(Map<String,T> map,int limit){if(map.size()>=limit)map.remove(map.keySet().iterator().next());}
-    @Override public synchronized void close(){closed=true;workers.shutdownNow();choices.clear();measures.clear();hints.clear();audits.clear();}
+    @Override public synchronized void close(){closed=true;workers.shutdownNow();choices.clear();measures.clear();hints.clear();audits.clear();reserves.clear();}
 }

@@ -698,7 +698,9 @@ async function abrirPlayer(id,titulo,episode=null,retomada=null){
     direct=await StreamPlayback.start(id,version,req.signal,caminho,undefined,Boolean(episode)&&(!retomada||retomada.originalPermitido)&&(!anime||audioAnime!=='dublado'),null,opcoes());
     if(!valido())return;
     if(direct)break;
-    const tentada=(StreamPlayback.estado?.()||{}).fonteId||'';
+    const estadoDaTentativa=StreamPlayback.estado?.()||{};
+    if(estadoDaTentativa.buscaEsgotada)break;
+    const tentada=estadoDaTentativa.fonteId||'';
     if(!tentada){if(attempt>=1)break;continue;}
     if(tentadasDubladas.includes(tentada))break;
     tentadasDubladas.push(tentada);contexto.falhas.add(tentada);

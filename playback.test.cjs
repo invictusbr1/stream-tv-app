@@ -507,3 +507,10 @@ test('menus dos quatro ajustes continuam abertos após o clique que os abriu',()
  }
  context.abrirMenuPlayer('menu-legendas');listeners.keydown({key:'Escape'});assert.equal(el('menu-legendas').hidden,true);
 });
+
+
+test('busca completa sem fonte não cria vídeo e informa esgotamento apenas nesta tentativa',async()=>{
+ const s=harness();s.fetch(async()=>({indisponivel:true,buscaCompleta:true}));
+ assert.equal(await s.controller.start(153312,1),false);assert.equal(s.controller.estado().buscaEsgotada,true);assert.equal(s.controller.isActive(),false);
+ await videoTocando(s);assert.equal(s.controller.estado().buscaEsgotada,false);s.controller.stop();
+});

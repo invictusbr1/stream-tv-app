@@ -24,6 +24,46 @@ public final class QualitySelectorTest {
     private static QualitySelector.Measure measure(int w,int h,int lang){return new QualitySelector.Measure(w,h,lang,0,true);}
     public static void main(String[] args)throws Exception{
         switch(args[0]){
+        case "unreadable":{
+            for(boolean exception:new boolean[]{false,true})try(QualitySelector q=new QualitySelector(null,true)){
+                List<QualitySelector.Source> sources=Collections.singletonList(QualitySelector.named("watchplay",end->candidate("watchplay")));
+                QualitySelector.Candidate winner=q.chooseVerified("bad",sources,Collections.emptySet(),(c,end)->{if(exception)throw new IOException("read failed");return null;},250,250,"tv:153312:3:3",Collections.singleton("watchplay"),null);
+                check(winner==null);
+                for(QualitySelector.Check row:q.audit("bad"))check(!row.reason.equals("validada"));
+            }
+            break;
+        }
+        case "failover-reserves":{
+            AtomicInteger queries=new AtomicInteger(),reads=new AtomicInteger();
+            List<QualitySelector.Source> sources=new ArrayList<>();
+            for(String id:Arrays.asList("primary","fullhd","hd")){final String name=id;sources.add(QualitySelector.named(name,end->{queries.incrementAndGet();return candidate(name);}));}
+            Set<String> allowed=new HashSet<>(Arrays.asList("primary","fullhd","hd"));
+            QualitySelector.Probe probe=(c,end)->{reads.incrementAndGet();return c.id.equals("primary")?measure(3840,2160,2):c.id.equals("fullhd")?measure(1920,1080,2):measure(1280,720,2);};
+            try(QualitySelector q=new QualitySelector(null,true)){
+                check(q.chooseVerified("first",sources,Collections.emptySet(),probe,250,250,"tv:153312:3:3",allowed,null).id.equals("primary"));
+                check(queries.get()==3);int before=reads.get();long start=QualitySelector.now();
+                QualitySelector.Candidate next=q.chooseVerified("second",Collections.singletonList(QualitySelector.named("slow",end->{queries.incrementAndGet();Thread.sleep(2000);return null;})),Collections.singleton("primary"),probe,250,250,"tv:153312:3:3",allowed,null);
+                check(next.id.equals("fullhd")&&queries.get()==3&&reads.get()>before&&QualitySelector.now()-start<500);
+                for(QualitySelector.Check row:q.audit("second")){if(row.id.equals("primary"))check(row.reason.equals("falhou_reproducao"));if(row.id.equals("fullhd"))check(row.reason.equals("validada"));}
+                next=q.chooseVerified("third",sources,new HashSet<>(Arrays.asList("primary","fullhd")),probe,250,250,"tv:153312:3:3",allowed,null);
+                check(next.id.equals("hd")&&queries.get()==3);
+                // Outro episódio jamais herda a reserva do anterior.
+                next=q.chooseVerified("other",sources,Collections.singleton("primary"),probe,250,250,"tv:153312:3:4",allowed,null);
+                check(next.id.equals("fullhd")&&queries.get()>3);
+            }
+            // Retirada do fornecedor e nova falha de mídia são respeitadas.
+            try(QualitySelector q=new QualitySelector(null,true)){
+                q.chooseVerified("one",sources,Collections.emptySet(),probe,250,250,"movie:1",allowed,null);
+                QualitySelector.Candidate next=q.chooseVerified("disabled",sources,Collections.singleton("primary"),probe,250,250,"movie:1",Collections.singleton("hd"),null);
+                check(next.id.equals("hd"));
+            }
+            try(QualitySelector q=new QualitySelector(null,true)){
+                q.chooseVerified("one",sources,Collections.emptySet(),probe,250,250,"movie:1",allowed,null);int before=queries.get();
+                QualitySelector.Candidate next=q.chooseVerified("failed",Collections.singletonList(QualitySelector.named("new",end->{queries.incrementAndGet();return candidate("new");})),Collections.singleton("primary"),(c,end)->c.id.equals("new")?measure(1920,1080,2):null,250,250,"movie:1",allowed,null);
+                check(next!=null&&next.id.equals("new")&&queries.get()>before);
+            }
+            break;
+        }
         case "review-tiers":{
             for(int[] size:new int[][]{{854,480,1280,720},{1280,720,1920,800},{1920,800,2560,1440},{1920,800,3840,1600}})for(int language:new int[]{2,-1})try(QualitySelector q=new QualitySelector(null,true)){
                 AtomicInteger reads=new AtomicInteger();QualitySelector.Candidate high=candidate("high");high.ephemeral=true;high.requiresProof=true;

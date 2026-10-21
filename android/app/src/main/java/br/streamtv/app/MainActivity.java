@@ -1040,13 +1040,24 @@ public final class MainActivity extends Activity {
                         java.net.HttpURLConnection connection=MediaHttp.open(chosen.url,chosen.referer,"bytes=0-2047",QualitySelector.now()+5000);
                         try{MediaHttp.requireMedia(connection);data.put("url",connection.getURL().toString());data.put("midiaConferida",m!=null&&m.width>0&&m.height>0);}finally{connection.disconnect();}
                     }
-                }else if(!entregaVideo(chosen.url,chosen.referer)){selector.forget(key);return error(502);}
+                }else if((m==null||!m.playable)&&!entregaVideo(chosen.url,chosen.referer)){selector.forget(key);return error(502);}
                 if(m!=null&&m.width>0&&m.height>0){data.put("resolucao",m.height+"p");data.put("largura",m.width);data.put("altura",m.height);data.put("evidenciaQualidade","medido");}
                 else if(chosen.declared>0)data.put("evidenciaQualidade","informado pela fonte");
                 return respostaTexto("application/json",data.toString());
             }catch(Exception ignored){selector.forget(key);return error(502);}
         }
-        return exceto.contains("vixsrc")?error(502):vixsrcMidia(tipo,id,temporada,episodio);
+        // A rodada já consultou e revisou todas as fontes dubladas. O último
+        // recurso mantém seu próprio prazo; a interface não repete esta busca.
+        if(!exceto.contains("vixsrc")){
+            qualityDeadline.set(QualitySelector.now()+5000);
+            try{WebResourceResponse last=vixsrcMidia(tipo,id,temporada,episodio);if(last.getStatusCode()==200)return last;}
+            finally{qualityDeadline.remove();}
+        }
+        try{
+            JSONObject diagnosis=new JSONObject().put("id",id).put("temporada",temporada==null?"":temporada).put("episodio",episodio==null?"":episodio).put("hevc",selector.podeHevc()).put("escolhida","");
+            JSONArray checks=new JSONArray();for(QualitySelector.Check row:selector.audit(key))checks.put(new JSONObject().put("id",row.id).put("motivo",row.reason).put("largura",row.width).put("altura",row.height).put("idioma",row.language).put("ms",row.ms));
+            return respostaTexto("application/json",new JSONObject().put("indisponivel",true).put("buscaCompleta",true).put("diagnosticoQualidade",diagnosis.put("fontes",checks)).toString());
+        }catch(Exception ignored){return error(502);}
     }
 
     private final java.util.Map<String,CrystalLakeSource.Result> crystalLakeCache=new java.util.concurrent.ConcurrentHashMap<>();
