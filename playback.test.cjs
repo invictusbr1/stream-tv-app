@@ -458,3 +458,52 @@ test('próximo automático recebe o término real, sem antecipar aos 92% do epis
  v.currentTime=1000;v.fire('ended');assert.equal(finished.length,1);assert.equal(finished[0].episode.number,2);
  s.controller.stop();
 });
+
+
+test('desativar legenda é respeitado após atualização HLS e reinicia no próximo vídeo',async()=>{
+ const s=harness();
+ const p=s.controller.start(153312,1,null,null,'https://exemplo.com/serie.m3u8',true);
+ await new Promise(setImmediate);
+ const h=s.Hls.instance;h.subtitleTracks=[{name:'Português',lang:'pt-BR'}];h.emit('subtitles');
+ assert.equal(h.subtitleTrack,0);
+ s.el('subtitle-select').onchange({target:{value:'-1'}});
+ h.emit('subtitles');s.el('direct-video').fire('loadedmetadata');
+ assert.equal(h.subtitleDisplay,false);assert.equal(h.subtitleTrack,-1);
+ assert.equal(s.el('subtitle-select').value,'-1');
+ s.controller.stop();await p;
+ const next=s.controller.start(153312,1,null,null,'https://exemplo.com/serie.m3u8',true);
+ await new Promise(setImmediate);
+ s.Hls.instance.subtitleTracks=[{name:'Português',lang:'pt-BR'}];s.Hls.instance.emit('subtitles');
+ assert.equal(s.Hls.instance.subtitleTrack,0);s.controller.stop();await next;
+});
+
+test('desligar legendas inclui cópia nativa do HLS e preserva capítulos e metadados',async()=>{
+ const s=harness(),p=s.controller.start(153312,1);await new Promise(setImmediate);
+ const h=s.Hls.instance;h.subtitleTracks=[{name:'Português',lang:'pt-BR'}];
+ const caption={kind:'subtitles',label:'Português',language:'pt-BR',mode:'showing'};
+ const local={kind:'captions',label:'Local',mode:'disabled'};
+ const chapters={kind:'chapters',label:'Créditos',mode:'hidden'},metadata={kind:'metadata',mode:'hidden'};
+ s.el('direct-video').textTracks=[caption,local,chapters,metadata];h.emit('subtitles');
+ assert.equal(s.el('subtitle-select').children.length,3);
+ caption.mode='showing';s.controller.setSubtitle(0);assert.equal(caption.mode,'showing');
+ s.controller.setSubtitle(-1);assert.equal(caption.mode,'disabled');assert.equal(local.mode,'disabled');
+ s.controller.setSubtitle(1);assert.equal(local.mode,'showing');assert.equal(caption.mode,'disabled');
+ assert.equal(chapters.mode,'hidden');assert.equal(metadata.mode,'hidden');
+ s.controller.stop();await p;
+});
+
+test('menus dos quatro ajustes continuam abertos após o clique que os abriu',()=>{
+ const html=fs.readFileSync(__dirname+'/index.html','utf8'),listeners={},nodes=new Map();
+ const el=id=>{if(!nodes.has(id))nodes.set(id,{hidden:true,querySelector:()=>({focus(){}})});return nodes.get(id);};
+ const begin=html.indexOf('function fecharMenusPlayer()'),end=html.indexOf('function abrirOpcoes(',begin);
+ const context=vm.createContext({el,window:{StreamChrome:{wake(){}}},document:{addEventListener:(name,fn)=>listeners[name]=fn}});
+ vm.runInContext(html.slice(begin,end),context);
+ for(const [button,menu]of [['menu-quality-btn','menu-qualidade'],['menu-subs-btn','menu-legendas'],['menu-audio-btn','menu-audio'],['menu-speed-btn','menu-velocidade']]){
+  const handler=html.match(new RegExp('id="'+button+'"[^>]*onclick="([^"]+)"'))[1];
+  context.fecharOpcoes=()=>{};vm.runInContext(handler,context);
+  const target={closest:selector=>selector.split(',').includes('.options-settings')?{}:null};
+  listeners.click({target});assert.equal(el(menu).hidden,false,button);
+  listeners.click({target:{closest:()=>null}});assert.equal(el(menu).hidden,true);
+ }
+ context.abrirMenuPlayer('menu-legendas');listeners.keydown({key:'Escape'});assert.equal(el('menu-legendas').hidden,true);
+});
