@@ -1,14 +1,14 @@
 {
-  "versionCode": 438,
-  "versionName": "2.13.108",
-  "apkUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.108/Conecta-TV-Android-2.13.108.apk",
-  "sha256": "b62d2dc5484e99ca84619de076730a48966fd01b466e9fd11edcc92b7d16695f",
-  "bytes": 521239,
-  "notes": "Evita escolher fontes cuja leitura falhou. Reaproveita alternativas recentemente verificadas e elimina repetição da busca completa, preservando a prioridade de qualidade e áudio dublado.",
+  "versionCode": 439,
+  "versionName": "2.13.109",
+  "apkUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.109/Conecta-TV-Android-2.13.109.apk",
+  "sha256": "6d639c21fbe828fe0cb6ec47b65c4c531a8529e95ca5d8ca50bb0d62a117c358",
+  "bytes": 521378,
+  "notes": "Corrige a seleção de português em fontes com inglês e português, incluindo Tulsa King T3E3. Ajusta o menu e a indicação do áudio selecionado, preservando a seleção de qualidade.",
   "exeUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.68/Conecta-TV-2.13.68.exe",
   "exeSha256": "40914a57b0e3ad375615c9954839f8c3f7bb138d8739472772de3ee28d3ff015",
   "exeBytes": 120409967,
-  "apkTvUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.108/Conecta-TV-TV-2.13.108.apk",
-  "apkTvSha256": "e502c75c130f02d7fa9d73a4ff3a7b0278f172c801ddaf77b492240f2bc33eeb",
-  "apkTvBytes": 520915
+  "apkTvUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.109/Conecta-TV-TV-2.13.109.apk",
+  "apkTvSha256": "5e0c8d9c7aed1458998831815e7903e56c76436fec5486c0e8bbf0602439ab61",
+  "apkTvBytes": 521040
 }
