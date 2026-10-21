@@ -514,3 +514,31 @@ test('busca completa sem fonte não cria vídeo e informa esgotamento apenas nes
  assert.equal(await s.controller.start(153312,1),false);assert.equal(s.controller.estado().buscaEsgotada,true);assert.equal(s.controller.isActive(),false);
  await videoTocando(s);assert.equal(s.controller.estado().buscaEsgotada,false);s.controller.stop();
 });
+
+
+test('Tulsa King: abertura que permite último recurso original ainda seleciona português na fonte dublada',async()=>{
+ const s=harness('StreamTVAndroid');s.fetch(async()=>({url,audio:'pt-BR',fonteId:'fenixflix-fenixhub'}));
+ const pending=s.controller.start(153312,1,null,'/api/playback/serie/153312/3/3',undefined,true);await new Promise(setImmediate);
+ const h=s.Hls.instance;h.audioTracks=[{lang:'eng',name:'English'},{lang:'por',name:'Portuguese'}];h.audioTrack=0;h.emit('manifest');
+ assert.equal(h.audioTrack,1);assert.equal(s.el('audio-select').value,'1');assert.equal(s.controller.estado().audio,'Dublado');
+ h.audioTrack=0;h.emit('audioSwitched');assert.equal(h.audioTrack,1);
+ s.controller.stop();await pending;
+});
+
+test('fonte marcada dublada com inglês somente é recusada mesmo com último recurso original permitido',async()=>{
+ const s=harness();s.fetch(async()=>({url,audio:'pt-BR',fonteId:'fenixflix-fenixhub'}));
+ const pending=s.controller.start(153312,1,null,null,undefined,true);await new Promise(setImmediate);
+ s.Hls.instance.audioTracks=[{lang:'eng',name:'English'}];s.Hls.instance.emit('manifest');
+ assert.equal(await pending,false);assert.equal(s.controller.isActive(),false);
+});
+
+test('fonte original explícita continua permitida sem português e prefere português se a faixa chegar',async()=>{
+ const s=harness();s.fetch(async()=>({url,audio:'original',fonteId:'vixsrc'}));
+ const pending=s.controller.start(153312,1,null,null,undefined,true);await new Promise(setImmediate);
+ const h=s.Hls.instance;h.audioTracks=[{lang:'eng',name:'English'}];h.audioTrack=0;h.emit('manifest');
+ assert.equal(s.controller.isActive(),true);assert.equal(s.controller.estado().audio,'som original');
+ h.audioTracks.push({lang:'por',name:'Portuguese'});h.emit('audioUpdated');assert.equal(h.audioTrack,1);assert.equal(s.controller.estado().audio,'Dublado');
+ assert.equal(s.el('audio-select').disabled,false);
+ s.controller.setAudio(0);assert.equal(h.audioTrack,0);assert.equal(s.controller.estado().audio,'som original');h.emit('audioSwitched');assert.equal(h.audioTrack,0,'escolha manual permanece');
+ s.controller.stop();await pending;
+});

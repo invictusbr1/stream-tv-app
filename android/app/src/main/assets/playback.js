@@ -15,18 +15,19 @@ window.StreamPlayback = (() => {
     try{speed=Number(localStorage.getItem('streamtv-speed'))||1;}catch{}
     if(![0.75,1,1.25,1.5,2].includes(speed))speed=1;
     function setSpeed(value){speed=[0.75,1,1.25,1.5,2].includes(Number(value))?Number(value):1;if(video)video.playbackRate=speed;const select=el('speed-select');if(select)select.value=String(speed);try{localStorage.setItem('streamtv-speed',String(speed));}catch{}atualizarBotoesAjuste();}
-    function setAudio(value){const escolha=Number(value);audioChoice=Number.isInteger(escolha)&&escolha>=0?escolha:-1;if(hls&&audioChoice>=0)hls.audioTrack=audioChoice;}
+    function setAudio(value){const escolha=Number(value);audioChoice=Number.isInteger(escolha)&&escolha>=0?escolha:-1;if(hls&&audioChoice>=0){hls.audioTrack=audioChoice;const track=hls.audioTracks?.[audioChoice];if(track){rotuloAudio=portuguese(track)?'Dublado':'som original';analiseAtual?.fonte({audio:rotuloAudio});qualityInfo();audioMenu();}}}
     el('speed-select').onchange=e=>setSpeed(e.target.value);
     el('audio-select').onchange=e=>setAudio(e.target.value);
     function audioMenu(){
         const tracks=hls?.audioTracks||[],panel=el('audio-panel');if(!panel)return;
         if(tracks.length<2){const unica=el('audio-select');if(unica){unica.disabled=true;unica.replaceChildren();const opcao=document.createElement('option');opcao.textContent='Faixa única desta fonte';unica.append(opcao);}panel.hidden=false;return;}
-        const select=el('audio-select');select.replaceChildren();
+        const select=el('audio-select');select.disabled=false;select.replaceChildren();
         tracks.forEach((track,index)=>{const option=document.createElement('option');option.value=String(index);option.textContent=track.name||track.label||track.lang||`Faixa ${index+1}`;select.append(option);});
         const pt=tracks.findIndex(portuguese);
-        select.value=String(audioChoice>=0?audioChoice:(pt>=0?pt:0));
+        const atual=audioChoice>=0?audioChoice:Number.isInteger(hls?.audioTrack)&&hls.audioTrack>=0?hls.audioTrack:(pt>=0?pt:0);
+        select.value=String(atual);
         panel.hidden=false;
-        el('audio-info').textContent=pt>=0?'A faixa dublada em português está selecionada.':'Esta fonte não informou uma faixa dublada; confira o áudio antes de assistir.';
+        el('audio-info').textContent=portuguese(tracks[atual]||{})?'A faixa dublada em português está selecionada.':'Áudio original selecionado.';
     }
     function saveProgress(){if(!video||!imagemConfirmada)return;if(progressFilm)window.StreamAuth?.publicarAssistindo?.(progressFilm,video.currentTime);if(progressFilm&&resumeApplied)window.StreamPersonal?.record(progressFilm,video.currentTime,video.duration);}
     function resume(){if(!video||!progressFilm||resumeApplied||!Number.isFinite(video.duration)||video.duration<=0)return;const position=retomadaAlvo??window.StreamPersonal?.position(progressFilm)??0;try{if(position>=(retomadaAlvo===null?1:0)&&position<video.duration)video.currentTime=position;else if(position>=video.duration&&retomadaAlvo!==null)video.currentTime=Math.max(0,video.duration-1);resumeApplied=true;}catch{}}
@@ -136,13 +137,13 @@ window.StreamPlayback = (() => {
         return candidates.reduce((best,c)=>c.level.height>best.level.height||(c.level.height===best.level.height&&(c.level.bitrate||0)>(best.level.bitrate||0))?c:best).index;
     }
     function portuguese(track){return /^(pt|por)(-|_|$)/i.test(track.lang||track.language||'')||/dublad|portugu[eê]s|portuguese|pt[-_ ]?br/i.test(track.name||track.label||'');}
-    function enforceAudio(){
+    function enforceAudio(permitirOriginal=false){
         if(!hls)return true;const tracks=hls.audioTracks||[];if(!tracks.length)return true;
         if(audioChoice>=0)return true;
         const pt=tracks.findIndex(portuguese);
-        if(pt>=0){if(hls.audioTrack!==pt)hls.audioTrack=pt;return true;}
+        if(pt>=0){if(hls.audioTrack!==pt)hls.audioTrack=pt;rotuloAudio='Dublado';analiseAtual?.fonte({audio:rotuloAudio});return true;}
         // A named English track is just as explicit as an ISO language tag.
-        if(tracks.some(t=>t.lang||/english|ingl[eê]s|espa[nñ]ol|spanish|fran[cç]ais|french|legendad|original/i.test(t.name||''))){failure();return false;}
+        if(tracks.some(t=>t.lang||/english|ingl[eê]s|espa[nñ]ol|spanish|fran[cç]ais|french|legendad|original/i.test(t.name||''))){if(!permitirOriginal){failure('a fonte anunciada como dublada não oferece faixa em português');return false;}rotuloAudio='som original';analiseAtual?.fonte({audio:rotuloAudio});}
         return true;
     }
     let taxaAtual=0;
@@ -300,11 +301,11 @@ video.addEventListener('playing',()=>{if(!current())return;window.StreamEpisodes
                 video.src=data.url;el('direct-quality').hidden=false;el('quality-select').hidden=true;qualityInfo();subtitleMenu();play();
             }else if(window.Hls?.isSupported()){
                 hls=new Hls({startPosition:retomadaAlvo===null?-1:retomadaAlvo,enableWorker:true,maxBufferLength:45,maxMaxBufferLength:90,backBufferLength:30,manifestLoadingMaxRetry:2,levelLoadingMaxRetry:2,fragLoadingMaxRetry:3,fragLoadingRetryDelay:700,abrEwmaDefaultEstimate:1200000});
-                hls.on(Hls.Events.MANIFEST_PARSED,()=>{if(!current())return;if(!originalPermitido&&!enforceAudio())return;qualityMenu();quality('best');audioMenu();subtitleMenu();setSubtitle(subtitleChoice);play();});
+                hls.on(Hls.Events.MANIFEST_PARSED,()=>{if(!current())return;if(!enforceAudio(originalPermitido&&data.audio!=='pt-BR'))return;qualityMenu();quality('best');audioMenu();subtitleMenu();setSubtitle(subtitleChoice);play();});
                 hls.on(Hls.Events.LEVEL_SWITCHED,(_,d)=>{if(current()){const l=hls.levels[d.level];qualityInfo(l);}});
                 hls.on(Hls.Events.SUBTITLE_TRACKS_UPDATED,()=>{if(!current())return;subtitleMenu();if(!escolherLegendaAutomatica())setSubtitle(subtitleChoice);});
-                hls.on(Hls.Events.AUDIO_TRACKS_UPDATED,()=>{if(current()){if(!originalPermitido)enforceAudio();audioMenu();}});
-                hls.on(Hls.Events.AUDIO_TRACK_SWITCHED,()=>{if(current()&&!originalPermitido)enforceAudio();});
+                hls.on(Hls.Events.AUDIO_TRACKS_UPDATED,()=>{if(current()){if(!enforceAudio(originalPermitido&&data.audio!=='pt-BR'))return;audioMenu();}});
+                hls.on(Hls.Events.AUDIO_TRACK_SWITCHED,()=>{if(current()){if(!enforceAudio(originalPermitido&&data.audio!=='pt-BR'))return;audioMenu();qualityInfo();}});
                 hls.on(Hls.Events.ERROR,(_,d)=>{if(!current()||!d.fatal)return;if(d.type==='mediaError'&&!recovered){recovered=true;analiseAtual?.esperar(posicaoAtual());hls.recoverMediaError();clearTimeout(startupTimer);startupTimer=setTimeout(()=>{if(current())failure();},15000);}else failure();});hls.loadSource(data.url);hls.attachMedia(video);
             }else if(video.canPlayType('application/vnd.apple.mpegurl')){video.src=data.url;el('direct-quality').hidden=false;el('quality-select').hidden=true;play();}else failure();
             }

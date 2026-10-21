@@ -1,0 +1,7 @@
+# Seleção de áudio — 2.13.109
+
+No APK 2.13.108, os relatos de Tulsa King T3E3 indicavam FenixHub em 720p, rotulado Dublado. A lista HLS atual dessa fonte oferece English (eng) e Portuguese (por), ambos com DEFAULT=NO. A abertura de séries autorizava áudio original como último recurso; esse sinal também desabilitava a seleção da faixa portuguesa, inclusive quando o endereço entregue era declarado pt-BR. A ordem padrão do motor podia, portanto, iniciar inglês enquanto a interface anunciava dublado.
+
+Agora a seleção portuguesa acontece no manifesto e nas atualizações/trocas de áudio, mesmo quando o último recurso original é permitido. Uma fonte anunciada como pt-BR com apenas faixa estrangeira explícita é recusada. Uma fonte explicitamente original continua podendo abrir quando autorizada, e prefere português se a faixa existir. Escolhas manuais de áudio são respeitadas e atualizam o rótulo do player. O menu volta a habilitar a seleção ao passar de faixa única para múltiplas faixas, e o texto acompanha a faixa selecionada.
+
+Validação: 546 testes aprovados, incluindo cenário English/Portuguese com original permitido, recusa de inglês apenas sob rótulo dublado, preservação do último recurso original e escolha manual. O mecanismo de qualidade e os testes existentes de 4K/HEVC permanecem preservados. A lista real do episódio confirmou os idiomas; o teste isolado de reprodução dessa URL encontrou demora/instabilidade do fornecedor e não substitui a confirmação de áudio no telefone do usuário.
