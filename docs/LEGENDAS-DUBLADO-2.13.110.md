@@ -1,0 +1,7 @@
+# Preferência de legendas no dublado — 2.13.110
+
+A seleção de áudio em português foi corrigida na 2.13.109. Restavam lacunas na preferência de legendas: o aplicativo aplicava a escolha nos eventos iniciais, mas uma faixa nativa podia voltar a mostrar texto em um evento change, ou o motor HLS selecionar uma faixa após o evento de atualização da lista. Uma legenda automática do modo original também podia permanecer ao entrar áudio português.
+
+A preferência agora é reconciliada após mudanças de faixas nativas e seleção HLS, com uma única microtarefa por lote, sem sondagem contínua. O motor recebe explicitamente legenda desativada na configuração inicial. No áudio dublado, a escolha padrão segue desligada. Uma escolha manual de ligar/desligar continua sendo respeitada. Ao mudar de original para português, só a legenda automática é removida. Alterações são aplicadas apenas quando necessárias, com proteção contra reentrada. Capítulos e metadados não são tratados como legendas.
+
+Validação: 549 testes aprovados. Os testes novos simulam legenda religada após manifesto, faixa nativa ativada tardiamente, troca original/português e escolhas manuais; testes de áudio, qualidade/4K e demais controles permanecem aprovados. O relato do usuário confirmou áudio dublado no APK109, mas não há acesso ao vídeo renderizado no celular para afirmar se o texto observado é faixa separada ou gravado na imagem. Esta correção cobre as falhas identificadas na aplicação da preferência; texto gravado na imagem não é controlável pela faixa de legendas.

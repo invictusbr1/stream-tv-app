@@ -43,7 +43,7 @@ function harness(userAgent='Test'){
  const handlers={};const doc={activeElement:null,addEventListener(name,fn){handlers[name]=fn;},querySelector(){return {prepend(n){nodes.set(n.id,n);}};}};
  function node(){const events={};return {hidden:false,contains(n){return this.children.includes(n);},querySelectorAll(){return this.children;},closest(){return null;},style:{},children:[],classList:{add(){},remove(){},toggle(){}},pause(){},load(){},play(){return Promise.resolve();},remove(){nodes.delete(this.id);},removeAttribute(){},setAttribute(){},before(n){nodes.set(n.id,n);},append(n){this.children.push(n);},replaceChildren(){this.children=[];},focus(){doc.activeElement=this;},canPlayType(){return '';},addEventListener(name,cb){events[name]=cb;},fire(name){events[name]?.();}};}
  const el=id=>{if(!nodes.has(id)){const n=node();n.id=id;nodes.set(id,n);}return nodes.get(id);};doc.createElement=node;doc.createTextNode=text=>({textContent:text});
- class Hls {static Events={MANIFEST_PARSED:'manifest',ERROR:'error',LEVEL_SWITCHED:'level',AUDIO_TRACKS_UPDATED:'audioUpdated',AUDIO_TRACK_SWITCHED:'audioSwitched',SUBTITLE_TRACKS_UPDATED:'subtitles'};static isSupported(){return true;}constructor(){this.listeners={};this.levels=[{height:720,bitrate:200},{height:1080,bitrate:400},{height:480,bitrate:100}];this.audioTracks=[{lang:'pt-BR',name:'Dublado'}];Hls.instance=this;}on(n,fn){this.listeners[n]=fn;}emit(n,data={}){this.listeners[n]?.(n,data);}recoverMediaError(){this.recovered=(this.recovered||0)+1;}loadSource(){}attachMedia(){}destroy(){this.destroyed=true;}}
+ class Hls {static Events={MANIFEST_PARSED:'manifest',ERROR:'error',LEVEL_SWITCHED:'level',AUDIO_TRACKS_UPDATED:'audioUpdated',AUDIO_TRACK_SWITCHED:'audioSwitched',SUBTITLE_TRACK_SWITCH:'subtitleSwitch',SUBTITLE_TRACKS_UPDATED:'subtitles'};static isSupported(){return true;}constructor(config){this.config=config;this.listeners={};this.levels=[{height:720,bitrate:200},{height:1080,bitrate:400},{height:480,bitrate:100}];this.audioTracks=[{lang:'pt-BR',name:'Dublado'}];Hls.instance=this;}on(n,fn){this.listeners[n]=fn;}emit(n,data={}){this.listeners[n]?.(n,data);}recoverMediaError(){this.recovered=(this.recovered||0)+1;}loadSource(){}attachMedia(){}destroy(){this.destroyed=true;}}
  const window={Hls};const context=vm.createContext({window,Hls,document:doc,navigator:{userAgent},el,playerVersion:1,lerJson:(...a)=>fetchImpl(...a),mostrarErro(){failures++;},setTimeout(fn,ms){const id=++sequence;fn.delay=ms;timers.set(id,fn);return id;},clearTimeout(id){timers.delete(id);}});
  vm.runInContext(fs.readFileSync(__dirname+'/playback.js','utf8'),context);
  context.StreamPlayback=window.StreamPlayback;el('opcoes').hidden=true;el('direct-controls').children=[el('direct-back'),el('direct-toggle'),el('direct-forward')];
@@ -541,4 +541,38 @@ test('fonte original explícita continua permitida sem português e prefere port
  assert.equal(s.el('audio-select').disabled,false);
  s.controller.setAudio(0);assert.equal(h.audioTrack,0);assert.equal(s.controller.estado().audio,'som original');h.emit('audioSwitched');assert.equal(h.audioTrack,0,'escolha manual permanece');
  s.controller.stop();await pending;
+});
+
+
+test('dublado mantém legenda desligada quando o motor tenta ativá-la depois do manifesto',async()=>{
+ const s=harness(),p=s.controller.start(153312,1);await new Promise(setImmediate);const h=s.Hls.instance;
+ h.subtitleTracks=[{name:'Portuguese',lang:'por',default:true}];h.emit('manifest');
+ assert.equal(h.config.subtitlePreference.id,-1);
+ h.subtitleDisplay=true;h.subtitleTrack=0;h.emit('subtitleSwitch');await new Promise(setImmediate);
+ assert.equal(h.subtitleDisplay,false);assert.equal(h.subtitleTrack,-1);assert.equal(s.controller.estado().legenda,-1);
+ s.controller.setSubtitle(0);h.emit('subtitleSwitch');await new Promise(setImmediate);
+ assert.equal(h.subtitleTrack,0);assert.equal(h.subtitleDisplay,true,'escolha explícita continua disponível');
+ s.controller.stop();await p;
+});
+
+test('troca automática do áudio original para português remove só a legenda automática',async()=>{
+ for(const manual of [false,true]){
+  const s=harness();s.fetch(async()=>({url,audio:'original'}));const p=s.controller.start(153312,1,null,null,undefined,true);await new Promise(setImmediate);
+  const h=s.Hls.instance;h.audioTracks=[{lang:'eng'}];h.subtitleTracks=[{name:'Portuguese',lang:'por'}];h.emit('manifest');h.emit('subtitles');
+  assert.equal(h.subtitleTrack,0);if(manual)s.controller.setSubtitle(0);
+  h.audioTracks.push({lang:'por'});h.emit('audioUpdated');assert.equal(s.controller.estado().audio,'Dublado');
+  assert.equal(h.subtitleTrack,manual?0:-1);s.controller.stop();await p;
+ }
+});
+
+test('faixa nativa ativada tardiamente pelo navegador respeita a legenda desativada sem alterar capítulos',async()=>{
+ const s=harness(),events={},caption={kind:'subtitles',label:'Português',language:'por',mode:'disabled'},chapter={kind:'chapters',mode:'hidden'};
+ const tracks=[caption,chapter];tracks.addEventListener=(name,fn)=>events[name]=fn;
+ const create=s.doc.createElement;s.doc.createElement=tag=>{const n=create();if(tag==='video')n.textTracks=tracks;return n;};
+ const p=s.controller.start(153312,1);await new Promise(setImmediate);
+ caption.mode='showing';s.el('direct-video').fire('loadedmetadata');assert.equal(caption.mode,'disabled');
+ caption.mode='showing';events.change();await new Promise(setImmediate);assert.equal(caption.mode,'disabled');assert.equal(chapter.mode,'hidden');
+ s.controller.setSubtitle(0);events.change();await new Promise(setImmediate);assert.equal(caption.mode,'showing');
+ s.controller.setSubtitle(-1);caption.mode='showing';events.change();await new Promise(setImmediate);assert.equal(caption.mode,'disabled');
+ s.controller.stop();await p;
 });
