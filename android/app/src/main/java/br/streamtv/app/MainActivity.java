@@ -992,6 +992,7 @@ public final class MainActivity extends Activity {
     }
     private volatile ServerPlaybackTransport serverTransport;
     private volatile long serverRouteUntil;
+    private volatile String serverLastProblem="";
     private ServerPlaybackTransport serverTransport()throws Exception{
         ServerPlaybackTransport saved=serverTransport;if(saved!=null)return saved;
         JSONObject config;try(InputStream in=getAssets().open("config.json")){config=new JSONObject(lerTexto(in));}
@@ -1001,7 +1002,7 @@ public final class MainActivity extends Activity {
     }
     private WebResourceResponse serverPlayback(String tipo,String id,String temporada,String episodio,java.util.Set<String> excluded,boolean hevc){
         try{
-            ServerPlaybackTransport transport=serverTransport();
+            serverLastProblem="";ServerPlaybackTransport transport=serverTransport();
             String path="tv".equals(tipo)?"/api/playback/serie/"+id+"/"+temporada+"/"+episodio:"/api/playback/"+id;
             path+="?transporte=servidor&codec="+(hevc?"hevc":"avc")+"&exceto="+Uri.encode(android.text.TextUtils.join(",",excluded));
             JSONObject data=new JSONObject(transport.json(path,20000));
@@ -1017,7 +1018,7 @@ public final class MainActivity extends Activity {
             data.put("diagnosticoQualidade",diagnosis.put("fontes",checks));data.put("transporte","servidor");
             serverRouteUntil=SystemClock.elapsedRealtime()+180000;
             return respostaTexto("application/json",data.toString());
-        }catch(Exception unavailable){serverTransport=null;return null;}
+        }catch(Exception unavailable){serverLastProblem=QualitySelector.problem(unavailable);serverTransport=null;return null;}
     }
     private WebResourceResponse serverMedia(Uri uri,java.util.Map<String,String> requestHeaders){
         try{
@@ -1102,6 +1103,7 @@ public final class MainActivity extends Activity {
         try{
             JSONObject diagnosis=new JSONObject().put("id",id).put("temporada",temporada==null?"":temporada).put("episodio",episodio==null?"":episodio).put("hevc",selector.podeHevc()).put("escolhida","");
             JSONArray checks=new JSONArray();for(QualitySelector.Check row:selector.audit(key))checks.put(new JSONObject().put("id",row.id).put("motivo",row.reason).put("largura",row.width).put("altura",row.height).put("idioma",row.language).put("ms",row.ms));
+            if(!serverLastProblem.isEmpty())checks.put(new JSONObject().put("id","rede-servidor").put("motivo",serverLastProblem).put("ms",0));
             return respostaTexto("application/json",new JSONObject().put("indisponivel",true).put("buscaCompleta",true).put("diagnosticoQualidade",diagnosis.put("fontes",checks)).toString());
         }catch(Exception ignored){return error(502);}
     }
