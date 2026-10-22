@@ -1,5 +1,5 @@
 {
-  "atualizadoEm": "2026-10-12",
+  "atualizadoEm": "2026-10-19",
   "comoFunciona": "Cada fonte tem o resultado da última verificação real (navegador + medição de vídeo). O robô do aplicativo usa estes dados para escolher a fonte: sem anúncio primeiro, depois dublado, depois qualidade. A lista é curta de propósito: só entra o que tem papel definido e foi medido.",
   "motor": {
     "arquivo": "fontes-motor.js",
@@ -29,7 +29,7 @@
       "dublado": true,
       "qualidadeMedida": "1280x720",
       "status": "funciona",
-      "verificadoEm": "2026-10-12",
+      "verificadoEm": "2026-10-19",
       "situacaoMedida": "link direto",
       "audioInformado": "Dublado",
       "audioMedido": "und"
@@ -121,8 +121,8 @@
       "nome": "PipocaCine (página de embed)",
       "tipo": "filme",
       "motivo": "a página tinha anúncio e só servia para abrir o player; o aplicativo passou a ler o arquivo direto do provedor sem abrir nada",
-      "verificadoEm": "2026-10-12",
-      "situacaoMedida": "abre (JavaScript)"
+      "verificadoEm": "2026-10-19",
+      "situacaoMedida": "indisponível"
     },
     {
       "nome": "PlenoFlu",
