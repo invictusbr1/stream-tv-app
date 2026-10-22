@@ -20,7 +20,7 @@ test('resposta de compatibilidade preserva HLS e MP4 para o navegador usar o lei
  const source=fs.readFileSync(__dirname+'/server.js','utf8'),begin=source.indexOf('async function responderCompatibilidade('),end=source.indexOf("app.get('/api/playback/:id'",begin);
  for(const type of ['hls','file']){
   const media={url:'https://media.invalid/video.'+(type==='hls'?'m3u8':'mp4'),urlAplicativo:'/api/hls?u=teste',type,audio:'pt-BR',videoCodec:'h264'};
-  const context=vm.createContext({require:name=>name==='./avaliador'?{escolherMelhor:async()=>({escolhido:media})}:name==='./fontes-motor'?{prepararParaPlayer:x=>x}:null});
+  const context=vm.createContext({require:name=>name==='./avaliador'?{escolherMelhor:async()=>({escolhido:media})}:name==='./fontes-motor'?{prepararParaPlayer:x=>x}:name==='./rede-playback.cjs'?require('./rede-playback.cjs'):null});
   vm.runInContext(source.slice(begin,end),context);let response;
   await context.responderCompatibilidade({query:{compat:'avc'}},{json:r=>{response=r;}},{tipo:'movie',tmdbId:'1084244'});
   assert.equal(response.type,type);assert.equal(response.url,media.urlAplicativo);
@@ -575,4 +575,10 @@ test('faixa nativa ativada tardiamente pelo navegador respeita a legenda desativ
  s.controller.setSubtitle(0);events.change();await new Promise(setImmediate);assert.equal(caption.mode,'showing');
  s.controller.setSubtitle(-1);caption.mode='showing';events.change();await new Promise(setImmediate);assert.equal(caption.mode,'disabled');
  s.controller.stop();await p;
+});
+
+
+test('APK reproduz mídia encaminhada pelo servidor no mesmo player e preserva a resolução',async()=>{
+ const s=harness('StreamTVAndroid');await videoTocando(s,null,{url:'/api/rede-midia?p=%2Fapi%2Fhls%3Fu%3Dteste',type:'hls',audio:'pt-BR',fonteId:'fenixflix-fenixhub'});
+ s.Hls.instance.levels=[{height:720,bitrate:1000},{height:2160,bitrate:15000000,videoCodec:'avc1.640033'}];s.Hls.instance.emit('manifest');assert.equal(s.Hls.instance.currentLevel,1);assert.equal(s.controller.estado().audio,'Dublado');s.controller.stop();
 });

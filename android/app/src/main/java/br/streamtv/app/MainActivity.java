@@ -990,11 +990,51 @@ public final class MainActivity extends Activity {
         JSONObject result=new JSONObject(RelatoHttp.enviar(base+"/api/qualidade/clickhost",body.toString(),(int)Math.min(3500,left)));
         return result.getString("url");
     }
+    private volatile ServerPlaybackTransport serverTransport;
+    private volatile long serverRouteUntil;
+    private ServerPlaybackTransport serverTransport()throws Exception{
+        ServerPlaybackTransport saved=serverTransport;if(saved!=null)return saved;
+        JSONObject config;try(InputStream in=getAssets().open("config.json")){config=new JSONObject(lerTexto(in));}
+        JSONObject discovery=new JSONObject(RelatoHttp.enviar(config.getString("descoberta"),null,2000));
+        String code=config.optString("acessoCodigo",config.optString("codigo",""));if(code.isEmpty())code=discovery.optString("codigo");
+        saved=new ServerPlaybackTransport(discovery.getString("endereco").replaceAll("/+$",""),code);serverTransport=saved;return saved;
+    }
+    private WebResourceResponse serverPlayback(String tipo,String id,String temporada,String episodio,java.util.Set<String> excluded,boolean hevc){
+        try{
+            ServerPlaybackTransport transport=serverTransport();
+            String path="tv".equals(tipo)?"/api/playback/serie/"+id+"/"+temporada+"/"+episodio:"/api/playback/"+id;
+            path+="?transporte=servidor&codec="+(hevc?"hevc":"avc")+"&exceto="+Uri.encode(android.text.TextUtils.join(",",excluded));
+            JSONObject data=new JSONObject(transport.json(path,20000));
+            if(!"pt-BR".equals(data.optString("audio"))||data.has("conversao")||!java.util.Arrays.asList("file","hls").contains(data.optString("type")))return null;
+            data.put("url",ServerPlaybackTransport.local(data.getString("url")));
+            JSONObject diagnosis=new JSONObject().put("id",id).put("temporada",temporada==null?"":temporada).put("episodio",episodio==null?"":episodio).put("hevc",hevc).put("transporte","servidor").put("escolhida",data.optString("fonteId"));
+            JSONArray checks=new JSONArray(),scores=data.optJSONArray("avaliacao");
+            for(int i=0;scores!=null&&i<Math.min(12,scores.length());i++){
+                JSONObject row=scores.optJSONObject(i);if(row==null)continue;JSONObject detail=row.optJSONObject("detalhes");
+                Matcher size=Pattern.compile("([0-9]+)\\s*[×x]\\s*([0-9]+)").matcher(detail==null?"":detail.optString("dimensoes"));boolean measured=size.find();
+                checks.put(new JSONObject().put("id",row.optString("fonteId")).put("motivo",measured?"validada":"sem_metadados").put("largura",measured?Integer.parseInt(size.group(1)):0).put("altura",measured?Integer.parseInt(size.group(2)):0).put("idioma",detail!=null&&!detail.optBoolean("dubladoNaoConfirmado")&&detail.optString("idioma").contains("portugu")?2:1).put("ms",row.optLong("ms")));
+            }
+            data.put("diagnosticoQualidade",diagnosis.put("fontes",checks));data.put("transporte","servidor");
+            serverRouteUntil=SystemClock.elapsedRealtime()+180000;
+            return respostaTexto("application/json",data.toString());
+        }catch(Exception unavailable){serverTransport=null;return null;}
+    }
+    private WebResourceResponse serverMedia(Uri uri,java.util.Map<String,String> requestHeaders){
+        try{
+            ServerPlaybackTransport transport=serverTransport;if(transport==null)return error(502);
+            String range=null;for(java.util.Map.Entry<String,String> entry:requestHeaders.entrySet())if(entry.getKey().equalsIgnoreCase("Range"))range=entry.getValue();
+            ServerPlaybackTransport.Response response=transport.media(uri.getQueryParameter("p"),range);
+            return new WebResourceResponse(response.mime,null,response.status,"OK",response.headers,response.body);
+        }catch(Exception unavailable){return error(502);}
+    }
+
     private WebResourceResponse qualityPlayback(String tipo,String id,String temporada,String episodio,java.util.Set<String> excluded) {
         return qualityPlayback(tipo,id,temporada,episodio,excluded,false);
     }
     private WebResourceResponse qualityPlayback(String tipo,String id,String temporada,String episodio,java.util.Set<String> excluded,boolean avcOnly) {
         final QualitySelector selector=avcOnly?compatibleQualitySelector:qualitySelector;
+        boolean serverTried=false;
+        if(SystemClock.elapsedRealtime()<serverRouteUntil){serverTried=true;WebResourceResponse recovered=serverPlayback(tipo,id,temporada,episodio,excluded,selector.podeHevc());if(recovered!=null)return recovered;serverRouteUntil=0;}
         final java.util.Set<String> exceto=Collections.unmodifiableSet(new java.util.HashSet<>(excluded));
         List<QualitySelector.Source> sources=new ArrayList<>();
         boolean tv="tv".equals(tipo);
@@ -1051,6 +1091,7 @@ public final class MainActivity extends Activity {
                 return respostaTexto("application/json",data.toString());
             }catch(Exception ignored){selector.forget(key);return error(502);}
         }
+        if(!serverTried){WebResourceResponse recovered=serverPlayback(tipo,id,temporada,episodio,exceto,selector.podeHevc());if(recovered!=null)return recovered;}
         // A rodada já consultou e revisou todas as fontes dubladas. O último
         // recurso mantém seu próprio prazo; a interface não repete esta busca.
         if(!exceto.contains("vixsrc")){
@@ -1528,6 +1569,7 @@ public final class MainActivity extends Activity {
                 if (path != null && "/api/tv/la18hd".equals(path)) return la18Playback();
                 if (path != null && "/api/futebol/agenda".equals(path)) return futebolAgenda(uri);
                 if (path != null && path.matches("/api/crystal-lake/1/[1-8]/master\\.m3u8")) return crystalLakePlaylist(path.split("/")[4]);
+                if (path != null && "/api/rede-midia".equals(path)) return serverMedia(uri,request.getRequestHeaders());
                 if (path != null && "/api/hls".equals(path)) return encaminharMidia(uri);
                 // Fichas de fonte (o mesmo arquivo que o computador usa): a
                 // interface lê aqui para montar as listas de canais novas.

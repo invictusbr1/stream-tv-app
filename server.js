@@ -476,7 +476,7 @@ async function responderCompatibilidade(req, res, alvo) {
         if (!fonte) { res.status(502).json({error:'Não foi encontrada uma versão dublada compatível neste fornecedor.'}); return true; }
         pronto = require('./fontes-motor').prepararParaPlayer(fonte);
     }
-    res.json({url:pronto.final?pronto.url:pronto.urlAplicativo,audio:pronto.audio,source:pronto.fonte,fonteId:pronto.fonteId,type:pronto.type||'file',resolucao:pronto.resolucao,videoCodec:pronto.videoCodec||''});
+    res.json({url:require('./rede-playback.cjs').enderecoPlayback(req,pronto),audio:pronto.audio,source:pronto.fonte,fonteId:pronto.fonteId,type:pronto.type||'file',resolucao:pronto.resolucao,videoCodec:pronto.videoCodec||''});
     return true;
 }
 app.get('/api/playback/:id', async (req, res) => {
@@ -536,7 +536,7 @@ app.get('/api/playback/:id', async (req, res) => {
             }
             const pronto = motor.prepararParaPlayer(escolhido);
             return res.json({
-                url: pronto.final ? pronto.url : pronto.urlAplicativo,
+                url: require('./rede-playback.cjs').enderecoPlayback(req,pronto),
                 audio: pronto.audio || 'pt-BR',
                 source: pronto.fonte || 'Dublado limpo',
                 fonteId: pronto.fonteId || '',
@@ -604,7 +604,7 @@ app.get('/api/playback/serie/:id/:season/:episode', async (req, res) => {
         }
         res.json({
             // Fonte de arquivo direto (dublada) não passa pelo encaminhamento.
-            url: escolhido.final ? escolhido.url : escolhido.urlAplicativo,
+            url: require('./rede-playback.cjs').enderecoPlayback(req,escolhido),
             audio: escolhido.audio,
             source: escolhido.fonte,
             fonteId: escolhido.fonteId || '',
