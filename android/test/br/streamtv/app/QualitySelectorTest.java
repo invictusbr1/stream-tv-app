@@ -340,7 +340,12 @@ public final class QualitySelectorTest {
                 busy.add(best);
                 check(selector.choose("reuse",busy,Collections.emptySet(),probe,400,"movie:777",Collections.emptySet()).id.equals("best"));
                 // O histórico de um título não altera a gaveta de outro.
-                check(selector.choose("other",busy,Collections.emptySet(),probe,150,"movie:888",Collections.emptySet())==null);
+                // A lista de fontes vai VAZIA de propósito: assim só sobra o que o
+                // histórico poderia lembrar para "movie:888". Antes o teste dependia
+                // de 7 fontes lentas saturarem o pool de 6 threads, o que passou a
+                // afirmar o tamanho do pool em vez da propriedade (e quebrava ao
+                // aumentar o pool). Vazio, o resultado é null independente de threads.
+                check(selector.choose("other",Collections.emptyList(),Collections.emptySet(),probe,150,"movie:888",Collections.emptySet())==null);
             }break;
         }
         case "source-fairness":{

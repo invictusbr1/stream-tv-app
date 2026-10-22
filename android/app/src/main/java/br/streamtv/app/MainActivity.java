@@ -999,7 +999,12 @@ public final class MainActivity extends Activity {
         List<QualitySelector.Source> sources=new ArrayList<>();
         boolean tv="tv".equals(tipo);
         java.util.Set<String> allowed=new java.util.HashSet<>();
-        Collections.addAll(allowed,tv?"pipoca-serie":"pipoca","watchplay","mgeb","clickhost");
+        // A FenixFlix precisa estar aqui. `allowed` e o que o seletor usa para
+        // carregar o historico por titulo, e sem essa entrada a fonte NUNCA ganha
+        // prioridade: cai sempre no fim da fila, perde a thread para uma fonte
+        // lenta e termina em "prazo_consulta" sem ser testada. Nos relatos da
+        // central e justamente a unica fonte que mede 720p/1080p/4K com sucesso.
+        Collections.addAll(allowed,tv?"pipoca-serie":"pipoca","watchplay","mgeb","clickhost","fenixflix-fenixhub");
         if(!exceto.contains("clickhost"))sources.add(QualitySelector.named("clickhost",qualityClickHostSource(tipo,id,temporada,episodio)));
         if(!exceto.contains("pipoca")&&!tv)sources.add(QualitySelector.named("pipoca",qualitySource(()->pipocaFilme(id))));
         if(!exceto.contains("watchplay"))sources.add(QualitySelector.named("watchplay",qualitySource(()->directPlayback(tv?"https://v2.watchplay.shop/tvshow/"+id+"/"+temporada+"/"+episodio:"https://v2.watchplay.shop/movie/"+id))));

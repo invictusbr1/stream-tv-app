@@ -61,7 +61,13 @@ final class QualitySelector implements AutoCloseable {
         Measure apply(String title,Candidate candidate);
     }
     private static final class Entry<T> { final T value;final long expires;Entry(T v,long e){value=v;expires=e;} }
-    private final ExecutorService workers=Executors.newFixedThreadPool(6,r->{Thread t=new Thread(r,"conecta-quality");t.setDaemon(true);return t;});
+    // 12 threads em vez de 6. O pool e compartilhado entre resolver fontes,
+    // reprocessar o historico, medir candidatos em cache e baixar as provas de
+    // idioma — e cada tarefa segura a thread enquanto baixa bytes do video. Com 6
+    // threads e 5 fontes, uma fonte lenta (MGEB chegou a 10s) deixava a FenixFlix
+    // sem thread: nos relatos da central ela aparece como "prazo_consulta" sem
+    // nunca ter sido testada, e o aparelho termina em "tente novamente".
+    private final ExecutorService workers=Executors.newFixedThreadPool(12,r->{Thread t=new Thread(r,"conecta-quality");t.setDaemon(true);return t;});
     private final Map<String,Entry<List<Candidate>>> choices=new LinkedHashMap<>();
     private final Map<String,Entry<Measure>> measures=new LinkedHashMap<>();
     private static final class Reserve { final List<Candidate> candidates;final List<Check> checks;Reserve(List<Candidate> c,List<Check> r){candidates=c;checks=r;} }
