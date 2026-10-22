@@ -205,8 +205,6 @@ final class QualitySelector implements AutoCloseable {
         boolean sourcesComplete=true;
         try {
             CompletionService<List<Candidate>> finished=new ExecutorCompletionService<>(workers);
-            if(evidence!=null)futures.add(finished.submit(()->{try{evidence.load(deadline);}catch(Exception ignored){}return Collections.emptyList();}));
-            if(history!=null)for(Candidate c:remembered)futures.add(finished.submit(()->{assess(c,excluded,probe,deadline,found,trace,begun);return Collections.emptyList();}));
             if(cached!=null)for(Candidate c:cached)futures.add(finished.submit(()->{assess(c,excluded,probe,deadline,found,trace,begun);return Collections.emptyList();}));
             else for(Source source:scheduled)futures.add(finished.submit(()->{
                 Check sourceCheck=check(trace,source.id());sourceCheck.reason="consulta";List<Candidate> result=null;
@@ -225,6 +223,13 @@ final class QualitySelector implements AutoCloseable {
                 assess(result.get(0),excluded,probe,deadline,found,trace,begun);
                 return new ArrayList<>(result.subList(1,result.size()));
             }));
+            // As fontes vão PRIMEIRO para o pool. Antes, o histórico e as provas de
+            // idioma eram enviados antes delas; num aparelho com histórico
+            // acumulado, cada sonda dessas segura uma thread por segundos e as
+            // fontes só começavam perto do fim do prazo — nos relatos da central
+            // isso aparece como TODAS as fontes em "prazo_consulta" com 12 s.
+            if(history!=null)for(Candidate c:remembered)futures.add(finished.submit(()->{assess(c,excluded,probe,deadline,found,trace,begun);return Collections.emptyList();}));
+            if(evidence!=null)futures.add(finished.submit(()->{try{evidence.load(deadline);}catch(Exception ignored){}return Collections.emptyList();}));
             int pending=futures.size();
             while(pending>0){
                 long left=deadline-now();if(left<=0)break;
