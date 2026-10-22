@@ -1,14 +1,14 @@
 {
-  "versionCode": 440,
-  "versionName": "2.13.110",
-  "apkUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.110/Conecta-TV-Android-2.13.110.apk",
-  "sha256": "73150014ca4da6967e6054957a3867d1bc6e2370f77f8f2332ecb6f23da0f59f",
-  "bytes": 521630,
-  "notes": "Mantém legendas desligadas por padrão no áudio dublado, inclusive após atualizações tardias das faixas. Preserva a escolha manual de legendas e a seleção de áudio e qualidade.",
+  "versionCode": 441,
+  "versionName": "2.13.111",
+  "apkUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.111/Conecta-TV-Android-2.13.111.apk",
+  "sha256": "d9109934ebcaf73911d835e84d3b0569ba390486eec79df246a003afe890c938",
+  "bytes": 521661,
+  "notes": "Sobe o pool do seletor de qualidade de 6 para 12 threads e inclui a FenixFlix na lista de fontes com prioridade. Corrige o aparelho que ficava em tente novamente: a fonte que mede certo morria na fila antes de ser testada. Ajusta o teste de regressao para nao depender do tamanho do pool.",
   "exeUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.68/Conecta-TV-2.13.68.exe",
   "exeSha256": "40914a57b0e3ad375615c9954839f8c3f7bb138d8739472772de3ee28d3ff015",
   "exeBytes": 120409967,
-  "apkTvUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.110/Conecta-TV-TV-2.13.110.apk",
-  "apkTvSha256": "2b7de236c241f8fcfe48b68a9cd17902cb28698b8fd283ac6e6160566f20a02e",
-  "apkTvBytes": 521302
+  "apkTvUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.111/Conecta-TV-TV-2.13.111.apk",
+  "apkTvSha256": "8be1eed3c32ca2c4ea012c09fabc63fc72b8c7f16631fcaf64e8b9ef5fd6d285",
+  "apkTvBytes": 521401
 }
