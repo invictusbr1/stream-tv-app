@@ -13,3 +13,7 @@ A mídia remota chega ao mesmo player local por uma rota interna autenticada: li
 ## Verificação
 
 552 testes passaram, incluindo origem/autenticação, isolamento de credenciais, redirecionamentos recusados, HLS/chaves/segmentos, HTML recusado, Range, transmissão sem leitura prévia do arquivo e reprodução da rota no player com seleção 4K preservada. O teste no S25 FE real ainda depende da instalação e confirmação do usuário. Não há promessa de tempo fixo de abertura ou de disponibilidade de todos os títulos.
+
+## Verificação após publicação do servidor
+
+O usuário confirmou que o mesmo APK no S25 FE reproduz usando dados móveis e falha no Wi-Fi; a causa específica da rede ainda não foi medida. Com o servidor publicado, o mesmo transporte Java do APK recebeu JSON e mídia dublada de Quem Ama Cuida T1E134 (MGEB/HLS), Moana (MGEB/HLS) e Doutor Estranho no Multiverso da Loucura (ClickHost/MP4). HLS foi seguido até segmento e MP4 respondeu 206 a Range de 1.024 bytes. Na primeira rodada houve um timeout de consulta da série e falha em uma variante HLS de Doutor Estranho; a rodada seguinte abriu os três. São verificações de entrega inicial, não reprodução completa nem teste físico na rede afetada.
