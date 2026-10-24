@@ -1,14 +1,14 @@
 {
-  "versionCode": 442,
-  "versionName": "2.13.112",
-  "apkUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.112/Conecta-TV-Android-2.13.112.apk",
-  "sha256": "b9b8c43b8e04b373ff55f56699805a20a5a1bc37ad615c6b1d199abe938501fe",
-  "bytes": 521710,
-  "notes": "Fontes vao primeiro no seletor de qualidade. O historico e as provas de idioma eram enviados antes das fontes; num aparelho com historico acumulado cada sonda ocupava uma thread por segundos e as fontes so comecavam no fim do prazo, resultando em prazo_consulta em todas e no aviso tente novamente. Agora as fontes entram primeiro no pool, com 12 threads. Inclui a FenixFlix na lista de prioridade.",
+  "versionCode": 443,
+  "versionName": "2.13.113",
+  "apkUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.113/Conecta-TV-Android-2.13.113.apk",
+  "sha256": "7994619160485554d4014e419692cd60131f484d77597b07693b2cc5a80aa0a2",
+  "bytes": 645239,
+  "notes": "Recuperação automática pelo servidor quando o acesso direto aos fornecedores falha na rede. Preserva a seleção de qualidade e áudio dublado.",
   "exeUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.68/Conecta-TV-2.13.68.exe",
   "exeSha256": "40914a57b0e3ad375615c9954839f8c3f7bb138d8739472772de3ee28d3ff015",
   "exeBytes": 120409967,
-  "apkTvUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.112/Conecta-TV-TV-2.13.112.apk",
-  "apkTvSha256": "c57c4fc8b670ba6dae9078cdbb2256b7d5a1796d5239068cc498cfd666cadb65",
-  "apkTvBytes": 521473
+  "apkTvUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.113/Conecta-TV-TV-2.13.113.apk",
+  "apkTvSha256": "8c75483131334c4a574a575496570e53e525812680996a63cc3b511cbc8f8acb",
+  "apkTvBytes": 644762
 }
