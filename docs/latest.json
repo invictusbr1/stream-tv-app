@@ -1,14 +1,14 @@
 {
-  "versionCode": 450,
-  "versionName": "2.13.120",
-  "apkUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.120/Conecta-TV-Android-2.13.120.apk",
-  "sha256": "e53ae4c74598bafc40d3e1d68b1f6e2f445a42c92b87b6923d6680f6873df04a",
-  "bytes": 526275,
-  "notes": "Playback do APK: o WebView toca /api/hls direto (com codigo), sem o proxy nativo serverMedia que estava abortando o stream.",
+  "versionCode": 451,
+  "versionName": "2.13.121",
+  "apkUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.121/Conecta-TV-Android-2.13.121.apk",
+  "sha256": "549b8ad3db35c1734898788ca5279fbb969dc59f16e3ca338bdfee8298abee51",
+  "bytes": 526366,
+  "notes": "Qualidade: fonte 4K marcada como sem titulo nao vai mais para o fim; 4K HEVC volta a ser a primeira escolha. APK nao manda mais exceto ao servidor.",
   "exeUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.117/Conecta.TV.exe",
   "exeSha256": "9f1cbee5931e53e469dd488a7b3bfbfca9dd8077681a87ded02bad70ab657f7d",
   "exeBytes": 120134995,
-  "apkTvUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.120/Conecta-TV-TV-2.13.120.apk",
-  "apkTvSha256": "888ab62539fe94e05ee7700541903f86aabe4a9252d9ee42812d13b49be9fa51",
-  "apkTvBytes": 526121
+  "apkTvUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.121/Conecta-TV-TV-2.13.121.apk",
+  "apkTvSha256": "d947fbaaf7ae57db0b71d7fc60a734f3cc0d6a36a968d76fe2015b442a0af500",
+  "apkTvBytes": 525991
 }
