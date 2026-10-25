@@ -4,10 +4,10 @@
   "apkUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.117/Conecta-TV-Android-2.13.117.apk",
   "sha256": "5851cf8e15b755632ef851ea7ce6688ea701af0a1ef7d0c944435f183455d31a",
   "bytes": 526012,
-  "notes": "Corrige a serie Quem Ama Cuida: fontes diretas com Referer (FrostStream/Kairou) passam pelo proxy do servidor no APK; mantem 4K e dublado.",
+  "notes": "Corrige a serie Quem Ama Cuida: Kairou nao entrega o 136 no 121; APK usa proxy para fontes diretas com Referer; mantem 4K e dublado.",
   "exeUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.117/Conecta.TV.exe",
-  "exeSha256": "1366d171f211d178975ab0243422e1035355421816de2c0ccb6aa44a7b6142a9",
-  "exeBytes": 120131044,
+  "exeSha256": "9f1cbee5931e53e469dd488a7b3bfbfca9dd8077681a87ded02bad70ab657f7d",
+  "exeBytes": 120134995,
   "apkTvUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.117/Conecta-TV-TV-2.13.117.apk",
   "apkTvSha256": "186c8d8591c4b6fb34e40f6b5130508f71ce60da893ca99054735adab4e9a213",
   "apkTvBytes": 525797
