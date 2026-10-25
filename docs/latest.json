@@ -1,14 +1,14 @@
 {
-  "versionCode": 449,
-  "versionName": "2.13.119",
-  "apkUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.119/Conecta-TV-Android-2.13.119.apk",
-  "sha256": "d621fcdd08818db3f3910518924379ddc9670a36413713eb0867b833010aa265",
-  "bytes": 526179,
-  "notes": "Serie Quem Ama Cuida: o caminho normal (sem compat) tambem chama o serverPlayback antes; 121 FrostStream e 136 Kairou proxiados.",
+  "versionCode": 450,
+  "versionName": "2.13.120",
+  "apkUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.120/Conecta-TV-Android-2.13.120.apk",
+  "sha256": "e53ae4c74598bafc40d3e1d68b1f6e2f445a42c92b87b6923d6680f6873df04a",
+  "bytes": 526275,
+  "notes": "Playback do APK: o WebView toca /api/hls direto (com codigo), sem o proxy nativo serverMedia que estava abortando o stream.",
   "exeUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.117/Conecta.TV.exe",
   "exeSha256": "9f1cbee5931e53e469dd488a7b3bfbfca9dd8077681a87ded02bad70ab657f7d",
   "exeBytes": 120134995,
-  "apkTvUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.119/Conecta-TV-TV-2.13.119.apk",
-  "apkTvSha256": "507fdcfd55897d879f7ab83138eebeb40189c53a79eff1d8f456ddd856822d60",
-  "apkTvBytes": 525976
+  "apkTvUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.120/Conecta-TV-TV-2.13.120.apk",
+  "apkTvSha256": "888ab62539fe94e05ee7700541903f86aabe4a9252d9ee42812d13b49be9fa51",
+  "apkTvBytes": 526121
 }
