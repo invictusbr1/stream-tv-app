@@ -1,14 +1,14 @@
 {
-  "versionCode": 446,
-  "versionName": "2.13.116",
-  "apkUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.116/Conecta-TV-Android-2.13.116.apk",
-  "sha256": "370c83a2375ec4e5b4f850bd524b9001ed7a9bef9c3538c4ef1a06bef1a84da5",
-  "bytes": 525967,
-  "notes": "Libera 4K hvc1 Main10 no APK e no Safari via proxy com Referer; mantem 4K e dublado como prioridade.",
-  "exeUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.116/Conecta.TV.exe",
-  "exeSha256": "69964c373abb07146d530f8882958350476962877ceb2715b7ac11fcb1fb1908",
-  "exeBytes": 120130892,
-  "apkTvUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.116/Conecta-TV-TV-2.13.116.apk",
-  "apkTvSha256": "59c66626b5444644c8825ecdbdfb1005804c923cbb7627ab869b4b07e84d6206",
-  "apkTvBytes": 525767
+  "versionCode": 447,
+  "versionName": "2.13.117",
+  "apkUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.117/Conecta-TV-Android-2.13.117.apk",
+  "sha256": "5851cf8e15b755632ef851ea7ce6688ea701af0a1ef7d0c944435f183455d31a",
+  "bytes": 526012,
+  "notes": "Corrige a serie Quem Ama Cuida: fontes diretas com Referer (FrostStream/Kairou) passam pelo proxy do servidor no APK; mantem 4K e dublado.",
+  "exeUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.117/Conecta.TV.exe",
+  "exeSha256": "1366d171f211d178975ab0243422e1035355421816de2c0ccb6aa44a7b6142a9",
+  "exeBytes": 120131044,
+  "apkTvUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.117/Conecta-TV-TV-2.13.117.apk",
+  "apkTvSha256": "186c8d8591c4b6fb34e40f6b5130508f71ce60da893ca99054735adab4e9a213",
+  "apkTvBytes": 525797
 }
