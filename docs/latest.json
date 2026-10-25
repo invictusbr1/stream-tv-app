@@ -1,14 +1,14 @@
 {
-  "versionCode": 443,
-  "versionName": "2.13.113",
-  "apkUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.113/Conecta-TV-Android-2.13.113.apk",
-  "sha256": "7994619160485554d4014e419692cd60131f484d77597b07693b2cc5a80aa0a2",
-  "bytes": 645239,
-  "notes": "Recuperação automática pelo servidor quando o acesso direto aos fornecedores falha na rede. Preserva a seleção de qualidade e áudio dublado.",
-  "exeUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.68/Conecta-TV-2.13.68.exe",
-  "exeSha256": "40914a57b0e3ad375615c9954839f8c3f7bb138d8739472772de3ee28d3ff015",
-  "exeBytes": 120409967,
-  "apkTvUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.113/Conecta-TV-TV-2.13.113.apk",
-  "apkTvSha256": "8c75483131334c4a574a575496570e53e525812680996a63cc3b511cbc8f8acb",
-  "apkTvBytes": 644762
+  "versionCode": 444,
+  "versionName": "2.13.114",
+  "apkUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.114/Conecta-TV-Android-2.13.114.apk",
+  "sha256": "289d242ca89ae357a9afa816b6e755ae6eea275193fd49be6ebdf513ab5f372a",
+  "bytes": 525713,
+  "notes": "Corrige os episodios 121+ de Quem Ama Cuida: FrostStream (121-135) e VeTela/Kairou (136); barra o fallback do episodio 1.",
+  "exeUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.114/Conecta TV.exe",
+  "exeSha256": "16efe74397ce5a93e6f4ac8da7f1819dbfc3c6acde4f1f91bc22ced4d22dbeb2",
+  "exeBytes": 120129838,
+  "apkTvUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.114/Conecta-TV-TV-2.13.114.apk",
+  "apkTvSha256": "ece69abd31bfcd978fe09d0b513d4fc5a4254c33c494770b9384886c1798dd26",
+  "apkTvBytes": 525493
 }
