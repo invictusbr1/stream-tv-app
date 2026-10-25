@@ -1,14 +1,14 @@
 {
-  "versionCode": 444,
-  "versionName": "2.13.114",
-  "apkUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.114/Conecta-TV-Android-2.13.114.apk",
-  "sha256": "289d242ca89ae357a9afa816b6e755ae6eea275193fd49be6ebdf513ab5f372a",
-  "bytes": 525713,
-  "notes": "Corrige os episodios 121+ de Quem Ama Cuida: FrostStream (121-135) e VeTela/Kairou (136); barra o fallback do episodio 1.",
-  "exeUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.114/Conecta.TV.exe",
-  "exeSha256": "16efe74397ce5a93e6f4ac8da7f1819dbfc3c6acde4f1f91bc22ced4d22dbeb2",
-  "exeBytes": 120129838,
-  "apkTvUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.114/Conecta-TV-TV-2.13.114.apk",
-  "apkTvSha256": "ece69abd31bfcd978fe09d0b513d4fc5a4254c33c494770b9384886c1798dd26",
-  "apkTvBytes": 525493
+  "versionCode": 445,
+  "versionName": "2.13.115",
+  "apkUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.115/Conecta-TV-Android-2.13.115.apk",
+  "sha256": "6f837b3e623954c48e0b2b5f9a06cdeaec54818748f0d2994075daa46864806d",
+  "bytes": 525805,
+  "notes": "Corrige o filme 4K HEVC (Homem-Aranha: Um Novo Dia): fallback H.264 1080p dublado tambem na TV, mantendo 4K e dublado como prioridade.",
+  "exeUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.115/Conecta.TV.exe",
+  "exeSha256": "47f92358050b9ce8a6a5d0ad4a79403fd0b8d81672ec948fac8e430fb9ae343a",
+  "exeBytes": 120130137,
+  "apkTvUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.115/Conecta-TV-TV-2.13.115.apk",
+  "apkTvSha256": "a8d44ab1210026bf625f24ff9899289ed0543fc846dfd6741017faef6424e089",
+  "apkTvBytes": 525592
 }
