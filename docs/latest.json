@@ -1,14 +1,14 @@
 {
-  "versionCode": 445,
-  "versionName": "2.13.115",
-  "apkUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.115/Conecta-TV-Android-2.13.115.apk",
-  "sha256": "6f837b3e623954c48e0b2b5f9a06cdeaec54818748f0d2994075daa46864806d",
-  "bytes": 525805,
-  "notes": "Corrige o filme 4K HEVC (Homem-Aranha: Um Novo Dia): fallback H.264 1080p dublado tambem na TV, mantendo 4K e dublado como prioridade.",
-  "exeUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.115/Conecta.TV.exe",
-  "exeSha256": "47f92358050b9ce8a6a5d0ad4a79403fd0b8d81672ec948fac8e430fb9ae343a",
-  "exeBytes": 120130137,
-  "apkTvUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.115/Conecta-TV-TV-2.13.115.apk",
-  "apkTvSha256": "a8d44ab1210026bf625f24ff9899289ed0543fc846dfd6741017faef6424e089",
-  "apkTvBytes": 525592
+  "versionCode": 446,
+  "versionName": "2.13.116",
+  "apkUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.116/Conecta-TV-Android-2.13.116.apk",
+  "sha256": "370c83a2375ec4e5b4f850bd524b9001ed7a9bef9c3538c4ef1a06bef1a84da5",
+  "bytes": 525967,
+  "notes": "Libera 4K hvc1 Main10 no APK e no Safari via proxy com Referer; mantem 4K e dublado como prioridade.",
+  "exeUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.116/Conecta.TV.exe",
+  "exeSha256": "69964c373abb07146d530f8882958350476962877ceb2715b7ac11fcb1fb1908",
+  "exeBytes": 120130892,
+  "apkTvUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.116/Conecta-TV-TV-2.13.116.apk",
+  "apkTvSha256": "59c66626b5444644c8825ecdbdfb1005804c923cbb7627ab869b4b07e84d6206",
+  "apkTvBytes": 525767
 }
