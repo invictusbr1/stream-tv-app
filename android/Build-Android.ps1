@@ -25,11 +25,19 @@ New-Item -ItemType Directory -Force -Path $buildPath, $outputPath | Out-Null
 foreach ($name in @('app','gradle','gradlew','gradlew.bat','settings.gradle','build.gradle','gradle.properties')) {
     Copy-Item -LiteralPath (Join-Path $PSScriptRoot $name) -Destination $buildPath -Recurse -Force
 }
-$env:JAVA_HOME = (Get-ChildItem -LiteralPath $toolsPath -Directory -Filter 'jdk-*' | Select-Object -First 1).FullName
+# O JDK pode estar direto na pasta (jdk-17...) ou um nível abaixo (jdk17a\jdk-17...).
+$jdk = Get-ChildItem -LiteralPath $toolsPath -Directory -Recurse -Depth 2 -ErrorAction SilentlyContinue | Where-Object { Test-Path -LiteralPath (Join-Path $_.FullName 'bin\java.exe') } | Select-Object -First 1
+if (-not $jdk) { throw "JDK não encontrado dentro de $toolsPath." }
+$env:JAVA_HOME = $jdk.FullName
 $env:ANDROID_HOME = Join-Path $toolsPath 'sdk'
 $env:GRADLE_USER_HOME = Join-Path $toolsPath 'gradle-cache'
 $tarefas = if ($Canal -eq 'celular') { @('assembleCelularDebug','lintCelularDebug') } elseif ($Canal -eq 'tv') { @('assembleTvDebug','lintTvDebug') } else { @('assembleCelularDebug','assembleTvDebug','lintCelularDebug','lintTvDebug') }
-& (Join-Path $toolsPath 'gradle-8.11.1\bin\gradle.bat') -p $buildPath @tarefas --no-daemon
+# Gradle instalado na pasta de ferramentas ou, se não houver, o gradlew do projeto
+# (a distribuição 8.11.1 já fica guardada em gradle-cache\wrapper).
+$gradle = Join-Path $toolsPath 'gradle-8.11.1\bin\gradle.bat'
+if (-not (Test-Path -LiteralPath $gradle)) { $gradle = Join-Path $buildPath 'gradlew.bat' }
+Write-Output "Java: $env:JAVA_HOME | Gradle: $gradle"
+& $gradle -p $buildPath @tarefas --no-daemon
 if ($LASTEXITCODE -ne 0) { throw 'Compilação ou verificação Android falhou.' }
 $versionName = [regex]::Match((Get-Content -LiteralPath (Join-Path $PSScriptRoot 'app\build.gradle') -Raw), "versionName\s+'([^']+)'").Groups[1].Value
 if (-not $versionName) { throw 'versionName não encontrado em app/build.gradle.' }
