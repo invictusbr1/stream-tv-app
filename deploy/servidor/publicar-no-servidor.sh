@@ -92,7 +92,7 @@ with tarfile.open(archive,'r:gz') as tar:
  tar.extractall(destination,filter='data')
 with open(pathlib.Path(destination)/'.conecta-release.json') as file:
  if json.load(file).get('id')!=release: raise ValueError('Identificador divergente')
-for file in ['package.json','package-lock.json','server.js','index.html','Dockerfile','central/servidor.js','deploy/servidor/docker-compose.yml','deploy/servidor/docker-compose.oracle.yml']:
+for file in ['package.json','package-lock.json','server.js','politica-fontes.json','rotas/playback.js','index.html','Dockerfile','central/servidor.js','deploy/servidor/docker-compose.yml','deploy/servidor/docker-compose.oracle.yml']:
  if not (pathlib.Path(destination)/file).is_file(): raise ValueError('Pacote incompleto: '+file)
 PY
 cat > "$STATE/validar-compose.py" <<'PY'

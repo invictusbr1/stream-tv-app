@@ -25,6 +25,7 @@
   "pkg": {
     "scripts": [
       "server.js",
+      "rotas/*.js",
       "launcher.js",
       "politica-fontes.js",
       "fontes-motor.js",

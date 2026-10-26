@@ -17,10 +17,10 @@ test('ClickHost extrai só mídia segura e trata links assinados como temporári
 });
 
 test('resposta de compatibilidade preserva HLS e MP4 para o navegador usar o leitor correto',async()=>{
- const source=fs.readFileSync(__dirname+'/server.js','utf8'),begin=source.indexOf('async function responderCompatibilidade('),end=source.indexOf("app.get('/api/playback/:id'",begin);
+ const source=fs.readFileSync(__dirname+'/rotas/playback.js','utf8'),begin=source.indexOf('async function responderCompatibilidade('),end=source.indexOf("app.get('/api/playback/:id'",begin);
  for(const type of ['hls','file']){
   const media={url:'https://media.invalid/video.'+(type==='hls'?'m3u8':'mp4'),urlAplicativo:'/api/hls?u=teste',type,audio:'pt-BR',videoCodec:'h264'};
-  const context=vm.createContext({require:name=>name==='./avaliador'?{escolherMelhor:async()=>({escolhido:media})}:name==='./fontes-motor'?{prepararParaPlayer:x=>x}:name==='./rede-playback.cjs'?require('./rede-playback.cjs'):null});
+  const context=vm.createContext({require:caminho=>{const name=caminho.replace(/^\.\.\//,'./');return name==='./avaliador'?{escolherMelhor:async()=>({escolhido:media})}:name==='./fontes-motor'?{prepararParaPlayer:x=>x}:name==='./rede-playback.cjs'?require('./rede-playback.cjs'):null;}});
   vm.runInContext(source.slice(begin,end),context);let response;
   await context.responderCompatibilidade({query:{compat:'avc'}},{json:r=>{response=r;}},{tipo:'movie',tmdbId:'1084244'});
   assert.equal(response.type,type);assert.equal(response.url,media.urlAplicativo);
