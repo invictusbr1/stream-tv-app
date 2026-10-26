@@ -49,7 +49,9 @@ const seguranca = require('./seguranca');
 const ACESSO_CODIGO = String(process.env.ACESSO_CODIGO || LOCAL_CONFIG.acessoCodigo || '').trim();
 const ORIGENS_PERMITIDAS = String(process.env.ORIGENS_PERMITIDAS || LOCAL_CONFIG.origensPermitidas || '')
     .split(',').map(item => item.trim()).filter(Boolean);
-app.set('trust proxy', true);
+// Só confia no X-Forwarded-For vindo de intermediários da rede interna (Caddy,
+// túneis, Docker, Tailscale). Com "true", qualquer cliente trocava o próprio IP.
+app.set('trust proxy', 'loopback, linklocal, uniquelocal, 100.64.0.0/10');
 app.use(seguranca.cabecalhos({ origensPermitidas: ORIGENS_PERMITIDAS }));
 app.use(express.json({ limit: '256kb' }));
 app.use(seguranca.criarLimitador({
@@ -219,11 +221,7 @@ function gravarAcessos(lista) {
     try { fs.writeFileSync(ARQ_ACESSOS, JSON.stringify(lista, null, 1), 'utf8'); } catch { /* sem permissão de escrita */ }
 }
 
-function ipDoPedido(req) {
-    const encaminhado = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim();
-    const direto = req.socket?.remoteAddress || '';
-    return (encaminhado || direto).replace(/^::ffff:/, '');
-}
+const ipDoPedido = seguranca.ipDoPedido; // regra única (ver seguranca.js)
 
 app.post('/api/acesso', (req, res) => {
     const corpo = req.body || {};

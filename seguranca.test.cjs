@@ -132,3 +132,13 @@ test('sem código configurado, o aplicativo segue funcionando como sempre', () =
     portao.middleware(pedido(), resposta(), () => { liberou = true; });
     assert.equal(liberou, true);
 });
+
+test('limite de uso: X-Forwarded-For inventado pelo cliente não troca o IP', () => {
+    const { ipDoPedido } = require('./seguranca');
+    const pedido = (direto, encaminhado) => ({ socket: { remoteAddress: direto }, headers: encaminhado ? { 'x-forwarded-for': encaminhado } : {} });
+    // Cliente da internet falando direto com o servidor: o cabeçalho é ignorado.
+    assert.equal(ipDoPedido(pedido('203.0.113.9', '1.2.3.4')), '203.0.113.9');
+    // Atrás do nosso Caddy/túnel: vale o último endereço (o que o intermediário acrescentou).
+    assert.equal(ipDoPedido(pedido('172.18.0.3', '1.2.3.4, 198.51.100.7')), '198.51.100.7');
+    assert.equal(ipDoPedido(pedido('::ffff:127.0.0.1')), '127.0.0.1');
+});

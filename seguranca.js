@@ -18,10 +18,20 @@ const crypto = require('crypto');
 
 const COOKIE = 'conecta_acesso';
 
+// Endereço de quem fez o pedido.
+// O cabeçalho X-Forwarded-For pode ser inventado por qualquer um. Por isso ele
+// só vale quando o pedido chegou de um intermediário nosso (Caddy, túnel do
+// Cloudflare/Tailscale, contêiner vizinho — todos em rede interna), e mesmo
+// assim usamos o ÚLTIMO endereço da lista: é o que o nosso intermediário
+// acrescentou. O primeiro é o que o cliente mandou e não prova nada.
+// Antes, mandar "X-Forwarded-For: 1.2.3.4" com valor novo a cada pedido
+// escapava do limite de uso.
 function ipDoPedido(req) {
-    const encaminhado = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim();
-    const direto = req.socket?.remoteAddress || '';
-    return (encaminhado || direto).replace(/^::ffff:/, '');
+    const limpar = valor => String(valor || '').trim().replace(/^::ffff:/, '');
+    const direto = limpar(req.socket?.remoteAddress);
+    if (direto && !hostInterno(direto)) return direto;
+    const lista = String(req.headers?.['x-forwarded-for'] || '').split(',').map(limpar).filter(Boolean);
+    return lista.length ? lista[lista.length - 1] : direto;
 }
 
 // Endereço de rede interna: nunca deve ser buscado pelo servidor.
