@@ -189,6 +189,9 @@ html.modo-tv .secao{padding-bottom:26px}
 #player .options-status:empty{display:none}
 #player .anime-audio-options{display:none}
 #player.anime-mode .anime-audio-options{display:block;margin-bottom:16px}
+/* Título comum (filme ou série) tocando no áudio original: mostra o botão
+   Dublado, senão quem assiste fica sem a opção de pedir a versão dublada. */
+#player.dublado-pendente .anime-audio-options{display:block;margin-bottom:16px}
 #player.anime-mode .anime-audio-options .ctl{font-size:14px;margin-right:8px}
 #player.player-loading #direct-controls,#player.player-loading .menu-player{display:none!important}
 #player .spinner.loading-mark{display:block;width:64px;height:64px;border:0;border-radius:0;animation:none;pointer-events:none}
@@ -728,10 +731,10 @@ async function abrirPlayer(id,titulo,episode=null,retomada=null){
   }
   if(!valido())return;
   if(direct){
-   oferecerFullHd();const est=StreamPlayback.estado?.()||{};if(idioma)idioma.textContent=est.audio==='Dublado'?'Dublado · sem anúncio':'Áudio original · sem anúncio';
+   oferecerFullHd();const est=StreamPlayback.estado?.()||{};if(idioma)idioma.textContent=est.audio==='Dublado'?'Dublado · sem anúncio':'Áudio original · sem anúncio';atualizarBotaoDublado();
    window.StreamAcesso?.reportar?.({tipo:'play',id:String(id),titulo,episodio:episode?`T${episode.season}E${episode.number}`:'',temporada:episode?String(episode.season):'',numero:episode?String(episode.number):'',fonte:est.fonte||'',fonteId:est.fonteId||'',audio:est.audio||'',resolucao:est.resolucao||'',...contexto.sessao?.estado(),recuperacoes:contexto.recuperacoes,ok:true}).catch?.(()=>{});
    if(est.audio==='Dublado')mostrarStatus('Dublado · sem anúncio');
-   else{mostrarStatus(episode?'Som original · procurando legenda':'Som original');setTimeout(()=>{if(!valido())return;const depois=StreamPlayback.estado?.()||{};if(depois.audio==='Dublado')return;mostrarStatus(depois.legenda>=0?'Som original · legenda em português':'Som original · sem dublado agora');},3000);}
+   else{mostrarStatus(episode?'Som original · procurando legenda':'Som original');setTimeout(()=>{if(!valido())return;const depois=StreamPlayback.estado?.()||{};if(depois.audio==='Dublado')return;mostrarStatus(depois.legenda>=0?(anime?'Som original · legenda em português':'Dublado indisponível · legenda em português · Opções › Dublado'):(anime?'Som original · sem dublado agora':'Dublado indisponível agora · Opções › Dublado'));},3000);}
    candidates.then(data=>{if(valido()){players=(data.players||[]).filter(p=>p.dub===true||p.optional===true);reordenarFontes();ordenarPorPrioridade();renderFontes();}});
    return;
   }
@@ -885,7 +888,14 @@ async function selecionarAudioAnime(audio){
  if(!el('player').classList.contains('ativo')||filmeAtual?.episode?.anime!==true)return;
  const alvo=filmeAtual;await abrirPlayer(alvo.id,alvo.titulo,{...alvo.episode,audio});
 }
-function atualizarBotaoDublado(){const b=el('menu-dub-btn');if(!b)return;const dublado=!window.StreamAnimePlayer?.isActive?.()&&(window.StreamPlayback?.estado?.()||{}).audio==='Dublado';b.textContent=filmeAtual&&!filmeAtual.episode?'Trocar dublado':'Dublado';if(dublado)b.setAttribute('data-ativo','');else b.removeAttribute('data-ativo');b.setAttribute('aria-label',dublado?'Este episódio já está dublado':'Procurar de novo a versão dublada deste episódio');}
+function atualizarBotaoDublado(){const b=el('menu-dub-btn');if(!b)return;const estado=window.StreamPlayback?.estado?.()||{};const dublado=!window.StreamAnimePlayer?.isActive?.()&&estado.audio==='Dublado';b.textContent=filmeAtual&&!filmeAtual.episode?'Trocar dublado':'Dublado';if(dublado)b.setAttribute('data-ativo','');else b.removeAttribute('data-ativo');b.setAttribute('aria-label',dublado?'Este episódio já está dublado':'Procurar de novo a versão dublada deste episódio');
+ // Filme ou série comum pode abrir no áudio original (com legenda). Nesse caso
+ // o botão Dublado precisa aparecer, senão não existe opção de voltar ao dublado.
+ const anime=filmeAtual?.episode?.anime===true;
+ const pendente=Boolean(filmeAtual)&&!anime&&!dublado&&window.StreamPlayback?.isActive?.()===true;
+ const player=el('player');if(player&&player.classList){if(pendente){if(!player.classList.contains('dublado-pendente'))player.classList.add('dublado-pendente');}else if(player.classList.contains('dublado-pendente'))player.classList.remove('dublado-pendente');}
+ if(!anime){b.hidden=!pendente;const rotulo=b.parentElement?.querySelector?.('.options-label');if(rotulo)rotulo.textContent='Idioma';}
+}
 async function trocarFonteDublada(){if(!filmeAtual)return;if(filmeAtual.episode?.anime)return selecionarAudioAnime('dublado');const botao=el('menu-dub-btn');if(botao)botao.disabled=true;try{const estado=window.StreamPlayback?.estado?.()||{};const atual=estado.fonteId||'';if(atual)window.StreamAcesso?.reportar?.({tipo:'falha',ok:false,id:String(filmeAtual.id),titulo:filmeAtual.titulo,episodio:filmeAtual.episode?`T${filmeAtual.episode.season}E${filmeAtual.episode.number}`:'',temporada:filmeAtual.episode?String(filmeAtual.episode.season):'',numero:filmeAtual.episode?String(filmeAtual.episode.number):'',fonte:estado.fonte||'',fonteId:atual,audio:estado.audio||'',resolucao:'',motivo:'som original (troca pedida por quem assiste)'}).catch?.(()=>{});fontesParaPular=atual?[atual]:[];mostrarStatus(atual?'Testando outra fonte dublada…':'Procurando a versão dublada…');await abrirPlayer(filmeAtual.id,filmeAtual.titulo,filmeAtual.episode||null);}finally{if(botao)botao.disabled=false;}}
 async function abrirDubladoDaSerie(){if(!filmeAtual?.episode)return;const botao=el('menu-dub-btn');if(botao)botao.disabled=true;try{const estado=window.StreamPlayback?.estado?.()||{};if(estado.audio==='Dublado'){mostrarStatus('Este episódio já está dublado');return;}mostrarStatus('Procurando a versão dublada…');await abrirPlayer(filmeAtual.id,filmeAtual.titulo,filmeAtual.episode);}finally{if(botao)botao.disabled=false;}}
 async function oferecerFullHd(){const b=el('menu-hd-btn');if(!b||!filmeAtual||filmeAtual.episode){if(b)b.hidden=true;return;}b.hidden=true;try{const dados=await lerJson(`/api/stream-hd?tipo=movie&id=${filmeAtual.id}`).catch(()=>null);if(!filmeAtual||filmeAtual.episode||!dados||!dados.ok||!dados.urlAplicativo)return;b.hidden=false;atualizarBotaoFullHd();}catch{}}
@@ -916,7 +926,7 @@ async function alternarFullHd(){
   }
  }finally{if(valido()){atualizarBotaoFullHd();if(b)b.disabled=false;}}
 }
-function fechar(){if(fonteAtual>=0&&players[fonteAtual])lembrarFonte(players[fonteAtual].nome);if(contextoReproducao){contextoReproducao.ativo=false;contextoReproducao.recuperando=false;}window.StreamExitFullscreen?.();++playerVersion;playerRequest?.abort();pararFrame(true);if(document.fullscreenElement)document.exitFullscreen().catch(()=>{});el('player').classList.remove('expanded');fecharOpcoes(false);el('player').classList.remove('ativo');el('loading').classList.remove('vis');el('abrir-externo')?.removeAttribute('href');players=[];fonteAtual=-1;document.body.style.overflow='';ultimoFoco?.focus();window.StreamPersonal?.render();}
+function fechar(){if(fonteAtual>=0&&players[fonteAtual])lembrarFonte(players[fonteAtual].nome);if(contextoReproducao){contextoReproducao.ativo=false;contextoReproducao.recuperando=false;}window.StreamExitFullscreen?.();++playerVersion;playerRequest?.abort();pararFrame(true);if(document.fullscreenElement)document.exitFullscreen().catch(()=>{});el('player').classList.remove('expanded');fecharOpcoes(false);el('player').classList.remove('ativo');el('player').classList.remove('dublado-pendente');el('loading').classList.remove('vis');el('abrir-externo')?.removeAttribute('href');players=[];fonteAtual=-1;document.body.style.overflow='';ultimoFoco?.focus();window.StreamPersonal?.render();}
 document.addEventListener('keydown',e=>{if(!el('player').classList.contains('ativo'))return;if(e.key==='Escape'){e.preventDefault();if(!el('opcoes').hidden)fecharOpcoes();else fechar();}if(e.key==='Tab'&&!el('opcoes').hidden){const nodes=[...el('opcoes').querySelectorAll('button:not(:disabled),select,a[href],summary')].filter(n=>n.getClientRects().length);const first=nodes[0],last=nodes[nodes.length-1];if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus();}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus();}}});
 carregarRankings();
 </script><script src="/hls.min.js"></script><script src="/reproducao-sessao.js"></script><script src="/anime-player.js"></script><script src="/enquadramento.js"></script><script src="/abertura.js"></script><script src="/creditos.js"></script><script src="/playback.js"></script><script src="/library.js"></script><script src="/personal.js"></script><script src="/episodios.js"></script><script src="/auth.js"></script><script src="/jarvis.js"></script><script src="/acesso.js"></script><script src="/avisos-servidor.js"></script><script src="/legendas.js"></script>

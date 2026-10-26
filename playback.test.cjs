@@ -422,6 +422,13 @@ test('Chrome sem HEVC consulta a versão compatível antes de iniciar o arquivo'
  assert.equal(calls.length,2);assert(calls[1].includes('compat=avc'));const v=s.el('direct-video');assert.equal(v.src,'/api/hls?u=avc');
  v.videoWidth=1920;v.videoHeight=1080;v.webkitDecodedFrameCount=1;v.fire('playing');assert.equal(await pending,true);s.controller.stop();
 });
+test('TV sem HEVC também consulta a versão compatível',async()=>{
+ const s=harness('Mozilla/5.0 (SMART-TV; Tizen)'),calls=[];
+ s.fetch(async path=>{calls.push(path);return path.includes('compat=avc')?{url:'/api/hls?u=avc',type:'file',audio:'pt-BR',videoCodec:'h264',fonteId:'froststream'}:{url:'/api/hls?u=hevc',type:'file',audio:'pt-BR',videoCodec:'hevc',fonteId:'fenixflix-fenixhub'};});
+ const pending=s.controller.start(969681,1);await new Promise(setImmediate);
+ assert.equal(calls.length,2);assert(calls[1].includes('compat=avc'));const v=s.el('direct-video');assert.equal(v.src,'/api/hls?u=avc');
+ v.videoWidth=1920;v.videoHeight=800;v.webkitDecodedFrameCount=1;v.fire('playing');assert.equal(await pending,true);s.controller.stop();
+});
 test('APK com HEVC preserva a fonte 4K sem pedir a reserva do navegador',async()=>{
  const s=harness('StreamTVAndroid'),calls=[];s.fetch(async path=>{calls.push(path);return {url:'/api/hls?u=hevc',type:'file',audio:'pt-BR',videoCodec:'hevc'};});
  // Este WebView decodifica HEVC: o app não precisa pedir a reserva em H.264.
@@ -581,4 +588,24 @@ test('faixa nativa ativada tardiamente pelo navegador respeita a legenda desativ
 test('APK reproduz mídia encaminhada pelo servidor no mesmo player e preserva a resolução',async()=>{
  const s=harness('StreamTVAndroid');await videoTocando(s,null,{url:'/api/rede-midia?p=%2Fapi%2Fhls%3Fu%3Dteste',type:'hls',audio:'pt-BR',fonteId:'fenixflix-fenixhub'});
  s.Hls.instance.levels=[{height:720,bitrate:1000},{height:2160,bitrate:15000000,videoCodec:'avc1.640033'}];s.Hls.instance.emit('manifest');assert.equal(s.Hls.instance.currentLevel,1);assert.equal(s.controller.estado().audio,'Dublado');s.controller.stop();
+});
+
+
+test('filme ou série no áudio original mostra a opção Dublado nas Opções',()=>{
+ const html=fs.readFileSync(__dirname+'/index.html','utf8'),apk=fs.readFileSync(__dirname+'/android/app/src/main/assets/index.html','utf8');
+ // A caixa dos botões de idioma precisa aparecer fora do modo anime quando o
+ // título está no áudio original; sem isso não existe opção de pedir o dublado.
+ for(const pagina of [html,apk]){
+  assert.match(pagina,/#player\.dublado-pendente \.anime-audio-options\{display:block/);
+  assert.match(pagina,/player\.classList\.add\('dublado-pendente'\)/);
+  assert.match(pagina,/player\.classList\.remove\('dublado-pendente'\)/);
+  assert.match(pagina,/b\.hidden=!pendente/);
+ }
+ const bloco=html.slice(html.indexOf('function atualizarBotaoDublado()'),html.indexOf('async function trocarFonteDublada('));
+ // Anime continua com o botão sempre visível; título comum só quando pendente.
+ assert.match(bloco,/const anime=filmeAtual\?\.episode\?\.anime===true/);
+ assert.match(bloco,/!anime&&!dublado/);
+ assert.match(bloco,/if\(!anime\)\{b\.hidden=!pendente/);
+ // O estado pendente precisa sumir ao fechar o player.
+ assert.match(html,/classList\.remove\('dublado-pendente'\)/);
 });
