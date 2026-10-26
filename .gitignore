@@ -61,3 +61,6 @@ relatorios/vigia-fontes.json
 /avisos-servidor.json
 
 /midias-verificadas.json
+
+# Arquivos antigos tirados da raiz na reorganizacao (backups, rascunhos, pasta legada)
+_arquivo/
