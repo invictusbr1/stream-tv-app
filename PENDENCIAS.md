@@ -3,6 +3,16 @@
 > Este arquivo é a memória do projeto. Abrir SEMPRE no começo de uma tarefa e
 > atualizar no fim. Assim nada precisa ser repetido pelo usuário.
 
+## Reorganização de 26/10/2026 (branch `reorganizacao`, sem publicação)
+
+- **Prioridade das fontes num lugar só:** `politica-fontes.json` (prioridade de cada fornecedor, fórmula das fichas, castigos, memórias) + `politica-fontes.js` (aplica a regra: sem anúncio → dublado → qualidade → reprodução direta → estabilidade → velocidade). Motor, fichas do caçador e avaliador usam a mesma política. Para mudar a ordem, edite só a `prioridade` no JSON.
+- **Diagnóstico:** `/api/motor/estado` agora traz `fila.dublado` e `fila.hd` com posição, pontos e motivos (ex.: "prioridade 105", "placar dos aparelhos −0.67", "de castigo até…"). Aceita `?tipo=tv&id=…&temporada=…&episodio=…`.
+- **server.js dividido em `rotas/`** (aparelhos, jarvis, paginas, acessos, legendas, playback, downloads, tv, catalogo, legado-players). A ordem de registro importa: `tv` antes de `catalogo`. 54 rotas sondadas antes/depois com respostas idênticas.
+- **Segurança:** `X-Forwarded-For` só vale vindo de intermediário interno (Caddy/túnel/Docker/Tailscale); `trust proxy` restrito. Fecha o bypass do limite de uso.
+- **Android:** filme também pede a fonte primeiro ao servidor (série já pedia); resolvedores nativos ficam só de reserva. Falta compilar e testar no aparelho.
+- **Limpeza:** `.bak`, rascunhos e a pasta legada `stream-tv/` foram para `_arquivo/` (ignorado pelo Git/Docker).
+- Pendente: tirar a `dist/` (5,3 GB) de dentro do OneDrive; remover a lógica Java duplicada depois de validar o Android pelo servidor; frontend em módulos; login com perfis e avatar.
+
 ## Última versão publicada
 
 ### Meus Animes — investigação de 12/10/2026 (sem ativação/publicação)
