@@ -19,18 +19,9 @@ call npm test >> "%LOG%" 2>&1
 if errorlevel 1 (echo FALHOU: testes >> "%LOG%" & echo Testes que falharam: & findstr /c:"WebView bloqueou" /c:"test at " /c:"AssertionError" "%LOG%" & goto fim)
 :testes_ok
 
-echo [2/5] Servidor da Oracle...
-echo --- parando o monitor antigo >> "%LOG%"
-schtasks /End /TN "Connecta TV - Atualizacao Oracle" >> "%LOG%" 2>&1
-timeout /t 5 /nobreak >nul
-echo --- publicando na Oracle >> "%LOG%"
-node deploy\servidor\publicar-automatico.cjs --once >> "%LOG%" 2>&1
-set ORACLE=%errorlevel%
-echo ORACLE=%ORACLE% >> "%LOG%"
+echo [2/5] Servidor da Oracle (o monitor automatico ja publica sozinho)...
+echo --- estado da Oracle >> "%LOG%"
 node deploy\servidor\publicar-automatico.cjs --status >> "%LOG%" 2>&1
-echo --- religando o monitor >> "%LOG%"
-schtasks /Run /TN "Connecta TV - Atualizacao Oracle" >> "%LOG%" 2>&1
-if not "%ORACLE%"=="0" (echo FALHOU: Oracle >> "%LOG%" & goto fim)
 
 echo [3/5] Procurando as ferramentas do Android...
 set TOOLS=
