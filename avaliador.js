@@ -22,7 +22,10 @@ const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML,
 const MAX_FONTES = Infinity;
 const TEMPO_RESOLVER = 8000;       // fontes consultadas em paralelo
 const TEMPO_SONDAR = 4000;         // limite por sonda
-const ORCAMENTO = 12000;           // oito segundos + revisão dirigida de até quatro
+// 26/10/2026: o prazo era 12 s e o player desiste de uma fonte sem imagem
+// exatamente aos 12 s. A resposta chegava junto do aviso e o título caía para
+// a última opção (o HD com legenda). Com 7 s a escolha chega antes do aviso.
+const ORCAMENTO = 7000;            // seis segundos + revisão dirigida
 const VALIDADE = 60 * 1000;        // renova a disputa para descobrir melhorias
 
 const cache = new Map();
@@ -313,8 +316,11 @@ function filtrarPorCodec(registros,codec){
 }
 async function escolherMelhor(papel,alvo,opcoes={}){
     const inicio=Date.now(),estado={fila:[],respostas:new Map(),terminadas:new Set(),avaliacoes:[]};
-    const inicial=Math.max(100,Math.min(8000,opcoes.orcamentoInicial||8000));
-    const revisao=Math.max(0,Math.min(4000,opcoes.orcamentoRevisao??4000));
+    // 26/10/2026: a soma das duas rodadas precisa caber antes do aviso de 12 s
+    // do player ("a fonte não apresentou imagem"). Com 6 s + 3 s a resposta
+    // chega com folga e o título não cai para a última opção.
+    const inicial=Math.max(100,Math.min(6000,opcoes.orcamentoInicial||6000));
+    const revisao=Math.max(0,Math.min(3000,opcoes.orcamentoRevisao??3000));
     const primeira=await escolherRodada(papel,alvo,{...opcoes,_estado:estado,_orcamento:inicial});
     if(primeira?.cache||estado.avaliacoes[0]?.prioridade[2]>=5)return primeira;
     const repetir=estado.fila.filter(f=>{
