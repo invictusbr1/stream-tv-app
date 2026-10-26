@@ -1,14 +1,14 @@
 {
-  "versionCode": 453,
-  "versionName": "2.13.123",
-  "apkUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.123/Conecta-TV-Android-2.13.123.apk",
-  "sha256": "6edebadc70ec5ace8572a12fe619ab3afdff0060ec3c8955cd0ac5f1a14162cf",
-  "bytes": 526851,
-  "notes": "Tulsa King e demais filmes/series: quando a fonte abre no audio original (com legenda), as Opcoes agora mostram o botao Dublado para pedir a versao dublada. Antes esse botao so existia no modo anime, entao nao havia opcao.",
-  "exeUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.117/Conecta.TV.exe",
-  "exeSha256": "9f1cbee5931e53e469dd488a7b3bfbfca9dd8077681a87ded02bad70ab657f7d",
-  "exeBytes": 120134995,
-  "apkTvUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.123/Conecta-TV-TV-2.13.123.apk",
-  "apkTvSha256": "9d229feb47d6730b5f514d48d8c4f1b26ccbd480e719cd0881197b5ca1c5e422",
-  "apkTvBytes": 526528
+    "versionCode":  454,
+    "versionName":  "2.13.125",
+    "apkUrl":  "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.125/Conecta-TV-Android-2.13.125.apk",
+    "sha256":  "803b68c9b348faf03396fcfe29cc1d8adb40ab67bcb01ef34b7abff8d07bcf0d",
+    "bytes":  541354,
+    "notes":  "Perfis com avatar (Quem esta assistindo?), prioridade das fontes organizada e correcoes de seguranca.",
+    "exeUrl":  "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.117/Conecta.TV.exe",
+    "exeSha256":  "9f1cbee5931e53e469dd488a7b3bfbfca9dd8077681a87ded02bad70ab657f7d",
+    "exeBytes":  120134995,
+    "apkTvUrl":  "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.125/Conecta-TV-TV-2.13.125.apk",
+    "apkTvSha256":  "a212695f7586d8ac4386046be198700a4f3800e51c015a8e2b9f563382ffe5bf",
+    "apkTvBytes":  541078
 }
