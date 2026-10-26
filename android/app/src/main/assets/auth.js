@@ -46,6 +46,9 @@
 
   function localData() {
     const read = key => { try { return JSON.parse(localStorage.getItem(key) || '[]'); } catch { return []; } };
+    // Perfis sincronizados pela tabela perfis_conta: a conta guarda só os
+    // aparelhos (o token de acesso fica pequeno e um perfil não vaza no outro).
+    if (window.StreamPerfis?.nuvemAtiva?.()) return { dispositivos: atualizarMeuDispositivo() };
     return {
       progress: read('streamtv-progress').slice(0, 100),
       searches: read('streamtv-searches').slice(0, 100),
@@ -235,9 +238,12 @@
 
   async function restoreAndSync(session) {
     if (!session?.access_token) return;
-    const cloud = session.user?.user_metadata?.streamtv;
+    // Com perfis na conta (perfis-conta.js), cada perfil traz os próprios dados
+    // da tabela perfis_conta: a cópia antiga em user_metadata não é restaurada.
+    const contaTemPerfis = await window.StreamPerfis?.aoEntrar?.().catch(() => false);
+    const cloud = contaTemPerfis ? null : session.user?.user_metadata?.streamtv;
     const local = localData();
-    if ((!local.progress.length && !local.searches.length && !(local.favoritos || []).length) && cloud) {
+    if ((!(local.progress || []).length && !(local.searches || []).length && !(local.favoritos || []).length) && cloud) {
       try {
         localStorage.setItem('streamtv-progress', JSON.stringify(Array.isArray(cloud.progress) ? cloud.progress : []));
         localStorage.setItem('streamtv-searches', JSON.stringify(Array.isArray(cloud.searches) ? cloud.searches : []));
@@ -245,6 +251,7 @@
         localStorage.setItem('streamtv-assistidos', JSON.stringify(Array.isArray(cloud.assistidos) ? cloud.assistidos : []));
         window.StreamPersonal?.render(); window.StreamPersonal?.renderSearch(); window.StreamPersonal?.renderFavoritos?.();
       } catch { /* armazenamento local pode estar indisponível */ }
+      window.StreamPerfis?.sincronizar?.();
     }
     await syncCloud();
   }

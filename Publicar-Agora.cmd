@@ -16,7 +16,7 @@ rem Uma falha real se repete; uma oscilacao de tempo passa na segunda rodada.
 echo Um teste falhou, repetindo a rodada para descartar oscilacao de tempo...
 echo --- testes (segunda rodada) >> "%LOG%"
 call npm test >> "%LOG%" 2>&1
-if errorlevel 1 (echo FALHOU: testes >> "%LOG%" & goto fim)
+if errorlevel 1 (echo FALHOU: testes >> "%LOG%" & echo Testes que falharam: & findstr /c:"WebView bloqueou" /c:"test at " /c:"AssertionError" "%LOG%" & goto fim)
 :testes_ok
 
 echo [2/5] Servidor da Oracle...

@@ -70,7 +70,8 @@ fs.writeFileSync(path.join(assets,'config.json'),JSON.stringify({
 console.log('Android UI synchronized.');
 const tvPath=path.join(__dirname,'app/src/tv/assets/config.json');
 if(fs.existsSync(tvPath)){
-  const tvConfig=JSON.parse(fs.readFileSync(tvPath,'utf8'));
+  // O Build-Android.ps1 grava este arquivo pelo PowerShell 5, que põe BOM no início.
+  const tvConfig=JSON.parse(fs.readFileSync(tvPath,'utf8').replace(/^\uFEFF/,''));
   const mainConfig=JSON.parse(fs.readFileSync(path.join(assets,'config.json'),'utf8'));
   tvConfig.versionName=mainConfig.versionName;tvConfig.versionCode=mainConfig.versionCode;tvConfig.relatosNativos=true;
   tvConfig.descoberta=mainConfig.descoberta;tvConfig.jarvisServer=mainConfig.jarvisServer;delete tvConfig.groqKey;
