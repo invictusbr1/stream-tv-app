@@ -1,14 +1,14 @@
 {
-  "versionCode": 452,
-  "versionName": "2.13.122",
-  "apkUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.122/Conecta-TV-Android-2.13.122.apk",
-  "sha256": "1f509c0fc1ea70478f880dd634c1a95a5b1e15f4562df76eb37f68dd9a124351",
-  "bytes": 526280,
-  "notes": "Homem-Aranha Um Novo Dia: o caminho normal pede codec=hevc (4K 2156p) mesmo se a sonda HEVC falhar; avc fica so no fallback compat=avc.",
+  "versionCode": 453,
+  "versionName": "2.13.123",
+  "apkUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.123/Conecta-TV-Android-2.13.123.apk",
+  "sha256": "6edebadc70ec5ace8572a12fe619ab3afdff0060ec3c8955cd0ac5f1a14162cf",
+  "bytes": 526851,
+  "notes": "Tulsa King e demais filmes/series: quando a fonte abre no audio original (com legenda), as Opcoes agora mostram o botao Dublado para pedir a versao dublada. Antes esse botao so existia no modo anime, entao nao havia opcao.",
   "exeUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.117/Conecta.TV.exe",
   "exeSha256": "9f1cbee5931e53e469dd488a7b3bfbfca9dd8077681a87ded02bad70ab657f7d",
   "exeBytes": 120134995,
-  "apkTvUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.122/Conecta-TV-TV-2.13.122.apk",
-  "apkTvSha256": "38115778cd88fa367f4521d461b73e12891aabb5fb7e801de9101e64fdc3e61b",
-  "apkTvBytes": 525986
+  "apkTvUrl": "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.123/Conecta-TV-TV-2.13.123.apk",
+  "apkTvSha256": "9d229feb47d6730b5f514d48d8c4f1b26ccbd480e719cd0881197b5ca1c5e422",
+  "apkTvBytes": 526528
 }
