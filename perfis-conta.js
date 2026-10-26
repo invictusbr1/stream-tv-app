@@ -155,8 +155,9 @@
         let p = estado.lista.find(x => x.id === r.id);
         if (!p) {
           if (estado.lista.length >= MAX) continue;
-          // Aparelho novo ainda só com o "Principal" vazio: ele dá lugar aos perfis da conta.
-          const vazio = estado.lista.length === 1 && !estado.lista[0].sincronizado && estado.lista[0].nome === 'Principal'
+          // Aparelho novo, ainda só com o primeiro perfil vazio e nunca enviado:
+          // ele dá lugar aos perfis da conta (em vez de virar um perfil repetido).
+          const vazio = estado.lista.length === 1 && !estado.lista[0].sincronizado
             && DADOS.every(k => !(dadosAtuais()[k] || []).length);
           p = { id: r.id, nome: r.nome, avatar: r.avatar, ordem: r.ordem, atualizado: ts, sincronizado: true };
           if (vazio) { estado.lista = [p]; estado.ativo = p.id; aplicarDados(r.dados); estado.enviados[p.id] = resumo(JSON.stringify(dadosAtuais())); }
@@ -385,6 +386,14 @@
   }
 
   // ------------------------------------------------------------ início
+  function depoisDoPortao(fazer) {
+    // O acesso.js monta o portão no mesmo DOMContentLoaded: confere logo depois.
+    setTimeout(() => {
+      if (!document.getElementById('portao')) return fazer();
+      const espera = setInterval(() => { if (!document.getElementById('portao')) { clearInterval(espera); fazer(); } }, 400);
+    }, 60);
+  }
+
   function iniciar() {
     if (!A()) return;
     garantir();
@@ -392,7 +401,13 @@
     atualizarTopo();
     // Mais de um perfil: pergunta quem está assistindo. Na primeira vez,
     // apresenta a tela mesmo com um só perfil, para a pessoa conhecer.
-    if (estado.lista.length > 1 || !estado.apresentado) mostrarTela(false);
+    // Espera o portão de boas-vindas (acesso.js, "Seu nome") ser respondido.
+    depoisDoPortao(() => {
+      const p = estado.lista[0];
+      const apelido = limparNome(window.StreamAcesso?.usuario?.()?.nome);
+      if (!estado.apresentado && estado.lista.length === 1 && p.nome === 'Principal' && !p.sincronizado && apelido) editar(p.id, { nome: apelido, avatar: p.avatar });
+      if (estado.lista.length > 1 || !estado.apresentado) mostrarTela(false);
+    });
     nuvem.sincronizar().then(() => { if (estado.lista.length > 1 && document.getElementById('perfis-tela')?.hidden === false) mostrarTela(false); });
     window.setInterval(() => nuvem.sincronizar(), 30000);
     window.addEventListener('streamtv-auth-changed', () => nuvem.sincronizar().then(() => { if (estado.lista.length > 1) mostrarTela(false); }));
