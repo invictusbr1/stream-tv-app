@@ -8,7 +8,7 @@ import java.util.regex.*;
 /** Recuperação autenticada pela mesma origem do navegador; nunca um proxy livre. */
 final class ServerPlaybackTransport {
  interface Connector {HttpURLConnection open(URL url)throws IOException;}
- final URL base;private final String code;private final Connector connector;
+ final URL base;final String code;private final Connector connector;
  ServerPlaybackTransport(String origin,String code)throws IOException{this(origin,code,u->(HttpURLConnection)u.openConnection());}
  ServerPlaybackTransport(String origin,String code,Connector connector)throws IOException{
   base=MediaHttp.safe(origin);if(!base.getPath().isEmpty()&&!base.getPath().equals("/")||base.getQuery()!=null||base.getRef()!=null||code==null||code.isEmpty()||code.matches("(?s).*[\\r\\n].*"))throw new IOException("Origem de recuperação inválida");this.code=code;this.connector=connector;

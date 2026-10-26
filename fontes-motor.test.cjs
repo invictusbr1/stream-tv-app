@@ -133,6 +133,14 @@ test('o endereço entregue ao player passa pelo encaminhamento do aplicativo', (
     const preparado = motor.prepararParaPlayer({ url: 'https://vixsrc.to/playlist/1?token=abc', audio: 'original', fonte: 'Vixsrc' });
     assert.match(preparado.urlAplicativo, /^\/api\/hls\?u=/);
 });
+test('4K/hotlink final sai pelo proxy; 1080p direto sem hotlink continua direto', () => {
+    const a = motor.prepararParaPlayer({ final: true, url: 'https://fenixflix.fenixhub.online/r/a/video.mp4', referer: 'https://fenixflix.fenixhub.online/', audio: 'pt-BR', fonte: 'FenixFlix 4K', videoCodec: 'hevc', resolucao: '2160p' });
+    assert.equal(a.final, false);
+    assert.match(a.urlAplicativo, /^\/api\/hls\?u=/);
+    const b = motor.prepararParaPlayer({ final: true, url: 'https://froststream.cloutteam.com/movie/v1', referer: 'https://froststream.cloutteam.com/', audio: 'pt-BR', fonte: 'FrostStream 1080p', videoCodec: 'h264', resolucao: '1080p' });
+    assert.equal(b.final, true);
+    assert.equal(b.urlAplicativo, undefined);
+});
 
 test('referenciador da ficha chega à playlist e aos segmentos do CDN descoberto', () => {
     const midia = require('./midia-proxy');

@@ -215,6 +215,23 @@ const FONTES = [
         }
     },
     {
+        // Kairou/VeTela: última opção dublada. Foi o único que tinha o
+        // episódio 136 de "Quem Ama Cuida" (24/10/2026: 1080p, áudio "por",
+        // 3077 s). Depende da API do Kairou; só aceita streams VeTela — o
+        // fallback FrostStream/MegaEmbed do episódio 1 é ignorado.
+        id: 'kairou',
+        nome: 'Dublado · Kairou (VeTela)',
+        papel: 'dublado',
+        peso: 80,
+        seAplica: alvo => alvo.tipo === 'tv' || alvo.tipo === 'movie',
+        resolverTodos: async alvo => require('./kairou-source').resolverTodos(alvo.tipo, alvo.tmdbId, alvo.temporada, alvo.episodio),
+        resolver: async alvo => {
+            const objeto = typeof alvo === 'object' ? alvo : { tipo: 'movie', tmdbId: alvo };
+            const dados = await require('./kairou-source').resolver(objeto.tipo, objeto.tmdbId, objeto.temporada, objeto.episodio);
+            return dados && dados.url ? dados : null;
+        }
+    },
+    {
         // MGEB (mgeb.top), o MegaEmbed por trás do BRFlix: entrega as opções
         // de vídeo no próprio HTML. Medido com ffprobe: arquivo MP4 em HD
         // (1280 de largura) com áudio em português ("por") tanto nos filmes
@@ -252,6 +269,24 @@ const FONTES = [
         resolver: async alvo => {
             const objeto = typeof alvo === 'object' ? alvo : { tipo: 'movie', tmdbId: alvo };
             const dados = await require('./clickhost-source').resolver(objeto.tipo, objeto.tmdbId, objeto.temporada, objeto.episodio);
+            return dados && dados.url ? dados : null;
+        }
+    },
+    {
+        // FrostStream (addon público usado pelo Kairou): MP4 progressivo
+        // 1080p com áudio em português. Foi o que cobriu os episódios
+        // 121–133 e 135 de "Quem Ama Cuida", que MGEB/Fenix não tinham.
+        // O addon devolve o MegaEmbed do episódio 1 quando não tem o
+        // episódio; o adaptador recusa esse fallback (froststream-source).
+        id: 'froststream',
+        nome: 'Dublado · FrostStream',
+        papel: 'dublado',
+        peso: 94,
+        seAplica: alvo => alvo.tipo === 'tv' || alvo.tipo === 'movie',
+        resolverTodos: async alvo => require('./froststream-source').resolverTodos(alvo.tipo, alvo.tmdbId, alvo.temporada, alvo.episodio),
+        resolver: async alvo => {
+            const objeto = typeof alvo === 'object' ? alvo : { tipo: 'movie', tmdbId: alvo };
+            const dados = await require('./froststream-source').resolver(objeto.tipo, objeto.tmdbId, objeto.temporada, objeto.episodio);
             return dados && dados.url ? dados : null;
         }
     },
@@ -483,7 +518,18 @@ function filaDeFontes(papel, alvo, opcoes = {}) {
     }
     const chave = `${papel}:${chaveDoTitulo(alvo)}`;
     const semEsteTitulo = fonte => (semTitulo.get(`${chave}|${fonte.id}`) || 0) > agora;
-    return [...lista.filter(f => !semEsteTitulo(f)), ...lista.filter(semEsteTitulo)];
+    const alturaDaFonte = fonte => {
+        const texto = `${fonte?.resolucao || ''} ${fonte?.altura || ''} ${fonte?.qualidade || ''} ${fonte?.nome || ''} ${fonte?.id || ''}`;
+        if (/\b(4k|uhd)\b/i.test(texto)) return 2160;
+        const achado = /(4320|2160|1440|1080|720|576|540|480|360)/.exec(texto);
+        return achado ? Number(achado[1]) : 0;
+    };
+    // A marca de "não tem este título" não pode rebaixar a qualidade: a fonte
+    // 4K marcada volta para a frente; as de qualidade igual/inferior vão ao fim.
+    const saudaveis = lista.filter(f => !semEsteTitulo(f));
+    const maiorSaudavel = Math.max(0, ...saudaveis.map(alturaDaFonte));
+    const altaSemTitulo = lista.filter(f => semEsteTitulo(f) && alturaDaFonte(f) > maiorSaudavel);
+    return [...altaSemTitulo, ...saudaveis, ...lista.filter(f => semEsteTitulo(f) && !altaSemTitulo.includes(f))];
 }
 
 // Escolhe a primeira fonte que responde. Erro de rede ganha uma segunda
@@ -583,17 +629,25 @@ function estado() {
 // aplicativo (o navegador não consegue falar direto com alguns provedores).
 function prepararParaPlayer(escolhido) {
     const midia = require('./midia-proxy');
-    if (escolhido.final) return escolhido; // já é um arquivo direto liberado
-    let referer = '';
     let host = '';
+    try { host = new URL(escolhido.url).hostname; } catch { /* endereço inválido */ }
+    // "final" quer dizer arquivo direto — mas alguns CDNs (FenixFlix e 4K)
+    // só entregam o arquivo com Referer. Sem o proxy o CDN responde vazio e o
+    // player fica sem imagem; por isso esses casos também passam pelo /api/hls.
+    const hotlink = Boolean(escolhido.referer) && (
+        host === 'fenixflix.fenixhub.online' ||
+        /(?:^|[^a-z0-9])(?:hevc|h265|4k|2160)(?:[^a-z0-9]|$)/i.test(`${escolhido.videoCodec || ''} ${escolhido.resolucao || ''}`)
+    );
+    if (escolhido.final && !hotlink) return escolhido; // arquivo direto sem hotlink
+    let referer = '';
     try {
-        host = new URL(escolhido.url).hostname;
+        if (!host) host = new URL(escolhido.url).hostname;
         referer = perfisMotor.refererSeguro(escolhido.referer) || midia.refererPadrao(host);
         // O CDN aprendido continua liberado mesmo quando a ficha precisa de
         // seu próprio referenciador, diferente dos padrões já conhecidos.
         if (!midia.hostPermitido(host)) midia.liberarHost(host);
     } catch { /* endereço inválido */ }
-    return { ...escolhido, urlAplicativo: midia.urlViaProxy(escolhido.url, referer) };
+    return { ...escolhido, final: false, urlAplicativo: midia.urlViaProxy(escolhido.url, referer) };
 }
 
 // Usado pelos testes: limpa histórico e memória de acertos.

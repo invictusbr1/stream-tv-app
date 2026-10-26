@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { extrairPlaylist, extrairFontes } = require('./mgeb-source');
+const { extrairPlaylist, extrairFontes, limparEndereco, episodioDoTitulo } = require('./mgeb-source');
 
 test('MGEB compara todas as opções diretas e compartilha a página com o resolvedor antigo',async t=>{
     const axios=require('axios'),m=require('./mgeb-source'),original=axios.get;let calls=0;
@@ -143,4 +143,49 @@ test('falha na página MGEB continua retornando vazio para o fallback do motor',
     t.after(() => { axios.get = getOriginal; });
     axios.get = async () => { throw new Error('timeout'); };
     assert.equal(await mgeb.resolver('movie', '910004'), null);
+});
+
+// A página do MGEB diz no <title> qual episódio ela está entregando. É a
+// única prova de graça que o provedor dá — e é ela que impede o 136 de tocar
+// o arquivo do episódio 1 (medido em 25/10/2026: do 125 em diante a página
+// volta como "T1E1").
+test('o título da página declara temporada e episódio', () => {
+    assert.deepEqual(episodioDoTitulo('<title>Quem Ama Cuida - T1E136 - Capítulo 136</title>'), { temporada: 1, episodio: 136 });
+    assert.deepEqual(episodioDoTitulo('<title>Quem Ama Cuida - T01E01 - Capítulo 1</title>'), { temporada: 1, episodio: 1 });
+    assert.deepEqual(episodioDoTitulo('<title>Outra série 2x7</title>'), { temporada: 2, episodio: 7 });
+    assert.equal(episodioDoTitulo('<title>Sem marcação de episódio</title>'), null);
+    assert.equal(episodioDoTitulo(''), null);
+});
+
+test('episódio errado na página é recusado antes de chegar ao player', async t => {
+    const axios = require('axios');
+    const mgeb = require('./mgeb-source');
+    const getOriginal = axios.get;
+    t.after(() => { axios.get = getOriginal; });
+    axios.get = async () => ({
+        data: '<html><head><title>Quem Ama Cuida - T1E1 - Capítulo 1</title></head><body><script>var sources = [{"file":"https://cdn.video.test/ep1.mp4","label":"1080p"}];</script></body></html>',
+    });
+    assert.deepEqual(await mgeb.resolverTodos('tv', '910010', '1', '136', { semCache: true }), []);
+    assert.equal(await mgeb.resolverEpisodio('910010', '1', '136'), null);
+});
+
+test('página do episódio certo continua entregando o vídeo', async t => {
+    const axios = require('axios');
+    const mgeb = require('./mgeb-source');
+    const getOriginal = axios.get;
+    t.after(() => { axios.get = getOriginal; });
+    axios.get = async () => ({
+        data: '<html><head><title>Quem Ama Cuida - T1E136 - Capítulo 136</title></head><body><script>var sources = [{"file":"https://cdn.video.test/ep136.mp4","label":"1080p"}];</script></body></html>',
+    });
+    const dados = await mgeb.resolverTodos('tv', '910011', '1', '136', { semCache: true });
+    assert.equal(dados.length, 1);
+    assert.equal(dados[0].url, 'https://cdn.video.test/ep136.mp4');
+});
+
+test('o MP4 de "não encontrado" nunca entra na lista', () => {
+    assert.equal(limparEndereco('https://novix.x10.mx/video/vod_nao_encontrado.mp4'), '');
+    assert.deepEqual(
+        extrairFontes('<script>var sources = [{"file":"https://novix.x10.mx/video/vod_nao_encontrado.mp4","label":"720p"}];</script>'),
+        []
+    );
 });

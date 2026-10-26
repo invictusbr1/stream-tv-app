@@ -59,6 +59,25 @@ function tipoDoEndereco(endereco) {
     return '';
 }
 
+// O provedor responde "não encontrado" com um MP4 de fachada. Ele não é vídeo
+// do título e nunca pode chegar ao player.
+function ehNaoEncontrado(endereco) {
+    return /vod_nao_encontrado|nao_encontrado/i.test(String(endereco || ''));
+}
+
+// A página declara o episódio no <title> ("Quem Ama Cuida - T1E136 -
+// Capítulo 136"). Quando o título não corresponde ao episódio pedido, o
+// MGEB devolveu outro episódio — é o que acontece do 125 em diante: o 136
+// vem como T1E1, com o arquivo do episódio 1. Recusar é obrigatório; tocar
+// o episódio errado é pior do que não tocar.
+function episodioDoTitulo(html) {
+    const texto = String(html || '');
+    const emT = /<title>[^<]*?\bT(\d{1,2})\s*E(\d{1,3})\b/i.exec(texto);
+    const emX = /<title>[^<]*?\b(\d{1,2})x(\d{1,3})\b/i.exec(texto);
+    const achado = emT || emX;
+    return achado ? { temporada: Number(achado[1]), episodio: Number(achado[2]) } : null;
+}
+
 // Padroniza o endereço da opção de vídeo: troca HTTP por HTTPS (o servidor de
 // arquivos aceita os dois) e tira a porta 80 do caminho.
 // O disco www-fontedecanais-live.77zzhf54vdll71.com fica de fora: em 18/10/2026
@@ -67,6 +86,7 @@ function tipoDoEndereco(endereco) {
 function limparEndereco(bruto) {
     const texto = String(bruto || '').trim().replace(/&amp;/g, '&');
     if (!/^https?:\/\//i.test(texto)) return '';
+    if (ehNaoEncontrado(texto)) return '';
     if (!tipoDoEndereco(texto)) return '';
     try {
         const url = new URL(texto);
@@ -142,6 +162,13 @@ async function resolverTodos(tipo, tmdbId, temporada, episodio, opcoes = {}) {
         const pagina = await pegarPagina(caminho);
         const html = pagina.html;
         const base = pagina.base;
+        // Confere se a página é realmente do episódio pedido antes de aceitar
+        // o vídeo. O título é a única prova que o provedor dá de graça.
+        if (ehSerie) {
+            const declarado = episodioDoTitulo(html);
+            const pedido = { temporada: Number(temporada || 1), episodio: Number(episodio || 1) };
+            if (declarado && (declarado.temporada !== pedido.temporada || declarado.episodio !== pedido.episodio)) return [];
+        }
         const fontes = extrairFontes(html).slice(0, 8);
         if (fontes.length) {
             dados = fontes.map(fonte => {
@@ -178,4 +205,4 @@ function resolverEpisodio(tmdbId, temporada, episodio) {
     return resolver('tv', tmdbId, temporada, episodio);
 }
 
-module.exports = { resolver, resolverTodos, resolverEpisodio, extrairPlaylist, extrairFontes, limparEndereco, BASE };
+module.exports = { resolver, resolverTodos, resolverEpisodio, extrairPlaylist, extrairFontes, limparEndereco, episodioDoTitulo, BASE };

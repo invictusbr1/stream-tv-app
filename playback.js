@@ -193,7 +193,7 @@ window.StreamPlayback = (() => {
         // conhecidas e listas de reprodução (inclusive as de caminho protegido,
         // que são liberadas na hora pelo resolvedor).
         // nixplay.lat entrega o episódio dublado em MP4 (arquivo direto).
-        const enderecoDeMidia=url=>/^\/api\/crystal-lake\/1\/[1-8]\/master\.m3u8$/.test(url)||/^(\/api\/(?:hls\?|rede-midia\?|convertido\/)|https:\/\/[a-z0-9-]+\.hclod\.qzz\.io\/|https:\/\/pipocacine\.lat\/|https:\/\/vixsrc\.to\/|https:\/\/nixplay\.lat\/)/i.test(url)||/^https:\/\/[a-z0-9.-]+\/(?:pl\/|[^\s]*\.(?:m3u8|mp4))/i.test(url);
+        const enderecoDeMidia=url=>/^\/api\/crystal-lake\/1\/[1-8]\/master\.m3u8$/.test(url)||/^(\/api\/(?:hls\?|rede-midia\?|convertido\/)|https:\/\/[a-z0-9-]+\.hclod\.qzz\.io\/|https:\/\/pipocacine\.lat\/|https:\/\/vixsrc\.to\/|https:\/\/nixplay\.lat\/)/i.test(url)||/^https:\/\/[a-z0-9.-]+\/(?:pl\/|[^\s]*\.(?:m3u8|mp4))/i.test(url)||/^https:\/\/[a-z0-9.-]+\/api\/hls\?/i.test(url);
         function arquivoConferidoNoAparelho(data){
             // Alguns CDNs removem a extensão no destino final. O Android já
             // conferiu a imagem e o conteúdo, antes de entregar esse endereço.
@@ -216,7 +216,10 @@ window.StreamPlayback = (() => {
         // O Android também pede a versão compatível: o aparelho pode ter o
         // decodificador HEVC e o WebView não renderizar. Sem isto, um 4K HEVC
         // que o WebView não toca virava tela de erro em vez de cair para H.264.
-        const podeCompat = !urlDireta && !televisao && /^\/api\/playback\/(?:\d+|serie\/\d+\/\d+\/\d+)(?:\?|$)/.test(consulta);
+        // A TV também entra: o WebView de algumas TVs anuncia HEVC e não
+        // renderiza o 4K; o 4K continua sendo a primeira escolha, mas depois de
+        // 12 s sem imagem (ou erro) o mesmo pedido é refeito com compat=avc.
+        const podeCompat = !urlDireta && /^\/api\/playback\/(?:\d+|serie\/\d+\/\d+\/\d+)(?:\?|$)/.test(consulta);
         let compatTentada = false;
         const consultarCompat = async () => {
             compatTentada = true;
@@ -266,7 +269,7 @@ window.StreamPlayback = (() => {
             };
             const pictureTimeout=async()=>{
                 if(!current()||compatEmCurso)return;
-                if(!imagemConfirmada&&data.type==='file'&&podeCompat&&!compatTentada){
+                if(data.type==='file'&&podeCompat&&!compatTentada){
                     compatEmCurso=true;clearTimeout(startupTimer);video.pause();
                     const nova=await consultarCompat();compatEmCurso=false;
                     if(!current())return;
@@ -305,7 +308,7 @@ video.addEventListener('playing',()=>{if(!current())return;window.StreamEpisodes
             const conferirLegendas=()=>{if(legendaPendente)return;legendaPendente=true;Promise.resolve().then(()=>{legendaPendente=false;if(!current())return;subtitleMenu();sincronizarLegendas();});};
             video.textTracks?.addEventListener?.('addtrack',conferirLegendas);
             video.textTracks?.addEventListener?.('change',conferirLegendas);
-            video.addEventListener('error',()=>{if(!current()||compatEmCurso)return;if(!imagemConfirmada&&data.type==='file'&&podeCompat&&!compatTentada)pictureTimeout();else failure();});
+            video.addEventListener('error',()=>{if(!current()||compatEmCurso)return;if(data.type==='file'&&podeCompat&&!compatTentada)pictureTimeout();else failure();});
             // Arquivo direto (MP4 progressivo): toca no próprio player, sem
             // hls.js. É o caso da fonte dublada alternativa.
             function carregarFonte(){

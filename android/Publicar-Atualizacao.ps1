@@ -94,11 +94,15 @@ if ($ApkTvPath) {
 # O instalador do computador também entra na versão publicada.
 if ($ExePath) {
     $exe = (Resolve-Path -LiteralPath $ExePath).Path
-    $nomeExe = Split-Path $exe -Leaf
+    # O GitHub troca espaço por ponto no nome do asset publicado. Usa o
+    # nome já normalizado para o feed apontar para o arquivo certo.
+    $nomeExe = (Split-Path $exe -Leaf) -replace '\s+', '.'
+    $exePublicacao = Join-Path ([IO.Path]::GetTempPath()) $nomeExe
+    Copy-Item -LiteralPath $exe -Destination $exePublicacao -Force
     $feed.exeUrl = "https://github.com/$repo/releases/download/$tag/$nomeExe"
     $feed.exeSha256 = (Get-FileHash -LiteralPath $exe -Algorithm SHA256).Hash.ToLower()
     $feed.exeBytes = (Get-Item -LiteralPath $exe).Length
-    Enviar-Arquivo $exe 'application/octet-stream'
+    Enviar-Arquivo $exePublicacao 'application/octet-stream'
     Write-Output "Instalador do computador: $nomeExe ($($feed.exeBytes) bytes)"
 }
 

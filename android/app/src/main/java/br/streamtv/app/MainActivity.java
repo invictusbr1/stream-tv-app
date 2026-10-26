@@ -893,13 +893,26 @@ public final class MainActivity extends Activity {
                 try{
                     String endpoint="https://mgeb.top/embed/"+id+("tv".equals(tipo)?"/"+temporada+"/"+episodio:"");
                     String html=MgebHttp.read(endpoint,deadline);
+                    // O MGEB devolve a página do episódio 1 quando não tem o
+                    // episódio pedido (medido do 121 em diante em 25/10/2026).
+                    // O <title> declara "T1E1…"; se não for o episódio pedido,
+                    // esta fonte não serve — melhor a próxima do que o errado.
+                    if("tv".equals(tipo)){
+                        Matcher titulo=Pattern.compile("<title>[^<]*?\\bT(\\d{1,2})\\s*[·.\\-: ]?\\s*E?P?(\\d{1,3})\\b",Pattern.CASE_INSENSITIVE).matcher(html==null?"":html);
+                        if(titulo.find()){
+                            try{
+                                int ts=Integer.parseInt(titulo.group(1)),ep=Integer.parseInt(titulo.group(2));
+                                if(ts!=Integer.parseInt(temporada)||ep!=Integer.parseInt(episodio))return Collections.emptyList();
+                            }catch(NumberFormatException ignored){ /* sem comparação confiável: segue */ }
+                        }
+                    }
                     Matcher block=Pattern.compile("var\\s+sources\\s*=\\s*(\\[[\\s\\S]*?\\]);").matcher(html==null?"":html);
                     if(!block.find())return Collections.emptyList();
                     JSONArray list=new JSONArray(block.group(1));List<MgebSources.Source> options=new ArrayList<>();
                     for(int i=0;i<list.length()&&i<128;i++){
                         JSONObject entry=list.optJSONObject(i);if(entry==null)continue;
                         MgebSources.Source option=MgebSources.parse(entry.optString("file"),entry.optString("label"));
-                        if(option!=null&&enderecoSeguro(option.url))options.add(option);
+                        if(option!=null&&enderecoSeguro(option.url)&&!option.url.toLowerCase().contains("vod_nao_encontrado"))options.add(option);
                     }
                     List<QualitySelector.Candidate> result=new ArrayList<>();
                     for(MgebSources.Source option:MgebSources.order(options)){
@@ -1004,10 +1017,15 @@ public final class MainActivity extends Activity {
         try{
             serverLastProblem="";ServerPlaybackTransport transport=serverTransport();
             String path="tv".equals(tipo)?"/api/playback/serie/"+id+"/"+temporada+"/"+episodio:"/api/playback/"+id;
-            path+="?transporte=servidor&codec="+(hevc?"hevc":"avc")+"&exceto="+Uri.encode(android.text.TextUtils.join(",",excluded));
+            path+="?transporte=servidor&codec="+(hevc?"hevc":"avc");
             JSONObject data=new JSONObject(transport.json(path,20000));
             if(!"pt-BR".equals(data.optString("audio"))||data.has("conversao")||!java.util.Arrays.asList("file","hls").contains(data.optString("type")))return null;
-            data.put("url",ServerPlaybackTransport.local(data.getString("url")));
+            String mediaUrl=data.getString("url");
+            if(mediaUrl.startsWith("/api/")){
+                mediaUrl=transport.base.toString().replaceAll("/+$","")+mediaUrl;
+                mediaUrl+=(mediaUrl.contains("?")?"&":"?")+"codigo="+Uri.encode(transport.code);
+            }
+            data.put("url",mediaUrl);
             JSONObject diagnosis=new JSONObject().put("id",id).put("temporada",temporada==null?"":temporada).put("episodio",episodio==null?"":episodio).put("hevc",hevc).put("transporte","servidor").put("escolhida",data.optString("fonteId"));
             JSONArray checks=new JSONArray(),scores=data.optJSONArray("avaliacao");
             for(int i=0;scores!=null&&i<Math.min(12,scores.length());i++){
@@ -1035,8 +1053,16 @@ public final class MainActivity extends Activity {
     private WebResourceResponse qualityPlayback(String tipo,String id,String temporada,String episodio,java.util.Set<String> excluded,boolean avcOnly) {
         final QualitySelector selector=avcOnly?compatibleQualitySelector:qualitySelector;
         boolean serverTried=false;
-        if(SystemClock.elapsedRealtime()<serverRouteUntil){serverTried=true;WebResourceResponse recovered=serverPlayback(tipo,id,temporada,episodio,excluded,selector.podeHevc());if(recovered!=null)return recovered;serverRouteUntil=0;}
+        if(SystemClock.elapsedRealtime()<serverRouteUntil){serverTried=true;WebResourceResponse recovered=serverPlayback(tipo,id,temporada,episodio,excluded,!avcOnly);if(recovered!=null)return recovered;serverRouteUntil=0;}
         final java.util.Set<String> exceto=Collections.unmodifiableSet(new java.util.HashSet<>(excluded));
+        // A série usa primeiro a fonte do servidor: o avaliador da Oracle já
+        // entrega FrostStream/Kairou com o proxy certo. As fontes nativas podem
+        // devolver HLS/4K sem Referer e o WebView termina em "tente novamente".
+        if(!serverTried&&"tv".equals(tipo)){
+            serverTried=true;
+            WebResourceResponse viaServer=serverPlayback(tipo,id,temporada,episodio,exceto,!avcOnly);
+            if(viaServer!=null)return viaServer;
+        }
         List<QualitySelector.Source> sources=new ArrayList<>();
         boolean tv="tv".equals(tipo);
         java.util.Set<String> allowed=new java.util.HashSet<>();
@@ -1065,7 +1091,7 @@ public final class MainActivity extends Activity {
         String key=tipo+":"+id+":"+temporada+":"+episodio+":"+new java.util.TreeSet<>(exceto)+":"+(profiles==null?0:profiles.hashCode());
         String title=tv?"tv:"+id+":"+temporada+":"+episodio:"movie:"+id;
         QualitySelector.Candidate chosen=selector.chooseVerified(key,sources,exceto,
-            (candidato,prazo)->SecureDelivery.read(candidato,prazo,(delivery,end)->NativeMediaProbe.read(delivery,end,selector.podeHevc()),end->clickHostSecureDelivery(tipo,id,temporada,episodio,candidato.url,end)),
+            (candidato,prazo)->SecureDelivery.read(candidato,prazo,(delivery,end)->NativeMediaProbe.read(delivery,end,!avcOnly),end->clickHostSecureDelivery(tipo,id,temporada,episodio,candidato.url,end)),
             8000,4000,title,allowed,new QualitySelector.Evidence(){
                 public void load(long deadline)throws Exception{carregarProvasIdioma(title,Math.min(deadline,QualitySelector.now()+3000));}
                 public QualitySelector.Measure apply(String target,QualitySelector.Candidate c){return audioProofs.apply(target,c);}
@@ -1073,7 +1099,13 @@ public final class MainActivity extends Activity {
         if(chosen!=null){
             try{
                 JSONObject data=new JSONObject(chosen.json);QualitySelector.Measure m=chosen.measure;
-                JSONObject diagnosis=new JSONObject().put("id",id).put("temporada",temporada==null?"":temporada).put("episodio",episodio==null?"":episodio).put("hevc",selector.podeHevc()).put("escolhida",chosen.id);
+                if(!avcOnly&&"file".equals(chosen.type)&&chosen.referer!=null&&!chosen.referer.isEmpty()){
+                    // Arquivo direto com hotlink (FenixFlix/FrostStream/Kairou):
+                    // o WebView não manda Referer; o servidor busca e entrega o proxy.
+                    WebResourceResponse viaServer=serverPlayback(tipo,id,temporada,episodio,excluded,!avcOnly);
+                    if(viaServer!=null)return viaServer;
+                }
+                JSONObject diagnosis=new JSONObject().put("id",id).put("temporada",temporada==null?"":temporada).put("episodio",episodio==null?"":episodio).put("hevc",!avcOnly).put("escolhida",chosen.id);
                 JSONArray checks=new JSONArray();for(QualitySelector.Check row:selector.audit(key))checks.put(new JSONObject().put("id",row.id).put("motivo",row.reason).put("largura",row.width).put("altura",row.height).put("idioma",row.language).put("ms",row.ms));
                 data.put("diagnosticoQualidade",diagnosis.put("fontes",checks));
                 if("file".equals(chosen.type)){
@@ -1092,7 +1124,7 @@ public final class MainActivity extends Activity {
                 return respostaTexto("application/json",data.toString());
             }catch(Exception ignored){selector.forget(key);return error(502);}
         }
-        if(!serverTried){WebResourceResponse recovered=serverPlayback(tipo,id,temporada,episodio,exceto,selector.podeHevc());if(recovered!=null)return recovered;}
+        if(!serverTried){WebResourceResponse recovered=serverPlayback(tipo,id,temporada,episodio,exceto,!avcOnly);if(recovered!=null)return recovered;}
         // A rodada já consultou e revisou todas as fontes dubladas. O último
         // recurso mantém seu próprio prazo; a interface não repete esta busca.
         if(!exceto.contains("vixsrc")){
@@ -1101,7 +1133,7 @@ public final class MainActivity extends Activity {
             finally{qualityDeadline.remove();}
         }
         try{
-            JSONObject diagnosis=new JSONObject().put("id",id).put("temporada",temporada==null?"":temporada).put("episodio",episodio==null?"":episodio).put("hevc",selector.podeHevc()).put("escolhida","");
+            JSONObject diagnosis=new JSONObject().put("id",id).put("temporada",temporada==null?"":temporada).put("episodio",episodio==null?"":episodio).put("hevc",!avcOnly).put("escolhida","");
             JSONArray checks=new JSONArray();for(QualitySelector.Check row:selector.audit(key))checks.put(new JSONObject().put("id",row.id).put("motivo",row.reason).put("largura",row.width).put("altura",row.height).put("idioma",row.language).put("ms",row.ms));
             if(!serverLastProblem.isEmpty())checks.put(new JSONObject().put("id","rede-servidor").put("motivo",serverLastProblem).put("ms",0));
             return respostaTexto("application/json",new JSONObject().put("indisponivel",true).put("buscaCompleta",true).put("diagnosticoQualidade",diagnosis.put("fontes",checks)).toString());
@@ -1561,7 +1593,12 @@ public final class MainActivity extends Activity {
                 if (path != null && path.matches("/api/playback/serie/[0-9]{1,10}/[0-9]{1,3}/[1-9][0-9]{0,3}")) {
                     String[] partes = path.split("/");
                     if("avc".equals(uri.getQueryParameter("compat"))||"avc".equals(uri.getQueryParameter("codec")))return qualityPlayback("tv",partes[4],partes[5],partes[6],PlaybackSources.exclusions(uri.getQueryParameter("exceto")),true);
-                    return directEpisode(partes[4], partes[5], partes[6], PlaybackSources.exclusions(uri.getQueryParameter("exceto")));
+                    java.util.Set<String> excetoSerie = PlaybackSources.exclusions(uri.getQueryParameter("exceto"));
+                    // Série: a Oracle já entrega FrostStream/Kairou proxiados com
+                    // Referer; o directEpisode nativo não consegue mandar Referer.
+                    WebResourceResponse viaServer=serverPlayback("tv",partes[4],partes[5],partes[6],excetoSerie,true);
+                    if(viaServer!=null)return viaServer;
+                    return directEpisode(partes[4], partes[5], partes[6], excetoSerie);
                 }
                 // Legendas no aparelho: quando o filme toca com o áudio original,
                 // o telefone busca sozinho a legenda em português (sem cadastro).
