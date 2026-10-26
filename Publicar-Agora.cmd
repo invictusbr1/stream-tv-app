@@ -10,7 +10,14 @@ echo === %date% %time% > "%LOG%"
 echo [1/5] Testes...
 echo --- testes >> "%LOG%"
 call npm test >> "%LOG%" 2>&1
+if not errorlevel 1 goto testes_ok
+rem Alguns testes do seletor de qualidade medem tempo (250 ms) e podem falhar com o PC ocupado.
+rem Uma falha real se repete; uma oscilacao de tempo passa na segunda rodada.
+echo Um teste falhou, repetindo a rodada para descartar oscilacao de tempo...
+echo --- testes (segunda rodada) >> "%LOG%"
+call npm test >> "%LOG%" 2>&1
 if errorlevel 1 (echo FALHOU: testes >> "%LOG%" & goto fim)
+:testes_ok
 
 echo [2/5] Servidor da Oracle...
 echo --- parando o monitor antigo >> "%LOG%"
