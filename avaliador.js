@@ -156,41 +156,11 @@ async function sondar(dados,opcoes={}) {
     try { return await operacao; } finally { if (medicoesEmCurso.get(chave) === operacao) medicoesEmCurso.delete(chave); }
 }
 
-// Compara também a largura: 1920×800 é uma imagem de cinema em Full HD,
-// enquanto 3840×1600 tem mais definição que 1920×1080.
-function alturaEquivalente(largura, altura) {
-    if (!(altura > 0)) return 0;
-    return largura > 0 ? Math.max(Math.min(largura, altura), Math.max(largura, altura) * 9 / 16) : altura;
-}
-
-function alturaDoRotulo(valor) {
-    const texto = String(valor || '');
-    const pixels = texto.match(/(?:^|\D)(\d{3,4})\s*p\b/i) || texto.match(/\d{3,4}\s*[x×]\s*(\d{3,4})/i);
-    if (pixels) return Number(pixels[1]);
-    if (/\b(?:4k|uhd)\b/i.test(texto)) return 2160;
-    if (/full\s*hd|\bfhd\b/i.test(texto)) return 1080;
-    return /\bhd\b/i.test(texto) ? 720 : 0;
-}
-
-// Pequenos recortes, como 3832×1600, permanecem na família 4K. O ranking
-// continua comparando as dimensões exatas dentro de cada gaveta.
-function gavetaDaAltura(altura){return altura>=4320*.98?6:altura>=2160*.98?5:altura>=1440*.98?4:altura>=1080*.98?3:altura>=720*.98?2:altura>0?1:0;}
-const NOMES_GAVETAS=['Sem confirmação','Qualidade básica','HD','Full HD','2K','4K','Acima de 4K'];
-
-function prioridadeDaFonte({ dados, sonda, idiomaVerificado, ms }) {
-    const pt = sonda?.portuguesa || sonda?.padraoPortugues || sonda?.audios?.some(a => /^(?:pt|por)(?:[-_]|$)/i.test(a.lang || ''));
-    const outro = idiomaVerificado === 'outro' || (idiomaVerificado !== 'pt' && !pt && sonda?.audios?.some(a => a.lang && a.lang !== 'und' && !/^(?:pt|por)(?:[-_]|$)/i.test(a.lang)));
-    const idioma = outro ? -1 : idiomaVerificado === 'pt' || pt ? 2 : dados.audio === 'pt-BR' ? 1 : 0;
-    const medida = sonda && !sonda.conversao && sonda.altura > 0;
-    const informada = alturaDoRotulo(dados.resolucao);
-    const altura=medida?alturaEquivalente(sonda.largura,sonda.altura):informada;
-    return [idioma, medida ? 1 : 0, idioma===2&&medida?gavetaDaAltura(altura):0, altura, dados.converter ? 0 : 1, sonda?.banda || 0, -(ms || 0)];
-}
-
-function compararPrioridade(a, b) {
-    for (let i = 0; i < a.length; i++) { if (a[i] !== b[i]) return b[i] - a[i]; }
-    return 0;
-}
+// Critérios de qualidade (altura, gaveta, vetor de prioridade) vivem na
+// política única — o avaliador só mede e entrega os números para ela.
+const politica = require('./politica-fontes');
+const { alturaEquivalente, alturaDoRotulo, gavetaDaAltura, NOMES_GAVETAS, compararPrioridade } = politica;
+const prioridadeDaFonte = politica.prioridadeDaMedicao;
 
 function avaliarConferidas(conferidas, idiomas, titulo) {
     const provas = require('./provas-idioma');

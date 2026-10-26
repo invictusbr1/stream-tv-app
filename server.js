@@ -840,7 +840,15 @@ app.get('/api/stream-hd', async (req, res) => {
 const TMDB_KEY = 'b803dfcad0baeafbb66a673ffe98a5ef';
 
 // Diagnóstico do motor de fontes: quais estão saudáveis agora.
-app.get('/api/motor/estado', (req, res) => res.json({ fontes: require('./fontes-motor').estado() }));
+// Diagnóstico do motor: estado de cada fonte e a fila de cada papel com o
+// porquê de cada posição (política única: politica-fontes.json).
+// ?tipo=tv&id=1399&temporada=1&episodio=1 mostra a fila para um título.
+app.get('/api/motor/estado', (req, res) => {
+    const motor = require('./fontes-motor');
+    const id = String(req.query.id || '');
+    const alvo = /^\d{1,10}$/.test(id) ? motor.alvoDoEvento(req.query.tipo === 'tv' ? 'tv' : 'movie', id, req.query.temporada, req.query.episodio) : null;
+    res.json({ fontes: motor.estado(), fila: motor.explicar(alvo) });
+});
 
 // ============================================================
 // VIGIA DAS FONTES — o robô que testa filmes em rodízio, 24 horas por dia,

@@ -10,8 +10,7 @@
       "HD ou Full HD — 720p para cima."
     ],
     "ordem": [
-      "Dublado limpo: WatchPlay (filme em /movie e episódio em /tvshow) e PipocaCine (arquivo do filme e episódio da série)",
-      "Alta definição limpa, só quando não existe dublado: Vixsrc (com legenda em português) e VidSrc (lançamentos em Full HD)"
+      "A ordem dos fornecedores fica SÓ em politica-fontes.json (prioridade de cada um) e é aplicada por politica-fontes.js. Diagnóstico ao vivo: /api/motor/estado."
     ],
     "inteligencia": [
       "Lembra por 40 minutos qual fonte abriu cada título.",

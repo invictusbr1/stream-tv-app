@@ -1055,10 +1055,11 @@ public final class MainActivity extends Activity {
         boolean serverTried=false;
         if(SystemClock.elapsedRealtime()<serverRouteUntil){serverTried=true;WebResourceResponse recovered=serverPlayback(tipo,id,temporada,episodio,excluded,!avcOnly);if(recovered!=null)return recovered;serverRouteUntil=0;}
         final java.util.Set<String> exceto=Collections.unmodifiableSet(new java.util.HashSet<>(excluded));
-        // A série usa primeiro a fonte do servidor: o avaliador da Oracle já
-        // entrega FrostStream/Kairou com o proxy certo. As fontes nativas podem
-        // devolver HLS/4K sem Referer e o WebView termina em "tente novamente".
-        if(!serverTried&&"tv".equals(tipo)){
+        // Filme e série usam primeiro a fonte do servidor: lá fica a política
+        // única de prioridade (politica-fontes.json) e o avaliador entrega com o
+        // proxy certo. As fontes nativas abaixo ficam só como reserva para quando
+        // o servidor não responde (sem rede até ele, servidor desligado).
+        if(!serverTried){
             serverTried=true;
             WebResourceResponse viaServer=serverPlayback(tipo,id,temporada,episodio,exceto,!avcOnly);
             if(viaServer!=null)return viaServer;

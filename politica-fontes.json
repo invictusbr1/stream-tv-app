@@ -1,0 +1,61 @@
+{
+  "comoLer": "ÚNICO lugar que define a prioridade das fontes. Motor, avaliador, rotas e Android seguem estas regras. Para mudar a ordem de um fornecedor, mude só a 'prioridade' dele aqui (maior = tenta antes).",
+  "regra": [
+    "1. Sem anúncio — obrigatório. Fonte marcada com anúncio nunca entra.",
+    "2. Dublado — dublado comprovado vence qualquer legendada, mesmo de resolução maior.",
+    "3. Qualidade — resolução medida no arquivo (4K > Full HD > HD).",
+    "4. Reprodução direta — sem precisar converter o áudio.",
+    "5. Estabilidade — saúde da fonte (acertos, falhas, placar dos aparelhos).",
+    "6. Velocidade — só desempata."
+  ],
+  "papeis": {
+    "dublado": "Áudio em português. Sempre a primeira tentativa.",
+    "hd": "Áudio original com legenda. Só quando nenhuma dublada tem o título."
+  },
+  "fontes": {
+    "pipoca":         { "papel": "dublado", "prioridade": 105, "nota": "Filmes: dublado conferido com ffprobe (faixa PT padrão)." },
+    "watchplay":      { "papel": "dublado", "prioridade": 100, "nota": "Principal; em alguns títulos entrega áudio original." },
+    "fenix":          { "papel": "dublado", "prioridade": 96,  "nota": "Recusa endereços só em MKV." },
+    "froststream":    { "papel": "dublado", "prioridade": 94 },
+    "clickhost":      { "papel": "dublado", "prioridade": 92 },
+    "mgeb":           { "papel": "dublado", "prioridade": 88 },
+    "pipoca-serie":   { "papel": "dublado", "prioridade": 85,  "nota": "Episódios de série." },
+    "kairou":         { "papel": "dublado", "prioridade": 80 },
+    "vixsrc":         { "papel": "hd",      "prioridade": 80,  "nota": "Full HD com legenda em português." },
+    "vidsrc":         { "papel": "hd",      "prioridade": 70,  "nota": "Lançamentos em Full HD." },
+    "vidlink-direto": { "papel": "hd",      "prioridade": 60 }
+  },
+  "fichasDoCacador": {
+    "comoFunciona": "Fonte aprovada pelo caçador entra com prioridade = base + nota × porPontoDeNota (nota 0..10). Para fixar a posição de uma ficha, cadastre o id dela em 'fontes'.",
+    "base": 60,
+    "porPontoDeNota": 3
+  },
+  "ajustes": {
+    "comoFunciona": "Pontuação do momento = prioridade + taxaDeAcerto × (acertos/total) + placarDosAparelhos × placar − castigada (se estiver de castigo). Maior pontuação tenta antes.",
+    "placarDosAparelhos": 10,
+    "taxaDeAcerto": 5,
+    "castigada": 1000
+  },
+  "castigos": {
+    "duasFalhasSeguidasMin": 20,
+    "falhaRepetidaHoras": 4,
+    "tropecoDeRedeMin": 6
+  },
+  "memoria": {
+    "lembraAcertoMin": 40,
+    "lembraSemTituloMin": 30,
+    "tempoPorFonteMs": 14000
+  },
+  "excecoesPorTitulo": [
+    {
+      "fonte": "crystal-lake",
+      "onde": "séries (rota /api/playback/serie)",
+      "motivo": "Fonte de um título específico; responde antes do avaliador e não participa do ranking geral."
+    },
+    {
+      "fonte": "fenix-compativel",
+      "onde": "pedidos com compat=avc",
+      "motivo": "Último recurso de compatibilidade H.264 (conversão), só quando nenhuma fonte da fila toca em AVC."
+    }
+  ]
+}

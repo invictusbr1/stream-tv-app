@@ -20,12 +20,14 @@ const os = require('os');
 const perfisMotor = require('./perfis-motor');
 const perfisLocais = require('./perfis-locais');
 
-const TEMPO_FONTE = 14000;      // limite por fonte
-const VALIDADE_ACERTO = 40 * 60 * 1000;  // lembra o acerto por 40 minutos
-const VALIDADE_SEM_TITULO = 30 * 60 * 1000; // lembra "não tem este título" por 30 minutos
-const CASTIGO = 20 * 60 * 1000;       // 2 falhas seguidas: sai da frente por 20 minutos
-const CASTIGO_LONGO = 4 * 60 * 60 * 1000; // falha repetida (5+): sai por 4 horas
-const CASTIGO_LEVE = 6 * 60 * 1000;    // tropeço de rede: sai da frente por 6 minutos
+// Prioridade, castigos e memórias vêm da política única (politica-fontes.json).
+const politica = require('./politica-fontes');
+const TEMPO_FONTE = politica.tempos.tempoPorFonte;            // limite por fonte
+const VALIDADE_ACERTO = politica.tempos.validadeAcerto;       // lembra o acerto
+const VALIDADE_SEM_TITULO = politica.tempos.validadeSemTitulo; // lembra "não tem este título"
+const CASTIGO = politica.tempos.castigo;            // 2 falhas seguidas
+const CASTIGO_LONGO = politica.tempos.castigoLongo; // falha repetida (5+)
+const CASTIGO_LEVE = politica.tempos.castigoLeve;   // tropeço de rede
 // No aplicativo instalado a pasta do programa é só de leitura: o histórico vive
 // na pasta do usuário. Rodando do projeto, fica junto dos relatórios.
 const ARQUIVO_SAUDE = process.pkg
@@ -157,8 +159,8 @@ function comPrazo(promessa, ms) {
 }
 
 // ---------------------------------------------------------------
-// Registro das fontes. Para acrescentar uma fonte nova, basta incluir
-// um item aqui: o motor cuida da ordem, do cache e da saúde.
+// Registro das fontes. Para acrescentar uma fonte nova, inclua um item aqui
+// e a prioridade dela em politica-fontes.json — a ORDEM nunca é escrita aqui.
 // ---------------------------------------------------------------
 // Endereço da fonte dublada principal. Filme vai em /movie; episódio vai em
 // /tvshow/{id}/{temporada}/{episódio} — o caminho /serie exige sessão paga e
@@ -174,7 +176,6 @@ const FONTES = [
         id: 'watchplay',
         nome: 'Dublado · fonte limpa',
         papel: 'dublado',
-        peso: 100,
         seAplica: alvo => alvo.tipo === 'tv' || alvo.tipo === 'movie',
         resolver: async id => {
             const alvo = typeof id === 'object' ? id : { tipo: 'movie', tmdbId: id };
@@ -205,7 +206,6 @@ const FONTES = [
         id: 'pipoca-serie',
         nome: 'Dublado · série (arquivo limpo)',
         papel: 'dublado',
-        peso: 85,
         seAplica: alvo => alvo.tipo === 'tv',
         resolver: async id => {
             if (typeof id !== 'object') return null;
@@ -222,7 +222,6 @@ const FONTES = [
         id: 'kairou',
         nome: 'Dublado · Kairou (VeTela)',
         papel: 'dublado',
-        peso: 80,
         seAplica: alvo => alvo.tipo === 'tv' || alvo.tipo === 'movie',
         resolverTodos: async alvo => require('./kairou-source').resolverTodos(alvo.tipo, alvo.tmdbId, alvo.temporada, alvo.episodio),
         resolver: async alvo => {
@@ -240,7 +239,6 @@ const FONTES = [
         id: 'mgeb',
         nome: 'Dublado · MGEB',
         papel: 'dublado',
-        peso: 88,
         seAplica: alvo => alvo.tipo === 'tv' || alvo.tipo === 'movie',
         resolverTodos: async alvo => require('./mgeb-source').resolverTodos(alvo.tipo, alvo.tmdbId, alvo.temporada, alvo.episodio),
         resolver: async id => {
@@ -264,7 +262,6 @@ const FONTES = [
         efemera: true,
         nome: 'Dublado · ClickHost',
         papel: 'dublado',
-        peso: 92,
         seAplica: alvo => alvo.tipo === 'movie' || alvo.tipo === 'tv',
         resolver: async alvo => {
             const objeto = typeof alvo === 'object' ? alvo : { tipo: 'movie', tmdbId: alvo };
@@ -281,7 +278,6 @@ const FONTES = [
         id: 'froststream',
         nome: 'Dublado · FrostStream',
         papel: 'dublado',
-        peso: 94,
         seAplica: alvo => alvo.tipo === 'tv' || alvo.tipo === 'movie',
         resolverTodos: async alvo => require('./froststream-source').resolverTodos(alvo.tipo, alvo.tmdbId, alvo.temporada, alvo.episodio),
         resolver: async alvo => {
@@ -299,7 +295,6 @@ const FONTES = [
         // — medido com ffprobe). A fonte principal apenas "avisa" que é
         // dublada e em alguns títulos entrega o áudio original (caso do
         // "A Luta pela Esperança"), por isso ela passa a ser a segunda opção.
-        peso: 105,
         // Esta entrada é só de filme; série é tratada logo acima.
         seAplica: alvo => alvo.tipo !== 'tv',
         resolver: async id => {
@@ -325,7 +320,6 @@ const FONTES = [
         id: 'fenix',
         nome: 'Dublado · FenixFlix',
         papel: 'dublado',
-        peso: 96,
         seAplica: alvo => alvo.tipo === 'movie' || alvo.tipo === 'tv',
         resolver: async id => {
             if (typeof id !== 'object') return null;
@@ -341,7 +335,6 @@ const FONTES = [
         id: 'vixsrc',
         nome: 'Full HD · legenda em português',
         papel: 'hd',
-        peso: 80,
         resolver: async id => {
             const alvo = typeof id === 'object' ? id : { tipo: 'movie', tmdbId: id };
             const dados = await require('./vixsrc-source').resolver(alvo.tmdbId, alvo.tipo === 'tv' ? 'tv' : 'movie', alvo.temporada, alvo.episodio);
@@ -361,7 +354,6 @@ const FONTES = [
         id: 'vidsrc',
         nome: 'Full HD · lançamentos',
         papel: 'hd',
-        peso: 70,
         resolver: async id => {
             const alvo = typeof id === 'object' ? id : { tipo: 'movie', tmdbId: id };
             const dados = await require('./vidsrc-source').resolver(alvo.tipo === 'tv' ? 'tv' : 'movie', alvo.tmdbId, alvo.temporada, alvo.episodio);
@@ -373,7 +365,6 @@ const FONTES = [
         id: 'vidlink-direto',
         nome: 'HD original · arquivo sem anúncios',
         papel: 'hd',
-        peso: 60,
         resolver: alvo => require('./vidlink-direto').resolver(alvo)
     }
 ];
@@ -407,8 +398,10 @@ function fontesDePerfil() {
             id: String(perfil.id),
             nome: perfil.nome || perfil.id,
             papel: soOriginal ? 'hd' : 'dublado',
-            // A nota do caçador vira posição: 0..10 → 60..90 pontos de peso.
-            peso: 60 + nota * 3,
+            // A nota do caçador vira posição pela política única (politica-fontes.json).
+            notaDaFicha: nota,
+            peso: politica.prioridadeDaFicha(nota),
+            anuncio: perfil.anuncio === true || perfil.semAnuncio === false,
             perfil: true,
             seAplica: alvo => perfisMotor.serve(perfil, alvo, null),
             resolverTodos: async alvo => {
@@ -478,25 +471,18 @@ function fontesAtivas() {
     return [...FONTES, ...fontesDePerfil()];
 }
 
-function ordem(papel, alvo) {
-    const agora = Date.now();
+// Fila do momento, decidida pela política única (politica-fontes.js):
+// sem anúncio → papel → prioridade + saúde + placar dos aparelhos.
+function ordemDetalhada(papel, alvo) {
     const reais = placarReal();
-    return fontesAtivas()
-        .filter(f => f.papel === papel)
-        .filter(f => !alvo || !f.seAplica || f.seAplica(alvo))
-        .map(f => {
-            const s = estadoDaFonte(f.id);
-            const castigada = s.castigoAte > agora ? 1 : 0;
-            const taxa = s.acertos / Math.max(1, s.acertos + s.falhas);
-            // O placar real (relatos dos aparelhos) mexe na posição: fonte que
-            // falha com quem assiste desce, fonte que funciona sobe.
-            const real = (reais.get(String(f.id)) || 0) * 10;
-            // Menor nota vem primeiro. A regra do produto manda (peso): a fonte
-            // que acabou de falhar vai para o fim e o histórico só desempata.
-            return { fonte: f, nota: (castigada ? 1000 : 0) - f.peso - taxa * 5 - real };
-        })
-        .sort((a, b) => a.nota - b.nota)
-        .map(item => item.fonte);
+    return politica.ordenar(fontesAtivas(), papel, alvo, {
+        saudeDe: estadoDaFonte,
+        placarDe: id => reais.get(String(id)) || 0,
+    });
+}
+
+function ordem(papel, alvo) {
+    return ordemDetalhada(papel, alvo).map(item => item.fonte);
 }
 
 function chaveDoTitulo(alvo) {
@@ -609,12 +595,18 @@ async function escolher(papel, alvo, opcoes = {}) {
 }
 
 function estado() {
+    const reais = placarReal();
     return fontesAtivas().map(f => {
         const s = estadoDaFonte(f.id);
+        const p = politica.pontuar(f, { saude: s, placar: reais.get(String(f.id)) || 0 });
         return {
             id: f.id,
             nome: f.nome,
-            papel: f.papel,
+            papel: politica.papelDaFonte(f),
+            prioridade: politica.prioridade(f),
+            pontos: p.pontos,
+            motivos: p.motivos,
+            anuncio: politica.temAnuncio(f),
             acertos: s.acertos,
             falhas: s.falhas,
             falhasSeguidas: s.falhasSeguidas || 0,
@@ -623,6 +615,22 @@ function estado() {
             ultimoMotivo: s.ultimoMotivo
         };
     });
+}
+
+// Diagnóstico legível: a fila de cada papel, na ordem em que será tentada,
+// com o porquê de cada posição. Usado por /api/motor/estado.
+function explicar(alvo) {
+    const fila = papel => ordemDetalhada(papel, alvo).map((item, i) => ({
+        posicao: i + 1, id: item.fonte.id, nome: item.fonte.nome,
+        pontos: item.pontos, motivos: item.motivos,
+    }));
+    return {
+        regra: politica.REGRAS.regra,
+        dublado: fila('dublado'),
+        hd: fila('hd'),
+        barradasPorAnuncio: fontesAtivas().filter(politica.temAnuncio).map(f => f.id),
+        excecoesPorTitulo: politica.REGRAS.excecoesPorTitulo || [],
+    };
 }
 
 // Preparo do endereço para o player: tudo passa pelo encaminhamento do
@@ -699,4 +707,4 @@ function anotarEscolha(papel, alvo, dados) {
     acertos.set(chave, { dados: { ...dados }, expira: Date.now() + validade });
 }
 
-module.exports = { escolher, filaDeFontes, prepararParaPlayer, estado, FONTES, fontesAtivas, fontesDePerfil, enderecoWatchPlay, reiniciarParaTeste, esquecerAcertos, registrarFalha, registrarSucesso, anotarEscolha, chaveDoTitulo, alvoDoEvento, lerIdiomasVerificados, lerProvasDeIdioma, esquecerIdiomas };
+module.exports = { escolher, filaDeFontes, prepararParaPlayer, estado, explicar, ordem, FONTES, fontesAtivas, fontesDePerfil, enderecoWatchPlay, reiniciarParaTeste, esquecerAcertos, registrarFalha, registrarSucesso, anotarEscolha, chaveDoTitulo, alvoDoEvento, lerIdiomasVerificados, lerProvasDeIdioma, esquecerIdiomas };
