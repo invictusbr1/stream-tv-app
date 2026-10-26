@@ -3,6 +3,14 @@
 > Este arquivo é a memória do projeto. Abrir SEMPRE no começo de uma tarefa e
 > atualizar no fim. Assim nada precisa ser repetido pelo usuário.
 
+## 2.13.125 — perfis com avatar (26/10/2026)
+
+- **"Quem está assistindo?"**: até 5 perfis por conta/aparelho, 16 avatares próprios (`avatares.js`), editor de nome/avatar e troca pelo avatar no topo ou pela gaveta (`perfis-conta.js`). Cada perfil tem continuar assistindo, favoritos, assistidos e buscas separados.
+- Funciona sem conta (no aparelho). Com a conta, sincroniza na tabela `perfis_conta` do Supabase (RLS por usuário, limite de 5 no banco). Última alteração vence, perfil a perfil. Com perfis na nuvem, o `user_metadata` guarda só os aparelhos (token menor).
+- O Supabase estava PAUSADO por inatividade e foi reativado em 26/10. Plano gratuito pausa de novo se ficar sem uso.
+- **4K no Android:** o filme continua no seletor nativo (arquivo direto do CDN, 3840×1600). Pelo servidor, o vídeo passaria pelo proxy da Oracle. Série segue pelo servidor.
+- Publicação: `Publicar-Agora.cmd` (testes → Oracle → APKs celular/TV → manifesto). Registro em `publicacao.log`. O .exe do Windows não foi recompilado nesta versão.
+
 ## Reorganização de 26/10/2026 (branch `reorganizacao`, sem publicação)
 
 - **Prioridade das fontes num lugar só:** `politica-fontes.json` (prioridade de cada fornecedor, fórmula das fichas, castigos, memórias) + `politica-fontes.js` (aplica a regra: sem anúncio → dublado → qualidade → reprodução direta → estabilidade → velocidade). Motor, fichas do caçador e avaliador usam a mesma política. Para mudar a ordem, edite só a `prioridade` no JSON.
