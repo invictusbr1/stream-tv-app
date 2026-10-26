@@ -93,7 +93,9 @@
       "anime-player.js",
       "episodios.js",
       "abertura.js",
-      "avisos-servidor.js"
+      "avisos-servidor.js",
+      "avatares.js",
+      "perfis-conta.js"
     ]
   }
 }

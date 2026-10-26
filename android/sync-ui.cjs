@@ -88,6 +88,9 @@ fs.copyFileSync(path.join(root,'abertura.js'),path.join(assets,'abertura.js'));
 fs.copyFileSync(path.join(root,'creditos.js'),path.join(assets,'creditos.js'));
 fs.copyFileSync(path.join(root,'avisos-servidor.js'),path.join(assets,'avisos-servidor.js'));
 fs.copyFileSync(path.join(root,'auth.js'),path.join(assets,'auth.js'));
+// Perfis "Quem está assistindo?" com avatares próprios.
+fs.copyFileSync(path.join(root,'avatares.js'),path.join(assets,'avatares.js'));
+fs.copyFileSync(path.join(root,'perfis-conta.js'),path.join(assets,'perfis-conta.js'));
 fs.copyFileSync(path.join(root,'jarvis.js'),path.join(assets,'jarvis.js'));
 fs.copyFileSync(path.join(root,'acesso.js'),path.join(assets,'acesso.js'));
 fs.copyFileSync(path.join(root,'fontes.json'),path.join(assets,'fontes.json'));

@@ -41,6 +41,7 @@ app.get('/creditos.js',(req,res)=>{res.setHeader('Cache-Control','no-store');res
 app.get('/episodios.js',(req,res)=>{res.setHeader('Cache-Control','no-store');res.sendFile(path.join(RAIZ,'episodios.js'));});
 app.get('/avisos-servidor.js',(req,res)=>{res.setHeader('Cache-Control','no-store');res.type('js').sendFile(path.join(RAIZ,'avisos-servidor.js'));});
 app.get('/library.js',(req,res)=>{res.setHeader('Cache-Control','no-store');res.type('js').send(fs.readFileSync(path.join(RAIZ,'library.js')));});
+app.get(['/avatares.js','/perfis-conta.js'],(req,res)=>{res.setHeader('Cache-Control','no-store');res.type('js').send(fs.readFileSync(path.join(RAIZ,req.path.slice(1))));});
 app.get('/auth.js',(req,res)=>{res.setHeader('Cache-Control','no-store');res.type('js').send(fs.readFileSync(path.join(RAIZ,'auth.js')));});
 app.get('/jarvis.js',(req,res)=>{res.setHeader('Cache-Control','no-store');res.type('js').send(fs.readFileSync(path.join(RAIZ,'jarvis.js')));});
 app.get('/fontes.json',(req,res)=>{res.setHeader('Cache-Control','no-store');res.type('json').sendFile(path.join(RAIZ,'fontes.json'));});
