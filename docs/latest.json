@@ -1,14 +1,14 @@
 {
-    "versionCode":  454,
-    "versionName":  "2.13.125",
-    "apkUrl":  "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.125/Conecta-TV-Android-2.13.125.apk",
-    "sha256":  "803b68c9b348faf03396fcfe29cc1d8adb40ab67bcb01ef34b7abff8d07bcf0d",
-    "bytes":  541354,
-    "notes":  "Perfis com avatar (Quem esta assistindo?), prioridade das fontes organizada e correcoes de seguranca.",
+    "versionCode":  455,
+    "versionName":  "2.13.126",
+    "apkUrl":  "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.126/Conecta-TV-Android-2.13.126.apk",
+    "sha256":  "664fa1ce285c310befcdf93def6e48c9a7021fd150cb2903a8d7e3191601b12e",
+    "bytes":  542640,
+    "notes":  "Abre mais rapido (a fonte comeca a ser preparada ao abrir o filme e nos creditos do episodio), sem perder qualidade. Aviso claro quando o episodio ainda nao chegou.",
     "exeUrl":  "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.117/Conecta.TV.exe",
     "exeSha256":  "9f1cbee5931e53e469dd488a7b3bfbfca9dd8077681a87ded02bad70ab657f7d",
     "exeBytes":  120134995,
-    "apkTvUrl":  "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.125/Conecta-TV-TV-2.13.125.apk",
-    "apkTvSha256":  "a212695f7586d8ac4386046be198700a4f3800e51c015a8e2b9f563382ffe5bf",
-    "apkTvBytes":  541078
+    "apkTvUrl":  "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.126/Conecta-TV-TV-2.13.126.apk",
+    "apkTvSha256":  "2c4956844aac235b413e08d6e4c4ddb6aa57b87a710b1be0014fbe11112db903",
+    "apkTvBytes":  542363
 }

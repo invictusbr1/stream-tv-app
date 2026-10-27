@@ -1013,15 +1013,24 @@ public final class MainActivity extends Activity {
         String code=config.optString("acessoCodigo",config.optString("codigo",""));if(code.isEmpty())code=discovery.optString("codigo");
         saved=new ServerPlaybackTransport(discovery.getString("endereco").replaceAll("/+$",""),code);serverTransport=saved;return saved;
     }
-    private WebResourceResponse serverPlayback(String tipo,String id,String temporada,String episodio,java.util.Set<String> excluded,boolean hevc){
+    private WebResourceResponse serverPlayback(String tipo,String id,String temporada,String episodio,java.util.Set<String> excluded,boolean hevc){return serverPlayback(tipo,id,temporada,episodio,excluded,hevc,"");}
+    private WebResourceResponse serverPlayback(String tipo,String id,String temporada,String episodio,java.util.Set<String> excluded,boolean hevc,String escolhaDoAparelho){
         try{
             serverLastProblem="";ServerPlaybackTransport transport=serverTransport();
             String path="tv".equals(tipo)?"/api/playback/serie/"+id+"/"+temporada+"/"+episodio:"/api/playback/"+id;
-            path+="?transporte=servidor&codec="+(hevc?"hevc":"avc");
+            path+="?transporte=servidor&codec="+(hevc?"hevc":"avc")+(escolhaDoAparelho==null?"":escolhaDoAparelho);
             JSONObject data=new JSONObject(transport.json(path,20000));
             if(!"pt-BR".equals(data.optString("audio"))||data.has("conversao")||!java.util.Arrays.asList("file","hls").contains(data.optString("type")))return null;
             String mediaUrl=data.getString("url");
-            if(mediaUrl.startsWith("/api/")){
+            // Lista HLS vem pelo transporte do próprio aparelho (mesma origem do
+            // WebView): o hls.js pede a lista e os pedaços por XHR, e o servidor
+            // não libera CORS para /api/hls. Pelo endereço direto, toda lista
+            // vinda do servidor falhava na hora ("a reprodução foi interrompida").
+            // Arquivo (MP4, inclusive o 4K de 7 GB) segue direto: o <video> não
+            // precisa de CORS e o vídeo não passa pela memória do app.
+            if("hls".equals(data.optString("type"))&&ServerPlaybackTransport.mediaPath(mediaUrl)){
+                mediaUrl=ServerPlaybackTransport.local(mediaUrl);
+            }else if(mediaUrl.startsWith("/api/")){
                 mediaUrl=transport.base.toString().replaceAll("/+$","")+mediaUrl;
                 mediaUrl+=(mediaUrl.contains("?")?"&":"?")+"codigo="+Uri.encode(transport.code);
             }
@@ -1105,7 +1114,12 @@ public final class MainActivity extends Activity {
                 if(!avcOnly&&"file".equals(chosen.type)&&chosen.referer!=null&&!chosen.referer.isEmpty()){
                     // Arquivo direto com hotlink (FenixFlix/FrostStream/Kairou):
                     // o WebView não manda Referer; o servidor busca e entrega o proxy.
-                    WebResourceResponse viaServer=serverPlayback(tipo,id,temporada,episodio,excluded,!avcOnly);
+                    // O servidor encaminha ESTA escolha (a medida aqui, ex.: 4K com
+                    // português) — não refaz a disputa, que podia trocar a fonte.
+                    String alvoEscolhido=chosen.deliveryUrl!=null?chosen.deliveryUrl:chosen.url;
+                    String escolha="&escolhida="+Uri.encode(chosen.id)+"&u="+codificar(alvoEscolhido)+(m!=null&&m.height>0?"&altura="+m.height:"");
+                    WebResourceResponse viaServer=serverPlayback(tipo,id,temporada,episodio,excluded,!avcOnly,escolha);
+                    if(viaServer==null)viaServer=serverPlayback(tipo,id,temporada,episodio,excluded,!avcOnly);
                     if(viaServer!=null)return viaServer;
                 }
                 JSONObject diagnosis=new JSONObject().put("id",id).put("temporada",temporada==null?"":temporada).put("episodio",episodio==null?"":episodio).put("hevc",!avcOnly).put("escolhida",chosen.id);

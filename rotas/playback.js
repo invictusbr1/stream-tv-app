@@ -117,6 +117,33 @@ async function responderCompatibilidade(req, res, alvo) {
     res.json({url:require('../rede-playback.cjs').enderecoPlayback(req,pronto),audio:pronto.audio,source:pronto.fonte,fonteId:pronto.fonteId,type:pronto.type||'file',resolucao:pronto.resolucao,videoCodec:pronto.videoCodec||''});
     return true;
 }
+// O aparelho já mediu e escolheu (ex.: FenixFlix 4K 3840×1600 com português)
+// e só precisa do servidor para mandar o Referer que o WebView não manda.
+// Antes o servidor refazia a escolha do zero e podia devolver OUTRA fonte —
+// pior, ou que nem abre no aparelho (27/10/2026: Homem-Aranha saía do 4K para
+// uma lista HLS que falhava). Agora ele só confere que o endereço é mesmo
+// daquela fonte (mesmo servidor e caminho de um resultado dela, nada de
+// endereço livre) e encaminha.
+async function responderEscolhaDoAparelho(req, res, alvo) {
+    const fonteId = String(req.query.escolhida || '').slice(0, 60);
+    const bruto = String(req.query.u || '');
+    if (!fonteId || !bruto) return false;
+    let pedido;
+    try { pedido = new URL(midia.textoDeBase64url(bruto)); } catch { return false; }
+    if (pedido.protocol !== 'https:' || pedido.username || pedido.password || seguranca.hostInterno(pedido.hostname)) return false;
+    const motor = require('../fontes-motor');
+    const fonte = motor.fontesAtivas().find(f => String(f.id) === fonteId);
+    if (!fonte) return false;
+    const consultar = Promise.resolve().then(() => typeof fonte.resolverTodos === 'function' ? fonte.resolverTodos(alvo) : fonte.resolver(alvo));
+    const resposta = await Promise.race([consultar, new Promise(ok => setTimeout(() => ok(null), 9000))]).catch(() => null);
+    const opcoes = Array.isArray(resposta) ? resposta : resposta ? [resposta] : [];
+    const mesma = opcoes.find(o => { try { const u = new URL(o.url); return u.origin === pedido.origin && u.pathname === pedido.pathname; } catch { return false; } });
+    if (!mesma) return false;
+    const pronto = motor.prepararParaPlayer({ ...mesma, url: pedido.href, fonteId, final: false });
+    const altura = /^\d{3,4}$/.test(String(req.query.altura || '')) ? `${req.query.altura}p` : (pronto.resolucao || '');
+    res.json({ url: require('../rede-playback.cjs').enderecoPlayback(req, pronto), audio: 'pt-BR', source: pronto.fonte || fonte.nome || fonteId, fonteId, type: pronto.type || 'file', resolucao: altura, videoCodec: pronto.videoCodec || '', escolhaDoAparelho: true });
+    return true;
+}
 app.get('/api/playback/:id', async (req, res) => {
     if (!/^\d{1,10}$/.test(req.params.id)) return res.sendStatus(400);
     res.setHeader('Cache-Control', 'no-store');
@@ -127,6 +154,7 @@ app.get('/api/playback/:id', async (req, res) => {
         const exceto = String(req.query.exceto || '').split(',').map(item => item.trim()).filter(Boolean);
         const alvo = { tipo: 'movie', tmdbId: req.params.id };
         if (await responderCompatibilidade(req,res,alvo)) return;
+        if (await responderEscolhaDoAparelho(req,res,alvo).catch(() => false)) return;
         // Avaliador em tempo real: testa as melhores fontes do título em
         // paralelo e escolhe a que entrega mais qualidade seguindo as regras.
         let escolhido = null;
@@ -216,6 +244,7 @@ app.get('/api/playback/serie/:id/:season/:episode', async (req, res) => {
         const exceto = String(req.query.exceto || '').split(',').map(item => item.trim()).filter(Boolean);
         const alvo = { tipo: 'tv', tmdbId: id, temporada: season, episodio: episode };
         if (await responderCompatibilidade(req,res,alvo)) return;
+        if (await responderEscolhaDoAparelho(req,res,alvo).catch(() => false)) return;
         let escolhido = await require('../crystal-lake-source').resolver(alvo, { exceto });
         let avaliacao = null;
         if (!escolhido && process.env.AVALIADOR !== '0') {
