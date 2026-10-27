@@ -518,6 +518,16 @@ function filaDeFontes(papel, alvo, opcoes = {}) {
     return [...altaSemTitulo, ...saudaveis, ...lista.filter(f => semEsteTitulo(f) && !altaSemTitulo.includes(f))];
 }
 
+// Conferência de entrega: arquivo pelo cabeçalho; lista HLS até o primeiro
+// pedaço do vídeo (a lista pode responder e os pedaços não).
+function conferirEntrega(dados, tempo) {
+    const midia = require('./midia-proxy');
+    const ehLista = dados.type === 'hls' || /\.m3u8(\?|$)/i.test(String(dados.url || ''));
+    return ehLista && typeof midia.validarListaHls === 'function'
+        ? midia.validarListaHls(dados.url, dados.referer, tempo || 4000)
+        : midia.validarMidia(dados.url, dados.referer, tempo);
+}
+
 // Escolhe a primeira fonte que responde. Erro de rede ganha uma segunda
 // tentativa; "não tenho este título" não se repete — a fonte vai para o fim da
 // fila só naquele título, e o resultado bom fica lembrado para a próxima vez.
@@ -536,7 +546,7 @@ async function escolher(papel, alvo, opcoes = {}) {
     if (lembrado && lembrado.expira > Date.now() && lembrado.dados && !lembrado.dados.efemera && !lembradoBloqueado && !exceto.has(String(lembrado.dados.fonteId))) {
         // A memória também passa pela conferência: o endereço pode ter deixado
         // de entregar vídeo (fonte trocou de servidor) desde a última vez.
-        const entrega = await require('./midia-proxy').validarMidia(lembrado.dados.url, lembrado.dados.referer).catch(() => true);
+        const entrega = await conferirEntrega(lembrado.dados).catch(() => true);
         if (entrega) return lembrado.dados;
         anotarFalha(lembrado.dados.fonteId, 'o endereço não entrega vídeo');
         semTitulo.set(`${chave}|${lembrado.dados.fonteId}`, Date.now() + VALIDADE_SEM_TITULO);
@@ -568,7 +578,7 @@ async function escolher(papel, alvo, opcoes = {}) {
             if (dados && dados.url) {
                 // Confere se o endereço realmente devolve vídeo antes de
                 // entregar ao player; se não devolver, segue para a próxima.
-                const entrega = await require('./midia-proxy').validarMidia(dados.url, dados.referer, dados.tempoValidacaoMs || 5000).catch(() => true);
+                const entrega = await conferirEntrega(dados, dados.tempoValidacaoMs || 5000).catch(() => true);
                 if (!entrega) {
                     anotarFalha(fonte.id, 'o endereço não entrega vídeo');
                     anotarSemTitulo(fonte.id, chave);
@@ -576,6 +586,9 @@ async function escolher(papel, alvo, opcoes = {}) {
                 }
                 anotarAcerto(fonte.id);
                 const pronto = { ...dados, fonteId: fonte.id };
+                // A central já ouviu outro idioma nesta fonte para este título:
+                // ela pode tocar (por falta de opção), mas não com rótulo de dublado.
+                if ((lerIdiomasVerificados()[chaveDoTitulo(alvo)] || {})[fonte.id] === 'outro') { pronto.audio = 'original'; pronto.audioOutroIdioma = true; }
                 // Fontes com endereço assinado informam por quanto tempo o
                 // resultado vale (ex.: PipocaCine responde 410 depois de um
                 // tempo) — nunca guardamos mais do que isso.

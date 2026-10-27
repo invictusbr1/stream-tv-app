@@ -5,6 +5,7 @@ const motor = require('./fontes-motor');
 // Os testes usam endereços fictícios (exemplo.test): a conferência de entrega
 // de vídeo, que é feita pela internet, é simulada como "sempre entrega".
 require('./midia-proxy').validarMidia = async () => true;
+require('./midia-proxy').validarListaHls = async () => true; // listas simuladas nos testes
 
 // Guarda o registro real antes de qualquer teste trocar as fontes.
 const REGISTRO_REAL = motor.FONTES.map(f => `${f.id}:${f.papel}`);

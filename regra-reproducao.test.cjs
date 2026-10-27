@@ -1,7 +1,7 @@
 const {test}=require('node:test');
 const assert=require('node:assert/strict');
 const motor=require('./fontes-motor'),perfis=require('./perfis-locais');
-require('./midia-proxy').validarMidia=async()=>true;
+require('./midia-proxy').validarMidia=async()=>true;require('./midia-proxy').validarListaHls=async()=>true;
 test('episódio tenta dublado antes de permitir HD original sem anúncio',async()=>{
  const fontes=[...motor.FONTES],listarPerfis=perfis.perfis,tentativas=[];
  try{
