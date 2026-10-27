@@ -37,9 +37,14 @@ test('pedaço em servidor que recusa a conexão é recusado', async () => {
     try { assert.equal(await midia.validarListaHls(`http://127.0.0.1:${s.address().port}/m.m3u8?b=1`, '', 3000), false); } finally { s.close(); }
 });
 
-test('lentidão não derruba a fonte (só erro comprovado derruba)', async () => {
+test('lista lenta que gasta o prazo fica inconclusiva e não derruba a fonte', async () => {
     const s = await servidor({ '/m.m3u8': { corpo: variante('lento.ts') }, '/lento.ts': { atraso: 2500, corpo: 'x' } });
     try { assert.equal(await midia.validarListaHls(`http://127.0.0.1:${s.address().port}/m.m3u8?c=1`, '', 800), true); } finally { s.close(); }
+});
+
+test('pedaço que não responde nem com 1,5 s só para ele derruba a fonte (player ficaria girando)', async () => {
+    const s = await servidor({ '/m.m3u8': { corpo: variante('parado.ts') }, '/parado.ts': { atraso: 6000, corpo: 'x' } });
+    try { assert.equal(await midia.validarListaHls(`http://127.0.0.1:${s.address().port}/m.m3u8?d=1`, '', 2500), false); } finally { s.close(); }
 });
 
 test('fonte em outro idioma não chega ao aparelho como dublada', () => {

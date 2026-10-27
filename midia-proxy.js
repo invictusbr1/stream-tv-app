@@ -143,9 +143,14 @@ async function validarListaHls(url, referer, tempo = 4000) {
         // Mesmas referências que o encaminhamento (/api/hls) tenta.
         const referencias = [...new Set([referenciaPrincipal, lista.final, refererPadrao(new URL(destino).hostname)].filter(Boolean))];
         if (!referencias.length) referencias.push('');
+        // Servidor de pedaços que nem responde (conexão parada) também derruba:
+        // o player ficaria girando sem imagem. Só conta como prova quando o
+        // pedaço teve pelo menos 1,5 s só para ele; se as listas já gastaram o
+        // prazo, fica inconclusivo e a fonte continua valendo.
         for (const referencia of referencias) {
+            const folga = restante();
             const { r, tempoEsgotado } = await pedir(destino, referencia, { Range: 'bytes=0-1023' });
-            if (tempoEsgotado) return true;
+            if (tempoEsgotado) return folga < 1500;
             if (r) { try { r.body?.cancel?.(); } catch { /* corpo já fechado */ } }
             if (r && r.status < 400) return true;
         }
