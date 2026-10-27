@@ -187,7 +187,11 @@ function avaliarConferidas(conferidas, idiomas, titulo) {
 
 function resultadoDasAvaliacoes(avaliacoes, tempoMs) {
     const melhor = avaliacoes[0];
-    return { escolhido: { ...melhor.dados, fonteId: melhor.fonteId }, avaliacao: avaliacoes.map(({ dados, prioridade, ...resto }) => resto), tempoMs };
+    const escolhido = { ...melhor.dados, fonteId: melhor.fonteId };
+    // A central ouviu outro idioma nesta fonte: ela só entra por falta de opção
+    // e não pode chegar ao aparelho com o rótulo "dublado".
+    if (melhor.detalhes?.audioEmOutroIdioma) { escolhido.audio = 'original'; escolhido.audioOutroIdioma = true; }
+    return { escolhido, avaliacao: avaliacoes.map(({ dados, prioridade, ...resto }) => resto), tempoMs };
 }
 
 // ---------------------------------------------------------------- nota
@@ -381,7 +385,11 @@ async function escolherRodada(papel, alvo, opcoes = {}) {
             const sobra=Math.max(1,prazoFinal-Date.now());
             return prazo(midia.validarMidia(dados.url,dados.referer,sobra),sobra,false);
         });
-        return prazo(midia.validarMidia(dados.url,dados.referer,TEMPO_SONDAR),TEMPO_SONDAR+500,!lembrada);
+        // Lista HLS: confere até o primeiro pedaço do vídeo (no mesmo prazo da
+        // sonda, em paralelo com ela — não atrasa a escolha).
+        const ehLista=dados.type==='hls'||/\.m3u8(\?|$)/i.test(String(dados.url||''));
+        const conferir=ehLista&&typeof midia.validarListaHls==='function'?midia.validarListaHls:midia.validarMidia;
+        return prazo(conferir(dados.url,dados.referer,TEMPO_SONDAR),TEMPO_SONDAR+500,!lembrada);
     }
     const resolvidas=[];
     async function medir(item){
@@ -454,4 +462,4 @@ async function escolherRodada(papel, alvo, opcoes = {}) {
 
 function limparCache() { ++versaoMedicoes; cache.clear(); medidasDeArquivo.clear(); medicoesEmCurso.clear(); }
 
-module.exports = { escolherMelhor, sondar, sondarLista, sondarArquivo, analisarPlaylist, notaDaFonte, prioridadeDaFonte, compararPrioridade, gavetaDaAltura, limparCache, MAX_FONTES, ORCAMENTO };
+module.exports = { resultadoDasAvaliacoes, escolherMelhor, sondar, sondarLista, sondarArquivo, analisarPlaylist, notaDaFonte, prioridadeDaFonte, compararPrioridade, gavetaDaAltura, limparCache, MAX_FONTES, ORCAMENTO };

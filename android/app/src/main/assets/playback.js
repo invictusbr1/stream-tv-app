@@ -1,5 +1,21 @@
 'use strict';
 // First-party video element: actual playback events, HLS quality and fullscreen.
+// Página do filme aberta: começa a preparar a fonte depois de um instante
+// (quem só passa pela página não gera consulta). O catálogo pode trocar o
+// StreamLibrary.open (interface nova da web e do celular), então o gancho entra
+// depois que tudo carregou.
+window.addEventListener?.('load',()=>{
+    const biblioteca=window.StreamLibrary;if(!biblioteca||typeof biblioteca.open!=='function')return;
+    const abrirOriginal=biblioteca.open;
+    biblioteca.open=function(f){
+        const resultado=abrirOriginal.apply(this,arguments);
+        if(f&&f.tipo!=='tv'&&/^\d{1,10}$/.test(String(f.id)))setTimeout(()=>{
+            if(document.getElementById('player')?.classList.contains('ativo'))return;
+            window.StreamPlayback?.preparar?.('/api/playback/'+f.id,60000);
+        },700);
+        return resultado;
+    };
+});
 window.StreamPlayback = (() => {
     const notaQualidade=document.querySelector('.quality');if(notaQualidade)notaQualidade.textContent='O áudio e a qualidade são definidos pela fonte; o aplicativo escolhe a melhor opção disponível.';
     const preference=document.createElement('label');preference.style.cssText='display:flex;gap:10px;align-items:center;margin:20px 0;font-size:13px';
@@ -200,6 +216,26 @@ window.StreamPlayback = (() => {
             if(data?.midiaConferida!==true||data.type!=='file'||typeof location==='undefined'||location.hostname!=='appassets.androidplatform.net'||location.protocol!=='https:')return false;
             try{const u=new URL(data.url);return u.protocol==='https:'&&!u.username&&!u.password&&(!u.port||u.port==='443');}catch{return false;}
         }
+        // Preparo antecipado: a escolha da fonte (a mesma, com a mesma régua de
+        // qualidade) começa quando a pessoa abre a página do filme ou quando o
+        // episódio chega nos créditos. Ao tocar em Assistir, a resposta já está
+        // pronta ou a caminho — o player não recomeça a busca do zero.
+        const preparos=new Map();
+        function preparar(caminho,validadeMs=60000){
+            if(!/^\/api\/playback\/(?:\d{1,10}|serie\/\d{1,10}\/\d{1,3}\/\d{1,4})$/.test(String(caminho||'')))return false;
+            const agora=Date.now();for(const [chave,item] of preparos)if(item.ate<agora)preparos.delete(chave);
+            if(preparos.has(caminho))return true;
+            if(preparos.size>=3)preparos.delete(preparos.keys().next().value);
+            const promessa=fetch(caminho,{cache:'no-store'}).then(r=>r.ok?r.json():Promise.reject(new Error('HTTP '+r.status)));
+            promessa.catch(()=>{if(preparos.get(caminho)?.promessa===promessa)preparos.delete(caminho);});
+            preparos.set(caminho,{promessa,ate:agora+Math.max(5000,Math.min(120000,Number(validadeMs)||60000))});
+            return true;
+        }
+        function usarPreparo(caminho,signal){
+            const item=preparos.get(caminho);if(!item||item.ate<Date.now())return null;
+            preparos.delete(caminho); // uma vez só: uma nova tentativa sempre consulta de novo
+            return new Promise((ok,erro)=>{if(signal?.aborted)return erro(new Error('cancelado'));signal?.addEventListener?.('abort',()=>erro(new Error('cancelado')),{once:true});item.promessa.then(ok,erro);});
+        }
         async function start(id,version,signal,caminho,urlDireta,originalPermitido,fonteDireta=null,opcoes=null){
         const recebidas=opcoes||window.StreamPlaybackOptions?.({id,version})||{};
         stop('trocou');const token=generation;
@@ -207,7 +243,8 @@ window.StreamPlayback = (() => {
         analiseAtual?.iniciar({});
         const ponto=recebidas.posicao;retomadaAlvo=ponto!==null&&ponto!==undefined&&Number.isFinite(Number(ponto))?Math.max(0,Number(ponto)):null;
         buscaEsgotada=false;ultimaPosicao=retomadaAlvo||0;imagemConfirmada=false;relatoFeito=false;fonteIdUsada='';fonteUsada='';alturaAtual=0;audioChoice=-1;qualidadeEscolhida='best';ajustouConexao=false;
-        let data;if(urlDireta){data={url:urlDireta,live:Boolean(fonteDireta?.live),audio:'fonte',source:fonteDireta?.nome||'Full HD',fonteId:fonteDireta?.id||'',audioInformado:fonteDireta?.audioInformado||'',type:fonteDireta?.tipo||(/\.mp4(\?|$)/i.test(urlDireta)?'file':'hls')};}else{try{data=await lerJson(caminho||`/api/playback/${id}`,signal);}catch{if(token===generation&&!(signal&&signal.aborted))analiseAtual?.falha('não foi possível consultar a fonte',retomadaAlvo||0);return false;}}// Fonte que precisa de conversão (arquivo MKV com som que o navegador não
+        const caminhoPedido=caminho||`/api/playback/${id}`;const preparado=urlDireta?null:usarPreparo(caminhoPedido,signal);
+        let data;if(urlDireta){data={url:urlDireta,live:Boolean(fonteDireta?.live),audio:'fonte',source:fonteDireta?.nome||'Full HD',fonteId:fonteDireta?.id||'',audioInformado:fonteDireta?.audioInformado||'',type:fonteDireta?.tipo||(/\.mp4(\?|$)/i.test(urlDireta)?'file':'hls')};}else{try{data=preparado?await preparado.catch(()=>lerJson(caminhoPedido,signal)):await lerJson(caminhoPedido,signal);}catch{if(token===generation&&!(signal&&signal.aborted))analiseAtual?.falha('não foi possível consultar a fonte',retomadaAlvo||0);return false;}}// Fonte que precisa de conversão (arquivo MKV com som que o navegador não
         // toca): acompanha o andamento e começa assim que houver trecho pronto —
         // o resto continua convertendo em segundo plano.
         if(token!==generation||(signal&&signal.aborted)||version!==playerVersion)return false;
@@ -356,7 +393,7 @@ video.addEventListener('playing',()=>{if(!current())return;window.StreamEpisodes
     function seek(seconds){if(!aoVivo&&video&&Number.isFinite(video.duration)){const destino=Math.max(0,Math.min(video.duration,video.currentTime+seconds));ultimaPosicao=destino;analiseAtual?.buscar(destino);video.currentTime=destino;}showControls();}
     // Mover o dedo ou o mouse traz os controles de volta enquanto o vídeo roda.
     // StreamChrome centraliza toque, mouse e o relógio de todos os controles.
-    return {start,stop,play,quality,toggle,seek,showControls,setSubtitle:index=>setSubtitle(index,true),saveProgress,setSpeed,setAudio,audioMenu,setVolume,toggleMute,irPara,isActive:()=>direct,estado:()=>({buscaEsgotada,audio:rotuloAudio,legenda:subtitleChoice,fonte:fonteUsada,fonteId:fonteIdUsada,resolucao:alturaAtual?alturaAtual+'p':'',taxa:taxaAtual,posicao:posicaoAtual()})};
+    return {preparar,start,stop,play,quality,toggle,seek,showControls,setSubtitle:index=>setSubtitle(index,true),saveProgress,setSpeed,setAudio,audioMenu,setVolume,toggleMute,irPara,isActive:()=>direct,estado:()=>({buscaEsgotada,audio:rotuloAudio,legenda:subtitleChoice,fonte:fonteUsada,fonteId:fonteIdUsada,resolucao:alturaAtual?alturaAtual+'p':'',taxa:taxaAtual,posicao:posicaoAtual()})};
 })();
 function mostrarIconeTelaCheia(ativo){const b=el('fullscreen-toggle');if(!b)return;b.textContent=ativo?'⤡':'⛶';b.setAttribute('aria-label',ativo?'Sair da tela cheia':'Tela cheia');}
 window.StreamSetFullscreen=function(enabled){el('player').classList.toggle('expanded',enabled);mostrarIconeTelaCheia(enabled);};

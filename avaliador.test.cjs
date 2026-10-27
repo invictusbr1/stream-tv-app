@@ -1,4 +1,7 @@
 const test = require('node:test');
+// Os cenários abaixo trocam validarMidia por respostas simuladas; a conferência
+// de lista HLS (primeiro pedaço) segue a mesma simulação nestes testes.
+{const proxy=require('./midia-proxy');proxy.validarListaHls=(url,referer,tempo)=>proxy.validarMidia(url,referer,tempo);}
 const assert = require('node:assert/strict');
 const { analisarPlaylist, notaDaFonte } = require('./avaliador');
 // Testes do avaliador não consultam nem alteram a memória real de fornecedores.

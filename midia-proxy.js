@@ -85,6 +85,77 @@ async function validarMidia(url, referer, tempo = 5000) {
     } catch { return false; }
 }
 
+// Conferência de lista HLS de verdade: a lista principal pode responder e os
+// pedaços do vídeo não (caso real de 27/10/2026: o servidor de pedaços recusava
+// a conexão e o player caía em menos de 1 segundo, ainda na posição 0).
+// Segue a primeira variante até o primeiro pedaço e pede só 1 KB dele.
+// Recusa apenas com prova (erro de conexão ou HTTP >= 400 em todas as
+// referências); lentidão não é prova — a fonte continua valendo.
+const conferenciasDeLista = new Map();
+async function validarListaHls(url, referer, tempo = 4000) {
+    const endereco = String(url || '');
+    if (!endereco || endereco.startsWith('/')) return true;
+    const guardada = conferenciasDeLista.get(endereco);
+    if (guardada && guardada.expira > Date.now()) return guardada.ok;
+    const fim = Date.now() + tempo;
+    const restante = () => Math.max(1, fim - Date.now());
+    let host = '';
+    try { host = new URL(endereco).hostname; } catch { return false; }
+    const base = { 'User-Agent': UA_VALIDACAO, Accept: '*/*' };
+    const pedir = async (alvo, referencia, extra = {}) => {
+        const controle = new AbortController();
+        const relogio = setTimeout(() => controle.abort(), restante());
+        try {
+            const cabecalhos = { ...base, ...cabecalhosDaMidia(alvo), ...extra };
+            if (referencia) cabecalhos.Referer = referencia;
+            const r = await fetch(alvo, { headers: cabecalhos, redirect: 'follow', signal: controle.signal });
+            return { r };
+        } catch (erro) {
+            return { tempoEsgotado: controle.signal.aborted, erro };
+        } finally { clearTimeout(relogio); }
+    };
+    const referenciaPrincipal = referer || refererPadrao(host);
+    const texto = async alvo => {
+        const { r, tempoEsgotado } = await pedir(alvo, referenciaPrincipal);
+        if (tempoEsgotado) return { inconclusivo: true };
+        if (!r || r.status >= 400) return { falhou: true };
+        try { return { texto: await r.text(), final: r.url || alvo }; } catch { return { inconclusivo: true }; }
+    };
+    const resultado = await (async () => {
+        let lista = await texto(endereco);
+        if (lista.falhou) return false;
+        if (lista.inconclusivo || !/^#EXTM3U/m.test(lista.texto)) return true;
+        const linhas = l => l.texto.split(/\r?\n/).map(x => x.trim());
+        // Lista mestre: desce para a primeira variante.
+        if (/#EXT-X-STREAM-INF/i.test(lista.texto)) {
+            const ls = linhas(lista), i = ls.findIndex(x => /^#EXT-X-STREAM-INF/i.test(x));
+            const variante = ls.slice(i + 1).find(x => x && !x.startsWith('#'));
+            if (!variante) return true;
+            lista = await texto(new URL(variante, lista.final).href);
+            if (lista.falhou) return false;
+            if (lista.inconclusivo || !/^#EXTM3U/m.test(lista.texto)) return true;
+        }
+        if (/#EXT-X-KEY:.*METHOD=(?!NONE)/i.test(lista.texto)) return true; // criptografada: não mexe
+        const pedaco = linhas(lista).find(x => x && !x.startsWith('#'));
+        if (!pedaco) return true;
+        const destino = new URL(pedaco, lista.final).href;
+        if (/\.m3u8(?:$|\?)/i.test(destino)) return true;
+        // Mesmas referências que o encaminhamento (/api/hls) tenta.
+        const referencias = [...new Set([referenciaPrincipal, lista.final, refererPadrao(new URL(destino).hostname)].filter(Boolean))];
+        if (!referencias.length) referencias.push('');
+        for (const referencia of referencias) {
+            const { r, tempoEsgotado } = await pedir(destino, referencia, { Range: 'bytes=0-1023' });
+            if (tempoEsgotado) return true;
+            if (r) { try { r.body?.cancel?.(); } catch { /* corpo já fechado */ } }
+            if (r && r.status < 400) return true;
+        }
+        return false;
+    })().catch(() => true);
+    if (conferenciasDeLista.size >= 256) conferenciasDeLista.delete(conferenciasDeLista.keys().next().value);
+    conferenciasDeLista.set(endereco, { ok: resultado, expira: Date.now() + 2 * 60 * 1000 });
+    return resultado;
+}
+
 function hostPermitido(host) {
     const nome = String(host || '');
     if (!nome) return false;
@@ -152,5 +223,6 @@ module.exports = {
     textoDeBase64url,
     urlViaProxy,
     reescreverPlaylist,
-    validarMidia
+    validarMidia,
+    validarListaHls
 };

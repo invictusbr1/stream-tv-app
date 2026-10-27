@@ -53,7 +53,7 @@ document.addEventListener?.('fullscreenchange',()=>countdown.visibility());
 function cancelAuto(){dismissed=true;countdown.stop();}
 function cancel(){countdown.stop();++sequence;controller?.abort();controller=null;target=null;upNext=null;finished=false;creditsActive=false;busy=false;dismissed=false;const b=button();if(b){b.hidden=true;b.disabled=false;}}
 function nextTarget(){const title=seriesTitle(target);return {...target,seriesTitle:title,titulo:`${title} · T${upNext.season} E${upNext.number}`,episode:{...target.episode,season:upNext.season,number:upNext.number}};}
-function queueNext(){if(current()&&finished&&upNext){if(!creditsActive)root.StreamPersonal?.queueEpisode?.(nextTarget());if(!dismissed)countdown.start();}}
+function queueNext(){if(current()&&finished&&upNext){const n=nextTarget();root.StreamPlayback?.preparar?.(`/api/playback/serie/${n.id}/${n.episode.season}/${n.episode.number}`,90000);if(!creditsActive)root.StreamPersonal?.queueEpisode?.(nextTarget());if(!dismissed)countdown.start();}}
 async function prepare(f){
  cancel();if(!f?.episode)return;target=f;controller=new AbortController();const query=controller,token=sequence,signal=query.signal;
  const timeout=setTimeout(()=>query.abort(),15000);

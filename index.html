@@ -756,7 +756,7 @@ async function abrirPlayer(id,titulo,episode=null,retomada=null){
   if(idx>=0){if(episode)abrirFonteAutomatica(idx);else carregarFonte(idx);}
   else{
    if(players.length){el('loading').classList.remove('vis');const nota=el('options-status');if(nota)nota.textContent=episode?'Nenhuma fonte sem anúncio respondeu para este episódio agora.':'Nenhuma fonte sem anúncio respondeu para este título agora.';}
-   else{window.StreamAcesso?.reportar?.({tipo:'falha',id:String(id),titulo,episodio:episode?`T${episode.season}E${episode.number}`:'',temporada:episode?String(episode.season):'',numero:episode?String(episode.number):'',fonte:'',audio:'',resolucao:'',ok:false,motivo:'nenhuma fonte limpa respondeu'}).catch?.(()=>{});mostrarErro('Nenhuma fonte disponível agora.','Tente novamente em instantes.');}
+   else{window.StreamAcesso?.reportar?.({tipo:'falha',id:String(id),titulo,episodio:episode?`T${episode.season}E${episode.number}`:'',temporada:episode?String(episode.season):'',numero:episode?String(episode.number):'',fonte:'',audio:'',resolucao:'',ok:false,motivo:'nenhuma fonte limpa respondeu'}).catch?.(()=>{});if(episode)mostrarErro('Este episódio ainda não está disponível.','Nenhuma fonte dublada sem anúncio tem o T'+episode.season+' E'+episode.number+' agora. Episódios recentes podem levar alguns dias para chegar — tente um anterior ou volte mais tarde.');else mostrarErro('Este título ainda não está disponível.','Nenhuma fonte dublada sem anúncio tem este filme agora. Lançamentos podem levar alguns dias para chegar.');}
    abrirOpcoes();
   }
  }catch{if(valido())mostrarErro('Não foi possível preparar o filme.','Confira sua conexão e tente novamente.');}
