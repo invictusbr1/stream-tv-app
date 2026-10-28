@@ -642,8 +642,14 @@ window.StreamPlaybackOptions=({id,version})=>{
 function recuperarInterrupcao(contexto,version,dados){
  if(!contexto?.ativo||contexto!==contextoReproducao||version!==playerVersion||contexto.recuperando||!el('player').classList.contains('ativo'))return false;
  const fonte=String(dados.fonteId||'');
- if(!fonte||contexto.recuperacoes>=2)return false;
- contexto.falhas.add(fonte);contexto.recuperacoes++;contexto.recuperando=true;
+ if(!fonte||contexto.recuperacoes>=3)return false;
+ // Fonte que já provou que funciona (tocou, ou é a retomada de um ponto salvo
+ // nela) ganha UMA nova tentativa antes de ser trocada: quedas de rede são
+ // passageiras e trocar de fonte pode baixar a qualidade (ex.: 4K → 1080p).
+ contexto.repetidas=contexto.repetidas||new Set();
+ if((dados.jaTocou||dados.retomando)&&!contexto.repetidas.has(fonte))contexto.repetidas.add(fonte);
+ else contexto.falhas.add(fonte);
+ contexto.recuperacoes++;contexto.recuperando=true;
  const ponto=Number(dados.posicao);
  const retomada={contexto,posicao:Number.isFinite(ponto)?Math.max(0,ponto):0,originalPermitido:dados.audio!=='Dublado'};
  abrirPlayer(contexto.alvo.id,contexto.alvo.titulo,contexto.alvo.episode,retomada).catch(()=>{});

@@ -116,7 +116,7 @@ window.StreamPlayback = (() => {
     let initialFocus=false, frameCallback=null;
     let hls=null, video=null, generation=0, settle=null, startupTimer=null, controlsTimer=null, direct=false;
     let opcoesAtuais=null,analiseAtual=null,imagemConfirmada=false,ultimaPosicao=0,retomadaAlvo=null;
-    let travamentoTimer=null,ajusteTimer=null,voltarMelhorTimer=null,restaurado=false,removerAbort=null,verificarAtual=null,intencaoTocar=false,qualidadeEscolhida='best',ajustouConexao=false;
+    let travamentoTimer=null,ajusteTimer=null,voltarMelhorTimer=null,restaurado=false,removerAbort=null,verificarAtual=null,intencaoTocar=false,pausadoPeloUsuario=false,qualidadeEscolhida='best',ajustouConexao=false;
     function limparEspera(){clearTimeout(travamentoTimer);clearTimeout(ajusteTimer);travamentoTimer=null;ajusteTimer=null;}
     function posicaoAtual(){const ponto=Number(video?.currentTime);return imagemConfirmada?(Number.isFinite(ponto)&&ponto>=0?(video?.error&&ponto===0&&!video.seeking?ultimaPosicao:ponto):ultimaPosicao):Math.max(0,retomadaAlvo||0);}
     function esperando(current){
@@ -188,11 +188,13 @@ window.StreamPlayback = (() => {
     }
     function quality(value){qualidadeEscolhida=String(value);if(hls)hls.currentLevel=value==='best'?bestLevel():Number(value);const select=el('quality-select');if(select)select.value=qualidadeEscolhida;}
     function qualityMenu(){const select=el('quality-select');select.hidden=false;select.replaceChildren();const values=[['best','Melhor disponível'],['-1','Automática (conexão)']];if(hls)hls.levels.forEach((l,i)=>{if(l.height)values.push([String(i),`${l.height}p`]);});for(const [value,label] of values){const o=document.createElement('option');o.value=value;o.textContent=label;select.append(o);}select.value='best';el('direct-quality').hidden=false;}
-    function play(){if(!video)return;intencaoTocar=true;const target=video,token=generation;target.play().catch(e=>{if(token!==generation||target!==video)return;if(e.name==='NotAllowedError'){intencaoTocar=false;clearTimeout(startupTimer);limparEspera();el('loading').classList.remove('vis');el('direct-resume').hidden=false;}else failure();});}
+    function play(){if(!video)return;intencaoTocar=true;pausadoPeloUsuario=false;const target=video,token=generation;target.play().catch(e=>{if(token!==generation||target!==video)return;if(e.name==='NotAllowedError'){intencaoTocar=false;clearTimeout(startupTimer);limparEspera();el('loading').classList.remove('vis');el('direct-resume').hidden=false;}else failure();});}
     function failure(motivo='a reprodução foi interrompida'){
         if(relatoFeito||video?.ended)return;
         const ponto=posicaoAtual(),opcoes=opcoesAtuais,jaTocou=imagemConfirmada,intencao=intencaoTocar;
-        const resumo={fonteId:fonteIdUsada,fonte:fonteUsada,audio:rotuloAudio,posicao:ponto,motivo};
+        // jaTocou/retomando contam à recuperação que a fonte já tinha provado que
+        // funciona (imagem na tela, ou retomada de um ponto salvo nela).
+        const resumo={fonteId:fonteIdUsada,fonte:fonteUsada,audio:rotuloAudio,posicao:ponto,motivo,jaTocou,retomando:Number(ponto)>0};
         relatoFeito=true;
         analiseAtual?.falha(motivo,ponto);
         const erro=video?.error?.code;
@@ -200,7 +202,14 @@ window.StreamPlayback = (() => {
         const pending=settle;settle=null;
         stop('falhou');
         if(pending){pending(false);return;}
-        if(jaTocou&&!aoVivo&&intencao&&opcoes?.onInterrupted){
+        // Recupera sozinho qualquer queda depois que a reprodução começou —
+        // inclusive travamento longo e queda logo ao retomar um ponto salvo.
+        // Só não recupera se a pessoa pausou de propósito ou o app está em
+        // segundo plano (aí o aviso espera ela voltar).
+        // (Antes exigia imagem já confirmada E "intenção de tocar": um engasgo
+        // podia zerar a intenção e o player caía em "tente novamente".)
+        void intencao;
+        if(!aoVivo&&!pausadoPeloUsuario&&!document.hidden&&opcoes?.onInterrupted){
             try{if(opcoes.onInterrupted(resumo)===true)return;}catch{}
         }
         mostrarErro('A reprodução foi interrompida.','Seu ponto foi preservado. Tente novamente ou escolha outra fonte em Opções.');
@@ -384,7 +393,7 @@ video.addEventListener('playing',()=>{if(!current())return;window.StreamEpisodes
     }
     function clock(seconds){if(!Number.isFinite(seconds))return '--:--';const n=Math.max(0,Math.floor(seconds)),h=Math.floor(n/3600),m=Math.floor(n/60)%60,s=String(n%60).padStart(2,'0');return h?h+':'+String(m).padStart(2,'0')+':'+s:m+':'+s;}
     function showControls(focus=false){if(!direct)return;window.StreamChrome?.wake();clearTimeout(controlsTimer);el('direct-controls').hidden=false;if(focus)el('direct-toggle').focus();}
-    function toggle(){if(video){if(video.paused)play();else{intencaoTocar=false;video.pause();}}showControls();}
+    function toggle(){if(video){if(video.paused)play();else{intencaoTocar=false;pausadoPeloUsuario=true;video.pause();}}showControls();}
     function atualizarVolume(){const botao=el('volume-toggle');if(botao)botao.textContent=mudo||volume<=0?'🔇':volume<0.5?'🔉':'🔊';const faixa=el('volume-range');if(faixa&&!faixa.matches?.(':active'))faixa.value=String(Math.round((mudo?0:volume)*100));}
     function setVolume(valor){volume=Math.min(1,Math.max(0,Number(valor)||0));mudo=volume<=0;if(video){try{video.volume=volume;video.muted=mudo;}catch{}}try{localStorage.setItem('streamtv-volume',String(volume));localStorage.setItem('streamtv-mudo',String(mudo));}catch{}atualizarVolume();}
     function toggleMute(){mudo=!mudo;if(video){try{video.muted=mudo;}catch{}}try{localStorage.setItem('streamtv-mudo',String(mudo));}catch{}atualizarVolume();showControls();}

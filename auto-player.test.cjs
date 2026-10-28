@@ -30,8 +30,18 @@ test('recuperação exclui a fonte que parou e mantém ponto, sessão e limite d
  assert.equal(s.run('aberturas.length'),2);assert.match(s.run('aberturas[1].args[3]'),/exceto=watchplay/);assert.equal(s.run('aberturas[1].args[7].posicao'),127.5);
  assert.equal(s.run("opcoesAtuais.onInterrupted({fonteId:'mgeb',audio:'Dublado',posicao:180})"),true);await new Promise(setImmediate);
  assert.equal(s.run('aberturas.length'),3);assert.match(decodeURIComponent(s.run('aberturas[2].args[3]')),/exceto=watchplay,mgeb/);
- assert.equal(s.run("opcoesAtuais.onInterrupted({fonteId:'fenix',audio:'Dublado',posicao:190})"),false,'duas trocas automáticas por abertura evitam loop');
- assert.equal(s.run('aberturas.length'),3);
+ assert.equal(s.run("opcoesAtuais.onInterrupted({fonteId:'fenix',audio:'Dublado',posicao:190})"),true);await new Promise(setImmediate);
+ assert.equal(s.run("opcoesAtuais.onInterrupted({fonteId:'clickhost',audio:'Dublado',posicao:200})"),false,'três recuperações por abertura evitam loop');
+ assert.equal(s.run('aberturas.length'),4);
+});
+
+test('fonte que já tocou ganha uma nova tentativa antes de ser trocada (não perde o 4K por queda passageira)',async()=>{
+ const s=setup();playbackRecuperavel(s);await s.run("abrirPlayer(238,'Filme')");
+ assert.equal(s.run("opcoesAtuais.onInterrupted({fonteId:'fenixflix-fenixhub',audio:'Dublado',posicao:1048,jaTocou:true})"),true);await new Promise(setImmediate);
+ assert.doesNotMatch(decodeURIComponent(s.run('aberturas[1].args[3]')),/fenixflix/,'primeira queda: tenta a mesma fonte de novo');
+ assert.equal(s.run('aberturas[1].args[7].posicao'),1048);
+ assert.equal(s.run("opcoesAtuais.onInterrupted({fonteId:'fenixflix-fenixhub',audio:'Dublado',posicao:1050,jaTocou:true})"),true);await new Promise(setImmediate);
+ assert.match(decodeURIComponent(s.run('aberturas[2].args[3]')),/exceto=fenixflix-fenixhub/,'segunda queda: aí sim troca de fonte');
 });
 
 test('fechar e trocar episódio invalidam os callbacks da sessão anterior',async()=>{
