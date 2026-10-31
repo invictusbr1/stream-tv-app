@@ -113,11 +113,22 @@ final class AppUpdater {
     // Procura o manifesto no primeiro endereço que responder (o GitHub tem mais
     // de um caminho e algumas redes bloqueiam um deles).
     private JSONObject lerFeed() throws Exception {
-        Exception ultimo=null;
+        Exception ultimo=null;JSONObject principal=null;
         for(String endereco:UpdatePolicy.FEEDS){
-            try{return new JSONObject(new String(readFeed(endereco),java.nio.charset.StandardCharsets.UTF_8));}
+            try{principal=new JSONObject(new String(readFeed(endereco),java.nio.charset.StandardCharsets.UTF_8));break;}
             catch(Exception e){ultimo=e;}
         }
+        // Aparelho do canal de teste recebe a versão nova antes da família.
+        try{
+            String dispositivo=activity.getSharedPreferences("updates",0).getString("dispositivo","");
+            if(!dispositivo.isEmpty())for(String endereco:UpdatePolicy.FEEDS_TESTE){
+                try{JSONObject teste=new JSONObject(new String(readFeed(endereco),java.nio.charset.StandardCharsets.UTF_8));
+                    if(UpdatePolicy.aparelhoDeTeste(teste,dispositivo)&&(principal==null||teste.getLong("versionCode")>principal.getLong("versionCode")))return teste;
+                    break;
+                }catch(Exception ignored){ /* tenta o próximo endereço */ }
+            }
+        }catch(Exception ignored){ /* sem canal de teste: segue o principal */ }
+        if(principal!=null)return principal;
         throw ultimo!=null?ultimo:new IOException("feed");
     }
     private byte[] readFeed(String endereco) throws Exception {HttpsURLConnection c=connection(endereco);try{c.setInstanceFollowRedirects(true);if(c.getResponseCode()!=200)throw new IOException();try(InputStream in=c.getInputStream();ByteArrayOutputStream out=new ByteArrayOutputStream()){byte[] b=new byte[4096];int n;while((n=in.read(b))!=-1){if(out.size()+n>32768)throw new IOException();out.write(b,0,n);}return out.toByteArray();}}finally{c.disconnect();}}

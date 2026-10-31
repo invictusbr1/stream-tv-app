@@ -42,6 +42,7 @@ function log(texto) {
 
 function chaveDaCentral() {
     if (process.env.CENTRAL_KEY) return process.env.CENTRAL_KEY.trim();
+    try { const guardada = fs.readFileSync(path.join(os.homedir(), '.streamtv', 'central-chave.txt'), 'utf8').trim(); if (guardada) return guardada; } catch { /* segue */ }
     try { const m = /\$chavePainel\s*=\s*'([^']+)'/.exec(fs.readFileSync(path.join(RAIZ, 'Abrir-Central.ps1'), 'utf8')); if (m) return m[1]; } catch { /* sem arquivo */ }
     return '';
 }

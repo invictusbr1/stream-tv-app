@@ -3,7 +3,9 @@ param(
     [string]$ApkTvPath = '',
     [string]$ExePath = '',
     [string]$Notes = 'Atualização do Conecta TV.',
-    [string]$Token = ''
+    [string]$Token = '',
+    # teste = só os aparelhos de canal-teste.json recebem; todos = a família toda.
+    [ValidateSet('todos','teste')][string]$Canal = 'todos'
 )
 $ErrorActionPreference = 'Stop'
 $repo = 'invictusbr1/stream-tv-atualizacoes'
@@ -67,6 +69,9 @@ Enviar-Arquivo $apk 'application/vnd.android.package-archive'
 # Preserve download channels that are not being rebuilt in this publication.
 $manifestoAntes = Invoke-RestMethod -Uri "https://api.github.com/repos/$repo/contents/latest.json?ref=main" -Headers $headers -Method Get
 $feedAntes = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($manifestoAntes.content)) | ConvertFrom-Json
+# Só aparelhos a partir da 2.13.131 (versionCode 460) entendem o canal de
+# teste. Enquanto a família estiver abaixo disso, a versão vai para todos.
+if ($Canal -eq 'teste' -and [int]$feedAntes.versionCode -lt 460) { Write-Output 'A familia ainda nao tem o canal de teste: esta versao vai para todos.'; $Canal = 'todos' }
 $feed = [ordered]@{
     versionCode = $versionCode
     versionName = $release
@@ -106,30 +111,44 @@ if ($ExePath) {
     Write-Output "Instalador do computador: $nomeExe ($($feed.exeBytes) bytes)"
 }
 
+$arquivoFeed = if ($Canal -eq 'teste') { 'latest-teste.json' } else { 'latest.json' }
+if ($Canal -eq 'teste') {
+    $listaTeste = Join-Path (Split-Path -Parent $PSScriptRoot) 'canal-teste.json'
+    $aparelhos = @()
+    if (Test-Path -LiteralPath $listaTeste) { $aparelhos = @((Get-Content -LiteralPath $listaTeste -Raw | ConvertFrom-Json).aparelhos | Where-Object { $_ -match '^[a-z0-9]{6,32}$' }) }
+    if (-not $aparelhos.Count) { throw "Nenhum aparelho de teste em $listaTeste" }
+    $feed.aparelhos = $aparelhos
+    Write-Output "Canal de teste: $($aparelhos -join ', ')"
+}
 $conteudo = ($feed | ConvertTo-Json -Depth 3)
-$atual = Invoke-RestMethod -Uri "https://api.github.com/repos/$repo/contents/latest.json" -Headers $headers -Method Get
-$envio = @{ message = "Publica atualização $release"; content = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($conteudo)); sha = $atual.sha } | ConvertTo-Json
-Invoke-RestMethod -Uri "https://api.github.com/repos/$repo/contents/latest.json" -Headers $headers -Method Put -Body $envio -ContentType 'application/json' | Out-Null
+$atual = $null
+try { $atual = Invoke-RestMethod -Uri "https://api.github.com/repos/$repo/contents/$arquivoFeed" -Headers $headers -Method Get } catch { $atual = $null }
+$envio = @{ message = "Publica atualização $release ($Canal)"; content = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($conteudo)) }
+if ($atual) { $envio.sha = $atual.sha }
+$envio = $envio | ConvertTo-Json
+Invoke-RestMethod -Uri "https://api.github.com/repos/$repo/contents/$arquivoFeed" -Headers $headers -Method Put -Body $envio -ContentType 'application/json' | Out-Null
 
 # Keep the app's GitHub Pages fallback feed in sync with the primary update feed.
 $repoApp = 'invictusbr1/stream-tv-app'
+if ($Canal -eq 'todos') {
 $feedReserva = Invoke-RestMethod -Uri "https://api.github.com/repos/$repoApp/contents/docs/latest.json" -Headers $headers -Method Get
 $envioReserva = @{ message = "Atualiza aviso Android $release"; content = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($conteudo)); sha = $feedReserva.sha } | ConvertTo-Json
 Invoke-RestMethod -Uri "https://api.github.com/repos/$repoApp/contents/docs/latest.json" -Headers $headers -Method Put -Body $envioReserva -ContentType 'application/json' | Out-Null
 [IO.File]::WriteAllText((Join-Path (Split-Path -Parent $PSScriptRoot) 'docs\latest.json'), $conteudo, [Text.UTF8Encoding]::new($false))
+}
 
 # Confere o manifesto publicado de verdade (o script já subiu o APK sem
 # atualizar o aviso uma vez; esta conferência evita repetir o erro).
 $publicado = $null
 for ($tentativa = 1; $tentativa -le 6; $tentativa++) {
     Start-Sleep -Seconds 3
-    try { $publicado = (Invoke-WebRequest -Uri "https://raw.githubusercontent.com/$repo/main/latest.json" -UseBasicParsing -TimeoutSec 30).Content | ConvertFrom-Json } catch { $publicado = $null }
+    try { $publicado = (Invoke-WebRequest -Uri "https://raw.githubusercontent.com/$repo/main/$arquivoFeed" -UseBasicParsing -TimeoutSec 30).Content | ConvertFrom-Json } catch { $publicado = $null }
     if ($publicado -and [int]$publicado.versionCode -eq $versionCode) { break }
 }
 if (-not $publicado -or [int]$publicado.versionCode -ne $versionCode) {
     # O CDN raw pode manter a versão anterior por cinco minutos. Confere o
     # conteúdo efetivamente gravado, sem tratar esse atraso como envio falho.
-    $gravado = Invoke-RestMethod -Uri "https://api.github.com/repos/$repo/contents/latest.json?ref=main" -Headers $headers -Method Get
+    $gravado = Invoke-RestMethod -Uri "https://api.github.com/repos/$repo/contents/$($arquivoFeed)?ref=main" -Headers $headers -Method Get
     $publicado = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($gravado.content)) | ConvertFrom-Json
     if ([int]$publicado.versionCode -ne $versionCode -or $publicado.sha256 -ne $feed.sha256 -or ($ApkTvPath -and $publicado.apkTvSha256 -ne $feed.apkTvSha256) -or ($ExePath -and $publicado.exeSha256 -ne $feed.exeSha256)) {
         throw "O manifesto gravado não confere com a versão $versionCode. Confira https://github.com/$repo/blob/main/latest.json"

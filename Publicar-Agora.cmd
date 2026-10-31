@@ -37,14 +37,22 @@ if errorlevel 1 (echo FALHOU: compilacao Android >> "%LOG%" & goto fim)
 
 echo [5/5] Publicando a atualizacao do aplicativo...
 echo --- publicando APKs >> "%LOG%"
-powershell -NoProfile -ExecutionPolicy Bypass -File android\Publicar-Atualizacao.ps1 -ApkPath "%SAIDA%\Conecta-TV-Android-%VERSAO%.apk" -ApkTvPath "%SAIDA%\Conecta-TV-TV-%VERSAO%.apk" -Notes "Quando a fonte cai ou trava no meio do video, o app continua sozinho do mesmo ponto (primeiro na mesma fonte, para nao perder o 4K) em vez de pedir tente novamente." >> "%LOG%" 2>&1
+powershell -NoProfile -ExecutionPolicy Bypass -File android\Publicar-Atualizacao.ps1 -Canal teste -ApkPath "%SAIDA%\Conecta-TV-Android-%VERSAO%.apk" -ApkTvPath "%SAIDA%\Conecta-TV-TV-%VERSAO%.apk" -Notes "Quando a fonte cai ou trava no meio do video, o app continua sozinho do mesmo ponto (primeiro na mesma fonte, para nao perder o 4K) em vez de pedir tente novamente." >> "%LOG%" 2>&1
 if errorlevel 1 (echo FALHOU: publicacao dos APKs >> "%LOG%" & goto fim)
-echo TUDO PUBLICADO >> "%LOG%"
+echo TUDO PUBLICADO NO CANAL DE TESTE >> "%LOG%"
+echo --- salvando a versao no git >> "%LOG%"
+git add -A >> "%LOG%" 2>&1
+git -c user.name="Marlon" -c user.email="Lemosmarlon@outlook.com" commit -q -m "%VERSAO%" >> "%LOG%" 2>&1
+git tag -f v%VERSAO% >> "%LOG%" 2>&1
+echo VERSAO SALVA: v%VERSAO% >> "%LOG%"
+echo.
+echo   Se aparecer "Canal de teste" abaixo, a versao %VERSAO% foi SO para o seu celular:
+echo   use um pouco e, se estiver tudo certo, rode Liberar-Para-Todos.cmd.
 
 :fim
 echo FIM >> "%LOG%"
 echo.
-type "%LOG%" | findstr /b /c:"===" /c:"---" /c:"ORACLE" /c:"FALHOU" /c:"TUDO" /c:"APK" /c:"Enviado" /c:"FIM"
+type "%LOG%" | findstr /b /c:"===" /c:"---" /c:"ORACLE" /c:"FALHOU" /c:"TUDO" /c:"VERSAO SALVA" /c:"Canal de teste" /c:"vai para todos" /c:"APK" /c:"Enviado" /c:"FIM"
 echo.
 echo O registro completo esta em publicacao.log
 pause

@@ -84,6 +84,13 @@ code{background:#ffffff10;padding:2px 6px;border-radius:6px;font-size:12.5px}
   <section class="cartoes" id="cartoes"></section>
   <div class="grade">
     <div>
+      <section class="bloco" id="relatorio-semana">
+        <h2>Relatório da semana <small id="relatorio-nota">últimos 7 dias</small></h2>
+        <div id="relatorio-cartoes" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;padding:0 14px 12px"></div>
+        <table><thead><tr><th>Fonte</th><th>Abriu</th><th>Falhou</th><th>Acerto</th><th>Travamentos</th></tr></thead><tbody id="relatorio-fontes"></tbody></table>
+        <p class="mini" id="relatorio-pessoas" style="padding:10px 14px 0"></p>
+        <p class="mini" id="relatorio-titulos" style="padding:4px 14px 14px"></p>
+      </section>
       <section class="bloco">
         <h2>Aparelhos e pessoas <small id="total-aparelhos"></small></h2>
         <table><thead><tr><th>Nome</th><th>Tipo</th><th>Rede / IP</th><th>Versão</th><th>Assistindo agora</th><th>Último sinal</th><th>Saúde</th></tr></thead>
@@ -513,7 +520,22 @@ function pintar(dados) {
   el('fonte-dados').textContent = (dados.instalacao || 'Neste computador') + (dados.aparelhosApp?.ok ? ' · site conectado' : ' · site sem resposta');
   document.title = 'Central Conecta TV · ' + (dados.instalacao || 'Neste computador');
 }
+function esc(t){return String(t??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+let ultimoRelatorio=0;
+async function carregarRelatorio(){
+  if(Date.now()-ultimoRelatorio<60000)return;ultimoRelatorio=Date.now();
+  try{
+    const r=await (await fetch('/api/relatorio?dias=7',{cache:'no-store'})).json();
+    const seg=ms=>ms?(ms/1000).toFixed(1).replace('.',',')+' s':'—';
+    const cartao=(titulo,valor,cor)=>`<div style="background:#ffffff08;border:1px solid #ffffff14;border-radius:12px;padding:12px"><div class="mini">${esc(titulo)}</div><div style="font-size:24px;font-weight:800;color:${cor||'inherit'}">${esc(valor)}</div></div>`;
+    el('relatorio-cartoes').innerHTML=[cartao('Sessões',r.total),cartao('Abriram de primeira',r.taxaDePrimeira+'%',r.taxaDePrimeira>=80?'#5ce08d':r.taxaDePrimeira>=60?'#ffd166':'#ff6b6b'),cartao('Abriram no fim',r.taxaQueAbriu+'%'),cartao('Não abriram',r.falharam,r.falharam?'#ff6b6b':'#5ce08d'),cartao('Tempo até abrir (mediana)',seg(r.aberturaMedianaMs)),cartao('Travamentos',r.travamentos)].join('');
+    el('relatorio-fontes').innerHTML=r.fontes.length?r.fontes.map(f=>`<tr><td>${esc(f.nome)}</td><td>${f.abriu}</td><td>${f.falhou}</td><td>${f.taxa}%</td><td>${f.travamentos}</td></tr>`).join(''):'<tr><td class="vazio" colspan="5">Sem sessões nesta semana.</td></tr>';
+    el('relatorio-pessoas').innerHTML='<b>Quem teve problema:</b> '+(r.pessoas.filter(p=>p.falhas).map(p=>`${esc(p.nome)} (${p.falhas} de ${p.sessoes})`).join(' · ')||'ninguém 🎉');
+    el('relatorio-titulos').innerHTML='<b>Títulos que não abriram:</b> '+(r.titulosQueFalharam.map(t=>`${esc(t.titulo)}${t.vezes>1?' ×'+t.vezes:''}`).join(' · ')||'nenhum');
+  }catch{ /* o relatório é opcional */ }
+}
 async function carregar() {
+  carregarRelatorio();
   try {
     const resposta = await fetch('/api/status', { cache: 'no-store' });
     if (resposta.status === 401) { location.href = '/'; return; }

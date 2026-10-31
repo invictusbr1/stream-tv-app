@@ -121,7 +121,17 @@ public final class MainActivity extends Activity {
         // segundo plano (a abertura do aplicativo não espera por isso).
         atualizarPerfis();
         updater = new AppUpdater(this);
-        main.postDelayed(() -> { if (!isFinishing() && !isDestroyed()) updater.check(false); }, 4000);
+        main.postDelayed(() -> {
+            if (isFinishing() || isDestroyed()) return;
+            // O código do aparelho (o mesmo que aparece na Central) decide se ele
+            // está no canal de teste das atualizações.
+            try {
+                main.evaluateJavascript("(function(){try{return localStorage.getItem('streamtv-dispositivo')||''}catch(e){return ''}})()", valor -> {
+                    try { String id = new org.json.JSONArray("[" + valor + "]").optString(0, ""); if (id.matches("[a-z0-9]{6,32}")) getSharedPreferences("updates", MODE_PRIVATE).edit().putString("dispositivo", id).apply(); } catch (Exception ignored) { }
+                    if (!isFinishing() && !isDestroyed()) updater.check(false);
+                });
+            } catch (Exception e) { updater.check(false); }
+        }, 4000);
         if (Build.VERSION.SDK_INT >= 33) getOnBackInvokedDispatcher().registerOnBackInvokedCallback(0, this::back);
     }
 

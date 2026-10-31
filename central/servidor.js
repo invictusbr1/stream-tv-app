@@ -329,6 +329,8 @@ app.post('/api/entrar', (req, res) => {
 
 app.get('/api/status', exigirChave, async (req, res) => res.json(await gerarStatus()));
 app.get('/api/reproducao', exigirChave, (req, res) => res.json(reproducao.resumo()));
+// Relatório da semana (abriu de primeira, tempo até abrir, fontes, quem teve problema).
+app.get('/api/relatorio', exigirChave, (req, res) => res.json(require('./relatorio').relatorio(reproducao.resumo(200).sessoes, { dias: Math.max(1, Math.min(21, Number(req.query.dias) || 7)) })));
 app.get('/api/health', (req, res) => res.json({ status: 'ok', app: 'central-conecta-tv' }));
 
 // ------------------------------------------------------------------ ações

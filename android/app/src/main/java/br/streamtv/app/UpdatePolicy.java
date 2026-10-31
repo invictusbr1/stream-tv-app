@@ -16,6 +16,18 @@ final class UpdatePolicy {
         "https://cdn.jsdelivr.net/gh/" + REPOSITORY + "@main/latest.json",
         "https://invictusbr1.github.io/stream-tv-app/latest.json"
     };
+    // Canal de teste: a versão nova vai primeiro só para os aparelhos listados
+    // em "aparelhos" deste arquivo. Depois de aprovada, vira o latest.json.
+    static final String[] FEEDS_TESTE = {
+        "https://raw.githubusercontent.com/" + REPOSITORY + "/main/latest-teste.json",
+        "https://cdn.jsdelivr.net/gh/" + REPOSITORY + "@main/latest-teste.json"
+    };
+    static boolean aparelhoDeTeste(org.json.JSONObject teste,String dispositivo){
+        if(teste==null||dispositivo==null||!dispositivo.matches("[a-z0-9]{6,32}"))return false;
+        org.json.JSONArray lista=teste.optJSONArray("aparelhos");
+        for(int i=0;lista!=null&&i<lista.length();i++)if(dispositivo.equals(lista.optString(i)))return true;
+        return false;
+    }
     static final long MAX_BYTES = 100L * 1024 * 1024;
     static boolean secure(String value) {
         try { URI u=new URI(value); return "https".equals(u.getScheme()) && u.getUserInfo()==null && u.getPort()==-1 && u.getFragment()==null; }

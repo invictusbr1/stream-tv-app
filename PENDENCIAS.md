@@ -3,6 +3,21 @@
 > Este arquivo é a memória do projeto. Abrir SEMPRE no começo de uma tarefa e
 > atualizar no fim. Assim nada precisa ser repetido pelo usuário.
 
+## Profissionalização (31/10/2026, entra na 2.13.131)
+
+- **Git**: versão salva e marcada (`v2.13.131`). O Publicar-Agora agora salva e marca cada versão sozinho.
+- **Canal de teste**: o Publicar-Agora publica em `latest-teste.json`, que só os aparelhos de
+  `canal-teste.json` recebem (hoje: celular do Marlon, `du3q4sqeegf8w`). Depois de testar:
+  `Liberar-Para-Todos.cmd`. Enquanto a família estiver abaixo da 2.13.131 (versionCode 460), a
+  publicação vai para todos automaticamente (aparelho antigo não conhece o canal de teste).
+- **Chave do painel** saiu do Abrir-Central.ps1 e do atalho .url: fica em
+  `%USERPROFILE%\.streamtv\central-chave.txt` (a primeira execução migra sozinha). Ela continua no
+  histórico antigo do git — trocar a chave da Central é opcional.
+- **Relatório da semana** na Central (`/api/relatorio`): abriu de primeira, tempo até abrir, fontes,
+  quem teve problema e títulos que não abriram.
+- Pendente desta etapa: melhora de qualidade no meio do filme (4) e detalhes de app (6: perfil infantil,
+  busca com sugestões, esqueleto das capas, controle remoto da TV).
+
 ## 2.13.131 — visual e episódios (31/10/2026)
 
 - Episódios: saiu o botão de download (não funcionava) e os selos fixos Dublado/HD/CC; entram

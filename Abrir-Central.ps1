@@ -4,7 +4,22 @@
 
 $ErrorActionPreference = 'Continue'
 $cfgPath = Join-Path $env:USERPROFILE '.conecta-tv-vm.json'
-$chavePainel = 'PQnYImIbflK2JbnmLr9Vs49d'
+# A chave do painel fica fora da pasta sincronizada (OneDrive/GitHub), em
+# %USERPROFILE%\.streamtv\central-chave.txt. Na primeira vez, este script a
+# guarda la e apaga a copia daqui de dentro.
+$arqChave = Join-Path $env:USERPROFILE '.streamtv\central-chave.txt'
+$chaveAntiga = 'PQnYImIbflK2JbnmLr9Vs49d'
+$chavePainel = ''
+if (Test-Path -LiteralPath $arqChave) { $chavePainel = (Get-Content -LiteralPath $arqChave -Raw).Trim() }
+if (-not $chavePainel -and $chaveAntiga) {
+    $chavePainel = $chaveAntiga
+    New-Item -ItemType Directory -Force -Path (Split-Path $arqChave) | Out-Null
+    [IO.File]::WriteAllText($arqChave, $chavePainel)
+}
+if ($chavePainel -and (Test-Path -LiteralPath $arqChave) -and $chaveAntiga) {
+    $eu = [IO.File]::ReadAllText($PSCommandPath)
+    [IO.File]::WriteAllText($PSCommandPath, $eu.Replace("`$chaveAntiga = '" + $chaveAntiga + "'", "`$chaveAntiga = ''"))
+}
 $porta = 4100
 
 Write-Host ""
