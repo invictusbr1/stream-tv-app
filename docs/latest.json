@@ -1,14 +1,14 @@
 {
-    "versionCode":  460,
-    "versionName":  "2.13.131",
-    "apkUrl":  "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.131/Conecta-TV-Android-2.13.131.apk",
-    "sha256":  "8a4ecd9676dbf0cf7c40fe04664d9aeacb7357362752e8d38726e7fe2bc3bec9",
-    "bytes":  551510,
+    "versionCode":  461,
+    "versionName":  "2.13.132",
+    "apkUrl":  "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.132/Conecta-TV-Android-2.13.132.apk",
+    "sha256":  "d5472bff0242ac574ef6a4db2859bc2795b90d29d7133cb08182bacab2c0fe7a",
+    "bytes":  552315,
     "notes":  "Quando a fonte cai ou trava no meio do video, o app continua sozinho do mesmo ponto (primeiro na mesma fonte, para nao perder o 4K) em vez de pedir tente novamente.",
     "exeUrl":  "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.117/Conecta.TV.exe",
     "exeSha256":  "9f1cbee5931e53e469dd488a7b3bfbfca9dd8077681a87ded02bad70ab657f7d",
     "exeBytes":  120134995,
-    "apkTvUrl":  "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.131/Conecta-TV-TV-2.13.131.apk",
-    "apkTvSha256":  "0b7ab7628e9551a4b7d92e24bcc517fab06dfeb5e358f6b33f24fa5dcff27891",
-    "apkTvBytes":  551195
+    "apkTvUrl":  "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.132/Conecta-TV-TV-2.13.132.apk",
+    "apkTvSha256":  "c1995024a40ce54840d9e4b838f39ef24c4cec6ef95266ac6f985f1c2532ab94",
+    "apkTvBytes":  552024
 }
