@@ -40,6 +40,7 @@ function sinaisDeAnuncio(texto) {
 // Addons do Stremio com streams (endereço público, sem cadastro).
 const ADDONS = [
     { nome: 'FenixFlix (FenixHub)', base: 'https://fenixflix.fenixhub.online' },
+    { nome: 'BestCine', base: 'https://bestcine.dpdns.org' },
     { nome: 'Zeus (Baby Beamup)', base: 'https://398fe185fed6-zeus.baby-beamup.club/v1-p2yn-q3j-a3-mb' },
     // Bases públicas que aparecem nas listas da comunidade. Cada uma é testada
     // com títulos reais antes de virar fonte — e vira FICHA quando funciona.
@@ -60,6 +61,21 @@ const AMOSTRAS_ADDON = [
     { tipo: 'series', id: 'tt0944947:1:1', titulo: 'Game of Thrones 1x1' },
     { tipo: 'series', id: 'tt4574334:1:1', titulo: 'Stranger Things 1x1' },
 ];
+
+let catalogoEmMemoria = { em: 0, lista: [] };
+async function addonsDosCatalogos(limite = 40) {
+    if (Date.now() - catalogoEmMemoria.em < 12 * 60 * 60 * 1000 && catalogoEmMemoria.lista.length) return catalogoEmMemoria.lista.slice(0, limite);
+    const { carregarCatalogo } = require('./cacada-titulo');
+    const buscarJson = async url => {
+        const r = await comPrazo(axios.get(url, { headers: { 'User-Agent': UA, Accept: 'application/json' }, timeout: 15000, validateStatus: s => s < 500 }));
+        if (!r || r.status >= 400) throw new Error('sem catálogo');
+        return typeof r.data === 'string' ? JSON.parse(r.data) : r.data;
+    };
+    const conhecidos = new Set(ADDONS.map(a => a.base));
+    const lista = (await carregarCatalogo({ buscarJson })).filter(a => a.brasileiro && !conhecidos.has(a.base)).map(a => ({ nome: a.nome, base: a.base }));
+    catalogoEmMemoria = { em: Date.now(), lista };
+    return lista.slice(0, limite);
+}
 
 // Sites agregadores para ler o código e descobrir quais players usam.
 const SITES = [
@@ -111,7 +127,11 @@ async function varrerAddons(registrar = () => {}) {
     // Um candidato por addon E por tipo (filme/série), com a lista dos títulos
     // em que aquele addon realmente devolveu vídeo — é o que valida a ficha.
     const porAddon = new Map();
-    for (const addon of ADDONS) {
+    // Além da lista fixa, os addons BRASILEIROS dos catálogos públicos
+    // (centenas de endereços; os brasileiros são os que têm dublado/novela).
+    const extras = await addonsDosCatalogos().catch(() => []);
+    if (extras.length) registrar(`catálogos públicos: +${extras.length} addon(s) brasileiro(s) para testar`);
+    for (const addon of [...ADDONS, ...extras]) {
             if (axios.sinalRodada()?.aborted) break;
         for (const amostra of AMOSTRAS_ADDON) {
             if (axios.sinalRodada()?.aborted) break;
@@ -426,4 +446,4 @@ async function varrerTudo(opcoes = {}) {
     finally { clearTimeout(timer); sinalPai?.removeEventListener('abort', cancelar); }
 }
 
-module.exports = { varrerTudo, varrerAddons, varrerGithub, varrerCodigoGithub, varrerSites, varrerSitemaps, moldeDoEndereco, marcasDeDublado, sinaisDeAnuncio, extrairDominios, linksDoMapa, juntarCandidatas, REDES_DE_ANUNCIO, ADDONS, SITES };
+module.exports = { addonsDosCatalogos, varrerTudo, varrerAddons, varrerGithub, varrerCodigoGithub, varrerSites, varrerSitemaps, moldeDoEndereco, marcasDeDublado, sinaisDeAnuncio, extrairDominios, linksDoMapa, juntarCandidatas, REDES_DE_ANUNCIO, ADDONS, SITES };

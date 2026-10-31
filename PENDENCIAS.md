@@ -3,6 +3,54 @@
 > Este arquivo é a memória do projeto. Abrir SEMPRE no começo de uma tarefa e
 > atualizar no fim. Assim nada precisa ser repetido pelo usuário.
 
+## 2.13.131 — visual e episódios (31/10/2026)
+
+- Episódios: saiu o botão de download (não funcionava) e os selos fixos Dublado/HD/CC; entram
+  duração ("52 min"), selo "Novo", barra de progresso do que já foi visto e destaque no próximo.
+  O botão da série vira "Continuar · T1 E3".
+- Player: Legendas e Áudio só aparecem quando existe escolha de verdade.
+- Pular abertura aprende com a pessoa: arrastar 30 s a 4 min nos primeiros 6 min marca a abertura
+  da temporada; os próximos episódios mostram o botão. Tocar "Próximo" perto do fim ensina onde
+  começam os créditos da temporada.
+- Cartão "A seguir" com prévia do episódio, barra que enche e "Assistir créditos".
+- Top 10 com numeral grande vazado (1 a 3 em vermelho); streaming sem repetição ("with Ads").
+
+## 2.13.130 — volta o 4K com Referer pelo servidor (31/10/2026)
+
+- Na 2.13.129, TODO arquivo com Referer (ClickHost, FenixFlix, BestCine) falhou na hora
+  ("a reprodução foi interrompida", posição 0): o <video> do WebView não toca o encaminhador
+  local `/api/midia-local`. Voltou ao caminho do servidor (escolha do aparelho, agora com o
+  endereço ORIGINAL do fornecedor). O encaminhador local fica só como último recurso.
+- Pendente: tornar o 4K com Referer autônomo de outro jeito (servidor HTTP local 127.0.0.1
+  no app, ou player nativo). Séries/HLS continuam no aparelho.
+- Servidor relê as fichas publicadas a cada 20 min (antes 6 h).
+
+## Caçador turbinado (31/10/2026)
+
+- **Roda no PC**: `Cacador-PC.cmd` (abre o túnel da Central e fica caçando a cada 30 min). A caçada
+  automática pesada da Oracle foi desligada (religar com `CACADA_AUTOMATICA=1`).
+- **Catálogos públicos de addons** (`stremio-addons.net` ~740 addons, `api.strem.io`), filtrados
+  (só stream http, sem adulto/torrent/configuração), cópia de 12 h em `central/dados-pc/`.
+- **Caçada por título** (`central/cacada-titulo.js`): pega os títulos que falharam na Central (48 h),
+  pergunta a todos os addons pelo episódio exato, mede até 4 espelhos, valida a ficha (novela com
+  outras novelas em exibição) e publica no GitHub. Manual: `node central/cacador-pc.cjs --titulo tv:306956:1:137`.
+- **Ronda das novelas** a cada 6 h (lista viva do TMDB: Brasil + gênero novela).
+- Validação testa todos os espelhos (não só `streams[0]`) e ouve o áudio sem etiqueta (Whisper).
+- Publicação no GitHub agora JUNTA com o arquivo publicado (PC e Oracle não apagam fichas um do outro).
+- Achado em 31/10: BestCine (`bestcine.dpdns.org`) tem Quem Ama Cuida 1x137 dublado 1080p (servidor Safira).
+
+## 2.13.129 — modo autônomo no Android (31/10/2026)
+
+- Arquivo com proteção de origem (FenixFlix/FrostStream/Kairou, inclusive 4K de 7 GB) agora é
+  encaminhado DENTRO do celular (`LocalMediaRelay`, rota local `/api/midia-local`, com Range e
+  Referer). Antes passava inteiro pela Oracle (~40 Mbps) e travava com duas pessoas.
+- Série também é escolhida no aparelho primeiro; a Oracle é só o último recurso. Depois de um
+  sucesso pelo servidor, só o MESMO título volta direto a ele por 3 min.
+- Servidor (avaliador): espelho quebrado (ex.: FenixFlix "Badger") não castiga a fonte quando
+  outro espelho dela (Zeus) entregou vídeo.
+- Pendente: FrostStream e Kairou ainda não existem como fonte nativa do aparelho (séries delas
+  continuam vindo do servidor como reserva). FrostStream estava fora do ar no fornecedor.
+
 ## 2.13.125 — perfis com avatar (26/10/2026)
 
 - **"Quem está assistindo?"**: até 5 perfis por conta/aparelho, 16 avatares próprios (`avatares.js`), editor de nome/avatar e troca pelo avatar no topo ou pela gaveta (`perfis-conta.js`). Cada perfil tem continuar assistindo, favoritos, assistidos e buscas separados.

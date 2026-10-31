@@ -32,6 +32,10 @@ final class MediaHttp {
         }catch(Exception e){return true;}
     }
     static HttpURLConnection open(String raw,String referer,String range,long deadline,Connector connector)throws IOException {
+        return open(raw,referer,range,deadline,connector,3000);
+    }
+    /** Mesmo caminho seguro, com prazo de leitura próprio (o vídeo em reprodução lê por minutos). */
+    static HttpURLConnection open(String raw,String referer,String range,long deadline,Connector connector,int ioTimeout)throws IOException {
         URL url=safe(raw);Set<String> seen=new HashSet<>();
         for(int redirects=0;;redirects++){
             long left=deadline-QualitySelector.now();
@@ -43,7 +47,7 @@ final class MediaHttp {
                 HttpURLConnection c=connector.open(url);
                 boolean redirecionou=false;
                 try{
-                    c.setConnectTimeout((int)Math.min(3000,restante));c.setReadTimeout((int)Math.min(3000,restante));c.setInstanceFollowRedirects(false);
+                    c.setConnectTimeout((int)Math.min(Math.min(ioTimeout,8000),restante));c.setReadTimeout(ioTimeout>3000?ioTimeout:(int)Math.min(3000,restante));c.setInstanceFollowRedirects(false);
                     c.setRequestProperty("User-Agent",UA);c.setRequestProperty("Accept","*/*");c.setRequestProperty("Accept-Encoding","identity");
                     if(range!=null)c.setRequestProperty("Range",range);
                     if(ref!=null&&!ref.isEmpty()&&!ref.contains("\r")&&!ref.contains("\n"))c.setRequestProperty("Referer",ref);

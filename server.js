@@ -149,7 +149,8 @@ try {
         .then(r => { if (r && r.mudou) console.log(`[fichas] ${r.perfis} fonte(s) aprovadas pelo caçador`); })
         .catch(() => {});
     buscarFichas();
-    setInterval(buscarFichas, 6 * 60 * 60 * 1000);
+    // Fonte nova aprovada no PC chega aos servidores em até 20 min.
+    setInterval(buscarFichas, 20 * 60 * 1000);
 } catch (erro) { console.log('[fichas] não ligou: ' + erro.message); }
 
 if (Number(PORTA_ESCOLHIDA) !== Number(PORT)) console.log(`A porta ${PORT} já estava em uso (outra instância aberta). Usando a porta ${PORTA_ESCOLHIDA}.`);

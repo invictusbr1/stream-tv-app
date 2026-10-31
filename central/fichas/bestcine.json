@@ -1,0 +1,24 @@
+{
+  "comoLer": "Fonte encontrada pela caçada por título em 31/10/2026. Conferida no navegador: Super Mario Galaxy 3840x1606, O Afinador 3840x2074, A Origem 3840x1600, Quem Ama Cuida 1x137 e A Nobreza do Amor 1x180 em 1920x1080 (servidores Safira/Zenith/Lya). Só entra no app depois da validação do caçador (Incluir-BestCine.cmd).",
+  "id": "bestcine",
+  "nome": "BestCine",
+  "nota": 0,
+  "dublado": true,
+  "qualidade": "",
+  "tipos": ["movie", "tv"],
+  "urlMovie": "https://bestcine.dpdns.org/stream/movie/{imdb}.json",
+  "urlTv": "https://bestcine.dpdns.org/stream/series/{imdb}:{temporada}:{episodio}.json",
+  "referer": "https://bestcine.dpdns.org/",
+  "origem": "caçada por título (catálogo stremio-addons.net)",
+  "stremio": true,
+  "ativo": false,
+  "passos": [{ "tipo": "json", "caminho": "streams[0].url" }],
+  "amostras": [
+    { "tipo": "movie", "id": "1226863", "imdb": "tt28650488", "titulo": "Super Mario Galaxy: O Filme" },
+    { "tipo": "movie", "id": "1340206", "imdb": "tt33296751", "titulo": "O Afinador" },
+    { "tipo": "movie", "id": "27205", "imdb": "tt1375666", "titulo": "A Origem" },
+    { "tipo": "tv", "id": "306956", "imdb": "tt42751057", "temporada": 1, "episodio": 137, "titulo": "Quem Ama Cuida 1x137" },
+    { "tipo": "tv", "id": "301557", "imdb": "tt39396172", "temporada": 1, "episodio": 180, "titulo": "A Nobreza do Amor 1x180" },
+    { "tipo": "tv", "id": "289996", "imdb": "tt38591370", "temporada": 1, "episodio": 100, "titulo": "Três Graças 1x100" }
+  ]
+}

@@ -200,7 +200,7 @@
             let series=url.pathname.match(/^\/api\/tv\/(\d{1,10})$/);
             if(series){const d=await tmdb(`tv/${series[1]}`,{},signal);return {title:d.name,overview:d.overview,anime:(d.genres||[]).some(g=>Number(g.id)===16)&&((d.origin_country||[]).some(c=>c==='JP'||c==='KR')||d.original_language==='ja'),seasons:(d.seasons||[]).filter(x=>x.episode_count>0).map(x=>({number:x.season_number,name:x.name,count:x.episode_count}))};}
             let season=url.pathname.match(/^\/api\/season\/(\d{1,10})\/(\d{1,3})$/);
-            if(season){const d=await tmdb(`tv/${season[1]}/season/${season[2]}`,{},signal);return {episodes:(d.episodes||[]).map(x=>({number:x.episode_number,name:x.name,overview:x.overview,date:x.air_date,image:x.still_path?`https://image.tmdb.org/t/p/w300${x.still_path}`:null}))};}
+            if(season){const d=await tmdb(`tv/${season[1]}/season/${season[2]}`,{},signal);return {episodes:(d.episodes||[]).map(x=>({number:x.episode_number,name:x.name,overview:x.overview,date:x.air_date,runtime:Number(x.runtime)>0?Number(x.runtime):null,image:x.still_path?`https://image.tmdb.org/t/p/w300${x.still_path}`:null}))};}
             let ep=url.pathname.match(/^\/api\/episode\/(\d{1,10})\/(\d{1,3})\/([1-9]\d{0,3})$/);
             // Nenhuma opção com anúncio neste ponto: o episódio é resolvido pelo
             // motor de fontes (dublado limpo primeiro, alta definição limpa depois).

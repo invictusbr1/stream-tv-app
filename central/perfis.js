@@ -190,7 +190,7 @@ async function buscarTexto(endereco, referer = '') {
 // ---------------------------------------------------------------- validação
 // Testa a ficha em títulos que não foram usados para criá-la. Só passa quem
 // abre de verdade em pelo menos dois deles.
-async function validar(ficha, amostras, { buscar = buscarTexto, sondar = sondagemRapida, registrar = () => {} } = {}) {
+async function validar(ficha, amostras, { buscar = buscarTexto, sondar = sondagemRapida, registrar = () => {}, confirmarIdioma = null } = {}) {
     const provas = [];
     const titulosVistos = new Set();
     const videosVistos = new Set();
@@ -208,15 +208,31 @@ async function validar(ficha, amostras, { buscar = buscarTexto, sondar = sondage
         if (titulosVistos.has(chave)) continue;
         titulosVistos.add(chave);
         if (provas.length >= 3) break;
-        const pronto = await motor.resolver(ficha, alvo, { buscar }).catch(() => null);
-        if (!pronto) { provas.push({ amostra: amostra.titulo, ok: false, motivo: 'não achei o vídeo' }); continue; }
+        // Addon com vários servidores para o mesmo título (ex.: BestCine com 11
+        // espelhos): o primeiro pode estar fora e o terceiro funcionar. O app já
+        // tenta todos (resolverTodos); a validação testa do mesmo jeito.
+        let opcoes = [];
+        if (typeof motor.resolverTodos === 'function') opcoes = await motor.resolverTodos(ficha, alvo, { buscar }).catch(() => []);
+        if (!Array.isArray(opcoes) || !opcoes.length) { const unica = await motor.resolver(ficha, alvo, { buscar }).catch(() => null); opcoes = unica ? [unica] : []; }
+        if (!opcoes.length) { provas.push({ amostra: amostra.titulo, ok: false, motivo: 'não achei o vídeo' }); continue; }
         // Uma página que sempre entrega a mesma prévia não comprova catálogo.
-        if (videosVistos.has(pronto.url)) { provas.push({ amostra: amostra.titulo, ok: false, motivo: 'o mesmo vídeo foi devolvido para outro título' }); continue; }
+        if (opcoes.every(o => videosVistos.has(o.url))) { provas.push({ amostra: amostra.titulo, ok: false, motivo: 'o mesmo vídeo foi devolvido para outro título' }); continue; }
+        let pronto = null, sonda = null;
+        for (const opcao of opcoes.filter(o => !videosVistos.has(o.url)).slice(0, 4)) {
+            const medida = await sondar(opcao.url, opcao.referer).catch(() => null);
+            if (!pronto || (medida && medida.viva && !(sonda && sonda.viva))) { pronto = opcao; sonda = medida; }
+            if (medida && medida.viva && (Number(medida.altura) || 0) >= 720 && medida.dublado !== false) { pronto = opcao; sonda = medida; break; }
+        }
         videosVistos.add(pronto.url);
-        const sonda = await sondar(pronto.url, pronto.referer).catch(() => null);
         const viva = Boolean(sonda && sonda.viva);
         const altura = Math.max(0, Number(sonda && sonda.altura) || 0);
-        const dublado = sonda && typeof sonda.dublado === 'boolean' ? sonda.dublado : null;
+        let dublado = sonda && typeof sonda.dublado === 'boolean' ? sonda.dublado : null;
+        // Arquivo sem etiqueta de idioma: confirma ouvindo o áudio (transcrição),
+        // nunca acreditando só no rótulo do fornecedor.
+        if (viva && dublado === null && typeof confirmarIdioma === 'function') {
+            const ouvido = await confirmarIdioma(pronto, amostra).catch(() => null);
+            if (typeof ouvido === 'boolean') { dublado = ouvido; if (sonda) sonda.evidencia = ouvido ? 'áudio ouvido em português (transcrição)' : 'áudio ouvido em outro idioma'; }
+        }
         const atendePadrao = viva && altura >= 720 && dublado === true && !sonda.avisoAudio;
         const motivo = !viva ? 'o endereço não devolveu vídeo'
             : sonda.avisoAudio ? 'o áudio não é compatível com o player'
@@ -353,30 +369,51 @@ function gravarPlacar(pastaDados, tabela) {
 async function publicar(pastaDados, token, { api = axios } = {}) {
     if (!token) return { ok: false, motivo: 'sem token do GitHub' };
     const dados = ler(pastaDados);
+    const cabecalhos = { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json', 'User-Agent': 'conecta-tv-cacador' };
+    let atual = null;
+    try { atual = await api.get(`https://api.github.com/repos/${REPOSITORIO}/contents/${ARQUIVO_PUBLICADO}`, { headers: cabecalhos, timeout: 20000, validateStatus: s => s < 500 }); } catch { atual = null; }
+    // O caçador agora roda em DOIS lugares (Oracle e PC). Cada um publica só o
+    // que sabe; o resto do arquivo publicado é preservado, para um não apagar
+    // as fichas do outro.
+    let publicado = null;
+    try { if (atual && atual.data && atual.data.content) publicado = JSON.parse(Buffer.from(String(atual.data.content), 'base64').toString('utf8')); } catch { publicado = null; }
+    const juntos = juntarPublicado(publicado, dados);
     const conteudo = JSON.stringify({
         atualizadoEm: new Date().toISOString(),
         // Uma suspensão precisa chegar ao aplicativo que ainda guarda uma
         // cópia antiga. Ausência do ID, por si só, não desativa essa cópia.
-        perfis: dados.perfis.map(p => p.ativo === false ? { id: p.id, ativo: false } : p),
-        listasTv: dados.listasTv || [],
-        placar: dados.placar || [],
+        perfis: juntos.perfis.map(p => p.ativo === false ? { id: p.id, ativo: false } : p),
+        listasTv: juntos.listasTv,
+        placar: juntos.placar,
     }, null, 1);
-    const cabecalhos = { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json', 'User-Agent': 'conecta-tv-cacador' };
     try {
-        const atual = await api.get(`https://api.github.com/repos/${REPOSITORIO}/contents/${ARQUIVO_PUBLICADO}`, { headers: cabecalhos, timeout: 20000, validateStatus: s => s < 500 }).catch(() => null);
         const sha = atual && atual.data && atual.data.sha ? atual.data.sha : undefined;
         await api.put(`https://api.github.com/repos/${REPOSITORIO}/contents/${ARQUIVO_PUBLICADO}`, {
-            message: `Fichas de fonte (${dados.perfis.length})`,
+            message: `Fichas de fonte (${juntos.perfis.length})`,
             content: Buffer.from(conteudo, 'utf8').toString('base64'),
             ...(sha ? { sha } : {}),
         }, { headers: cabecalhos, timeout: 25000 });
-        return { ok: true, perfis: dados.perfis.filter(p => p.ativo !== false).length };
+        return { ok: true, perfis: juntos.perfis.filter(p => p.ativo !== false).length };
     } catch (erro) {
         return { ok: false, motivo: String(erro.message).slice(0, 80) };
     }
 }
 
+// Junta o arquivo já publicado com as fichas locais: a ficha local (mais nova)
+// vence pelo id; as que só existem no publicado continuam; listas e placar
+// locais só substituem quando existem.
+function juntarPublicado(publicado, local) {
+    const pub = publicado && typeof publicado === 'object' ? publicado : {};
+    const porId = new Map();
+    for (const p of Array.isArray(pub.perfis) ? pub.perfis : []) if (p && p.id) porId.set(p.id, p);
+    for (const p of Array.isArray(local.perfis) ? local.perfis : []) if (p && p.id) porId.set(p.id, p);
+    const listas = Array.isArray(local.listasTv) && local.listasTv.length ? local.listasTv : (Array.isArray(pub.listasTv) ? pub.listasTv : []);
+    const placar = Array.isArray(local.placar) && local.placar.length ? local.placar : (Array.isArray(pub.placar) ? pub.placar : []);
+    return { perfis: [...porId.values()], listasTv: listas, placar };
+}
+
 module.exports = {
+    juntarPublicado,
     arquivo, ler, gravar, listar, registrarFicha, removerFicha, publicar, registrarLista, listasTv, gravarPlacar,
     inferirDePagina, inferirDeStremio, modeloDeUrl, padraoPara, padraoDeIframe, validar, buscarTexto,
     ARQUIVO_PUBLICADO, REPOSITORIO,

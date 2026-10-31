@@ -58,6 +58,60 @@ app.get('/api/tv/la18hd', async (req, res) => {
         res.json({...source, url:proxy.urlViaProxy(source.url, source.referer)});
     } catch { res.status(502).json({error:'LA18HD não respondeu. Tente novamente ou escolha outra transmissão.'}); }
 });
+
+// FUTEMAX — jogo ao vivo. `?url=` abre o jogo escolhido. O endereço do vídeo é
+// resolvido na hora e passa pelo encaminhador do aplicativo (o player nunca
+// abre a página com anúncio).
+const futemax = require('../futemax-source');
+const futemaxCache = new Map();
+function futemaxGet() {
+    return async (url, referer) => {
+        const r = await axios.get(url, {
+            timeout: 15000, maxRedirects: 5, responseType: 'text', maxContentLength: 4 * 1024 * 1024,
+            headers: { 'User-Agent': futemax.UA, Accept: '*/*', ...(referer ? { Referer: referer } : {}) },
+            validateStatus: status => status < 500,
+        });
+        return r.data;
+    };
+}
+app.get('/api/tv/futemax', async (req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    const jogo = String(req.query.url || req.query.jogo || '').slice(0, 300);
+    if (!jogo) return res.status(400).json({ error: 'Informe o endereço do jogo no Futemax.' });
+    try {
+        const guardado = futemaxCache.get(jogo);
+        if (guardado && Date.now() - guardado.at < 4 * 60 * 1000) return res.json(guardado.dados);
+        const source = await futemax.resolve(jogo, futemaxGet());
+        const proxy = require('../midia-proxy');
+        proxy.liberarHost(new URL(source.url).hostname);
+        const dados = { ...source, url: proxy.urlViaProxy(source.url, source.referer) };
+        if (futemaxCache.size >= 20) futemaxCache.delete(futemaxCache.keys().next().value);
+        futemaxCache.set(jogo, { at: Date.now(), dados });
+        res.json(dados);
+    } catch (erro) {
+        res.status(502).json({ error: 'O Futemax não abriu este jogo sem anúncio agora.', detalhe: String(erro.message).slice(0, 160) });
+    }
+});
+// Lista "ao vivo agora": os jogos que o Futemax publica hoje na página inicial.
+const futemaxListaCache = { at: 0, dados: null };
+app.get('/api/tv/futemax/jogos', async (req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    const agora = new Date();
+    const hoje = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(agora);
+    if (futemaxListaCache.dados && Date.now() - futemaxListaCache.at < 5 * 60 * 1000) {
+        return res.json({ ...futemaxListaCache.dados, cache: true });
+    }
+    try {
+        const html = await futemaxGet()('https://futemax.ltda/', 'https://futemax.ltda/');
+        const todos = futemax.jogosDoDia(html);
+        const doDia = todos.filter(jogo => jogo.data === hoje);
+        const dados = { data: hoje, total: (doDia.length ? doDia : todos).length, jogos: (doDia.length ? doDia : todos).slice(0, 30) };
+        futemaxListaCache.at = Date.now(); futemaxListaCache.dados = dados;
+        res.json(dados);
+    } catch {
+        res.status(502).json({ error: 'Não foi possível listar os jogos do Futemax agora.' });
+    }
+});
 app.get('/api/tv/listas', (req, res) => {
     res.setHeader('Cache-Control', 'no-store');
     res.json({ listas: tvAoVivo.LISTAS.map(l => ({ id: l.id, nome: l.nome, nota: l.nota })) });

@@ -22,6 +22,7 @@ relatorios/fontes-saude.json
 
 # Dados da central de status (dispositivos, sessões e alertas de cada instalação)
 central/dados/
+central/dados-pc/
 central/config.local.json
 central/app.local.json
 
@@ -64,3 +65,10 @@ relatorios/vigia-fontes.json
 
 # Arquivos antigos tirados da raiz na reorganizacao (backups, rascunhos, pasta legada)
 _arquivo/
+
+# rascunhos e lixeira local
+_to_delete/
+fut.html
+home.html
+sonda-*.js
+testa-*.js

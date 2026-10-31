@@ -100,6 +100,9 @@ revisor.iniciar();
 // (reprodução + idioma + anúncio) antes de entrar no ranking.
 const CATEGORIAS_CACADAS = ['filme', 'serie', 'dorama', 'anime', 'tv-online', 'short-drama'];
 function cacadaAutomatica() {
+    // A caçada pesada (navegador + transcrição) agora roda no PC (Cacador-PC.cmd)
+    // para a Oracle ficar leve. Para voltar a caçar aqui: CACADA_AUTOMATICA=1.
+    if (process.env.CACADA_AUTOMATICA !== '1' && process.env.NODE_ENV !== 'test') return;
     try {
         if (cacador.rodando()) return;
         const categoria = require('./agendamento-cacador').proximaCategoria(CATEGORIAS_CACADAS, cacador.ultimo() || {});

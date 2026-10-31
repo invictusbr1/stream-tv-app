@@ -24,13 +24,21 @@ function createIntro({storage,render=()=>{},status=()=>{}}={}){
  function read(){try{const s=JSON.parse(storage?.getItem('conecta-intros-v1')||'{}');return s&&typeof s==='object'&&!Array.isArray(s)?s:{};}catch{return {};}}
  function refresh(){
   key=video?mediaKey(film,source,video.duration):null;
-  mark=key?range(saved[key],video.duration)||chapterRange(video.textTracks,video.duration):null;
+  mark=key?range(saved[key],video.duration)||chapterRange(video.textTracks,video.duration)||range(serie()[serieKey()],video.duration):null;
   render({enabled:Boolean(key),mark,show:Boolean(mark&&!video.ended&&video.currentTime>=mark.start&&video.currentTime<mark.end)});
  }
- function detach(){for(const [obj,event,fn]of listeners)obj?.removeEventListener?.(event,fn);listeners=[];video=film=source=mark=key=null;render({enabled:false,mark:null,show:false});}
+ // Aprende a abertura da série com o próprio gesto da pessoa: se nos primeiros
+ // minutos ela arrasta para frente pulando de 30 s a 4 min, esse trecho vira a
+ // abertura dos próximos episódios da mesma temporada ("Pular abertura").
+ function serieKey(){return film?`${film.id}:${film.episode?.season}`:'';}
+ function serie(){try{const d=JSON.parse(storage?.getItem('conecta-intros-serie-v1')||'{}');return d&&typeof d==='object'&&!Array.isArray(d)?d:{};}catch{return {};}}
+ let lastTime=0;
+ function learnSeek(){if(!video||!key)return;const from=lastTime,to=Number(video.currentTime);if(!(from>=3&&from<=360&&to-from>=30&&to-from<=240))return;if(range(saved[key],video.duration))return;const r=range({start:Math.floor(from),end:Math.floor(to)},video.duration);if(!r)return;const d=serie();delete d[serieKey()];d[serieKey()]=r;try{storage.setItem('conecta-intros-serie-v1',JSON.stringify(Object.fromEntries(Object.entries(d).slice(-200))));}catch{}}
+ function detach(){for(const [obj,event,fn]of listeners)obj?.removeEventListener?.(event,fn);listeners=[];video=film=source=mark=key=null;lastTime=0;render({enabled:false,mark:null,show:false});}
  function on(obj,event,fn){obj?.addEventListener?.(event,fn);listeners.push([obj,event,fn]);}
  return {attach(v,f,s){detach();if(!v||!f?.episode||s?.live)return;video=v;film=f;source=s;saved=read();status('');
-  for(const event of ['loadedmetadata','durationchange','timeupdate','seeking','ended'])on(v,event,refresh);
+  for(const event of ['loadedmetadata','durationchange','ended'])on(v,event,refresh);
+  on(v,'timeupdate',()=>{refresh();if(!v.seeking)lastTime=Number(v.currentTime)||0;});on(v,'seeking',()=>{learnSeek();refresh();});
   const chapters=()=>{for(const track of Array.from(v.textTracks||[]))if(track.kind==='chapters'&&track.mode==='disabled')track.mode='hidden';refresh();};on(v.textTracks,'addtrack',chapters);on(v.textTracks,'change',refresh);chapters();
  },detach,refresh,save(start,end){refresh();const r=range({start:timestamp(start),end:timestamp(end)},video?.duration);if(!key||!r){status('Confira os tempos: o fim deve vir depois do início, dentro deste episódio (até 10 minutos de abertura).');return false;}
   const data={...saved};delete data[key];data[key]=r;const entries=Object.entries(data).slice(-200);try{storage.setItem('conecta-intros-v1',JSON.stringify(Object.fromEntries(entries)));}catch{status('Não foi possível salvar a marcação neste aparelho.');return false;}saved=data;status('Abertura salva apenas para este episódio e esta versão do vídeo.');refresh();return true;

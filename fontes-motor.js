@@ -287,6 +287,22 @@ const FONTES = [
         }
     },
     {
+        // TH Soluções (addon público usado pelo Kairou): MP4 direto com áudio
+        // em português conferido por transcrição em 31/10/2026 (cnvods e
+        // vodshuby, filme e série). Só servidores conferidos entram
+        // (thsolucoes-source).
+        id: 'thsolucoes',
+        nome: 'Dublado · TH Soluções',
+        papel: 'dublado',
+        seAplica: alvo => alvo.tipo === 'tv' || alvo.tipo === 'movie',
+        resolverTodos: async alvo => require('./thsolucoes-source').resolverTodos(alvo.tipo, alvo.tmdbId, alvo.temporada, alvo.episodio),
+        resolver: async alvo => {
+            const objeto = typeof alvo === 'object' ? alvo : { tipo: 'movie', tmdbId: alvo };
+            const dados = await require('./thsolucoes-source').resolver(objeto.tipo, objeto.tmdbId, objeto.temporada, objeto.episodio);
+            return dados && dados.url ? dados : null;
+        }
+    },
+    {
         id: 'pipoca',
         nome: 'PipocaCine · dublado',
         papel: 'dublado',

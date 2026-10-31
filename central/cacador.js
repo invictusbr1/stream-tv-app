@@ -179,6 +179,7 @@ async function buscarResposta(url, opcoes = {}) {
 // avaliação). Serve para o caçador sinalizar e ninguém acabar cadastrando de
 // novo o que já existe.
 const JA_NO_APP = [
+    { nome: 'TH Soluções', dominios: ['thsolucoes.site', 'cnvods.com', 'vodis01.com', 'vodshuby.com'], papel: 'dublado · filmes e séries (MP4 720p)' },
     { nome: 'PROPLAYER legendado', dominios: ['assistiranimesonline.net', 'sk-ru.alibabacdn.net'], papel: 'anime legendado · MP4 no player do aplicativo · identidade do episódio conferida' },
     { nome: 'Meus Animes', dominios: ['meusanimes.blog', 'serv01.meusdoramas.club'], papel: 'anime legendado · One Piece e Solo Leveling · player incorporado' },
     { nome: 'WatchPlay', dominios: ['watchplay.shop', 'hclod.qzz.io'], papel: 'dublado · filmes e séries' },

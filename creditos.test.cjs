@@ -51,3 +51,9 @@ test('tempos fora do episódio e falha de armazenamento não são apresentados c
  const s=setup();assert.equal(s.credits.save('1:00'),false);assert.equal(s.view().mark,null);
  s.storage.setItem=()=>{throw Error();};assert.equal(s.credits.save('38:00'),false);assert.match(s.note(),/Não foi possível/);assert.equal(s.view().mark,null);
 });
+test('aprende os créditos da série quando a pessoa toca em Próximo perto do fim',()=>{
+ const s=setup();s.video.currentTime=2330;assert.equal(s.credits.learn(),true);
+ const outro={id:1399,episode:{season:1,number:3}};s.credits.attach(s.video,outro,{...source,url:'https://cdn.example/ep3.mp4'});
+ assert.equal(s.view().mark,2330);
+ s.video.currentTime=900;assert.equal(s.credits.learn(),false,'no meio do episódio não aprende');
+});

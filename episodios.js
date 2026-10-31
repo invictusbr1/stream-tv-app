@@ -16,12 +16,12 @@ function createEpisodeNavigator({request,today=()=>new Date().toISOString().slic
   const season=Number(f.episode.season),number=Number(f.episode.number);
   const current=await get(`/api/season/${f.id}/${season}`,signal);
   const later=ordered(current.episodes).find(e=>Number(e.number)>number);
-  if(later)return available(later)?{season,number:Number(later.number),name:later.name||''}:null;
+  if(later)return available(later)?{season,number:Number(later.number),name:later.name||'',...(later.image?{image:later.image}:{})}:null;
   const show=await get(`/api/tv/${f.id}`,signal);
   for(const s of ordered(show.seasons).filter(s=>Number(s.number)>season).slice(0,10)){
    if(!available(s))return null;
    const data=await get(`/api/season/${f.id}/${s.number}`,signal),first=ordered(data.episodes)[0];
-   if(first)return available(first)?{season:Number(s.number),number:Number(first.number),name:first.name||''}:null;
+   if(first)return available(first)?{season:Number(s.number),number:Number(first.number),name:first.name||'',...(first.image?{image:first.image}:{})}:null;
   }
   return null;
  }
@@ -45,8 +45,8 @@ const button=()=>document.getElementById('next-episode');
 const current=()=>target&&typeof filmeAtual!=='undefined'&&filmeAtual===target&&document.getElementById('player')?.classList.contains('ativo');
 const countdown=createCountdown({
  valid:()=>Boolean(current()&&finished&&upNext&&!busy&&!dismissed),visible:()=>!document.hidden&&!document.getElementById('direct-video')?.webkitDisplayingFullscreen&&document.fullscreenElement?.tagName!=='VIDEO'&&(!creditsActive||(!document.getElementById('direct-video')?.paused&&!document.getElementById('direct-video')?.seeking&&document.getElementById('opcoes')?.hidden!==false)),
- show:seconds=>{const panel=document.getElementById('episode-countdown');if(!panel)return;panel.hidden=false;const label=document.getElementById('episode-countdown-label');if(label)label.textContent=`Próximo episódio em ${seconds} ${seconds===1?'segundo':'segundos'}`;const detail=document.getElementById('episode-countdown-detail');if(detail&&upNext)detail.textContent=`T${upNext.season} · E${upNext.number}${upNext.name?' · '+upNext.name:''}`;},
- hide:()=>{const panel=document.getElementById('episode-countdown');if(panel)panel.hidden=true;},open:()=>{void go();}
+ show:seconds=>{const panel=document.getElementById('episode-countdown');if(!panel)return;panel.hidden=false;const label=document.getElementById('episode-countdown-label');if(label)label.textContent=`Próximo episódio em ${seconds} ${seconds===1?'segundo':'segundos'}`;const detail=document.getElementById('episode-countdown-detail');if(detail&&upNext)detail.textContent=`T${upNext.season} · E${upNext.number}${upNext.name?' · '+upNext.name:''}`;const arte=document.getElementById('episode-countdown-art');if(arte&&upNext){if(upNext.image&&/^https:\/\/image\.tmdb\.org\//.test(upNext.image)){if(arte.getAttribute('src')!==upNext.image)arte.src=upNext.image;arte.hidden=false;}else arte.hidden=true;}panel.style?.setProperty?.('--restante',String(seconds));if(panel.dataset)panel.dataset.segundos=String(seconds);},
+ hide:()=>{const panel=document.getElementById('episode-countdown');if(panel)panel.hidden=true;},open:()=>{void go(true);}
 });
 document.addEventListener?.('visibilitychange',()=>countdown.visibility());
 document.addEventListener?.('fullscreenchange',()=>countdown.visibility());
@@ -64,8 +64,11 @@ async function prepare(f){
  }catch{ /* O episódio atual continua tocando se o catálogo não responder. */ }
  finally{clearTimeout(timeout);}
 }
-async function go(){
- if(!current()||!upNext||busy)return;countdown.stop();dismissed=true;busy=true;const next=nextTarget(),b=button(),token=sequence;if(b)b.disabled=true;
+async function go(automatico){
+ if(!current()||!upNext||busy)return;
+ // "Próximo" tocado pela pessoa perto do fim ensina onde começam os créditos
+ // desta série (os próximos episódios já mostram o aviso nesse ponto).
+ if(automatico!==true){try{root.StreamCredits?.learn?.();}catch{}}countdown.stop();dismissed=true;busy=true;const next=nextTarget(),b=button(),token=sequence;if(b)b.disabled=true;
  try{root.StreamPlayback?.saveProgress?.();await abrirPlayer(next.id,next.titulo,next.episode);}catch{ /* O botão manual continua disponível se a navegação falhar. */ }finally{if(token===sequence){if(b)b.disabled=false;busy=false;}}
 }
 function matches(f){return current()&&f&&String(f.id)===String(target.id)&&Number(f.episode?.season)===Number(target.episode.season)&&Number(f.episode?.number)===Number(target.episode.number);}

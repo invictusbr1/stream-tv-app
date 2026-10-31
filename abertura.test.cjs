@@ -30,3 +30,17 @@ test('tempos inválidos e falha de armazenamento não são apresentados como sal
  const s=setup();assert.equal(s.intro.save('2:00','1:00'),false);assert.equal(s.view().mark,null);
  const broken=createIntro({storage:{getItem(){throw Error();},setItem(){throw Error();}}});broken.attach(s.video,film,source);assert.equal(broken.save('0:01','1:00'),false);
 });
+test('aprende a abertura da série quando a pessoa arrasta para frente no começo',()=>{
+ const {createIntro}=require('./abertura');const saved={};const storage={getItem:k=>saved[k],setItem:(k,v)=>saved[k]=v};const events=new Map();let view;
+ const mk=()=>({duration:1800,currentTime:0,seeking:false,ended:false,textTracks:[],addEventListener(e,f){events.set(e,f);},removeEventListener(e){events.delete(e);}});
+ const src={url:'https://cdn.example/ep.mp4',fonteId:'x'};
+ const a=createIntro({storage,render:s=>view=s});const v1=mk();a.attach(v1,{id:1405,episode:{season:1,number:3}},src);
+ v1.currentTime=12;events.get('timeupdate')();v1.seeking=true;v1.currentTime=95;events.get('seeking')();
+ assert.deepEqual(JSON.parse(saved['conecta-intros-serie-v1'])['1405:1'],{start:12,end:95});
+ const v2=mk();a.attach(v2,{id:1405,episode:{season:1,number:4}},{...src,url:'https://cdn.example/ep4.mp4'});v2.currentTime=40;events.get('timeupdate')();
+ assert.equal(view.show,true,'o episódio seguinte já oferece Pular abertura');
+ const v3=mk();a.attach(v3,{id:1405,episode:{season:2,number:1}},{...src,url:'https://cdn.example/s2.mp4'});v3.currentTime=40;events.get('timeupdate')();
+ assert.equal(view.show,false,'outra temporada não herda');
+ v3.currentTime=600;events.get('timeupdate')();v3.seeking=true;v3.currentTime=700;events.get('seeking')();
+ assert.equal(JSON.parse(saved['conecta-intros-serie-v1'])['1405:2'],undefined,'avançar no meio do episódio não é abertura');
+});

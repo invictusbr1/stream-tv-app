@@ -1005,6 +1005,9 @@ public final class MainActivity extends Activity {
     }
     private volatile ServerPlaybackTransport serverTransport;
     private volatile long serverRouteUntil;
+    // Só o MESMO título (ex.: a série que a pessoa está maratonando) volta direto
+    // ao servidor; os demais continuam no aparelho.
+    private volatile String serverRouteTitle="";
     private volatile String serverLastProblem="";
     private ServerPlaybackTransport serverTransport()throws Exception{
         ServerPlaybackTransport saved=serverTransport;if(saved!=null)return saved;
@@ -1012,6 +1015,25 @@ public final class MainActivity extends Activity {
         JSONObject discovery=new JSONObject(RelatoHttp.enviar(config.getString("descoberta"),null,2000));
         String code=config.optString("acessoCodigo",config.optString("codigo",""));if(code.isEmpty())code=discovery.optString("codigo");
         saved=new ServerPlaybackTransport(discovery.getString("endereco").replaceAll("/+$",""),code);serverTransport=saved;return saved;
+    }
+    // Rotas que só o servidor sabe responder (ex.: lista e jogo do Futemax). Só
+    // caminhos /api/tv/futemax passam; o vídeo continua no encaminhador local.
+    private WebResourceResponse rotaDoServidor(Uri uri){
+        java.net.HttpURLConnection c=null;
+        try{
+            String path=uri.getPath();if(path==null||!path.matches("/api/tv/futemax(/jogos)?"))return error(404);
+            ServerPlaybackTransport transport=serverTransport();
+            String query=uri.getEncodedQuery();
+            URL url=new URL(transport.base,path+(query==null||query.isEmpty()?"":"?"+query));
+            if(!url.getAuthority().equals(transport.base.getAuthority())||!"https".equals(url.getProtocol()))return error(502);
+            c=(java.net.HttpURLConnection)url.openConnection();c.setInstanceFollowRedirects(false);c.setConnectTimeout(10000);c.setReadTimeout(25000);
+            c.setRequestProperty("X-Conecta-Codigo",transport.code);c.setRequestProperty("Accept","application/json");
+            int status=c.getResponseCode();InputStream in=status>=400?c.getErrorStream():c.getInputStream();
+            byte[] corpo=in==null?new byte[0]:lerBytes(in);
+            if(corpo.length>1048576)return error(502);
+            return new WebResourceResponse("application/json","UTF-8",status,status>=400?"Erro":"OK",Collections.singletonMap("Cache-Control","no-store"),new ByteArrayInputStream(corpo));
+        }catch(Exception unavailable){serverTransport=null;return error(502);}
+        finally{if(c!=null)c.disconnect();}
     }
     private WebResourceResponse serverPlayback(String tipo,String id,String temporada,String episodio,java.util.Set<String> excluded,boolean hevc){return serverPlayback(tipo,id,temporada,episodio,excluded,hevc,"");}
     private WebResourceResponse serverPlayback(String tipo,String id,String temporada,String episodio,java.util.Set<String> excluded,boolean hevc,String escolhaDoAparelho){
@@ -1043,9 +1065,19 @@ public final class MainActivity extends Activity {
                 checks.put(new JSONObject().put("id",row.optString("fonteId")).put("motivo",measured?"validada":"sem_metadados").put("largura",measured?Integer.parseInt(size.group(1)):0).put("altura",measured?Integer.parseInt(size.group(2)):0).put("idioma",detail!=null&&!detail.optBoolean("dubladoNaoConfirmado")&&detail.optString("idioma").contains("portugu")?2:1).put("ms",row.optLong("ms")));
             }
             data.put("diagnosticoQualidade",diagnosis.put("fontes",checks));data.put("transporte","servidor");
-            serverRouteUntil=SystemClock.elapsedRealtime()+180000;
+            serverRouteUntil=SystemClock.elapsedRealtime()+180000;serverRouteTitle=tipo+":"+id;
             return respostaTexto("application/json",data.toString());
         }catch(Exception unavailable){serverLastProblem=QualitySelector.problem(unavailable);serverTransport=null;return null;}
+    }
+    private final LocalMediaRelay localMediaRelay=new LocalMediaRelay();
+    private WebResourceResponse midiaLocal(Uri uri,java.util.Map<String,String> requestHeaders){
+        try{
+            String alvo=uri.getQueryParameter("u"),referer=uri.getQueryParameter("r");
+            if(alvo==null||alvo.isEmpty())return error(400);
+            String range=null;for(java.util.Map.Entry<String,String> entry:requestHeaders.entrySet())if(entry.getKey().equalsIgnoreCase("Range"))range=entry.getValue();
+            LocalMediaRelay.Response response=localMediaRelay.open(alvo,referer==null?"":referer,range);
+            return new WebResourceResponse(response.mime,null,response.status,response.reason,response.headers,response.body);
+        }catch(Exception unavailable){return error(502);}
     }
     private WebResourceResponse serverMedia(Uri uri,java.util.Map<String,String> requestHeaders){
         try{
@@ -1062,19 +1094,12 @@ public final class MainActivity extends Activity {
     private WebResourceResponse qualityPlayback(String tipo,String id,String temporada,String episodio,java.util.Set<String> excluded,boolean avcOnly) {
         final QualitySelector selector=avcOnly?compatibleQualitySelector:qualitySelector;
         boolean serverTried=false;
-        if(SystemClock.elapsedRealtime()<serverRouteUntil){serverTried=true;WebResourceResponse recovered=serverPlayback(tipo,id,temporada,episodio,excluded,!avcOnly);if(recovered!=null)return recovered;serverRouteUntil=0;}
+        if(SystemClock.elapsedRealtime()<serverRouteUntil&&(tipo+":"+id).equals(serverRouteTitle)){serverTried=true;WebResourceResponse recovered=serverPlayback(tipo,id,temporada,episodio,excluded,!avcOnly);if(recovered!=null)return recovered;serverRouteUntil=0;}
         final java.util.Set<String> exceto=Collections.unmodifiableSet(new java.util.HashSet<>(excluded));
-        // A série usa primeiro a fonte do servidor: o avaliador da Oracle já
-        // entrega FrostStream/Kairou com o proxy certo. As fontes nativas podem
-        // devolver HLS/4K sem Referer e o WebView termina em "tente novamente".
-        // Filme continua no seletor nativo: ele busca o arquivo direto no CDN e
-        // preserva o 4K (3840×1600). Pelo servidor, o vídeo passaria pelo proxy
-        // da Oracle e o 4K ficaria limitado pela banda dele.
-        if(!serverTried&&"tv".equals(tipo)){
-            serverTried=true;
-            WebResourceResponse viaServer=serverPlayback(tipo,id,temporada,episodio,exceto,!avcOnly);
-            if(viaServer!=null)return viaServer;
-        }
+        // Modo autônomo: filme E série são escolhidos aqui no aparelho. O vídeo
+        // vai do fornecedor direto para o celular — HLS pelo encaminhador local
+        // (/api/hls) e arquivo com Referer pelo LocalMediaRelay. A Oracle fica
+        // só como último recurso (fim deste método), sem carregar o vídeo.
         List<QualitySelector.Source> sources=new ArrayList<>();
         boolean tv="tv".equals(tipo);
         java.util.Set<String> allowed=new java.util.HashSet<>();
@@ -1111,21 +1136,34 @@ public final class MainActivity extends Activity {
         if(chosen!=null){
             try{
                 JSONObject data=new JSONObject(chosen.json);QualitySelector.Measure m=chosen.measure;
-                if(!avcOnly&&"file".equals(chosen.type)&&chosen.referer!=null&&!chosen.referer.isEmpty()){
-                    // Arquivo direto com hotlink (FenixFlix/FrostStream/Kairou):
-                    // o WebView não manda Referer; o servidor busca e entrega o proxy.
-                    // O servidor encaminha ESTA escolha (a medida aqui, ex.: 4K com
-                    // português) — não refaz a disputa, que podia trocar a fonte.
-                    String alvoEscolhido=chosen.deliveryUrl!=null?chosen.deliveryUrl:chosen.url;
-                    String escolha="&escolhida="+Uri.encode(chosen.id)+"&u="+codificar(alvoEscolhido)+(m!=null&&m.height>0?"&altura="+m.height:"");
+                boolean viaRelay=false;
+                if("file".equals(chosen.type)&&chosen.referer!=null&&!chosen.referer.isEmpty()){
+                    // Arquivo direto com hotlink (FenixFlix/FrostStream/Kairou): o
+                    // WebView não manda Referer. Antes o vídeo inteiro (até 4K de
+                    // 7 GB) passava pela Oracle; agora o próprio aparelho busca com
+                    // o Referer certo e entrega ao player — mesma escolha, mesma
+                    // qualidade medida, sem gastar a banda do servidor.
+                    // 2.13.129 mostrou que o <video> do WebView NÃO toca esse
+                    // encaminhamento local (clickhost, FenixFlix e BestCine falharam
+                    // na hora em 31/10). Volta ao caminho que funcionava: o servidor
+                    // encaminha ESTA escolha (mesma fonte e qualidade medidas aqui).
+                    // O endereço original do fornecedor (antes do redirecionamento)
+                    // é o que o servidor reconhece como opção daquela fonte.
+                    String escolha="&escolhida="+Uri.encode(chosen.id)+"&u="+codificar(chosen.url)+(m!=null&&m.height>0?"&altura="+m.height:"");
                     WebResourceResponse viaServer=serverPlayback(tipo,id,temporada,episodio,excluded,!avcOnly,escolha);
                     if(viaServer==null)viaServer=serverPlayback(tipo,id,temporada,episodio,excluded,!avcOnly);
                     if(viaServer!=null)return viaServer;
+                    // Servidor fora do ar: último recurso pelo encaminhador local.
+                    String alvoEscolhido=chosen.deliveryUrl!=null?chosen.deliveryUrl:chosen.url;
+                    data.put("url",LocalMediaRelay.local(alvoEscolhido,chosen.referer));
+                    data.put("midiaConferida",m!=null&&m.playable&&m.width>0&&m.height>0);data.put("transporte","aparelho");
+                    viaRelay=true;
                 }
                 JSONObject diagnosis=new JSONObject().put("id",id).put("temporada",temporada==null?"":temporada).put("episodio",episodio==null?"":episodio).put("hevc",!avcOnly).put("escolhida",chosen.id);
                 JSONArray checks=new JSONArray();for(QualitySelector.Check row:selector.audit(key))checks.put(new JSONObject().put("id",row.id).put("motivo",row.reason).put("largura",row.width).put("altura",row.height).put("idioma",row.language).put("ms",row.ms));
                 data.put("diagnosticoQualidade",diagnosis.put("fontes",checks));
-                if("file".equals(chosen.type)){
+                if(viaRelay){ /* endereço local já definido acima */ }
+                else if("file".equals(chosen.type)){
                     // O WebView recebe o destino HTTPS final, sem passar pelos
                     // redirecionamentos http publicados por alguns fornecedores.
                     if(chosen.deliveryUrl!=null&&m!=null&&m.playable&&m.width>0&&m.height>0){
@@ -1611,10 +1649,8 @@ public final class MainActivity extends Activity {
                     String[] partes = path.split("/");
                     if("avc".equals(uri.getQueryParameter("compat"))||"avc".equals(uri.getQueryParameter("codec")))return qualityPlayback("tv",partes[4],partes[5],partes[6],PlaybackSources.exclusions(uri.getQueryParameter("exceto")),true);
                     java.util.Set<String> excetoSerie = PlaybackSources.exclusions(uri.getQueryParameter("exceto"));
-                    // Série: a Oracle já entrega FrostStream/Kairou proxiados com
-                    // Referer; o directEpisode nativo não consegue mandar Referer.
-                    WebResourceResponse viaServer=serverPlayback("tv",partes[4],partes[5],partes[6],excetoSerie,true);
-                    if(viaServer!=null)return viaServer;
+                    // Série também no aparelho (modo autônomo). O directEpisode
+                    // termina no servidor só se nenhuma fonte do aparelho tocar.
                     return directEpisode(partes[4], partes[5], partes[6], excetoSerie);
                 }
                 // Legendas no aparelho: quando o filme toca com o áudio original,
@@ -1623,10 +1659,15 @@ public final class MainActivity extends Activity {
                 // Encaminhador do vídeo (ver encaminharMidia): sem isso o CDN
                 // recusa o pedido que vem do WebView e o anime não abre.
                 if (path != null && "/api/tv/la18hd".equals(path)) return la18Playback();
+                // Futemax: a lista de jogos e o endereço do jogo vêm do servidor,
+                // que resolve a lista HLS; os pedaços do vídeo continuam sendo
+                // buscados pelo encaminhador do próprio aparelho.
+                if (path != null && ("/api/tv/futemax".equals(path) || "/api/tv/futemax/jogos".equals(path))) return rotaDoServidor(uri);
                 if (path != null && "/api/futebol/agenda".equals(path)) return futebolAgenda(uri);
                 if (path != null && path.matches("/api/crystal-lake/1/[1-8]/master\\.m3u8")) return crystalLakePlaylist(path.split("/")[4]);
                 if (path != null && "/api/rede-midia".equals(path)) return serverMedia(uri,request.getRequestHeaders());
                 if (path != null && "/api/hls".equals(path)) return encaminharMidia(uri);
+                if (path != null && LocalMediaRelay.PATH.equals(path)) return midiaLocal(uri,request.getRequestHeaders());
                 // Fichas de fonte (o mesmo arquivo que o computador usa): a
                 // interface lê aqui para montar as listas de canais novas.
                 if (path != null && "/perfis.json".equals(path)) {

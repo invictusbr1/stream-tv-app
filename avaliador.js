@@ -433,12 +433,16 @@ async function escolherRodada(papel, alvo, opcoes = {}) {
     const registros=resolvidas.map(item=>({item,sonda:item.prova||null,valida:item.valida!==false}));
     if(opcoes._estado)opcoes._estado.itens=registros;
     if(papel==='dublado')memoria.update(tituloKey,registros.map(r=>({id:r.item.fonte.id,dados:r.item.dados,sonda:r.sonda,invalida:!r.valida})));
+    // Espelhos: uma fonte pode publicar o mesmo filme em vários servidores
+    // (FenixFlix: Zeus funciona, Badger morto). O espelho quebrado não castiga
+    // a fonte inteira quando outro espelho dela entregou vídeo.
+    const fontesComEspelhoBom=new Set(registros.filter(r=>r.valida&&!r.item.lembrada).map(r=>r.item.fonte.id));
     const conferidas=registros
         .filter(registro => {
             const audioConfirmado=registro.sonda?.padraoPortugues||registro.sonda?.portuguesa||registro.sonda?.audios?.some(a=>/^(pt|por)(-|$)/i.test(a.lang||''))||require('./provas-idioma').idioma(motor.lerProvasDeIdioma(),tituloKey,registro.item.fonte.id,registro.item.dados)==='pt';
             if((registro.item.lembrada||registro.item.dados.exigeProva)&&(!audioConfirmado||!registro.sonda?.largura||!registro.sonda?.altura))return false;
             if (registro.valida) return true;
-            if(!registro.item.lembrada)try { motor.registrarFalha(registro.item.fonte.id, 'o endereço não entrega vídeo', `dublado:${motor.chaveDoTitulo(alvo)}`); } catch { /* segue */ }
+            if(!registro.item.lembrada&&!fontesComEspelhoBom.has(registro.item.fonte.id))try { motor.registrarFalha(registro.item.fonte.id, 'o endereço não entrega vídeo', `dublado:${motor.chaveDoTitulo(alvo)}`); } catch { /* segue */ }
             return false;
         });
     if (!conferidas.length) return null;
