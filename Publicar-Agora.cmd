@@ -2,7 +2,7 @@
 cd /d "%~dp0"
 title Publicar Conecta TV
 set LOG=%~dp0publicacao.log
-set VERSAO=2.13.131
+set VERSAO=2.13.132
 set SAIDA=%USERPROFILE%\Documents\Codex\apk-%VERSAO%
 echo Publicando o Conecta TV %VERSAO%. Leva alguns minutos, nao feche esta janela...
 echo === %date% %time% > "%LOG%"

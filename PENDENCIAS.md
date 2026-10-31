@@ -3,12 +3,12 @@
 > Este arquivo é a memória do projeto. Abrir SEMPRE no começo de uma tarefa e
 > atualizar no fim. Assim nada precisa ser repetido pelo usuário.
 
-## Profissionalização (31/10/2026, entra na 2.13.131)
+## Profissionalização (31/10/2026, entra na 2.13.132)
 
 - **Git**: versão salva e marcada (`v2.13.131`). O Publicar-Agora agora salva e marca cada versão sozinho.
 - **Canal de teste**: o Publicar-Agora publica em `latest-teste.json`, que só os aparelhos de
   `canal-teste.json` recebem (hoje: celular do Marlon, `du3q4sqeegf8w`). Depois de testar:
-  `Liberar-Para-Todos.cmd`. Enquanto a família estiver abaixo da 2.13.131 (versionCode 460), a
+  `Liberar-Para-Todos.cmd`. Enquanto a família estiver abaixo da 2.13.132 (versionCode 461), a
   publicação vai para todos automaticamente (aparelho antigo não conhece o canal de teste).
 - **Chave do painel** saiu do Abrir-Central.ps1 e do atalho .url: fica em
   `%USERPROFILE%\.streamtv\central-chave.txt` (a primeira execução migra sozinha). Ela continua no

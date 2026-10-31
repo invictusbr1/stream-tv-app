@@ -69,9 +69,9 @@ Enviar-Arquivo $apk 'application/vnd.android.package-archive'
 # Preserve download channels that are not being rebuilt in this publication.
 $manifestoAntes = Invoke-RestMethod -Uri "https://api.github.com/repos/$repo/contents/latest.json?ref=main" -Headers $headers -Method Get
 $feedAntes = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($manifestoAntes.content)) | ConvertFrom-Json
-# Só aparelhos a partir da 2.13.131 (versionCode 460) entendem o canal de
+# Só aparelhos a partir da 2.13.132 (versionCode 461) entendem o canal de
 # teste. Enquanto a família estiver abaixo disso, a versão vai para todos.
-if ($Canal -eq 'teste' -and [int]$feedAntes.versionCode -lt 460) { Write-Output 'A familia ainda nao tem o canal de teste: esta versao vai para todos.'; $Canal = 'todos' }
+if ($Canal -eq 'teste' -and [int]$feedAntes.versionCode -lt 461) { Write-Output 'A familia ainda nao tem o canal de teste: esta versao vai para todos.'; $Canal = 'todos' }
 $feed = [ordered]@{
     versionCode = $versionCode
     versionName = $release
