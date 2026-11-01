@@ -3,6 +3,14 @@
 > Este arquivo é a memória do projeto. Abrir SEMPRE no começo de uma tarefa e
 > atualizar no fim. Assim nada precisa ser repetido pelo usuário.
 
+## 2.13.133 — blindagem e sala de espera (01/11/2026, canal de teste)
+
+- Antes de mostrar a tela de erro, o player refaz a busca do zero UMA vez sozinho ("Tentando de
+  novo…"). Não repete em transmissão ao vivo, anime, falta real de fonte nem player externo (iframe).
+- Sala de espera: enquanto procura a fonte, mostra a arte do título (fundo com movimento lento, logo,
+  nota, gêneros e sinopse; no episódio, a imagem e o nome dele). Só imagem que o app já tem, sem vídeo.
+- Primeira versão publicada pelo canal de teste (só o celular do Marlon). Liberar: Liberar-Para-Todos.cmd.
+
 ## Profissionalização (31/10/2026, entra na 2.13.132)
 
 - **Git**: versão salva e marcada (`v2.13.131`). O Publicar-Agora agora salva e marca cada versão sozinho.
