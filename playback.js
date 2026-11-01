@@ -26,7 +26,7 @@ window.StreamPlayback = (() => {
     preference.append(checkbox,document.createTextNode('Abrir filmes em tela cheia'));el('fontes').before(preference);
     el('quality-select').onchange=e=>quality(e.target.value);
     el('subtitle-select').onchange=e=>setSubtitle(Number(e.target.value),true);
-    let buscaEsgotada=false;let aoVivo=false;let relogioConfirmacao=null,relatoFeito=false,relatoConfirmado=false;let aplicandoLegenda=false;let subtitleManual=false;let subtitleChoice=-1,progressFilm=null,lastSaved=0,resumeApplied=false,audioChoice=-1,speed=1,volume=1,mudo=false,arrastando=false,rotuloAudio='Dublado',fonteUsada='',fonteIdUsada='',alturaAtual=0;
+    let buscaEsgotada=false;let aoVivo=false;let relogioConfirmacao=null,relatoFeito=false,relatoConfirmado=false;let aplicandoLegenda=false;let subtitleManual=false;let subtitleChoice=-1,progressFilm=null,lastSaved=0,resumeApplied=false,audioChoice=-1,speed=1,volume=1,mudo=false,arrastando=false,rotuloAudio='Dublado',fonteUsada='',fonteIdUsada='',alturaAtual=0,alturaAnunciada=0;
     try{const guardado=localStorage.getItem('streamtv-volume');if(guardado!==null)volume=Math.min(1,Math.max(0,Number(guardado)));mudo=localStorage.getItem('streamtv-mudo')==='true';}catch{}
     try{speed=Number(localStorage.getItem('streamtv-speed'))||1;}catch{}
     if(![0.75,1,1.25,1.5,2].includes(speed))speed=1;
@@ -194,7 +194,7 @@ window.StreamPlayback = (() => {
         const ponto=posicaoAtual(),opcoes=opcoesAtuais,jaTocou=imagemConfirmada,intencao=intencaoTocar;
         // jaTocou/retomando contam à recuperação que a fonte já tinha provado que
         // funciona (imagem na tela, ou retomada de um ponto salvo nela).
-        const resumo={fonteId:fonteIdUsada,fonte:fonteUsada,audio:rotuloAudio,posicao:ponto,motivo,jaTocou,retomando:Number(ponto)>0};
+        const resumo={fonteId:fonteIdUsada,fonte:fonteUsada,audio:rotuloAudio,posicao:ponto,motivo,jaTocou,retomando:Number(ponto)>0,altura:Number(alturaAtual)||alturaAnunciada||0};
         relatoFeito=true;
         analiseAtual?.falha(motivo,ponto);
         const erro=video?.error?.code;
@@ -251,7 +251,7 @@ window.StreamPlayback = (() => {
         opcoesAtuais=recebidas;analiseAtual=recebidas.sessao||null;
         analiseAtual?.iniciar({});
         const ponto=recebidas.posicao;retomadaAlvo=ponto!==null&&ponto!==undefined&&Number.isFinite(Number(ponto))?Math.max(0,Number(ponto)):null;
-        buscaEsgotada=false;ultimaPosicao=retomadaAlvo||0;imagemConfirmada=false;relatoFeito=false;fonteIdUsada='';fonteUsada='';alturaAtual=0;audioChoice=-1;qualidadeEscolhida='best';ajustouConexao=false;
+        buscaEsgotada=false;ultimaPosicao=retomadaAlvo||0;imagemConfirmada=false;relatoFeito=false;fonteIdUsada='';fonteUsada='';alturaAtual=0;alturaAnunciada=0;audioChoice=-1;qualidadeEscolhida='best';ajustouConexao=false;
         const caminhoPedido=caminho||`/api/playback/${id}`;const preparado=urlDireta?null:usarPreparo(caminhoPedido,signal);
         let data;if(urlDireta){data={url:urlDireta,live:Boolean(fonteDireta?.live),audio:'fonte',source:fonteDireta?.nome||'Full HD',fonteId:fonteDireta?.id||'',audioInformado:fonteDireta?.audioInformado||'',type:fonteDireta?.tipo||(/\.mp4(\?|$)/i.test(urlDireta)?'file':'hls')};}else{try{data=preparado?await preparado.catch(()=>lerJson(caminhoPedido,signal)):await lerJson(caminhoPedido,signal);}catch{if(token===generation&&!(signal&&signal.aborted))analiseAtual?.falha('não foi possível consultar a fonte',retomadaAlvo||0);return false;}}// Fonte que precisa de conversão (arquivo MKV com som que o navegador não
         // toca): acompanha o andamento e começa assim que houver trecho pronto —
@@ -295,7 +295,7 @@ window.StreamPlayback = (() => {
             data={...data,url:'/api/convertido/'+encodeURIComponent(data.conversao)+'/index.m3u8',type:'hls'};
         }
         if(token!==generation||(signal&&signal.aborted)||version!==playerVersion)return false;
-        fonteIdUsada=String(data?.fonteId||'');fonteUsada=String(data?.source||'');
+        fonteIdUsada=String(data?.fonteId||'');fonteUsada=String(data?.source||'');alturaAnunciada=parseInt(data?.altura||data?.resolucao,10)||0;
         analiseAtual?.fonte({fonteId:fonteIdUsada,fonte:fonteUsada,audio:data?.audio==='pt-BR'?'Dublado':'som original'});
         const enderecoAceito=enderecoDeMidia(String(data?.url||''))||(!urlDireta&&arquivoConferidoNoAparelho(data));
         if(!enderecoAceito||(!urlDireta&&data.audio!=='pt-BR'&&!originalPermitido)){analiseAtual?.falha('a fonte não entregou vídeo no formato ou idioma esperado',retomadaAlvo||0);return false;}

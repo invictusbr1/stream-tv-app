@@ -3,6 +3,15 @@
 > Este arquivo é a memória do projeto. Abrir SEMPRE no começo de uma tarefa e
 > atualizar no fim. Assim nada precisa ser repetido pelo usuário.
 
+## 2.13.134 — 4K que cai vira Full HD (01/11/2026, canal de teste)
+
+- Dia D (1275779) em 01/11 03:14: 5 tentativas em 4K (FenixFlix/FrostStream 1606p, pela Oracle)
+  caíram uma atrás da outra por ~2 min; o MGEB 1920x800 estava medido e nunca foi usado.
+- Agora: o player conta as quedas em 4K; na segunda, pede `sem4k=1` e o seletor nativo
+  (QualitySelector.TETO, largura ≤ 2600) escolhe a melhor opção até Full HD. A rodada automática
+  de "Tentando de novo…" também herda esse limite.
+- Sala de espera: imagem mais visível, pôster como reserva e dados do "Continuar assistindo".
+
 ## 2.13.133 — blindagem e sala de espera (01/11/2026, canal de teste)
 
 - Antes de mostrar a tela de erro, o player refaz a busca do zero UMA vez sozinho ("Tentando de

@@ -97,6 +97,10 @@ final class QualitySelector implements AutoCloseable {
     QualitySelector(VerifiedMediaStore history){this(history,false);}
     QualitySelector(VerifiedMediaStore history,boolean allowHevc){this.history=history;this.allowHevc=allowHevc;}
     static long now() { return System.nanoTime()/1000000L; }
+    // Teto de largura pedido pelo player (sem4k=1) depois que o 4K caiu duas
+    // vezes: a nova escolha fica na melhor opção até Full HD, que não trava.
+    static final ThreadLocal<Integer> TETO=new ThreadLocal<>();
+    static boolean dentroDoTeto(Candidate c){Integer t=TETO.get();if(t==null||t<=0)return true;Measure m=c.measure;if(m!=null&&m.width>0)return m.width<=t;return c.declared<1400;}
 
     private static Candidate copy(Candidate c){
         Candidate n=new Candidate(c.id,c.url,c.referer,c.type,c.json,c.declared);
@@ -270,7 +274,7 @@ final class QualitySelector implements AutoCloseable {
         boolean verified=complete&&sourcesComplete;long cacheFor=drawer(snapshot.get(0))<5?1500:60000;
         for(Candidate c:snapshot){if(c.ephemeral||c.measure==null||c.measure.retryable||c.measure.playable&&(c.measure.width<=0||c.measure.height<=0))verified=false;if(c.measure!=null&&!c.measure.playable)cacheFor=1500;}
         synchronized(this){if(!closed&&verified){trim(choices,64);choices.put(key,new Entry<>(snapshot,now()+cacheFor));}}
-        for(Candidate c:snapshot)if(eligible(c))return c;
+        for(Candidate c:snapshot)if(eligible(c)&&dentroDoTeto(c))return c;
         return null;
     }
     private void assess(Candidate c,Set<String> excluded,Probe probe,long deadline,List<Candidate> found,Map<String,Check> trace,long begun) {

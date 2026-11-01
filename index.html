@@ -525,9 +525,9 @@ body:has(#opcoes:not([hidden])) #episode-countdown,body:has(#opcoes:not([hidden]
 /* ---- Sala de espera (só imagem do título, leve) ---- */
 #sala-espera{position:absolute;inset:0;z-index:0;overflow:hidden;background:#000}
 #sala-espera[hidden]{display:none}
-#sala-fundo{position:absolute;inset:-4%;width:108%;height:108%;object-fit:cover;opacity:.55;animation:salaMove 24s ease-in-out infinite alternate;will-change:transform}
+#sala-fundo{position:absolute;inset:-4%;width:108%;height:108%;object-fit:cover;opacity:.85;animation:salaMove 24s ease-in-out infinite alternate;will-change:transform}
 #sala-fundo[hidden]{display:none}
-.sala-sombra{position:absolute;inset:0;background:linear-gradient(0deg,#000 2%,#000a 38%,#0003 70%,#0008),linear-gradient(90deg,#000c,#0000 65%)}
+.sala-sombra{position:absolute;inset:0;background:linear-gradient(0deg,#000 0%,#000b 30%,#0000 62%,#0006),linear-gradient(90deg,#0009,#0000 60%)}
 .sala-info{position:absolute;left:clamp(18px,5vw,64px);right:clamp(18px,5vw,64px);bottom:clamp(96px,16vh,150px);text-align:left;max-width:640px}
 #sala-logo{max-width:min(320px,62vw);max-height:110px;object-fit:contain;object-position:left bottom;display:block;margin-bottom:12px;filter:drop-shadow(0 4px 18px #000)}
 #sala-logo[hidden]{display:none}
@@ -717,7 +717,7 @@ function pararFrame(limparEpisodios=false){if(limparEpisodios)window.StreamEpiso
 function setLoading(msg,sub=''){el('loading').classList[/\d+%/.test(sub)?'add':'remove']('loading-detailed');el('loading').classList.remove('erro');el('acoes-erro').hidden=true;el('load-msg').textContent=msg;el('load-sub').textContent=sub;el('loading').classList.add('vis');pintarSalaDeEspera();}
 // Sala de espera: enquanto a fonte é procurada, mostra a arte do próprio título
 // (imagem que o app já tem; nada de vídeo, para não pesar nem disputar internet).
-function pintarSalaDeEspera(){try{const sala=el('sala-espera');if(!sala)return;const d=window.salaDeEspera,f=typeof filmeAtual!=='undefined'?filmeAtual:null;const ok=d&&f&&String(d.id)===String(f.id)&&!el('player')?.classList.contains('anime-mode');sala.hidden=!ok;el('loading').classList.toggle('com-sala',Boolean(ok));if(!ok)return;const ep=f.episode&&d.episodio&&Number(d.episodio.season)===Number(f.episode.season)&&Number(d.episodio.number)===Number(f.episode.number)?d.episodio:null;const fundo=(ep&&ep.image)||d.fundo||d.capa||'';const img=el('sala-fundo');if(fundo&&/^https:\/\/image\.tmdb\.org\//.test(fundo)){if(img.getAttribute('src')!==fundo)img.src=fundo;img.hidden=false;}else img.hidden=true;const logo=el('sala-logo');if(d.logo&&/^https:\/\/image\.tmdb\.org\//.test(d.logo)&&!ep){if(logo.getAttribute('src')!==d.logo)logo.src=d.logo;logo.hidden=false;logo.onerror=()=>{logo.hidden=true;};}else logo.hidden=true;el('sala-titulo').textContent=ep?String(f.titulo||d.titulo||''):(logo.hidden?String(d.titulo||f.titulo||''):'');el('sala-meta').textContent=(ep?[`Episódio ${ep.number}`,ep.name].filter(Boolean):[d.ano,d.nota&&d.nota!=='N/A'?'★ '+d.nota:'',...(Array.isArray(d.generos)?d.generos.slice(0,2):[])].filter(Boolean)).join(' · ');el('sala-sinopse').textContent=String((ep&&ep.overview)||d.sinopse||'').slice(0,240);}catch{}}
+function pintarSalaDeEspera(){try{const sala=el('sala-espera');if(!sala)return;const f=typeof filmeAtual!=='undefined'?filmeAtual:null;let d=window.salaDeEspera;if(f&&(!d||String(d.id)!==String(f.id))){try{const v=(JSON.parse(localStorage.getItem('streamtv-progress')||'[]')||[]).find(x=>x&&String(x.id)===String(f.id)&&x.capa);if(v)d={id:f.id,titulo:String(v.titulo||'').replace(/\s*·\s*T\d+\s*E\d+\s*$/,''),capa:v.capa};}catch{}}const ok=d&&f&&String(d.id)===String(f.id)&&!el('player')?.classList.contains('anime-mode');sala.hidden=!ok;el('loading').classList.toggle('com-sala',Boolean(ok));if(!ok)return;const ep=f.episode&&d.episodio&&Number(d.episodio.season)===Number(f.episode.season)&&Number(d.episodio.number)===Number(f.episode.number)?d.episodio:null;const fundo=(ep&&ep.image)||d.fundo||d.capa||'';const img=el('sala-fundo');img.onerror=()=>{const reserva=d.capa&&d.capa!==img.getAttribute('src')?d.capa:'';if(reserva)img.src=reserva;else img.hidden=true;};if(fundo&&/^https:\/\/image\.tmdb\.org\//.test(fundo)){if(img.getAttribute('src')!==fundo)img.src=fundo;img.hidden=false;}else img.hidden=true;const logo=el('sala-logo');if(d.logo&&/^https:\/\/image\.tmdb\.org\//.test(d.logo)&&!ep){if(logo.getAttribute('src')!==d.logo)logo.src=d.logo;logo.hidden=false;logo.onerror=()=>{logo.hidden=true;};}else logo.hidden=true;el('sala-titulo').textContent=ep?String(f.titulo||d.titulo||''):(logo.hidden?String(d.titulo||f.titulo||''):'');el('sala-meta').textContent=(ep?[`Episódio ${ep.number}`,ep.name].filter(Boolean):[d.ano,d.nota&&d.nota!=='N/A'?'★ '+d.nota:'',...(Array.isArray(d.generos)?d.generos.slice(0,2):[])].filter(Boolean)).join(' · ');el('sala-sinopse').textContent=String((ep&&ep.overview)||d.sinopse||'').slice(0,240);}catch{}}
 // Blindagem: o erro mais comum ("a reprodução foi interrompida") costuma
 // passar na segunda tentativa. Antes de mostrar a tela de erro, o app refaz a
 // busca do zero uma vez sozinho. Transmissão ao vivo e falta real do título
@@ -729,7 +729,7 @@ function mostrarErro(msg,sub){
   // Players externos (iframe) já percorreram todas as opções: lá a tela de opções é a resposta certa.
   const viaIframe=typeof players!=='undefined'&&Array.isArray(players)&&players.length>0;
   if(chave&&!aoVivoAgora&&!viaIframe&&!f.episode?.anime&&el('player')?.classList.contains('ativo')&&!/transmiss|futebol|jogo|indispon|não tem|nenhuma fonte tem|ainda não/i.test(String(msg)+' '+String(sub||''))&&!(repeticaoAutomatica.chave===chave&&Date.now()-repeticaoAutomatica.em<180000)){
-   repeticaoAutomatica={chave,em:Date.now()};setLoading('Tentando de novo…','A primeira tentativa não abriu; buscando a fonte outra vez.');
+   repeticaoAutomatica={chave,em:Date.now(),sem4k:Boolean(typeof contextoReproducao!=='undefined'&&contextoReproducao?.quedas4k)};setLoading('Tentando de novo…','A primeira tentativa não abriu; buscando a fonte outra vez.');
    setTimeout(()=>{const g=typeof filmeAtual!=='undefined'?filmeAtual:null;if(g&&[g.id,g.episode?.season||'',g.episode?.number||''].join(':')===chave&&el('player')?.classList.contains('ativo'))tentarNovamente();},1200);return;}
  }catch{}
  setLoading(msg,sub);el('loading').classList.add('erro');el('acoes-erro').hidden=false;mostrarPedidoDoTitulo();}
@@ -773,6 +773,9 @@ function recuperarInterrupcao(contexto,version,dados){
  // nela) ganha UMA nova tentativa antes de ser trocada: quedas de rede são
  // passageiras e trocar de fonte pode baixar a qualidade (ex.: 4K → 1080p).
  contexto.repetidas=contexto.repetidas||new Set();
+ // 4K que cai duas vezes (no celular ele passa pelo servidor, que tem banda
+ // limitada): a próxima escolha fica em até Full HD, que abre e não trava.
+ if(Number(dados.altura)>=1300){contexto.quedas4k=(contexto.quedas4k||0)+1;if(contexto.quedas4k>=2)contexto.sem4k=true;}
  if((dados.jaTocou||dados.retomando)&&!contexto.repetidas.has(fonte))contexto.repetidas.add(fonte);
  else contexto.falhas.add(fonte);
  contexto.recuperacoes++;contexto.recuperando=true;
@@ -797,6 +800,8 @@ async function abrirPlayer(id,titulo,episode=null,retomada=null){
  if(!retomada)ultimoFoco=document.activeElement;
  filmeAtual={id,titulo,episode};
  const contexto=retomada?retomada.contexto:criarContextoReproducao(filmeAtual);
+ // A segunda rodada automática não insiste no 4K que já caiu nesta abertura.
+ if(!retomada&&repeticaoAutomatica?.sem4k&&repeticaoAutomatica.chave===[id,episode?.season||'',episode?.number||''].join(':')&&Date.now()-repeticaoAutomatica.em<180000)contexto.sem4k=true;
  contextoReproducao=contexto;contexto.versao=version;contexto.posicao=retomada?retomada.posicao:null;
  const valido=()=>version===playerVersion&&!req.signal.aborted&&contexto.ativo&&contexto===contextoReproducao;
  const opcoes=()=>opcoesDeReproducao(contexto,version);
@@ -829,7 +834,7 @@ async function abrirPlayer(id,titulo,episode=null,retomada=null){
    for(let attempt=0;attempt<4;attempt++){
     if(!valido())return;
     if(attempt>0)setLoading(retomada?'Retomando seu vídeo':'Testando outra fonte dublada','A opção anterior não abriu; procurando a próxima sem anúncio.');
-    const extra=tentadasDubladas.length?`?exceto=${encodeURIComponent(tentadasDubladas.join(','))}`:'';
+    const parametros=[tentadasDubladas.length?`exceto=${encodeURIComponent(tentadasDubladas.join(','))}`:'',contexto.sem4k?'sem4k=1':''].filter(Boolean);const extra=parametros.length?'?'+parametros.join('&'):'';
     const caminho=episode?`/api/playback/serie/${id}/${episode.season}/${episode.number}${extra}`:`/api/playback/${id}${extra}`;
     direct=await StreamPlayback.start(id,version,req.signal,caminho,undefined,Boolean(episode)&&(!retomada||retomada.originalPermitido)&&(!anime||audioAnime!=='dublado'),null,opcoes());
     if(!valido())return;

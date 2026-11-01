@@ -1135,7 +1135,7 @@ public final class MainActivity extends Activity {
                 if(applies){allowed.add(profileId);sources.add(QualitySelector.named(profileId,qualityProfileSource(ficha,tipo,id,temporada,episodio,exceto)));}
             }
         }catch(Exception ignored){ /* Segue com as fontes fixas se a ficha não estiver disponível. */ }
-        String key=tipo+":"+id+":"+temporada+":"+episodio+":"+new java.util.TreeSet<>(exceto)+":"+(profiles==null?0:profiles.hashCode());
+        String key=tipo+":"+id+":"+temporada+":"+episodio+":"+new java.util.TreeSet<>(exceto)+":"+(profiles==null?0:profiles.hashCode())+":"+QualitySelector.TETO.get();
         String title=tv?"tv:"+id+":"+temporada+":"+episodio:"movie:"+id;
         QualitySelector.Candidate chosen=selector.chooseVerified(key,sources,exceto,
             (candidato,prazo)->SecureDelivery.read(candidato,prazo,(delivery,end)->NativeMediaProbe.read(delivery,end,!avcOnly),end->clickHostSecureDelivery(tipo,id,temporada,episodio,candidato.url,end)),
@@ -1653,15 +1653,20 @@ public final class MainActivity extends Activity {
                 if (path != null && path.matches("/api/playback/[0-9]{1,10}")) {
                     String id = path.substring("/api/playback/".length());
                     java.util.Set<String> exceto = PlaybackSources.exclusions(uri.getQueryParameter("exceto"));
-                    return qualityPlayback("movie",id,null,null,exceto,"avc".equals(uri.getQueryParameter("compat"))||"avc".equals(uri.getQueryParameter("codec")));
+                    QualitySelector.TETO.set("1".equals(uri.getQueryParameter("sem4k"))?2600:0);
+                    try { return qualityPlayback("movie",id,null,null,exceto,"avc".equals(uri.getQueryParameter("compat"))||"avc".equals(uri.getQueryParameter("codec"))); }
+                    finally { QualitySelector.TETO.remove(); }
                 }
                 if (path != null && path.matches("/api/playback/serie/[0-9]{1,10}/[0-9]{1,3}/[1-9][0-9]{0,3}")) {
                     String[] partes = path.split("/");
+                    QualitySelector.TETO.set("1".equals(uri.getQueryParameter("sem4k"))?2600:0);
+                    try {
                     if("avc".equals(uri.getQueryParameter("compat"))||"avc".equals(uri.getQueryParameter("codec")))return qualityPlayback("tv",partes[4],partes[5],partes[6],PlaybackSources.exclusions(uri.getQueryParameter("exceto")),true);
                     java.util.Set<String> excetoSerie = PlaybackSources.exclusions(uri.getQueryParameter("exceto"));
                     // Série também no aparelho (modo autônomo). O directEpisode
                     // termina no servidor só se nenhuma fonte do aparelho tocar.
                     return directEpisode(partes[4], partes[5], partes[6], excetoSerie);
+                    } finally { QualitySelector.TETO.remove(); }
                 }
                 // Legendas no aparelho: quando o filme toca com o áudio original,
                 // o telefone busca sozinho a legenda em português (sem cadastro).
