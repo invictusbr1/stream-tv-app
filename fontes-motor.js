@@ -263,6 +263,8 @@ const FONTES = [
         nome: 'Dublado · ClickHost',
         papel: 'dublado',
         seAplica: alvo => alvo.tipo === 'movie' || alvo.tipo === 'tv',
+        // Todos os servidores do título (o sistema novo tem vários por filme).
+        resolverTodos: async alvo => require('./clickhost-source').resolverTodos(alvo.tipo, alvo.tmdbId, alvo.temporada, alvo.episodio),
         resolver: async alvo => {
             const objeto = typeof alvo === 'object' ? alvo : { tipo: 'movie', tmdbId: alvo };
             const dados = await require('./clickhost-source').resolver(objeto.tipo, objeto.tmdbId, objeto.temporada, objeto.episodio);

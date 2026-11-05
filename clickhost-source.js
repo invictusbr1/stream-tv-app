@@ -49,7 +49,98 @@ function extrair(html) {
     };
 }
 
-async function resolver(tipo, tmdbId, temporada, episodio, opcoes = {}) {
+// Sistema novo do fornecedor (visto em 05/11/2026): a página não traz mais o
+// endereço do vídeo (streamUrl vem null). Ela lista os servidores em
+// window.ApiEmbedConfig.servers e o player pede, para cada um, um token em
+// POST /embed/stream/{id}/init — chamada comum, sem captcha. O token vale
+// algumas horas e o vídeo sai do próprio embed-api (MP4 ou lista HLS).
+// Servidor fora do ar responde 502 ou uma página "Nenhuma qualidade..." — o
+// avaliador confere a mídia antes de tocar, então esses nunca chegam ao player.
+function extrairServidores(html) {
+    const texto = String(html || '');
+    const achado = texto.match(/\bservers:\s*(\[[^\n]*\])\s*,?\s*\n/);
+    if (!achado) return [];
+    let lista;
+    try { lista = JSON.parse(achado[1]); } catch { return []; }
+    if (!Array.isArray(lista)) return [];
+    return lista
+        .map((s, i) => ({ s, i }))
+        .filter(({ s }) => s && Number.isInteger(s.id) && s.id > 0 && s.id < 1e12 && !s.down && !s.is_stremio)
+        .sort((a, b) => {
+            const va = typeof a.s.speed === 'number' ? a.s.speed : Infinity;
+            const vb = typeof b.s.speed === 'number' ? b.s.speed : Infinity;
+            return (va - vb) || (a.i - b.i);
+        })
+        .map(({ s }) => ({ id: s.id, rotulo: String(s.label || 'ClickHost').replace(/[\r\n]/g, ' ').slice(0, 60), hls: s.is_hls === true }));
+}
+
+// O endereço devolvido pelo /init só vale se for do próprio embed-api, do mesmo
+// servidor pedido, com um token simples (nada de endereço livre de terceiros).
+function enderecoDoToken(id, caminhoDevolvido) {
+    const texto = String(caminhoDevolvido || '');
+    if (!new RegExp('^/embed/stream/' + id + '\\?token=[A-Za-z0-9_-]{16,512}$').test(texto)) return '';
+    return BASE + texto;
+}
+
+async function iniciar(servidor, pagina, prazo) {
+    const restante = Math.max(1, Math.min(4000, prazo - Date.now()));
+    try {
+        const r = await axios.post(`${BASE}/embed/stream/${servidor.id}/init`, null, {
+            headers: { 'User-Agent': UA, Accept: 'application/json,*/*', Referer: pagina, Origin: BASE },
+            timeout: restante, responseType: 'json', maxContentLength: 64 * 1024, validateStatus: st => st === 200,
+        });
+        const dados = typeof r.data === 'string' ? JSON.parse(r.data) : r.data;
+        if (!dados || dados.ok !== true) return null;
+        const url = enderecoDoToken(servidor.id, dados.url);
+        if (!url) return null;
+        return { url, hls: dados.is_hls === true, rotulo: servidor.rotulo };
+    } catch { return null; }
+}
+
+async function lerPagina(tipo, id, temporada, episodio, fim) {
+    for (let tentativa = 0; tentativa < 2 && Date.now() < fim; tentativa++) {
+        try {
+            const resposta = await axios.get(BASE + caminho(tipo, id, temporada, episodio), {
+                headers: { 'User-Agent': UA, Accept: 'text/html,application/xhtml+xml,*/*', Referer: BASE + '/' },
+                timeout: Math.max(1, Math.min(tentativa === 0 ? TEMPO : 2500, fim - Date.now())),
+                responseType: 'text', maxContentLength: 2 * 1024 * 1024, validateStatus: status => status === 200,
+            });
+            const html = String(resposta.data || '');
+            if (html) return html;
+        } catch { /* tenta de novo */ }
+    }
+    return '';
+}
+
+// Todas as opções do título: o arquivo direto antigo (quando ainda vier) e as
+// dos servidores com token. Até 3 servidores, os mais rápidos primeiro.
+async function resolverTodos(tipo, tmdbId, temporada, episodio, opcoes = {}) {
+    const id = String(tmdbId || '').trim();
+    const serie = tipo === 'tv' || tipo === 'series';
+    if (!/^[1-9]\d{0,9}$/.test(id)) return [];
+    if (serie && (!/^[1-9]\d{0,2}$/.test(String(temporada)) || !/^[1-9]\d{0,3}$/.test(String(episodio)))) return [];
+    const fim = Math.min(Date.now() + 7000, Number(opcoes.prazo) || Infinity);
+    const html = await lerPagina(tipo, id, temporada, episodio, fim);
+    if (!html) return [];
+    const titulo = (html.match(/contentName:\s*"([^"]+)"/) || [])[1] || '';
+    const lista = [];
+    const antigo = extrair(html);
+    if (antigo) lista.push({ url: antigo.url, audio: 'pt-BR', fonte: 'ClickHost · dublado', referer: BASE + '/', resolucao: '', type: antigo.hls ? 'hls' : 'file', final: !antigo.hls, efemera: true, exigeProva: true, titulo });
+    const pagina = BASE + caminho(tipo, id, temporada, episodio);
+    const iniciados = await Promise.all(extrairServidores(html).slice(0, 3).map(s => iniciar(s, pagina, fim)));
+    for (const s of iniciados) {
+        if (!s) continue;
+        lista.push({
+            url: s.url, audio: 'pt-BR', fonte: `ClickHost · ${s.rotulo}`, referer: BASE + '/', resolucao: '',
+            type: s.hls ? 'hls' : 'file',
+            // O vídeo sai do embed-api com Referer da página: passa pelo /api/hls.
+            final: false, efemera: true, exigeProva: true, titulo,
+        });
+    }
+    return lista;
+}
+
+async function resolverLegado(tipo, tmdbId, temporada, episodio, opcoes = {}) {
     const id = String(tmdbId || '').trim();
     const serie = tipo === 'tv' || tipo === 'series';
     if (!/^[1-9]\d{0,9}$/.test(id)) return null;
@@ -92,8 +183,13 @@ async function resolver(tipo, tmdbId, temporada, episodio, opcoes = {}) {
     };
 }
 
+async function resolver(tipo, tmdbId, temporada, episodio, opcoes = {}) {
+    const todas = await resolverTodos(tipo, tmdbId, temporada, episodio, opcoes);
+    return todas[0] || null;
+}
+
 function resolverEpisodio(tmdbId, temporada, episodio) {
     return resolver('tv', tmdbId, temporada, episodio);
 }
 
-module.exports = { resolver, resolverEpisodio, extrair, BASE };
+module.exports = { resolver, resolverTodos, resolverLegado, resolverEpisodio, extrair, extrairServidores, enderecoDoToken, BASE };
