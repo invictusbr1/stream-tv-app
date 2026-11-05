@@ -16,6 +16,56 @@ window.addEventListener?.('load',()=>{
         return resultado;
     };
 });
+// Aplicativo do PC: o vídeo toca no player do Windows (mpv), que aceita 4K
+// HEVC, MKV e som Dolby. Só liga quando a página foi aberta pelo próprio
+// aplicativo (endereço deste computador + chave da abertura).
+window.StreamPC = (() => {
+    let chave='';
+    try{
+        const local=['127.0.0.1','localhost'].includes(location.hostname);
+        const q=new URLSearchParams(location.search).get('pc');
+        if(local&&q&&/^[a-f0-9]{32,64}$/.test(q)){sessionStorage.setItem('conecta-pc',q);const limpa=new URLSearchParams(location.search);limpa.delete('pc');history.replaceState(null,'',location.pathname+(limpa.toString()?'?'+limpa:'')+location.hash);}
+        if(local)chave=sessionStorage.getItem('conecta-pc')||'';
+    }catch{}
+    // Até o player do PC terminar de instalar, os vídeos tocam no navegador
+    // como no site (nada fica esperando a instalação).
+    let pronto=false;
+    const ativo=()=>Boolean(chave)&&pronto;
+    async function api(caminho,corpo){
+        const r=await fetch('/api/pc/'+caminho,corpo===undefined?{headers:{'x-conecta-pc':chave}}:{method:'POST',headers:{'x-conecta-pc':chave,'Content-Type':'application/json'},body:JSON.stringify(corpo)});
+        const dados=await r.json().catch(()=>({}));
+        if(!r.ok){const e=new Error(dados.erro||('falhou ('+r.status+')'));e.dados=dados;throw e;}
+        return dados;
+    }
+    // Mantém o aplicativo aberto enquanto a janela existir (sem gastar: o
+    // servidor só responde quando algo muda ou a cada 20 s).
+    function faixa(texto,{erro=false,botao=null,some=0}={}){
+        let f=document.getElementById('pc-instalacao');
+        if(!texto){f?.remove();return;}
+        if(!f){f=document.createElement('div');f.id='pc-instalacao';f.setAttribute('role','status');f.style.cssText='position:fixed;right:16px;top:16px;z-index:2147483000;display:flex;gap:12px;align-items:center;max-width:min(92vw,620px);padding:12px 16px;border-radius:12px;background:#151a24;color:#fff;border:1px solid #2c3446;box-shadow:0 8px 30px #0008;font:14px/1.4 system-ui,sans-serif;pointer-events:auto';document.body.append(f);}
+        f.style.borderColor=erro?'#7a3434':'#2c3446';f.replaceChildren();
+        const t=document.createElement('span');t.textContent=texto;f.append(t);
+        if(botao){const b=document.createElement('button');b.textContent=botao.texto;b.style.cssText='padding:6px 12px;border-radius:8px;border:0;background:#fff;color:#000;cursor:pointer;font:inherit';b.onclick=botao.acao;f.append(b);}
+        const x=document.createElement('button');x.textContent='×';x.setAttribute('aria-label','Fechar aviso');x.style.cssText='background:none;border:0;color:#aaa;font-size:20px;cursor:pointer;padding:0 4px';x.onclick=()=>f.remove();f.append(x);
+        clearTimeout(faixa.t);if(some)faixa.t=setTimeout(()=>f.remove(),some);
+    }
+    async function acompanharInstalacao(){
+        let pedido=false,mostrou=false;
+        for(;;){
+            let e=null;try{e=await api('estado');}catch{}
+            const i=e?.instalacao;
+            if(i?.pronto){pronto=true;if(mostrou)faixa('Player 4K do PC pronto. Os próximos vídeos já abrem nele.',{some:6000});return;}
+            if(i&&!i.instalando&&i.erro&&pedido){faixa('Não consegui instalar o player 4K: '+i.erro+'. Os vídeos seguem tocando aqui.',{erro:true,botao:{texto:'Tentar de novo',acao:()=>{faixa('');acompanharInstalacao();}}});return;}
+            if(i&&!i.instalando&&!pedido){pedido=true;try{await api('instalar',{});}catch{}}
+            if(i?.instalando){mostrou=true;faixa('Instalando o player 4K do PC (só na primeira vez)'+(Number.isFinite(i.porcento)&&i.porcento!==null?' · '+i.porcento+'%':' · '+(i.passo||'preparando'))+'. Enquanto isso, os vídeos tocam aqui mesmo.');}
+            await new Promise(r=>setTimeout(r,i?.instalando?1500:3000));
+        }
+    }
+    if(chave){(async()=>{for(;;){try{await api('esperar?ms=20000');}catch{await new Promise(r=>setTimeout(r,5000));}}})();
+        const comecar=()=>acompanharInstalacao();
+        if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',comecar,{once:true});else comecar();}
+    return {ativo,api};
+})();
 window.StreamPlayback = (() => {
     const notaQualidade=document.querySelector('.quality');if(notaQualidade)notaQualidade.textContent='O áudio e a qualidade são definidos pela fonte; o aplicativo escolhe a melhor opção disponível.';
     const preference=document.createElement('label');preference.style.cssText='display:flex;gap:10px;align-items:center;margin:20px 0;font-size:13px';
@@ -45,7 +95,7 @@ window.StreamPlayback = (() => {
         panel.hidden=false;
         el('audio-info').textContent=portuguese(tracks[atual]||{})?'A faixa dublada em português está selecionada.':'Áudio original selecionado.';
     }
-    function saveProgress(){if(!video||!imagemConfirmada)return;if(progressFilm)window.StreamAuth?.publicarAssistindo?.(progressFilm,video.currentTime);if(progressFilm&&resumeApplied)window.StreamPersonal?.record(progressFilm,video.currentTime,video.duration);}
+    function saveProgress(){if((!video&&!pcAtivo)||!imagemConfirmada)return;const agora=pcAtivo?pcPosicao:video.currentTime,total=pcAtivo?pcDuracao:video.duration;if(progressFilm)window.StreamAuth?.publicarAssistindo?.(progressFilm,agora);if(progressFilm&&resumeApplied)window.StreamPersonal?.record(progressFilm,agora,total);}
     function resume(){if(!video||!progressFilm||resumeApplied||!Number.isFinite(video.duration)||video.duration<=0)return;const position=retomadaAlvo??window.StreamPersonal?.position(progressFilm)??0;try{if(position>=(retomadaAlvo===null?1:0)&&position<video.duration)video.currentTime=position;else if(position>=video.duration&&retomadaAlvo!==null)video.currentTime=Math.max(0,video.duration-1);resumeApplied=true;}catch{}}
     document.addEventListener('visibilitychange',()=>{if(document.hidden){saveProgress();limparEspera();analiseAtual?.pausar(posicaoAtual());}else if(verificarAtual?.()&&imagemConfirmada&&intencaoTocar&&!video.paused&&!video.ended){analiseAtual?.tocando(posicaoAtual());if(video.readyState<3)esperando(verificarAtual);}});
     window.addEventListener?.('pagehide',saveProgress);
@@ -116,9 +166,10 @@ window.StreamPlayback = (() => {
     let initialFocus=false, frameCallback=null;
     let hls=null, video=null, generation=0, settle=null, startupTimer=null, controlsTimer=null, direct=false;
     let opcoesAtuais=null,analiseAtual=null,imagemConfirmada=false,ultimaPosicao=0,retomadaAlvo=null;
+    let pcAtivo=false,pcSessao='',pcPosicao=0,pcDuracao=0;
     let travamentoTimer=null,ajusteTimer=null,voltarMelhorTimer=null,restaurado=false,removerAbort=null,verificarAtual=null,intencaoTocar=false,pausadoPeloUsuario=false,qualidadeEscolhida='best',ajustouConexao=false;
     function limparEspera(){clearTimeout(travamentoTimer);clearTimeout(ajusteTimer);travamentoTimer=null;ajusteTimer=null;}
-    function posicaoAtual(){const ponto=Number(video?.currentTime);return imagemConfirmada?(Number.isFinite(ponto)&&ponto>=0?(video?.error&&ponto===0&&!video.seeking?ultimaPosicao:ponto):ultimaPosicao):Math.max(0,retomadaAlvo||0);}
+    function posicaoAtual(){if(pcAtivo)return imagemConfirmada?pcPosicao:Math.max(0,retomadaAlvo||0);const ponto=Number(video?.currentTime);return imagemConfirmada?(Number.isFinite(ponto)&&ponto>=0?(video?.error&&ponto===0&&!video.seeking?ultimaPosicao:ponto):ultimaPosicao):Math.max(0,retomadaAlvo||0);}
     function esperando(current){
         if(!current()||!imagemConfirmada||!intencaoTocar||video.paused||video.seeking||video.ended||document.hidden)return;
         analiseAtual?.esperar(posicaoAtual());
@@ -139,7 +190,7 @@ window.StreamPlayback = (() => {
         },6000);
         travamentoTimer=setTimeout(()=>{travamentoTimer=null;if(current()&&intencaoTocar&&!video.paused&&!video.seeking&&!video.ended&&!document.hidden)failure('o vídeo ficou sem avançar');},20000);
     }
-    function stop(resultado='fechou'){window.StreamCredits?.detach();window.StreamIntro?.detach();window.StreamEpisodes?.replaying?.();window.StreamFraming?.attach(null);saveProgress();analiseAtual?.encerrar(resultado,posicaoAtual());limparEspera();removerAbort?.();removerAbort=null;intencaoTocar=false;verificarAtual=null;opcoesAtuais=null;analiseAtual=null;imagemConfirmada=false;subtitleChoice=-1;subtitleManual=false;clearTimeout(relogioConfirmacao);if(video&&frameCallback!==null&&video.cancelVideoFrameCallback)video.cancelVideoFrameCallback(frameCallback);frameCallback=null;initialFocus=false;clearTimeout(controlsTimer);el('direct-controls').hidden=true;++generation;clearTimeout(startupTimer);if(settle){settle(false);settle=null;}if(hls){hls.destroy();hls=null;}if(video){video.pause();video.removeAttribute('src');video.load();video.remove();video=null;}direct=false;el('frame').hidden=false;el('direct-resume').hidden=true;el('direct-quality').hidden=true;el('quality-limit').textContent='';subtitleMenu();}
+    function stop(resultado='fechou'){if(pcAtivo){saveProgress();pcAtivo=false;pcSessao='';window.StreamPC?.api('parar',{}).catch(()=>{});el('pc-tocando')?.remove();}window.StreamCredits?.detach();window.StreamIntro?.detach();window.StreamEpisodes?.replaying?.();window.StreamFraming?.attach(null);saveProgress();analiseAtual?.encerrar(resultado,posicaoAtual());limparEspera();removerAbort?.();removerAbort=null;intencaoTocar=false;verificarAtual=null;opcoesAtuais=null;analiseAtual=null;imagemConfirmada=false;subtitleChoice=-1;subtitleManual=false;clearTimeout(relogioConfirmacao);if(video&&frameCallback!==null&&video.cancelVideoFrameCallback)video.cancelVideoFrameCallback(frameCallback);frameCallback=null;initialFocus=false;clearTimeout(controlsTimer);el('direct-controls').hidden=true;++generation;clearTimeout(startupTimer);if(settle){settle(false);settle=null;}if(hls){hls.destroy();hls=null;}if(video){video.pause();video.removeAttribute('src');video.load();video.remove();video=null;}direct=false;el('frame').hidden=false;el('direct-resume').hidden=true;el('direct-quality').hidden=true;el('quality-limit').textContent='';subtitleMenu();}
     // Quem diz o que o aparelho toca é o próprio motor de mídia: se o MediaSource
     // aceita o codec, a versão de maior resolução é legítima (inclusive 4K HEVC no
     // APK). Sem essa prova só vale AVC — alguns aparelhos anunciam HEVC e não
@@ -219,6 +270,12 @@ window.StreamPlayback = (() => {
         // que são liberadas na hora pelo resolvedor).
         // nixplay.lat entrega o episódio dublado em MP4 (arquivo direto).
         const enderecoDeMidia=url=>/^\/api\/crystal-lake\/1\/[1-8]\/master\.m3u8$/.test(url)||/^(\/api\/(?:hls\?|rede-midia\?|midia-local\?|convertido\/)|https:\/\/[a-z0-9-]+\.hclod\.qzz\.io\/|https:\/\/pipocacine\.lat\/|https:\/\/vixsrc\.to\/|https:\/\/nixplay\.lat\/)/i.test(url)||/^https:\/\/[a-z0-9.-]+\/(?:pl\/|[^\s]*\.(?:m3u8|mp4))/i.test(url)||/^https:\/\/[a-z0-9.-]+\/api\/hls\?/i.test(url);
+        // Arquivo que o próprio navegador já abriu (imagem e tamanho lidos) na
+        // busca direta nas fontes aprovadas: endereço HTTPS sem credenciais.
+        function arquivoConferidoNoNavegador(data){
+            if(data?.transporte!=='navegador'||data?.midiaConferida!==true||data.type!=='file')return false;
+            try{const u=new URL(data.url);return u.protocol==='https:'&&!u.username&&!u.password&&(!u.port||u.port==='443');}catch{return false;}
+        }
         function arquivoConferidoNoAparelho(data){
             // Alguns CDNs removem a extensão no destino final. O Android já
             // conferiu a imagem e o conteúdo, antes de entregar esse endereço.
@@ -240,10 +297,74 @@ window.StreamPlayback = (() => {
             preparos.set(caminho,{promessa,ate:agora+Math.max(5000,Math.min(120000,Number(validadeMs)||60000))});
             return true;
         }
+        // Busca no navegador: corre junto com a consulta ao servidor (a mesma
+        // promessa do preparo, se já existir). `montar` recebe a promessa do
+        // servidor e devolve a resposta final — nunca espera mais que ela.
+        function injetar(caminho,montar){
+            try{
+                const item=preparos.get(caminho);
+                const servidor=item&&item.ate>=Date.now()?item.promessa:fetch(caminho,{cache:'no-store'}).then(r=>r.json());
+                servidor.catch?.(()=>{});
+                const promessa=Promise.resolve().then(()=>montar(servidor));promessa.catch(()=>{});
+                preparos.set(caminho,{promessa,ate:Date.now()+120000});return true;
+            }catch{return false;}
+        }
         function usarPreparo(caminho,signal){
             const item=preparos.get(caminho);if(!item||item.ate<Date.now())return null;
             preparos.delete(caminho); // uma vez só: uma nova tentativa sempre consulta de novo
             return new Promise((ok,erro)=>{if(signal?.aborted)return erro(new Error('cancelado'));signal?.addEventListener?.('abort',()=>erro(new Error('cancelado')),{once:true});item.promessa.then(ok,erro);});
+        }
+        // Entrega o vídeo ao player do PC e acompanha: imagem na tela, posição
+        // (para o "continuar assistindo") e o fim (fechou ou acabou).
+        async function tocarNoPc(data,token,version,signal){
+            const current=()=>token===generation&&version===playerVersion&&pcAtivo;
+            progressFilm=typeof filmeAtual!=='undefined'&&filmeAtual?{...filmeAtual}:null;resumeApplied=true;lastSaved=0;
+            rotuloAudio=data.audioInformado||(data.audio==='pt-BR'?'Dublado':'som original');
+            const titulo=(progressFilm?.titulo||el('titulo-player')?.textContent||'Conecta TV')+(progressFilm?.episode?` · T${progressFilm.episode.season} E${progressFilm.episode.number}`:'');
+            try{window.setLoading?.('Abrindo no player do PC','Imagem em até 4K, com o som do próprio arquivo.');}catch{}
+            let resposta=null;
+            try{resposta=await window.StreamPC.api('tocar',{url:String(data.url||''),titulo,posicao:retomadaAlvo||0});}
+            catch(e){if(token===generation&&version===playerVersion)analiseAtual?.falha('o player do PC não abriu: '+e.message,retomadaAlvo||0);return false;}
+            if(!resposta?.sessao){analiseAtual?.falha('o player do PC não abriu',retomadaAlvo||0);return false;}
+            if(token!==generation||version!==playerVersion||(signal&&signal.aborted)){window.StreamPC.api('parar',{}).catch(()=>{});return false;}
+            pcAtivo=true;pcSessao=resposta.sessao;pcPosicao=retomadaAlvo||0;pcDuracao=0;
+            if(signal){const cancelar=()=>{if(current())stop('fechou');};signal.addEventListener('abort',cancelar,{once:true});removerAbort=()=>signal.removeEventListener('abort',cancelar);}
+            return new Promise(resolve=>{
+                settle=resolve;const inicio=Date.now();
+                const aviso=()=>{let caixa=el('pc-tocando');if(!caixa){caixa=document.createElement('div');caixa.id='pc-tocando';caixa.style.cssText='position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:#000c;color:#fff;z-index:4;text-align:center;padding:24px;font-size:18px';el('player').append(caixa);}
+                    caixa.replaceChildren();const t=document.createElement('strong');t.style.fontSize='22px';t.textContent='Tocando no player do PC';const d=document.createElement('span');d.style.opacity='.8';d.textContent=[rotuloAudio,alturaAtual?(alturaAtual>=2000?'4K':alturaAtual+'p'):'',fonteUsada].filter(Boolean).join(' · ');
+                    const dica=document.createElement('span');dica.style.cssText='opacity:.65;font-size:14px';dica.textContent='No player: espaço pausa · setas avançam/voltam · F tela cheia · Esc fecha';
+                    const b=document.createElement('button');b.textContent='Parar e voltar ao catálogo';b.style.cssText='padding:10px 18px;border-radius:10px;border:0;background:#fff;color:#000;font-size:15px;cursor:pointer';b.onclick=()=>window.fechar?.();
+                    caixa.append(t,d,dica,b);};
+                const fimDoVideo=e=>{
+                    pcPosicao=Number(e.posicao)||pcPosicao;saveProgress();const ponto=pcPosicao;
+                    if(e.motivo==='eof'||(pcDuracao>60&&ponto/pcDuracao>0.92)){
+                        analiseAtual?.encerrar('concluiu',ponto);
+                        try{const f=progressFilm;if(f?.id&&f.episode)window.StreamPersonal?.markWatched?.({id:f.id,titulo:f.titulo,episode:{season:Number(f.episode.season)||1,number:Number(f.episode.number)||1}},true);}catch{}
+                    }else analiseAtual?.encerrar('fechou',ponto);
+                    pcAtivo=false;el('pc-tocando')?.remove();
+                    if(e.motivo==='eof'&&progressFilm?.episode&&window.StreamEpisodes?.finished){window.StreamEpisodes.finished(progressFilm);showControls?.();}
+                    else window.fechar?.();
+                };
+                const ciclo=async()=>{
+                    while(current()){
+                        let e=null;try{e=await window.StreamPC.api('esperar?ms=5000&sessao='+pcSessao);}catch{await new Promise(r=>setTimeout(r,1500));}
+                        if(!current())return;
+                        if(!e)continue;
+                        if(e.sessao!==pcSessao){pcAtivo=false;const d=settle;settle=null;if(d){analiseAtual?.falha('o player do PC foi trocado',retomadaAlvo||0);d(false);}return;}
+                        if(Number.isFinite(e.posicao))pcPosicao=e.posicao;if(e.duracao)pcDuracao=e.duracao;if(e.altura)alturaAtual=e.altura;
+                        if(!imagemConfirmada&&e.imagem){imagemConfirmada=true;ultimaPosicao=pcPosicao;analiseAtual?.fonte({resolucao:alturaAtual?alturaAtual+'p':''});analiseAtual?.imagem(ultimaPosicao);analiseAtual?.tocando(ultimaPosicao);clearTimeout(startupTimer);el('loading')?.classList.remove('vis');aviso();const d=settle;settle=null;d&&d(true);
+                            setTimeout(()=>{if(current()&&!relatoConfirmado){relatoConfirmado=true;relatar({tipo:'confirmacao',ok:true,fonte:fonteUsada,fonteId:fonteIdUsada,audio:rotuloAudio,resolucao:alturaAtual?alturaAtual+'p':'',taxa:'',player:'pc'});}},20000);}
+                        if(imagemConfirmada){if(e.posicao>ultimaPosicao+0.1){ultimaPosicao=e.posicao;analiseAtual?.tocando(ultimaPosicao);}if(Date.now()-lastSaved>5000){saveProgress();lastSaved=Date.now();}}
+                        if(e.terminou){
+                            if(!imagemConfirmada){const d=settle;settle=null;pcAtivo=false;analiseAtual?.falha(e.erro?'o player do PC não abriu o vídeo ('+String(e.erro).slice(0,60)+')':'o player do PC foi fechado antes da imagem',retomadaAlvo||0);d&&d(false);return;}
+                            fimDoVideo(e);return;
+                        }
+                        if(!imagemConfirmada&&Date.now()-inicio>45000){const d=settle;settle=null;window.StreamPC.api('parar',{}).catch(()=>{});pcAtivo=false;analiseAtual?.falha('o player do PC não mostrou imagem',retomadaAlvo||0);d&&d(false);return;}
+                    }
+                };
+                ciclo();
+            });
         }
         async function start(id,version,signal,caminho,urlDireta,originalPermitido,fonteDireta=null,opcoes=null){
         const recebidas=opcoes||window.StreamPlaybackOptions?.({id,version})||{};
@@ -271,7 +392,7 @@ window.StreamPlayback = (() => {
             compatTentada = true;
             try { return await lerJson(consulta+(consulta.includes('?')?'&':'?')+'compat=avc',signal); } catch { return null; }
         };
-        if (podeCompat && /^(hevc|h265)$/.test(data?.videoCodec||'') && !document.createElement('video').canPlayType('video/mp4; codecs="hvc1.2.4.L153.B0"')) {
+        if (podeCompat && !window.StreamPC?.ativo?.() && /^(hevc|h265)$/.test(data?.videoCodec||'') && !document.createElement('video').canPlayType('video/mp4; codecs="hvc1.2.4.L153.B0"')) {
             data = await consultarCompat();
             if(token!==generation||(signal&&signal.aborted)||version!==playerVersion)return false;
             if(!data)return false;
@@ -297,8 +418,9 @@ window.StreamPlayback = (() => {
         if(token!==generation||(signal&&signal.aborted)||version!==playerVersion)return false;
         fonteIdUsada=String(data?.fonteId||'');fonteUsada=String(data?.source||'');alturaAnunciada=parseInt(data?.altura||data?.resolucao,10)||0;
         analiseAtual?.fonte({fonteId:fonteIdUsada,fonte:fonteUsada,audio:data?.audio==='pt-BR'?'Dublado':'som original'});
-        const enderecoAceito=enderecoDeMidia(String(data?.url||''))||(!urlDireta&&arquivoConferidoNoAparelho(data));
+        const enderecoAceito=enderecoDeMidia(String(data?.url||''))||(!urlDireta&&arquivoConferidoNoAparelho(data))||(!urlDireta&&arquivoConferidoNoNavegador(data));
         if(!enderecoAceito||(!urlDireta&&data.audio!=='pt-BR'&&!originalPermitido)){analiseAtual?.falha('a fonte não entregou vídeo no formato ou idioma esperado',retomadaAlvo||0);return false;}
+        if(window.StreamPC?.ativo?.()&&!data.live&&data.type!=='embed')return tocarNoPc(data,token,version,signal);
         aoVivo=Boolean(data.live);el('direct-controls').classList.toggle('live-controls',aoVivo);for(const id of ['direct-progress','direct-back','direct-forward','menu-speed-btn'])el(id).hidden=aoVivo;el('direct-time').textContent=aoVivo?'AO VIVO':'0:00 / --:--';rotuloAudio=data.live?'Áudio da transmissão':data.audioInformado||(data.audio==='pt-BR'?'Dublado':'som original');fonteUsada=data.source||'';fonteIdUsada=data.fonteId||'';alturaAtual=0;relatoFeito=false;relatoConfirmado=false;progressFilm=data.live?null:typeof filmeAtual!=='undefined'?{...filmeAtual}:null;resumeApplied=false;lastSaved=0;video=document.createElement('video');video.id='direct-video';video.controls=false;video.autoplay=true;video.playsInline=true;video.preload='auto';video.tabIndex=0;video.setAttribute('aria-label',data.live?'TV ao vivo':rotuloAudio==='Dublado'?'Filme dublado':'Filme em alta definição');video.setAttribute('webkit-playsinline','');video.setAttribute('x-webkit-airplay','allow');video.style.cssText='width:100%;height:100%;object-fit:contain;background:#000';video.playbackRate=aoVivo?1:speed;try{video.volume=volume;video.muted=mudo;}catch{}atualizarVolume();el('frame').hidden=true;document.querySelector('.area-player').prepend(video);window.StreamFraming?.attach(video);window.StreamIntro?.attach(video,progressFilm,data);window.StreamCredits?.attach(video,progressFilm,data);const speedSelect=el('speed-select');if(speedSelect)speedSelect.value=String(speed);audioMenu();direct=true;showControls();
         return new Promise(resolve=>{settle=resolve;const current=()=>token===generation&&version===playerVersion;verificarAtual=current;const ready=()=>{if(!current()||!video.videoWidth||!video.videoHeight)return;
                 resume();
@@ -402,7 +524,7 @@ video.addEventListener('playing',()=>{if(!current())return;window.StreamEpisodes
     function seek(seconds){if(!aoVivo&&video&&Number.isFinite(video.duration)){const destino=Math.max(0,Math.min(video.duration,video.currentTime+seconds));ultimaPosicao=destino;analiseAtual?.buscar(destino);video.currentTime=destino;}showControls();}
     // Mover o dedo ou o mouse traz os controles de volta enquanto o vídeo roda.
     // StreamChrome centraliza toque, mouse e o relógio de todos os controles.
-    return {preparar,start,stop,play,quality,toggle,seek,showControls,setSubtitle:index=>setSubtitle(index,true),saveProgress,setSpeed,setAudio,audioMenu,setVolume,toggleMute,irPara,isActive:()=>direct,estado:()=>({buscaEsgotada,audio:rotuloAudio,legenda:subtitleChoice,fonte:fonteUsada,fonteId:fonteIdUsada,resolucao:alturaAtual?alturaAtual+'p':'',taxa:taxaAtual,posicao:posicaoAtual()})};
+    return {preparar,injetar,start,stop,play,quality,toggle,seek,showControls,setSubtitle:index=>setSubtitle(index,true),saveProgress,setSpeed,setAudio,audioMenu,setVolume,toggleMute,irPara,isActive:()=>direct,estado:()=>({buscaEsgotada,audio:rotuloAudio,legenda:subtitleChoice,fonte:fonteUsada,fonteId:fonteIdUsada,resolucao:alturaAtual?alturaAtual+'p':'',taxa:taxaAtual,posicao:posicaoAtual()})};
 })();
 function mostrarIconeTelaCheia(ativo){const b=el('fullscreen-toggle');if(!b)return;b.textContent=ativo?'⤡':'⛶';b.setAttribute('aria-label',ativo?'Sair da tela cheia':'Tela cheia');}
 window.StreamSetFullscreen=function(enabled){el('player').classList.toggle('expanded',enabled);mostrarIconeTelaCheia(enabled);};

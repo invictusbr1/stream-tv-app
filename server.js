@@ -94,6 +94,7 @@ const RAIZ = __dirname;
 const ctx = { axios, fs, path, os, RAIZ, LOCAL_CONFIG, GROQ_KEY, GEMINI_KEY, PAGE_CANDIDATES,
     DADOS_DIR, ARQ_ACESSOS, ARQ_LEGENDAS, seguranca, portao, TMDB_KEY };
 for (const registrar of [
+    require('./rotas/pc'),
     require('./rotas/aparelhos'),
     require('./rotas/jarvis'),
     require('./rotas/paginas'),
@@ -154,7 +155,8 @@ try {
 } catch (erro) { console.log('[fichas] não ligou: ' + erro.message); }
 
 if (Number(PORTA_ESCOLHIDA) !== Number(PORT)) console.log(`A porta ${PORT} já estava em uso (outra instância aberta). Usando a porta ${PORTA_ESCOLHIDA}.`);
-app.listen(PORTA_ESCOLHIDA, '0.0.0.0', () => {
+// No aplicativo do PC o servidor só atende este computador (ele abre o player).
+app.listen(PORTA_ESCOLHIDA, process.env.CONECTA_PC === '1' ? '127.0.0.1' : '0.0.0.0', () => {
     const privado = ip => /^192\.168\./.test(ip) || /^10\./.test(ip) || /^172\.(1[6-9]|2\d|3[01])\./.test(ip);
     const rede = Object.values(os.networkInterfaces()).flat()
         .filter(item => item && item.family === 'IPv4' && !item.internal)

@@ -149,12 +149,34 @@ async function publish(expected) {
     }
     throw new Error('A publicação ultrapassou o prazo do monitor. O trabalho do servidor pode continuar; confira o status antes de repetir.');
 }
-function lock() {
+// O número do processo antigo pode ter sido reaproveitado pelo Windows por
+// outro programa (o monitor morreu e o cadeado ficou). Só conta como monitor
+// vivo o processo cujo comando é mesmo este arquivo.
+function ehMonitor(pid) {
+    try {
+        if (process.platform === 'win32') {
+            const { spawnSync } = require('node:child_process');
+            const r = spawnSync('powershell.exe', ['-NoProfile', '-Command', `(Get-CimInstance Win32_Process -Filter "ProcessId=${Number(pid)}").CommandLine`], { encoding: 'utf8', windowsHide: true, timeout: 15000 });
+            return /publicar-automatico/i.test(String(r.stdout || ''));
+        }
+        return /publicar-automatico/.test(fs.readFileSync(`/proc/${Number(pid)}/cmdline`, 'utf8'));
+    } catch { return true; } // na dúvida, respeita o cadeado
+}
+function vivo(pid) { try { process.kill(pid, 0); return true; } catch { return false; } }
+// forcar: o botão "Atualizar servidor" pediu a publicação agora — o monitor
+// automático (que o botão religa em seguida) é encerrado para não disputar.
+function lock(forcar = false) {
     const file = path.join(STATE, 'monitor.lock');
     if (fs.existsSync(file)) {
         const old = readJson(file);
-        if (old.pid) { try { process.kill(old.pid, 0); return false; } catch {} }
-        fs.unlinkSync(file);
+        if (old.pid && old.pid !== process.pid && vivo(old.pid) && ehMonitor(old.pid)) {
+            if (!forcar) return false;
+            try { process.kill(old.pid); } catch { /* já saiu */ }
+            const fim = Date.now() + 10000;
+            while (vivo(old.pid) && Date.now() < fim) { const t = Date.now() + 250; while (Date.now() < t) { /* espera curta */ } }
+            if (vivo(old.pid)) return false;
+        }
+        try { fs.unlinkSync(file); } catch { /* já removido */ }
     }
     fs.writeFileSync(file, JSON.stringify({ pid: process.pid }), { flag: 'wx' });
     const release = () => { if (readJson(file).pid === process.pid) fs.unlinkSync(file); };
@@ -166,7 +188,7 @@ function lock() {
 async function main() {
     fs.mkdirSync(STATE, { recursive: true });
     if (process.argv.includes('--status')) { console.log(JSON.stringify(readJson(STATUS), null, 2)); return; }
-    if (!lock()) throw new Error('O monitor já está em execução.');
+    if (!lock(process.argv.includes('--once'))) throw new Error('O monitor já está em execução.');
     if (process.argv.includes('--once')) { await publish(fingerprint()); return; }
     if (!process.argv.includes('--watch')) throw new Error('Use --watch, --once ou --status.');
     log('Monitor iniciado. Aguardando dois minutos sem alterações.');

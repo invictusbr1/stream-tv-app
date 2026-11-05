@@ -84,6 +84,10 @@ code{background:#ffffff10;padding:2px 6px;border-radius:6px;font-size:12.5px}
   <section class="cartoes" id="cartoes"></section>
   <div class="grade">
     <div>
+      <section class="bloco" id="relatos">
+        <h2>Relatos da família <small id="relatos-nota"></small></h2>
+        <div id="relatos-lista" style="padding:0 14px 14px"></div>
+      </section>
       <section class="bloco" id="relatorio-semana">
         <h2>Relatório da semana <small id="relatorio-nota">últimos 7 dias</small></h2>
         <div id="relatorio-cartoes" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;padding:0 14px 12px"></div>
@@ -534,8 +538,17 @@ async function carregarRelatorio(){
     el('relatorio-titulos').innerHTML='<b>Títulos que não abriram:</b> '+(r.titulosQueFalharam.map(t=>`${esc(t.titulo)}${t.vezes>1?' ×'+t.vezes:''}`).join(' · ')||'nenhum');
   }catch{ /* o relatório é opcional */ }
 }
+async function carregarRelatos(){
+  try{
+    const r=await (await fetch('/api/feedback',{cache:'no-store'})).json();
+    el('relatos-nota').textContent=r.novos?`${r.novos} novo(s)`:'nenhum novo';
+    if(r.novos)document.title='('+r.novos+') '+document.title.replace(/^\(\d+\) /,'');
+    el('relatos-lista').innerHTML=r.itens.length?r.itens.slice(0,30).map(i=>`<div style="padding:10px 12px;margin-top:8px;border-radius:12px;border:1px solid ${i.status==='novo'?'#e5091466':'#ffffff14'};background:${i.status==='novo'?'#e509140f':'#ffffff05'}"><div style="display:flex;gap:8px;justify-content:space-between;align-items:center"><b>${esc(i.categoria)}</b><span class="mini">${esc(new Date(i.em).toLocaleString('pt-BR'))}</span></div><div style="margin:6px 0">${esc(i.mensagem||'(sem texto)')}</div><div class="mini">${esc(i.nome||'')} · ${esc(i.aparelho||'')} · v${esc(i.versao||'?')}${i.titulo?' · '+esc(i.titulo):''}${i.fonte?' · '+esc(i.fonte):''}${i.resolucao?' · '+esc(i.resolucao):''}</div>${i.status==='novo'?`<button data-relato="${esc(i.id)}" style="margin-top:8px">Marcar como resolvido</button>`:'<div class="mini" style="color:#5ce08d;margin-top:6px">✓ resolvido</div>'}</div>`).join(''):'<p class="mini">Nenhum relato ainda.</p>';
+    el('relatos-lista').querySelectorAll('button[data-relato]').forEach(b=>b.onclick=async()=>{b.disabled=true;await fetch('/api/feedback/resolver',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:b.dataset.relato})});carregarRelatos();});
+  }catch{ /* opcional */ }
+}
 async function carregar() {
-  carregarRelatorio();
+  carregarRelatorio();carregarRelatos();
   try {
     const resposta = await fetch('/api/status', { cache: 'no-store' });
     if (resposta.status === 401) { location.href = '/'; return; }

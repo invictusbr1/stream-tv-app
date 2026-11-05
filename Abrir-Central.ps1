@@ -8,7 +8,7 @@ $cfgPath = Join-Path $env:USERPROFILE '.conecta-tv-vm.json'
 # %USERPROFILE%\.streamtv\central-chave.txt. Na primeira vez, este script a
 # guarda la e apaga a copia daqui de dentro.
 $arqChave = Join-Path $env:USERPROFILE '.streamtv\central-chave.txt'
-$chaveAntiga = 'PQnYImIbflK2JbnmLr9Vs49d'
+$chaveAntiga = ''
 $chavePainel = ''
 if (Test-Path -LiteralPath $arqChave) { $chavePainel = (Get-Content -LiteralPath $arqChave -Raw).Trim() }
 if (-not $chavePainel -and $chaveAntiga) {

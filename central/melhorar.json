@@ -1,0 +1,7 @@
+{
+  "comoUsar": "Titulos que abrem com qualidade baixa. O cacador procura uma fonte dublada em 1080p ou mais para cada um (a cada rodada, com espera maior quando nao acha). tipo: movie ou tv; tmdbId: numero do TMDB.",
+  "titulos": [
+    { "tipo": "tv", "tmdbId": 1405, "temporada": 1, "episodio": 1, "titulo": "Dexter (2006)" },
+    { "tipo": "movie", "tmdbId": 70160, "titulo": "Jogos Vorazes" }
+  ]
+}

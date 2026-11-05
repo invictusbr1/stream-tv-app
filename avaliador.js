@@ -65,6 +65,15 @@ function analisarPlaylist(texto) {
     return { mestre, altura, largura, banda, audios, legendas };
 }
 
+// Duração de uma lista de mídia completa (soma dos #EXTINF). Só vale para
+// lista fechada (#EXT-X-ENDLIST); lista mestre não tem duração.
+function duracaoDaLista(texto) {
+    if (!/#EXT-X-ENDLIST/.test(texto)) return 0;
+    let total = 0;
+    for (const m of String(texto).matchAll(/#EXTINF:\s*([\d.]+)/g)) total += Number(m[1]) || 0;
+    return total > 0 ? total : 0;
+}
+
 async function sondarLista(url, referer) {
     const cabecalhos = { 'User-Agent': UA, Accept: '*/*' };
     const referencia = referer || midia.refererPadrao(new URL(url).hostname);
@@ -72,6 +81,8 @@ async function sondarLista(url, referer) {
     const resposta = await axios.get(url, { headers: cabecalhos, timeout: TEMPO_SONDAR, responseType: 'text', maxContentLength: 1024 * 1024 });
     const texto = String(resposta.data || '');
     const analise = analisarPlaylist(texto);
+    const duracaoLista = duracaoDaLista(texto);
+    if (duracaoLista) analise.duracao = duracaoLista;
     // Listas de qualidade única não declaram RESOLUTION. Mede um segmento
     // claro da própria origem, inclusive quando o fornecedor usa sufixo .js.
     // Não segue aqui endereços de outro domínio, chaves ou listas criptografadas.
@@ -128,6 +139,7 @@ async function sondarArquivo(url, referer, opcoes = {}) {
         legendas: [],
         portuguesa: Boolean(portuguesa),
         padraoPortugues: Boolean(portuguesa && portuguesa.padrao),
+        ...(faixas.duracao > 0 ? { duracao: faixas.duracao } : {}),
     };
 }
 
@@ -437,8 +449,17 @@ async function escolherRodada(papel, alvo, opcoes = {}) {
     // (FenixFlix: Zeus funciona, Badger morto). O espelho quebrado não castiga
     // a fonte inteira quando outro espelho dela entregou vídeo.
     const fontesComEspelhoBom=new Set(registros.filter(r=>r.valida&&!r.item.lembrada).map(r=>r.item.fonte.id));
+    // Filme errado: alguns fornecedores procuram pelo NOME e entregam outro
+    // filme com o mesmo título (Os Suspeitos 2013 → Os Suspeitos 1995). A
+    // duração medida do arquivo é comparada com a do TMDB; muito diferente,
+    // a opção sai da disputa.
+    const esperada=registros.some(r=>r.sonda?.duracao>0)?await prazo(require('./duracao-titulo').minutos(alvo),2500).catch(()=>0):0;
     const conferidas=registros
         .filter(registro => {
+            if(require('./duracao-titulo').outroTitulo(esperada,registro.sonda?.duracao)){
+                try{motor.registrarFalha(registro.item.fonte.id,'entregou outro título (duração diferente)',`dublado:${motor.chaveDoTitulo(alvo)}`);}catch{/* segue */}
+                return false;
+            }
             const audioConfirmado=registro.sonda?.padraoPortugues||registro.sonda?.portuguesa||registro.sonda?.audios?.some(a=>/^(pt|por)(-|$)/i.test(a.lang||''))||require('./provas-idioma').idioma(motor.lerProvasDeIdioma(),tituloKey,registro.item.fonte.id,registro.item.dados)==='pt';
             if((registro.item.lembrada||registro.item.dados.exigeProva)&&(!audioConfirmado||!registro.sonda?.largura||!registro.sonda?.altura))return false;
             if (registro.valida) return true;

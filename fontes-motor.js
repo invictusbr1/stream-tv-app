@@ -402,6 +402,9 @@ function placarReal() {
 }
 
 function fontesDePerfil() {
+    // Testes do motor usam só as fontes que eles mesmos montam (as fichas reais
+    // da pasta do usuário fariam consultas de verdade e mudariam o resultado).
+    if (process.env.CONECTA_SEM_FICHAS === '1') return [];
     let lista = [];
     try { lista = perfisLocais.perfis(); } catch { lista = []; }
     return perfisMotor.perfisValidos(lista).map(perfil => {

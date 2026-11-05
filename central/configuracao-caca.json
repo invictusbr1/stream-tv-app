@@ -1,0 +1,30 @@
+{
+  "_LEIA": "Configuração do caçador (parte do SeleniumBase). Edite SÓ os valores à direita dos dois-pontos e salve. Não apague as chaves { } do começo e do fim nem as aspas. Cada opção tem uma linha _explica logo acima.",
+
+  "_explica_seleniumbase_ligado": "true = usa o SeleniumBase. false = desliga.",
+  "seleniumbase_ligado": true,
+
+  "_explica_quando_usar": "\"reserva\" = só quando o navegador escondido de antes falha. \"sempre\" = SeleniumBase em toda página.",
+  "quando_usar": "sempre",
+
+  "_explica_janela_visivel": "false = Chrome escondido. true = Chrome aparece na tela.",
+  "janela_visivel": true,
+
+  "_explica_bloquear_anuncios": "true = bloqueia anúncios ao abrir a página. false = abre como ela é.",
+  "bloquear_anuncios": true,
+
+  "_explica_segundos_observando": "Segundos olhando a página e anotando vídeos/players. De 4 a 45.",
+  "segundos_observando": 25,
+
+  "_explica_tempo_para_abrir": "Segundos esperando a página carregar. De 5 a 90.",
+  "tempo_para_abrir": 40,
+
+  "_explica_verificacao_de_robo": "\"recusar\" = pula página com verificação de robô. \"manual\" = abre o Chrome VISÍVEL para VOCÊ resolver; depois o robô continua.",
+  "verificacao_de_robo": "manual",
+
+  "_explica_tempo_para_voce_resolver": "No modo manual: segundos esperando você resolver. De 30 a 600.",
+  "tempo_para_voce_resolver": 240,
+
+  "_explica_python": "Caminho do python.exe com o SeleniumBase. Vazio (\"\") = comando python normal.",
+  "python": ""
+}

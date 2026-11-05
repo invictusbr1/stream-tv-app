@@ -1,3 +1,5 @@
+// As fichas do caçador guardadas neste PC não entram nos testes do motor.
+process.env.CONECTA_SEM_FICHAS = '1';
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const motor = require('./fontes-motor');

@@ -233,12 +233,30 @@ function idiomaNaLista(texto) {
     return null;
 }
 
+// Certificado https do servidor do vídeo. O ffprobe NÃO confere certificado,
+// mas o celular (WebView) e o navegador conferem: vídeo em servidor com
+// certificado inválido "passava" no teste e dava erro 4 no app (BsCine, 02/11).
+const ERROS_DE_CERTIFICADO = /CERT|SELF_SIGNED|UNABLE_TO_VERIFY|UNABLE_TO_GET_ISSUER|ALTNAME|ERR_TLS|DEPTH_ZERO/i;
+function erroDeCertificado(codigo) { return ERROS_DE_CERTIFICADO.test(String(codigo || '')); }
+function certificadoValido(url, { tempo = 8000 } = {}) {
+    return new Promise(ok => {
+        let alvo; try { alvo = new URL(url); } catch { return ok({ ok: true }); }
+        if (alvo.protocol !== 'https:') return ok({ ok: true });
+        const req = require('https').request(alvo, { method: 'GET', headers: { Range: 'bytes=0-0', 'User-Agent': 'Mozilla/5.0' }, timeout: tempo }, res => { res.resume(); ok({ ok: true }); });
+        req.on('error', e => ok(erroDeCertificado(e.code) ? { ok: false, erro: e.code } : { ok: true }));
+        req.on('timeout', () => { req.destroy(); ok({ ok: true }); });
+        req.end();
+    });
+}
+
 // Sondagem rápida: a fonte está viva? qual resolução? qual idioma pelo arquivo?
 // Junta o ffprobe (que já leva poucos segundos) com a leitura da lista.
 async function sondagemRapida(url, referer = '') {
     const inicio = Date.now();
     const saida = { viva: false, ms: 0, container: '', altura: 0, idiomas: [], dublado: null, evidencia: '' };
     if (!url) return saida;
+    const cert = await certificadoValido(url).catch(() => ({ ok: true }));
+    if (!cert.ok) { saida.certificadoInvalido = true; saida.evidencia = `certificado https inválido (${cert.erro})`; saida.ms = Date.now() - inicio; return saida; }
     const ehLista = /\.m3u8(\?|$)/i.test(url);
     try {
         if (ehLista) {
@@ -255,7 +273,11 @@ async function sondagemRapida(url, referer = '') {
         if (faixas) {
             saida.viva = true;
             saida.container = faixas.container;
-            saida.altura = faixas.imagem.altura || 0;
+            // Filme em tela larga (1920×800) é Full HD: a "altura" usada nas notas
+            // é a equivalente pela largura; a medida crua fica em alturaReal.
+            saida.largura = faixas.imagem.largura || 0;
+            saida.alturaReal = faixas.imagem.altura || 0;
+            saida.altura = Math.round(require('../politica-fontes').alturaEquivalente(saida.largura, saida.alturaReal)) || saida.alturaReal;
             saida.idiomas = faixas.faixas.map(f => f.idioma).filter(Boolean);
             const pt = faixas.faixas.find(f => /^pt|por/.test(f.idioma));
             // Faixa marcada como "und" (indefinida) NÃO prova que o áudio é de
@@ -532,6 +554,7 @@ async function verificarIdioma({ url, referer = '', tipo = 'movie', amostra, fon
 function limparCache() { cache = null; }
 
 module.exports = {
+    certificadoValido, erroDeCertificado,
     garantirFerramentas, faixasDeAudio, ouvirIdioma, verificarIdioma,
     parecePortugues, extrairDoZip, chaveDoTitulo, lerCache, gravarCache, limparCache, audioTocaNoNavegador,
     arquivoCache, PASTA,

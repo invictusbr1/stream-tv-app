@@ -322,7 +322,8 @@ function criarVerificadorNavegador(deps = {}) {
             if (sinalExterno.aborted) cancelarExterno();
         }
         signal = controle.signal;
-        const resultado = () => ({ videos: [...videos].slice(0, 10), api: api.slice(0, 8), chamadas: chamadas.slice(0, 20), pedidos: [...pedidos].slice(0, 120) });
+        const molduras = new Set();
+        const resultado = () => ({ videos: [...videos].slice(0, 10), api: api.slice(0, 8), chamadas: chamadas.slice(0, 20), pedidos: [...pedidos].slice(0, 120), molduras: [...molduras].slice(0, 40) });
         try {
             liberar = await reservar(signal);
             browser = await abrirNavegador(puppeteer, { executablePath: navegador, headless: 'new',
@@ -384,7 +385,19 @@ function criarVerificadorNavegador(deps = {}) {
                 const video = document.querySelector('video');
                 if (video) { try { const tentativa = video.play(); if (tentativa && tentativa.catch) tentativa.catch(() => {}); } catch (e) { /* segue */ } }
             })()`), limites.etapaMs, signal).catch(erro => { if (signal && signal.aborted) throw erro; });
+            // Botões de "servidor/opção/dublado": clica um por um e anota o player
+            // que cada um coloca na tela (iframe ou endereço em data-*).
+            const achadosNaTela = await comPrazo(pag.evaluate(`(async () => {
+                const ler = el => el.getAttribute('src') || el.getAttribute('data-src') || el.getAttribute('data-url') || el.getAttribute('data-link') || el.getAttribute('data-player') || el.getAttribute('data-embed') || '';
+                const coletar = () => [...document.querySelectorAll('iframe, [data-url], [data-src], [data-link], [data-player], [data-embed]')].map(ler).filter(Boolean);
+                const vistos = new Set(coletar());
+                const botoes = [...document.querySelectorAll('[data-url], [data-player], [data-embed], [data-link], .server, .servidor, .opcao, .option, [class*=server], [class*=servidor], [class*=player-option], [class*=dublado], [class*=dub], li[data-id]')].slice(0, 8);
+                for (const b of botoes) { try { b.click(); } catch (e) {} await new Promise(r => setTimeout(r, 900)); coletar().forEach(x => vistos.add(x)); }
+                return [...vistos].slice(0, 40).map(x => { try { return new URL(x, location.href).href; } catch (e) { return ''; } }).filter(Boolean);
+            })()`), limites.etapaMs + 9000, signal).catch(erro => { if (signal && signal.aborted) throw erro; return []; });
+            for (const x of Array.isArray(achadosNaTela) ? achadosNaTela : []) molduras.add(String(x).slice(0, 400));
             await comPrazo(pausa(segundosLimitados(segundos, 18) * 1000, signal), 46000, signal);
+            try { for (const f of pag.frames()) { const u = f.url(); if (/^https?:/.test(u)) molduras.add(u.slice(0, 400)); } } catch { /* página fechou */ }
             await comPrazo(Promise.allSettled([...leituras]), limites.respostaMs, signal).catch(erro => { if (signal && signal.aborted) throw erro; });
             coletando = false;
             return { ok: true, ...resultado() };

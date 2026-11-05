@@ -1,0 +1,354 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Painel Conecta TV</title>
+<style>
+  :root {
+    --fundo: #0f1218; --cartao: #171b24; --cartao2: #1d2230; --linha: #2a3142;
+    --texto: #e8ecf3; --suave: #9aa4b8; --azul: #4c8dff; --verde: #2fbf71; --vermelho: #ef5350; --amarelo: #f5b942;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--fundo); color: var(--texto); font: 14px/1.45 "Segoe UI", system-ui, sans-serif; }
+  header { display: flex; align-items: center; gap: 12px; padding: 14px 20px; border-bottom: 1px solid var(--linha); background: #121620; position: sticky; top: 0; z-index: 2; }
+  header h1 { font-size: 18px; margin: 0; font-weight: 600; }
+  header .versao { color: var(--suave); font-size: 13px; }
+  header .espaco { flex: 1; }
+  .logo { width: 30px; height: 30px; border-radius: 8px; background: linear-gradient(135deg, #4c8dff, #8b5cf6); display: grid; place-items: center; font-weight: 700; }
+  main { display: grid; grid-template-columns: minmax(340px, 470px) 1fr; gap: 16px; padding: 16px 20px; height: calc(100vh - 61px); }
+  .coluna { overflow: auto; display: flex; flex-direction: column; gap: 14px; padding-right: 4px; }
+  section { background: var(--cartao); border: 1px solid var(--linha); border-radius: 12px; padding: 14px; }
+  section h2 { margin: 0 0 4px; font-size: 15px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+  section p.dica { margin: 0 0 10px; color: var(--suave); font-size: 12.5px; }
+  .botoes { display: flex; flex-wrap: wrap; gap: 8px; }
+  button { font: inherit; border: 1px solid var(--linha); background: var(--cartao2); color: var(--texto); padding: 8px 12px; border-radius: 8px; cursor: pointer; }
+  button:hover { border-color: var(--azul); }
+  button.principal { background: var(--azul); border-color: var(--azul); color: #fff; }
+  button.perigo { border-color: #5a2a2a; color: #ffb4b4; }
+  button:disabled { opacity: .5; cursor: default; }
+  textarea, input { width: 100%; font: 13px/1.4 Consolas, monospace; background: #0d1016; color: var(--texto); border: 1px solid var(--linha); border-radius: 8px; padding: 8px; }
+  textarea { min-height: 110px; resize: vertical; }
+  .linha { display: flex; gap: 8px; align-items: center; }
+  .linha input { flex: 1; }
+  .pilula { font-size: 11.5px; padding: 2px 8px; border-radius: 99px; background: var(--cartao2); color: var(--suave); border: 1px solid var(--linha); }
+  .pilula.ligado { color: #b8f5d3; border-color: #1f6b44; background: #123122; }
+  .direita { display: flex; flex-direction: column; min-height: 0; background: var(--cartao); border: 1px solid var(--linha); border-radius: 12px; }
+  .abas { display: flex; gap: 6px; padding: 10px; border-bottom: 1px solid var(--linha); overflow-x: auto; flex-shrink: 0; }
+  .aba { white-space: nowrap; font-size: 12.5px; padding: 6px 10px; display: flex; align-items: center; gap: 6px; }
+  .aba.ativa { border-color: var(--azul); background: #1b2a47; }
+  .ponto { width: 8px; height: 8px; border-radius: 50%; background: var(--suave); }
+  .ponto.rodando { background: var(--amarelo); animation: pulsar 1s infinite; }
+  .ponto.ok { background: var(--verde); }
+  .ponto.erro { background: var(--vermelho); }
+  @keyframes pulsar { 50% { opacity: .3; } }
+  .cabeca { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-bottom: 1px solid var(--linha); flex-shrink: 0; }
+  .cabeca strong { flex: 1; }
+  .cabeca .tempo { color: var(--suave); font-size: 12px; }
+  #log { flex: 1; overflow: auto; margin: 0; padding: 12px 14px; font: 12.5px/1.5 Consolas, monospace; white-space: pre-wrap; word-break: break-word; color: #cfd6e4; }
+  #log .ok { color: #7ee2a8; } #log .ruim { color: #ff9a9a; } #log .info { color: #9fc1ff; }
+  #resultado { border-top: 1px solid var(--linha); max-height: 45%; overflow: auto; padding: 10px 14px; flex-shrink: 0; }
+  #resultado:empty { display: none; }
+  table { width: 100%; border-collapse: collapse; font-size: 12.5px; margin-bottom: 10px; }
+  th, td { text-align: left; padding: 5px 6px; border-bottom: 1px solid var(--linha); vertical-align: top; }
+  th { color: var(--suave); font-weight: 500; }
+  td.link { max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .st-aprovada { color: #7ee2a8; font-weight: 600; } .st-recusada { color: #ff9a9a; } .st-ja { color: #9fc1ff; } .st-ignorado { color: var(--suave); }
+  .vazio { color: var(--suave); padding: 40px; text-align: center; }
+  #aviso { position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%); background: #3a1e1e; border: 1px solid #7a3434; color: #ffd0d0; padding: 10px 16px; border-radius: 10px; display: none; max-width: 80vw; z-index: 5; }
+  @media (max-width: 860px) { main { grid-template-columns: 1fr; height: auto; } .direita { min-height: 70vh; } }
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">C</div>
+  <h1>Painel Conecta TV</h1>
+  <span class="versao" id="versao"></span>
+  <span class="espaco"></span>
+  <button class="perigo" id="fechar" title="Para tudo e fecha o painel">Fechar painel</button>
+</header>
+<main>
+  <div class="coluna">
+    <section id="novidades" hidden style="border-color:#1f6b44;background:#102519">
+      <h2>★ Fonte nova aprovada</h2>
+      <ul id="novidadesLista" style="margin:6px 0 0;padding-left:18px"></ul>
+    </section>
+    <section>
+      <h2>Servidor (Oracle)</h2>
+      <p class="dica">O site e o servidor da família. "Atualizar" envia a versão desta pasta (5 a 20 min).</p>
+      <div class="botoes">
+        <button class="principal" data-acao="oracle-atualizar" data-confirmar="Enviar a versão desta pasta para a Oracle agora?">Atualizar servidor</button>
+        <button data-acao="oracle-status">Ver estado</button>
+        <button data-acao="oracle-recarregar" data-confirmar="Reiniciar o app na Oracle? Quem estiver assistindo pode ter uma pausa de alguns segundos.">Recarregar fontes</button>
+      </div>
+    </section>
+
+    <section>
+      <h2>Aplicativo (APK)</h2>
+      <p class="dica">Publicar manda a versão nova só para o seu celular (canal de teste). Depois de testar, libere para a família.</p>
+      <div class="botoes">
+        <button class="principal" data-acao="app-publicar" data-confirmar="Testar, compilar e publicar o app no canal de teste? Leva alguns minutos.">Publicar app (teste)</button>
+        <button data-acao="app-liberar" data-confirmar="Liberar para TODOS a versão que está no canal de teste?">Liberar para a família</button>
+      </div>
+    </section>
+
+    <section>
+      <h2>Caçador de fontes <span class="pilula" id="estadoCacador">desligado</span></h2>
+      <p class="dica">Procura fontes para os títulos que falharam e para as novelas. Ligado, roda a cada rodada enquanto este PC estiver ligado.</p>
+      <div class="botoes">
+        <button class="principal" id="cacadorBotao" data-acao="cacador-ligar">Ligar caçador</button>
+        <button data-acao="cacador-rodada">Uma rodada agora</button>
+        <button data-acao="cacador-novelas">Rodada de novelas</button>
+      </div>
+      <p class="dica" style="margin:12px 0 8px">Descoberta: procura fornecedores novos em catálogos, listas, GitHub e nas páginas dos fornecedores já achados. Também percebe quando uma fonte muda de endereço.</p>
+      <div class="botoes">
+        <button data-acao="cacador-explorar" data-confirmar="Explorar agora? Testa até 40 fornecedores novos (alguns minutos).">Explorar agora</button>
+        <button data-acao="cacador-descobertas">Ver descobertas da semana</button>
+      </div>
+      <p class="dica" style="margin:12px 0 8px">Investigação: fonte que caiu ou mudou de endereço é rastreada (redirecionamento, recado na página, certificados, arquivo da internet, GitHub e variações do nome) até o endereço novo.</p>
+      <div class="linha">
+        <input id="investigarAlvo" placeholder="Nome ou endereço antigo (vazio = todas que caíram)">
+        <button id="investigar">Investigar</button>
+      </div>
+    </section>
+
+    <section>
+      <h2>Verificar links</h2>
+      <p class="dica">Cole um ou vários links (um por linha): páginas de sites, de addons ou de players. O caçador abre cada página, descobre os fornecedores que ela usa e testa cada um em filmes e novelas. Os que entregam vídeo dublado em HD, sem login e sem anúncio, entram no app sozinhos.</p>
+      <textarea id="links" placeholder="site-de-filmes.exemplo/filme/123&#10;outro.exemplo (pode ser com ou sem https://)"></textarea>
+      <div class="botoes" style="margin-top:8px">
+        <button class="principal" id="verificarLinks">Verificar links</button>
+        <button id="limparLinks">Limpar</button>
+      </div>
+    </section>
+
+    <section>
+      <h2>Central e TV</h2>
+      <p class="dica">A Central mostra relatos da família, relatório da semana e títulos com problema.</p>
+      <div class="botoes" style="margin-bottom:10px">
+        <button data-acao="central-abrir">Abrir a Central</button>
+      </div>
+      <div class="linha" style="margin-bottom:10px">
+        <input id="errosFiltro" placeholder="Título com problema (vazio = todos das últimas 48 h)">
+        <button id="verErros">Ver erros</button>
+      </div>
+      <div class="linha">
+        <input id="ipTv" placeholder="IP da TV Samsung (ex.: 192.168.1.7)" inputmode="decimal">
+        <button id="diagnostico">Diagnóstico da TV</button>
+      </div>
+    </section>
+  </div>
+
+  <div class="direita">
+    <div class="abas" id="abas"></div>
+    <div class="cabeca" id="cabeca" hidden>
+      <span class="ponto" id="cabecaPonto"></span>
+      <strong id="cabecaTitulo"></strong>
+      <span class="tempo" id="cabecaTempo"></span>
+      <button class="perigo" id="pararBotao" hidden>Parar</button>
+    </div>
+    <pre id="log"><div class="vazio">Clique em um botão à esquerda. O andamento aparece aqui.</div></pre>
+    <div id="resultado"></div>
+  </div>
+</main>
+<div id="aviso"></div>
+
+<script>
+'use strict';
+const chave = new URLSearchParams(location.search).get('t') || '';
+history.replaceState(null, '', '/');
+const $ = id => document.getElementById(id);
+let tarefas = [];
+let selecionada = null;
+let lidas = 0;
+let lendo = false;
+
+function salvar(k, v) { try { localStorage.setItem(k, v); } catch (_) {} }
+function ler(k) { try { return localStorage.getItem(k) || ''; } catch (_) { return ''; } }
+$('links').value = ler('painel.links');
+$('ipTv').value = ler('painel.ipTv');
+$('links').addEventListener('input', () => salvar('painel.links', $('links').value));
+$('ipTv').addEventListener('input', () => salvar('painel.ipTv', $('ipTv').value));
+
+async function api(caminho, corpo) {
+  const r = await fetch(caminho, corpo === undefined
+    ? { headers: { 'x-painel': chave } }
+    : { method: 'POST', headers: { 'x-painel': chave, 'Content-Type': 'application/json' }, body: JSON.stringify(corpo) });
+  const dados = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(dados.erro || 'falhou (' + r.status + ')');
+  return dados;
+}
+
+function avisar(texto) {
+  const a = $('aviso'); a.textContent = texto; a.style.display = 'block';
+  clearTimeout(avisar.t); avisar.t = setTimeout(() => { a.style.display = 'none'; }, 6000);
+}
+
+async function executar(acao, extra = {}) {
+  try {
+    const r = await api('/api/acao', { acao, ...extra });
+    selecionar(r.id);
+    await atualizarEstado();
+  } catch (e) { avisar(e.message); }
+}
+
+document.querySelectorAll('button[data-acao]').forEach(b => b.addEventListener('click', () => {
+  if (b.id === 'cacadorBotao') {
+    const ligado = tarefas.find(t => t.acao === 'cacador-ligar' && t.fim === null);
+    if (ligado) { if (confirm('Parar o caçador?')) parar(ligado.id); return; }
+  }
+  if (b.dataset.confirmar && !confirm(b.dataset.confirmar)) return;
+  executar(b.dataset.acao);
+}));
+$('verificarLinks').addEventListener('click', () => {
+  const links = $('links').value.trim();
+  if (!links) { avisar('Cole pelo menos um link.'); return; }
+  executar('cacador-links', { links });
+});
+$('limparLinks').addEventListener('click', () => { $('links').value = ''; salvar('painel.links', ''); });
+$('verErros').addEventListener('click', () => { const filtro = $('errosFiltro').value.trim(); executar('central-erros', filtro ? { filtro } : {}); });
+$('investigar').addEventListener('click', () => { const alvo = $('investigarAlvo').value.trim(); if (!alvo && !confirm('Investigar todas as fontes que caíram? Pode levar alguns minutos por fonte.')) return; executar('cacador-investigar', alvo ? { alvo } : {}); });
+$('diagnostico').addEventListener('click', () => executar('samsung-diagnostico', { ip: $('ipTv').value.trim() }));
+$('pararBotao').addEventListener('click', () => { if (selecionada && confirm('Parar esta tarefa?')) parar(selecionada); });
+$('fechar').addEventListener('click', async () => {
+  const rodando = tarefas.filter(t => t.fim === null);
+  if (!confirm(rodando.length ? 'Ainda tem ' + rodando.length + ' tarefa(s) rodando (' + rodando.map(t => t.titulo).join(', ') + '). Parar tudo e fechar?' : 'Fechar o painel?')) return;
+  try { await api('/api/sair', {}); } catch (_) {}
+  document.body.innerHTML = '<p style="padding:30px;font-size:16px">Painel fechado. Pode fechar esta janela.</p>';
+  setTimeout(() => window.close(), 400);
+});
+
+async function parar(id) {
+  try { await api('/api/parar', { id }); await atualizarEstado(); } catch (e) { avisar(e.message); }
+}
+
+function estadoDe(t) { return t.fim === null ? 'rodando' : (t.codigo === 0 || t.parada) ? 'ok' : 'erro'; }
+function duracao(t) {
+  const s = Math.round(((t.fim || Date.now()) - t.inicio) / 1000);
+  return s < 60 ? s + ' s' : Math.floor(s / 60) + ' min ' + (s % 60) + ' s';
+}
+
+function desenharAbas() {
+  const abas = $('abas');
+  abas.innerHTML = '';
+  for (const t of [...tarefas].reverse()) {
+    const b = document.createElement('button');
+    b.className = 'aba' + (t.id === selecionada ? ' ativa' : '');
+    const p = document.createElement('span'); p.className = 'ponto ' + estadoDe(t);
+    b.append(p, document.createTextNode(t.titulo));
+    b.addEventListener('click', () => selecionar(t.id));
+    abas.append(b);
+  }
+  const ligado = tarefas.find(t => t.acao === 'cacador-ligar' && t.fim === null);
+  $('estadoCacador').textContent = ligado ? 'ligado' : 'desligado';
+  $('estadoCacador').classList.toggle('ligado', Boolean(ligado));
+  $('cacadorBotao').textContent = ligado ? 'Parar caçador' : 'Ligar caçador';
+  $('cacadorBotao').classList.toggle('principal', !ligado);
+  $('cacadorBotao').classList.toggle('perigo', Boolean(ligado));
+  const t = tarefas.find(x => x.id === selecionada);
+  $('cabeca').hidden = !t;
+  if (t) {
+    $('cabecaPonto').className = 'ponto ' + estadoDe(t);
+    $('cabecaTitulo').textContent = t.titulo;
+    $('cabecaTempo').textContent = (t.fim === null ? 'rodando há ' : 'levou ') + duracao(t);
+    $('pararBotao').hidden = t.fim !== null;
+  }
+}
+
+function selecionar(id) {
+  selecionada = id; lidas = 0;
+  $('log').innerHTML = ''; $('resultado').innerHTML = '';
+  desenharAbas();
+  lerTarefa();
+}
+
+function classeDaLinha(l) {
+  if (/^\s*(✔|OK|ORACLE ATUALIZADA|TUDO PUBLICADO|LIBERADO|publicado)/i.test(l) || /— concluído —/.test(l)) return 'ok';
+  if (/(✘|FALHOU|erro|NAO CONCLUIU|PROBLEMA|ATENCAO)/i.test(l)) return 'ruim';
+  if (/^\s*(\[\d|---|===|—)/.test(l)) return 'info';
+  return '';
+}
+
+async function lerTarefa() {
+  if (!selecionada || lendo) return;
+  lendo = true;
+  try {
+    const id = selecionada;
+    const r = await api('/api/tarefa?id=' + id + '&desde=' + lidas);
+    if (id !== selecionada) return;
+    const log = $('log');
+    const noFim = log.scrollTop + log.clientHeight >= log.scrollHeight - 30;
+    const frag = document.createDocumentFragment();
+    for (const l of r.linhas) {
+      const d = document.createElement('div'); d.textContent = l;
+      const c = classeDaLinha(l); if (c) d.className = c;
+      frag.append(d);
+    }
+    log.append(frag);
+    while (log.childElementCount > 3000) log.firstElementChild.remove();
+    lidas = r.total;
+    if (noFim) log.scrollTop = log.scrollHeight;
+    if (r.resultado && !$('resultado').childElementCount) desenharResultado(r.resultado);
+  } catch (_) { /* tenta de novo no próximo ciclo */ }
+  finally { lendo = false; }
+}
+
+function celula(tr, texto, classe) { const td = document.createElement('td'); td.textContent = texto == null ? '' : String(texto); if (classe) td.className = classe; tr.append(td); if (classe === 'link') td.title = texto; return td; }
+function tabela(cabecalhos) {
+  const t = document.createElement('table'); const tr = document.createElement('tr');
+  for (const c of cabecalhos) { const th = document.createElement('th'); th.textContent = c; tr.append(th); }
+  t.append(tr); return t;
+}
+
+function desenharResultado(res) {
+  const caixa = $('resultado'); caixa.innerHTML = '';
+  const titulo = document.createElement('h2'); titulo.style.fontSize = '14px';
+  if (Array.isArray(res.resumo) && res.resumo.length) {
+    const ul = document.createElement('ul'); ul.style.cssText = 'margin:0 0 10px;padding-left:18px;color:#cfd6e4;font-size:13px';
+    for (const l of res.resumo) { const li = document.createElement('li'); li.textContent = l; ul.append(li); }
+    caixa.append(ul);
+  }
+  const aprovadas = (res.resultados || []).filter(r => r.status === 'aprovada').length;
+  titulo.textContent = aprovadas ? aprovadas + ' fonte(s) nova(s) aprovada(s)' + (res.publicado ? ' e publicada(s) para o app' : res.publicado === false ? ' (não publiquei — veja o registro)' : '') : 'Nenhuma fonte nova aprovada';
+  caixa.append(titulo);
+  if ((res.paginas || []).length) {
+    const t = tabela(['Página', 'Addons', 'Players', 'Vídeos', 'Como li', 'Aviso']);
+    for (const p of res.paginas) { const tr = document.createElement('tr'); celula(tr, p.link, 'link'); celula(tr, p.addons); celula(tr, p.players); celula(tr, p.videos); celula(tr, p.como); celula(tr, p.aviso); t.append(tr); }
+    caixa.append(t);
+  }
+  if ((res.resultados || []).length) {
+    const t = tabela(['Fornecedor', 'Resultado', 'Detalhe']);
+    for (const r of res.resultados) {
+      const tr = document.createElement('tr');
+      const td = celula(tr, r.nome || r.link, 'link'); td.title = r.link || '';
+      const cls = r.status === 'aprovada' || r.status === 'forte' ? 'st-aprovada' : /^já/.test(r.status) || r.status === 'pista' ? 'st-ja' : r.status === 'ignorado' || r.status === 'código próprio' ? 'st-ignorado' : 'st-recusada';
+      celula(tr, r.status + (r.qualidade ? ' · ' + r.qualidade : ''), cls);
+      celula(tr, r.detalhe || '');
+      t.append(tr);
+    }
+    caixa.append(t);
+  } else {
+    const p = document.createElement('p'); p.className = 'dica'; p.textContent = 'As páginas não mostraram nenhum fornecedor (addon ou player).'; caixa.append(p);
+  }
+}
+
+async function atualizarEstado() {
+  try {
+    const e = await api('/api/estado');
+    $('versao').textContent = 'versão da pasta ' + e.versao;
+    tarefas = e.tarefas;
+    const lista = Array.isArray(e.aprovadas) ? e.aprovadas : [];
+    $('novidades').hidden = !lista.length;
+    $('novidadesLista').replaceChildren(...lista.map(a => { const li = document.createElement('li'); li.textContent = `${a.nome}${a.qualidade ? ' · ' + a.qualidade : ''} — ${new Date(a.em).toLocaleString('pt-BR')}${a.origem ? ' · ' + a.origem : ''} (já está no app)`; return li; }));
+    if (!selecionada && tarefas.length) selecionada = tarefas[tarefas.length - 1].id;
+    desenharAbas();
+  } catch (e) {
+    if (/chave/.test(e.message)) avisar('Este painel foi substituído. Abra pelo atalho Painel Conecta TV.');
+  }
+}
+
+atualizarEstado().then(lerTarefa);
+setInterval(() => { atualizarEstado(); lerTarefa(); }, 1200);
+</script>
+</body>
+</html>

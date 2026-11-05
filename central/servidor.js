@@ -75,6 +75,7 @@ const agente = criarAgente({ pastaDados: DADOS, appUrl: APP_URL, codigoApp: APP_
 // Histórico de qualidade por título (alimentado pelos eventos do aplicativo).
 const titulos = criarRegistro({ pastaDados: DADOS });
 const reproducao = criarDiagnostico({ pastaDados: DADOS });
+const feedback = require('./feedback').criarFeedback({ pastaDados: DADOS });
 // Placar real: o que acontece com quem usa o aplicativo (aberturas, confirmações
 // e falhas por fonte). Entra na nota do caçador e na ordem das fontes no app.
 const placar = criarPlacar({ arquivoEventos: ARQ_EVENTOS });
@@ -270,6 +271,8 @@ app.post('/api/evento', (req, res) => {
             taxa: texto(item && item.taxa, 20),
         }));
     }
+    // Relato da família (problema ou ideia): vai para a caixa de relatos do painel.
+    if (evento.tipo === 'feedback') { try { const r = feedback.registrar(evento, corpo); if (r) console.log('[central] relato: ' + r.categoria + ' · ' + r.nome); } catch { /* segue */ } }
     anotarEvento(evento);
     try { reproducao.registrar(evento); } catch { /* diagnóstico não impede receber o relato */ }
     // Histórico por título (qualidade medida, escolha e falhas).
@@ -328,8 +331,10 @@ app.post('/api/entrar', (req, res) => {
 });
 
 app.get('/api/status', exigirChave, async (req, res) => res.json(await gerarStatus()));
-app.get('/api/reproducao', exigirChave, (req, res) => res.json(reproducao.resumo()));
+app.get('/api/reproducao', exigirChave, (req, res) => res.json(reproducao.resumo(Math.min(200, Math.max(1, Number(req.query.limite) || 30)))));
 // Relatório da semana (abriu de primeira, tempo até abrir, fontes, quem teve problema).
+app.get('/api/feedback', exigirChave, (req, res) => res.json({ novos: feedback.novos(), itens: feedback.listar().slice(0, 100) }));
+app.post('/api/feedback/resolver', exigirChave, (req, res) => res.json({ ok: feedback.resolver(String((req.body && req.body.id) || ''), req.body && req.body.status) }));
 app.get('/api/relatorio', exigirChave, (req, res) => res.json(require('./relatorio').relatorio(reproducao.resumo(200).sessoes, { dias: Math.max(1, Math.min(21, Number(req.query.dias) || 7)) })));
 app.get('/api/health', (req, res) => res.json({ status: 'ok', app: 'central-conecta-tv' }));
 
@@ -548,6 +553,7 @@ async function gerarStatus() {
     }
 
     const alertas = [];
+    try { const n = feedback.novos(); if (n) alertas.unshift(`${n} relato(s) novo(s) da família esperando resposta — veja "Relatos da família".`); } catch { /* segue */ }
     for (const fonte of fontes) if (fonte.total >= 4 && fonte.taxa < 70) alertas.push(`Fonte ${fonte.fonte} caiu para ${fonte.taxa}% de sucesso (${fonte.falhas} falhas em ${fonte.total} usos).`);
     for (const item of aparelhos) if (item.minutos !== null && item.minutos > 7 * 1440) alertas.push(`${item.nome} (${item.aparelho}) está sem dar sinal há ${Math.round(item.minutos / 1440)} dias.`);
     const versaoAtual = require('../package.json').version;

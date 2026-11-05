@@ -158,3 +158,29 @@ test('caçador do PC lê da Central só os títulos que falharam e não abriram 
         assert.equal(lista[0].episodio, 137);
     } finally { axios.get = original; }
 });
+
+test('verificar links do usuário: aprova o que entrega dublado em HD, recusa login/vazio com motivo claro', async () => {
+    const buscarJson = async url => {
+        if (/external_ids/.test(url)) return { imdb_id: 'tt' + (url.match(/\/(\d+)\/external/) || [])[1] };
+        if (/discover\/tv/.test(url)) return { results: [] };
+        if (/boa\.example\/manifest/.test(url)) return { name: 'Fonte Boa', resources: ['stream'], types: ['movie', 'series'] };
+        if (/boa\.example\/stream\/movie/.test(url)) return { streams: [{ name: '1080p', title: '🇧🇷 Dublado', url: 'https://boa.example/v/' + Math.random() + '.mp4' }] };
+        if (/login\.example\/stream/.test(url)) return { streams: [{ name: 'Login Necessário', title: '⚠️ requer autenticação', url: 'https://login.example/signin' }] };
+        if (/login\.example\/manifest/.test(url)) return { name: 'Precisa Login', resources: ['stream'], types: ['movie'] };
+        return null;
+    };
+    const buscar = async url => JSON.stringify((await buscarJson(url)) || {});
+    const sondar = async url => /boa\.example\/v\//.test(url) ? { viva: true, altura: 1080, dublado: true, evidencia: 'faixa pt' } : { viva: false };
+    const registradas = [];
+    const rel = await cacada.verificarLinks(
+        ['https://boa.example/manifest.json', 'https://login.example', 'não-é-url'],
+        { buscarJson, buscar, sondar, validar: fichas.validar, registrarFicha: (p, f, a) => { const x = { ...f, ...a.ajustes }; registradas.push(x); return x; }, fichasAtuais: () => [] }
+    );
+    const boa = rel.find(r => /boa\.example/.test(r.link));
+    assert.equal(boa.status, 'aprovada'); assert.equal(boa.qualidade, '1080p');
+    assert.equal(registradas.length, 1); assert.equal(registradas[0].id, 'fonte-boa');
+    const login = rel.find(r => /login\.example/.test(r.link));
+    assert.equal(login.status, 'recusada');
+    assert.match(login.detalhe, /não entregou vídeo|login/i);
+    assert.equal(rel.find(r => r.link === 'não-é-url').status, 'endereço inválido');
+});

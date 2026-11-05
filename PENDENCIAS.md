@@ -3,6 +3,43 @@
 > Este arquivo é a memória do projeto. Abrir SEMPRE no começo de uma tarefa e
 > atualizar no fim. Assim nada precisa ser repetido pelo usuário.
 
+## Caçador: conferir fornecedores por link (02/11/2026)
+
+- Novo: cole endereços de fornecedores que você conhece em central/fontes-minhas.txt (um por linha,
+  # = comentário) e rode Verificar-Fontes.cmd. Cada link é conferido como qualquer fonte (prova de
+  imagem + áudio em português em filmes e novelas); os que entregam HD dublado sem login são ativados
+  e publicados. `cacada.verificarLinks(links, deps)`; no PC: `node central/cacador-pc.cjs --links`.
+- Motivo em linguagem clara quando recusa: "não entregou vídeo (login ou fora do ar)", "sem prova de
+  português", "abaixo de HD". Login/exigência de conta NUNCA é contornado — cai em recusa.
+- fontes-minhas.txt fica no .gitignore (links do usuário são privados).
+
+## 2.13.136 — modo autônomo no navegador (02/11/2026)
+
+- Diagnóstico `/api/motor/testar?fonte=ID&id=TMDB` (02/11): BestCine responde 403 (Cloudflare) para a
+  Oracle e a FenixFlix devolve lista VAZIA para a Oracle — bloqueiam datacenter.
+- Site: o navegador consulta direto as fichas aprovadas (perfis.json do GitHub), confere com <video>
+  qual ele toca (HEVC que não decodifica cai fora) e toca direto do fornecedor
+  (`transporte:'navegador'`). Corre junto com o servidor (StreamPlayback.injetar): navegador ganha se
+  achar ≥ 1000p; abaixo disso espera o servidor (até 6 s) e fica com o maior. Sem resultado → servidor.
+  Teste com fornecedor simulado: 0,5 s pelo navegador; addon vazio → servidor em 3 s.
+- Aceita rótulo "🌎 Português" (FrostStream) como dublado.
+- 02/11: o BestCine passou a exigir LOGIN pessoal ("Login Necessário") — hoje não entrega vídeo a
+  ninguém sem conta. FrostStream funciona direto do navegador (4K 3840x1606 conferido).
+- FenixFlix também devolve lista vazia para pedidos de outro site (Origin), então no navegador ela
+  não entra; segue no app.
+
+## 2.13.135 — relatos da família e navegador sem HEVC (01/11/2026)
+
+- "Relatar problema ou ideia": no menu (Conta e ajustes) e na tela de erro ("Avisar o problema").
+  Categoria + texto + o que está assistindo (título, fonte, qualidade). Vai pela mesma via dos relatos
+  (no Android, pelo relato nativo). Central: dados/feedback.json, seção "Relatos da família",
+  alerta no topo e contador no título da aba; botão "Marcar como resolvido".
+- Navegador do computador: o 4K das fontes é HEVC e o Chrome do Windows não toca (Homem-Aranha:
+  Um Novo Dia em 01/11 abria sem imagem). Fora do app Android, o player pede `codec=avc` quando o
+  navegador não decodifica HEVC — o servidor entrega a melhor versão H.264 (ex.: FenixFlix 1080p).
+- A Oracle estava parada desde 31/10 15:02 (monitor travado em "building"; o site seguia 2.13.128).
+  Novo atalho: Atualizar-Oracle-Agora.cmd (publica a pasta atual e religa o monitor).
+
 ## 2.13.134 — 4K que cai vira Full HD (01/11/2026, canal de teste)
 
 - Dia D (1275779) em 01/11 03:14: 5 tentativas em 4K (FenixFlix/FrostStream 1606p, pela Oracle)
@@ -453,3 +490,33 @@ Categoria própria com ReelShort e DramaBox, dados públicos e episódios libera
 ## Doraminhas TV — 2.13.64
 
 Seleção ReelShort do catálogo público integrada, com o título enviado pelo usuário em destaque. Lista de episódios e reprodução interna; a liberação é conferida novamente ao abrir cada episódio, sem cookies ou conta do fornecedor. Episódio 2 de Peão Descartado, O Incomparável Rei Dragão reproduzido em 1080 × 1920 na interface de teste. Caçador da central registra testes da fonte. Nenhuma afirmação de catálogo completo ou dublagem verificada.
+
+## Painel Conecta TV (2026-11-02)
+- Novo: duplo clique em "Painel Conecta TV.vbs" (na 1a vez cria o atalho na Area de Trabalho).
+- Botoes: Atualizar servidor / Ver estado / Recarregar fontes; Publicar app (teste) / Liberar para a familia;
+  Ligar-Parar cacador, rodada, rodada de novelas; Verificar links (varios links de PAGINA, extrai os fornecedores);
+  Abrir a Central; Diagnostico da TV Samsung (campo de IP).
+- Os .cmd antigos continuam funcionando; o painel chama os mesmos scripts.
+- Verificar links: extrai addons e players da pagina (HTML, scripts do site e, se preciso, navegador escondido);
+  players so entram se o endereco tiver o numero do titulo e o video estiver no HTML (sem login, sem anuncio).
+
+## Conecta TV para PC (2026-11-02) - em teste
+- Abrir: duplo clique em "Conecta TV PC.vbs" (cria o atalho "Conecta TV (PC)" na Area de Trabalho).
+- Mesmo app, servidor rodando no proprio PC (127.0.0.1:3480, internet de casa); o video toca no mpv
+  (4K HEVC, MKV, Dolby, HDR). Na 1a vez baixa o mpv (GitHub oficial) + 7zr.exe (7-zip.org) para
+  %LOCALAPPDATA%\ConectaTV\mpv. Log: %USERPROFILE%\.streamtv\conecta-pc.log.
+- Pedido com pc=1: sem codec=avc e sem conversao de MKV.
+- Cacador: player sem numero do titulo agora e testado como addon (/manifest.json) antes de ignorar.
+
+## Cacador: descoberta (2026-11-02)
+- central/descoberta.js: memoria de candidatos (central/dados-pc/candidatos.json), coleta em catalogos,
+  diretorios (awesome-stremio + central/descoberta-fontes.json {"diretorios":[...]}), GitHub (token),
+  addon_catalog dos addons, pistas (paginas dos aprovados) e detetive de mudanca de endereco.
+- Exploracao em toda rodada (6) e no Painel "Explorar agora" (15); "Ver descobertas da semana".
+- Cacador: espera crescente por titulo, rodizio das novelas, caca de qualidade 1080p+ (central/melhorar.json).
+
+## Investigador (2026-11-02)
+- central/investigador.js: fonte que caiu -> dossie (redirecionamento, recado, crt.sh, web.archive.org,
+  GitHub/memoria, variacoes de nome com DNS) -> confere (mesmo id/nome, nao estacionado) -> valida.
+- Painel: campo "Investigar" (vazio = todas). Rodada: ate 2 casos, cada um a cada 3 dias.
+  Dossies em central/dados-pc/investigacoes/*.json.

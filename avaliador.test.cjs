@@ -1,4 +1,5 @@
 const test = require('node:test');
+process.env.CONECTA_SEM_DURACAO='1';
 // Os cenários abaixo trocam validarMidia por respostas simuladas; a conferência
 // de lista HLS (primeiro pedaço) segue a mesma simulação nestes testes.
 {const proxy=require('./midia-proxy');proxy.validarListaHls=(url,referer,tempo)=>proxy.validarMidia(url,referer,tempo);}

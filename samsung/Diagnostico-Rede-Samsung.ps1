@@ -1,9 +1,10 @@
 ﻿# Descobre por que o PC nao enxerga a TV Samsung no modo desenvolvedor.
+param([string]$IpDaTv = '')
 $ErrorActionPreference = 'Continue'
 Write-Host ''
 Write-Host '  Diagnostico da instalacao na TV Samsung' -ForegroundColor Cyan
 Write-Host '  ---------------------------------------' -ForegroundColor Cyan
-$tv = Read-Host '  Digite o IP da TV (TV: Configuracoes > Geral > Rede > Status da rede > Config. de IP)'
+if ($IpDaTv) { $tv = $IpDaTv } else { $tv = Read-Host '  Digite o IP da TV (TV: Configuracoes > Geral > Rede > Status da rede > Config. de IP)' }
 $tv = $tv.Trim()
 Write-Host ''
 Write-Host '[1] IPs deste PC (este e o numero que vai no Developer Mode da TV):' -ForegroundColor Yellow

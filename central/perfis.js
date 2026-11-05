@@ -92,7 +92,7 @@ function padraoPara(texto, endereco) {
         const indice = String(texto || '').indexOf(forma);
         if (indice < 0) continue;
         const antes = texto.slice(Math.max(0, indice - 80), indice);
-        const achado = /([A-Za-z_$][\w$.-]{0,40})\s*[:=]\s*(["']?)$/.exec(antes);
+        const achado = /([A-Za-z_$][\w$.-]{0,40})["']?\s*[:=]\s*(["']?)$/.exec(antes);
         if (!achado) continue;
         const chave = achado[1].replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
         const abertura = achado[2] ? achado[2].replace(/[.*+?^${}()|[\]\\]/g, '\\$&') : '["\']';
@@ -234,7 +234,7 @@ async function validar(ficha, amostras, { buscar = buscarTexto, sondar = sondage
             if (typeof ouvido === 'boolean') { dublado = ouvido; if (sonda) sonda.evidencia = ouvido ? 'áudio ouvido em português (transcrição)' : 'áudio ouvido em outro idioma'; }
         }
         const atendePadrao = viva && altura >= 720 && dublado === true && !sonda.avisoAudio;
-        const motivo = !viva ? 'o endereço não devolveu vídeo'
+        const motivo = !viva ? (sonda && sonda.certificadoInvalido ? 'o servidor do vídeo tem certificado https inválido (o celular não toca)' : 'o endereço não devolveu vídeo')
             : sonda.avisoAudio ? 'o áudio não é compatível com o player'
             : altura < 720 ? 'alta definição não comprovada'
             : dublado !== true ? 'áudio em português não comprovado'

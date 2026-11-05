@@ -2,7 +2,7 @@
 // Mesma leitura por faixas usada pelo APK: pula mdat e tabelas de quadros.
 const codecs={avc1:'h264',avc3:'h264',hvc1:'hevc',hev1:'hevc',av01:'av1',vp09:'vp9',mp4v:'mpeg4',mp4a:'aac','ac-3':'ac3','ec-3':'eac3',Opus:'opus','.mp3':'mp3'};
 async function analisar(fetcher,{timeout=6000}={}){
- const deadline=Date.now()+timeout;let total=-1,used=0,requests=0,windowStart=-1,window=null,boxes=0;const tracks=[];
+ const deadline=Date.now()+timeout;let total=-1,used=0,requests=0,windowStart=-1,window=null,boxes=0,duracao=0;const tracks=[];
  async function fetch(position,length){
   if(Date.now()>=deadline||++requests>40||used+length>2*1024*1024)throw Error('Limite da leitura');
   const b=await fetcher(position,length,deadline);
@@ -25,7 +25,8 @@ async function analisar(fetcher,{timeout=6000}={}){
    if(size===0)size=end-p;
    if(!Number.isSafeInteger(size)||size<header||size>end-p)throw Error('Tamanho inválido');
    const data=p+header,limit=p+size;
-   if(kind==='trak'){const t={kind:'',codec:'',language:'',width:0,height:0,enabled:false};tracks.push(t);await walk(data,limit,t,depth+1);}
+   if(kind==='mvhd'&&!track&&size>=header+20){const v=(await bytes(data,1))[0],b=await bytes(data+(v===1?20:12),v===1?12:8),escala=b.readUInt32BE(0),bruta=v===1?Number(b.readBigUInt64BE(4)):b.readUInt32BE(4);if(escala>0&&Number.isFinite(bruta))duracao=bruta/escala;}
+   else if(kind==='trak'){const t={kind:'',codec:'',language:'',width:0,height:0,enabled:false};tracks.push(t);await walk(data,limit,t,depth+1);}
    else if(['moov','mdia','minf','stbl'].includes(kind)){await walk(data,limit,track,depth+1);if(kind==='moov'&&depth===0)return;}
    else if(track){
     if(kind==='tkhd'&&size>=header+84){track.enabled=Boolean((await bytes(data,4))[3]&1);const d=await bytes(limit-8,8);track.width=d.readUInt32BE(0)>>>16;track.height=d.readUInt32BE(4)>>>16;}
@@ -40,7 +41,7 @@ async function analisar(fetcher,{timeout=6000}={}){
  await fetch(0,1);await walk(0,total,null,0);
  const video=tracks.find(t=>t.kind==='vide'&&t.codec&&t.width>0&&t.height>0),audio=tracks.filter(t=>t.kind==='soun'&&t.codec);
  if(!video||!audio.length)throw Error('Sem imagem e áudio');
- return {container:'mov,mp4',imagem:{largura:video.width,altura:video.height,codec:video.codec,pixels:''},faixas:audio.map((t,i)=>({ordem:i,idioma:t.language||'und',padrao:i===0&&t.enabled,codec:t.codec})),leitura:{bytes:used,requests}};
+ return {container:'mov,mp4',imagem:{largura:video.width,altura:video.height,codec:video.codec,pixels:''},faixas:audio.map((t,i)=>({ordem:i,idioma:t.language||'und',padrao:i===0&&t.enabled,codec:t.codec})),leitura:{bytes:used,requests},...(duracao>0?{duracao}:{})};
 }
 class Indisponivel extends Error {constructor(status){super('O destino não entrega mídia');this.temporaria=[408,425,429].includes(status)||status>=500&&status<=599;}}
 async function ler(url,referer='',{timeout=6000,falhaExplicita=false}={}){

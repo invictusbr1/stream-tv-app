@@ -93,6 +93,11 @@ app.get('/api/hls', async (req, res) => {
 // A partir da 2.13.88 o APK acrescenta " StreamTVHevc" ao agente quando o
 // aparelho tem decodificador HEVC (MediaCodecList). Sem essa marca ele recebe
 // H.264; com ela pode receber 4K HEVC.
+// Pedido do aplicativo do PC (mpv): toca HEVC/4K e MKV sem conversão.
+function paraPlayerDoPc(req) {
+    return process.env.CONECTA_PC === '1' && req.query.pc === '1';
+}
+
 function codecDoPedido(req) {
     if (req.query.codec === 'hevc') return 'hevc';
     if (req.query.codec === 'avc') return 'avc';
@@ -186,6 +191,8 @@ app.get('/api/playback/:id', async (req, res) => {
             // Fonte que precisa de conversão (MKV com som que o navegador não
             // toca): o aplicativo converte e só o áudio muda; a imagem é a
             // original, sem perda.
+            // O player do PC toca o MKV original (com o som em português): sem conversão.
+            if (escolhido.converter && paraPlayerDoPc(req)) escolhido = { ...motor.prepararParaPlayer({ ...escolhido, final: false }), converter: false };
             if (escolhido.converter) {
                 const conversor = require('../conversor');
                 // `id` estável: o mesmo filme reaproveita a conversão em vez de criar
@@ -256,6 +263,8 @@ app.get('/api/playback/serie/:id/:season/:episode', async (req, res) => {
         }
         if (!escolhido) escolhido = await require('../series-source').resolverEpisodio({ tmdbId: id, temporada: season, episodio: episode, cookie, exceto });
         if (!escolhido) throw new Error('sem fonte');
+        // O player do PC toca o MKV original (com o som em português): sem conversão.
+        if (escolhido.converter && paraPlayerDoPc(req)) escolhido = { ...require('../fontes-motor').prepararParaPlayer({ ...escolhido, final: false }), converter: false };
         if (escolhido.converter) {
             const conversor = require('../conversor');
             // `id` estável por episódio: reaproveita a conversão já feita.
@@ -340,6 +349,39 @@ app.get('/api/stream-hd', async (req, res) => {
 // Diagnóstico do motor: estado de cada fonte e a fila de cada papel com o
 // porquê de cada posição (política única: politica-fontes.json).
 // ?tipo=tv&id=1399&temporada=1&episodio=1 mostra a fila para um título.
+// Diagnóstico de UMA fonte neste servidor: o que ela devolve para um título
+// (endereços e rótulos, sem tocar vídeo). Para fichas de addon, mostra também a
+// resposta crua do addon — é assim que se descobre se o fornecedor bloqueia a Oracle.
+app.get('/api/motor/testar', async (req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    const motor = require('../fontes-motor');
+    const id = String(req.query.id || ''), fonteId = String(req.query.fonte || '').slice(0, 60);
+    if (!/^\d{1,10}$/.test(id) || !fonteId) return res.status(400).json({ error: 'informe fonte e id' });
+    const alvo = motor.alvoDoEvento(req.query.tipo === 'tv' ? 'tv' : 'movie', id, req.query.temporada, req.query.episodio);
+    const fonte = motor.fontesAtivas().find(f => String(f.id) === fonteId);
+    if (!fonte) return res.status(404).json({ error: 'fonte não está ativa neste servidor', ativas: motor.fontesAtivas().map(f => f.id) });
+    const saida = { fonte: fonteId, alvo };
+    try {
+        const ficha = require('../perfis-locais').perfis().find(p => String(p.id) === fonteId);
+        if (ficha && /\{imdb\}/.test(String(ficha.urlMovie || '') + String(ficha.urlTv || ''))) {
+            const axios = require('axios');
+            const tmdb = await axios.get(`https://api.themoviedb.org/3/${alvo.tipo === 'tv' ? 'tv' : 'movie'}/${id}/external_ids?api_key=${TMDB_KEY}`, { timeout: 10000 }).catch(() => null);
+            const imdb = tmdb && tmdb.data && tmdb.data.imdb_id;
+            const endereco = require('../perfis-motor').preencher(alvo.tipo === 'tv' ? ficha.urlTv : ficha.urlMovie, { ...alvo, imdb });
+            const t0 = Date.now();
+            const r = await axios.get(endereco, { timeout: 15000, responseType: 'text', validateStatus: () => true, headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36' } }).catch(e => ({ status: 0, data: String(e.message) }));
+            saida.addon = { endereco, status: r.status, ms: Date.now() - t0, inicio: String(r.data || '').slice(0, 300) };
+        }
+    } catch (erro) { saida.addonErro = String(erro.message).slice(0, 160); }
+    const t0 = Date.now();
+    try {
+        const resposta = await Promise.race([Promise.resolve().then(() => typeof fonte.resolverTodos === 'function' ? fonte.resolverTodos(alvo) : fonte.resolver(alvo)), new Promise((_, n) => setTimeout(() => n(new Error('passou de 20 s')), 20000))]);
+        const lista = Array.isArray(resposta) ? resposta : resposta ? [resposta] : [];
+        saida.opcoes = lista.slice(0, 8).map(o => ({ fonte: o.fonte, resolucao: o.resolucao, type: o.type, exigeProva: Boolean(o.exigeProva), host: (() => { try { return new URL(o.url).host; } catch { return ''; } })() }));
+    } catch (erro) { saida.erro = String(erro.message).slice(0, 160); }
+    saida.ms = Date.now() - t0;
+    res.json(saida);
+});
 app.get('/api/motor/estado', (req, res) => {
     const motor = require('../fontes-motor');
     const id = String(req.query.id || '');
