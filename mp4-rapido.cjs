@@ -46,11 +46,15 @@ async function analisar(fetcher,{timeout=6000}={}){
 class Indisponivel extends Error {constructor(status){super('O destino não entrega mídia');this.temporaria=[408,425,429].includes(status)||status>=500&&status<=599;}}
 async function ler(url,referer='',{timeout=6000,falhaExplicita=false}={}){
  try{
-  const axios=require('axios'),safe=require('./perfis-motor').ehEnderecoSeguro;let target=url,referencia=referer;
+  const axios=require('axios'),seguro=require('./perfis-motor').ehEnderecoSeguro;let target=url,referencia=referer;
+  // Fonte servida por HTTP (BsCine): mantém http e aceita o redirecionamento
+  // http para servidor PÚBLICO (nunca rede interna). As demais seguem só https.
+  let origemHttp=false;try{const o=new URL(url);origemHttp=o.protocol==='http:'&&require('./midia-proxy').httpPermitido(o.hostname);}catch{}
+  const safe=alvo=>{if(seguro(alvo))return true;if(!origemHttp)return false;try{const u=new URL(alvo);return u.protocol==='http:'&&!u.username&&!u.password&&!require('./seguranca').hostInterno(u.hostname);}catch{return false;}};
   return await analisar(async(position,length,deadline)=>{
    const seen=new Set();
    for(let i=0;i<6;i++){
-    const destino=new URL(target);if(destino.protocol==='http:')destino.protocol='https:';target=destino.href;
+    const destino=new URL(target);if(destino.protocol==='http:'&&!origemHttp)destino.protocol='https:';target=destino.href;
     if(!safe(target)||seen.has(target))throw Error('Destino inválido');seen.add(target);
     const remaining=deadline-Date.now();if(remaining<=0)throw Error('Fim do prazo');
     const r=await axios.get(target,{headers:{Range:`bytes=${position}-${position+length-1}`,...(referencia?{Referer:referencia}:{}),'User-Agent':'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36'},responseType:'stream',maxRedirects:0,validateStatus:()=>true,timeout:remaining,signal:AbortSignal.timeout(remaining)});

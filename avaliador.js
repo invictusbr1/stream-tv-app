@@ -245,7 +245,16 @@ function notaDaFonte(medida) {
         // mesma prova que o aplicativo Android usa. Vale menos que uma faixa em
         // português confirmada no arquivo, e menos que a central ter ouvido.
         const fornecedorDeclaraDublado = /dublado|dual/i.test(String(dados.source || '') + ' ' + String(dados.fonte || ''));
-        if (provaDePortugues) { nota += 2; detalhes.idioma = 'a fonte informa dublado'; }
+        // Algumas fontes (WatchPlay) declaram o idioma na PRÓPRIA PÁGINA e o
+        // adaptador só devolve o vídeo quando essa página diz "Dublado". É uma
+        // garantia da fonte, não um palpite pelo nome — então vale como prova
+        // de português. Sem isso, a WatchPlay (dublado de verdade) perdia para
+        // uma fonte que mente "dublado" no nome e entrega áudio original.
+        if (provaDePortugues || dados.dubladoConfiavel) {
+            nota += 2;
+            detalhes.idioma = (dados.dubladoConfiavel && !provaDePortugues)
+                ? 'dublado declarado na página da fonte' : 'a fonte informa dublado';
+        }
         else if (fornecedorDeclaraDublado) {
             nota += 1.5;
             detalhes.idioma = 'a lista não declara o idioma; o fornecedor informa dublado';

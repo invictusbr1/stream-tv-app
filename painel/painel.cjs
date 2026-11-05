@@ -36,6 +36,7 @@ const ACOES = {
     'cacador-links': { grupo: 'cacador', titulo: 'Verificar links', cmd: 'Cacador-PC.cmd' },
     'cacador-explorar': { grupo: 'cacador', titulo: 'Explorar fornecedores novos', cmd: 'Cacador-PC.cmd', args: ['--explorar'] },
     'cacador-investigar': { grupo: 'cacador', titulo: 'Investigar fontes que caíram', cmd: 'Cacador-PC.cmd', args: ['--investigar'] },
+    'cacador-publicar': { grupo: 'cacador', titulo: 'Publicar fichas (aplicar fontes ligadas/desligadas)', cmd: 'Cacador-PC.cmd', args: ['--publicar'] },
     'cacador-descobertas': { grupo: 'cacador-relatorio', titulo: 'Descobertas da semana', node: ['central/cacador-pc.cjs', '--descobertas'] },
     'central-erros': { grupo: 'central-erros', titulo: 'Erros recentes da Central', cmd: 'Cacador-PC.cmd', args: ['--erros'] },
     'central-abrir': { grupo: 'central', titulo: 'Abrir a Central', ps: 'Abrir-Central.ps1' },

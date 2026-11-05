@@ -35,7 +35,7 @@ function decodificarBase64(texto) {
 function ehEnderecoSeguro(valor) {
     try {
         const url = new URL(String(valor));
-        if (url.protocol !== 'https:') return false;
+        if (url.protocol !== 'https:' && !(url.protocol === 'http:' && require('./midia-proxy').httpPermitido(url.hostname))) return false;
         if (url.username || url.password) return false;
         const host = url.hostname.toLowerCase();
         if (host === 'localhost' || host.endsWith('.local')) return false;
@@ -214,11 +214,11 @@ async function resolverTodos(perfil,alvo,opcoes={}) {
     for(const stream of Array.isArray(streams)?streams:[]){
         const label=String(stream?.name||'')+' '+String(stream?.title||'');
         if(/\b(cam|hdcam|ts|telesync)\b/i.test(label)||!(/\b(dublado|dual(?:[ -]?[áa]udio)?)\b|🇧🇷/i.test(label))||(/\blegendado\b/i.test(label)&&!(/\bdual\b/i.test(label))))continue;
-        const url=String(stream.url||'').replace(/^http:/i,'https:');if(!ehEnderecoSeguro(url)||seen.has(url))continue;
+        let url=String(stream.url||'');{let h0='';try{h0=new URL(url).hostname;}catch{}if(/^http:/i.test(url)&&!require('./midia-proxy').httpPermitido(h0))url=url.replace(/^http:/i,'https:');}if(!ehEnderecoSeguro(url)||seen.has(url))continue;
         const path=new URL(url).pathname,hls=/\.m3u8$/i.test(path),file=/\.mp4$/i.test(path),opaque=!/\.[a-z0-9]{1,5}$/i.test(path);
         if(!hls&&!file&&!opaque)continue;seen.add(url);
         const h=/\b(\d{3,4})p\b/i.exec(label),height=/\b(4k|uhd)\b/i.test(label)?2160:h?Number(h[1]):0;
-        lista.push({url,referer:ref,fonte:(perfil.nome||perfil.id)+' · '+String(stream.name||'Dublado'),fonteId:perfil.id,audio:'pt-BR',type:hls?'hls':'file',resolucao:height?height+'p':'',perfil:true,exigeProva:opaque});
+        lista.push({url,referer:/^http:/i.test(url)?'':ref,fonte:(perfil.nome||perfil.id)+' · '+String(stream.name||'Dublado'),fonteId:perfil.id,audio:'pt-BR',type:hls?'hls':'file',resolucao:height?height+'p':'',perfil:true,exigeProva:opaque});
     }
     return lista.sort((a,b)=>parseInt(b.resolucao||0)-parseInt(a.resolucao||0)).slice(0,8);
 }

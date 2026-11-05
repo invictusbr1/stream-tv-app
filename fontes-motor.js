@@ -678,11 +678,14 @@ function prepararParaPlayer(escolhido) {
         host === 'fenixflix.fenixhub.online' ||
         /(?:^|[^a-z0-9])(?:hevc|h265|4k|2160)(?:[^a-z0-9]|$)/i.test(`${escolhido.videoCodec || ''} ${escolhido.resolucao || ''}`)
     );
-    if (escolhido.final && !hotlink) return escolhido; // arquivo direto sem hotlink
+    if (escolhido.final && !hotlink && !midia.httpPermitido(host)) return escolhido; // arquivo direto sem hotlink
     let referer = '';
     try {
         if (!host) host = new URL(escolhido.url).hostname;
         referer = perfisMotor.refererSeguro(escolhido.referer) || midia.refererPadrao(host);
+        // Fonte servida por HTTP (BsCine): o vídeo abre sem referer; mandar o
+        // referer da ficha faria o servidor de vídeo recusar. Vai sem referer.
+        if (midia.httpPermitido(host)) referer = '';
         // O CDN aprendido continua liberado mesmo quando a ficha precisa de
         // seu próprio referenciador, diferente dos padrões já conhecidos.
         if (!midia.hostPermitido(host)) midia.liberarHost(host);

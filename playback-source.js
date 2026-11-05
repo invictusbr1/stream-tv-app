@@ -7,6 +7,6 @@ function parseWatchPlay(html) {
     const url = new URL(JSON.parse(source[1]));
     // The observed provider publishes its signed HLS streams on this CDN.
     if (url.protocol !== 'https:' || !/^[a-z0-9-]+\.hclod\.qzz\.io$/i.test(url.hostname) || url.port || url.username || url.password || !url.pathname.endsWith('.m3u8')) throw new Error('Endereço de mídia não reconhecido');
-    return { url: url.href, audio: 'pt-BR', source: 'WatchPlay', type: 'hls' };
+    return { url: url.href, audio: 'pt-BR', source: 'WatchPlay', type: 'hls', dubladoConfiavel: true };
 }
 module.exports = { parseWatchPlay };

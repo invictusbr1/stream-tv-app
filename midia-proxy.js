@@ -14,6 +14,18 @@ const HOSTS_PERMITIDOS = [
     /(^|\.)hclod\.qzz\.io$/i // servidor de vídeo da fonte dublada limpa
 ];
 
+// Fontes que entregam o vídeo por HTTP (o servidor de vídeo não tem certificado
+// HTTPS válido). O SERVIDOR busca por HTTP e repassa ao player pela HTTPS do
+// próprio app: o cliente nunca recebe HTTP e NENHUM certificado inválido é
+// aceito em lugar nenhum. Só hosts fixos e públicos entram aqui.
+const HOSTS_HTTP = [
+    /(^|\.)rfc-infinite\.top$/i // servidor de vídeo da BsCine
+];
+function httpPermitido(host) {
+    const nome = String(host || '').trim().toLowerCase();
+    return !!nome && HOSTS_HTTP.some(padrao => padrao.test(nome));
+}
+
 // Endereços liberados na hora pelos resolvedores do próprio aplicativo (as
 // fontes trocam de servidor de vídeo com frequência). Só entra aqui o que o
 // aplicativo descobriu sozinho — a lista continua fechada para o resto.
@@ -165,7 +177,7 @@ function hostPermitido(host) {
     const nome = String(host || '');
     if (!nome) return false;
     if (HOSTS_DESCOBERTOS.has(nome.toLowerCase())) return true;
-    return HOSTS_PERMITIDOS.some(padrao => padrao.test(nome));
+    return HOSTS_PERMITIDOS.some(padrao => padrao.test(nome)) || httpPermitido(nome);
 }
 
 function refererPadrao(host) {
@@ -222,6 +234,7 @@ module.exports = {
     registrarCabecalhos,
     cabecalhosDaMidia,
     hostPermitido,
+    httpPermitido,
     liberarHost,
     refererPadrao,
     base64url,

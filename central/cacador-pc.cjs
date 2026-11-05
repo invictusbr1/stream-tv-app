@@ -27,7 +27,13 @@ const varredor = require('./varredor');
 const RAIZ = path.join(__dirname, '..');
 const PASTA = process.env.CACADOR_PC_DADOS || path.join(__dirname, 'dados-pc');
 const CENTRAL = String(process.env.CENTRAL_URL || 'http://127.0.0.1:4100').replace(/\/$/, '');
-const INTERVALO = 30 * 60 * 1000;
+// Ritmo do caçador contínuo: com candidatos na fila ele emenda uma rodada na
+// outra (só uma pausa curta, para não martelar os fornecedores); com a fila
+// vazia, espera um pouco mais antes de procurar de novo.
+const PAUSA_COM_FILA = 60 * 1000;
+const PAUSA_SEM_FILA = 10 * 60 * 1000;
+const QUANTOS_COM_FILA = 25;
+const INTERVALO = PAUSA_SEM_FILA;
 const RONDA_NOVELAS = 6 * 60 * 60 * 1000;
 const REPETIR_TITULO = 6 * 60 * 60 * 1000;
 const MAX_POR_RODADA = 8;
@@ -232,7 +238,12 @@ async function conferirCertificados({ checar = require('./verificar-midia').cert
     return desligadas;
 }
 
-async function rodada({ forcarNovelas = false } = {}) {
+// Quantos fornecedores ainda esperam teste na memória da descoberta.
+function filaDaDescoberta() {
+    try { const d = require('./descoberta'); return d.relatorio(d.criarMemoria(PASTA)).naFila || 0; } catch { return 0; }
+}
+
+async function rodada({ forcarNovelas = false, quantos = 12 } = {}) {
     const deps = dependencias();
     const estado = lerEstado();
     let novas = 0;
@@ -288,7 +299,7 @@ async function rodada({ forcarNovelas = false } = {}) {
     gravarEstado(estado);
 
     // 4b. Descoberta: fornecedores novos, mesmo sem ninguém reclamar.
-    novas += await descobrir({ estado }).catch(erro => { log('descoberta com erro: ' + erro.message); return 0; });
+    novas += await descobrir({ estado, quantos }).catch(erro => { log('descoberta com erro: ' + erro.message); return 0; });
     gravarEstado(estado);
 
     // 5. Publica (juntando com o que já está publicado).
@@ -493,6 +504,20 @@ async function principal() {
         console.log('RESULTADO:' + JSON.stringify({ paginas, resultados, publicado: publicado ? publicado.ok : null }));
         return;
     }
+    if (args[0] === '--publicar') {
+        // Publica a lista de fichas como está (ex.: depois de desligar fontes
+        // mortas), sem esperar a próxima rodada achar algo novo.
+        const dados = fichas.ler(PASTA);
+        const ativas = dados.perfis.filter(f => f.ativo !== false).map(f => f.nome || f.id);
+        const desligadas = dados.perfis.filter(f => f.ativo === false).map(f => `${f.nome || f.id}${f.motivoDesligada ? ' (' + f.motivoDesligada + ')' : ''}`);
+        const pub = await fichas.publicar(PASTA, tokenDoGithub());
+        log(pub.ok ? `publicado no GitHub (${pub.perfis} fichas ativas). O app passa a usar em alguns minutos.` : `não publiquei: ${pub.motivo}`);
+        log('ativas: ' + (ativas.join(', ') || 'nenhuma'));
+        log('desligadas: ' + (desligadas.join(', ') || 'nenhuma'));
+        console.log('RESULTADO:' + JSON.stringify({ resumo: [`ativas: ${ativas.join(', ')}`, `desligadas: ${desligadas.join(', ')}`], resultados: [], publicado: pub.ok }));
+        if (!pub.ok) process.exitCode = 3;
+        return;
+    }
     if (args[0] === '--explorar') {
         const estado = lerEstado();
         const aprovadas = await descobrir({ estado, quantos: 40, forcar: true });
@@ -536,10 +561,15 @@ async function principal() {
         return;
     }
     if (args.includes('--uma-vez')) { await rodada({ forcarNovelas: args.includes('--novelas') }); return; }
+    let fila = filaDaDescoberta();
     for (;;) {
-        await rodada().catch(erro => log('rodada com erro: ' + erro.message));
-        log(`próxima rodada em ${INTERVALO / 60000} min (deixe esta janela aberta)`);
-        await new Promise(r => setTimeout(r, INTERVALO));
+        await rodada({ quantos: fila > 0 ? QUANTOS_COM_FILA : 12 }).catch(erro => log('rodada com erro: ' + erro.message));
+        fila = filaDaDescoberta();
+        const pausa = fila > 0 ? PAUSA_COM_FILA : PAUSA_SEM_FILA;
+        log(fila > 0
+            ? `${fila} candidato(s) ainda na fila — próxima rodada em ${Math.round(pausa / 1000)} s (deixe esta janela aberta)`
+            : `fila vazia — próxima rodada em ${pausa / 60000} min (deixe esta janela aberta)`);
+        await new Promise(r => setTimeout(r, pausa));
     }
 }
 

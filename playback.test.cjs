@@ -254,6 +254,18 @@ test('late audio track discovery restores Portuguese after a track switch',async
  s.Hls.instance.audioTracks=[{lang:'en',name:'English'},{lang:'pt-BR',name:'Português'}];s.Hls.instance.audioTrack=0;s.Hls.instance.emit('audioUpdated');assert.equal(s.Hls.instance.audioTrack,1);
  s.Hls.instance.audioTrack=0;s.Hls.instance.emit('audioSwitched');assert.equal(s.Hls.instance.audioTrack,1);s.controller.stop();await p;
 });
+test('faixa "und"/Undefined (idioma indeterminado, MGEB) não é recusada como estrangeira',async()=>{
+ const s=harness();s.fetch(async()=>({url:'/api/hls?u=x',audio:'pt-BR',fonteId:'mgeb',type:'hls',source:'MGEB · dublado'}));
+ const p=s.controller.start(937278,1,new AbortController().signal);await new Promise(setImmediate);
+ s.Hls.instance.audioTracks=[{lang:'und',name:'Undefined'}];s.Hls.instance.emit('manifest');
+ await new Promise(setImmediate);assert.equal(s.controller.estado().fonteId,'mgeb');assert.notEqual(s.controller.estado().audio,'');
+ assert.equal(s.Hls.instance.destroyed,undefined,'não pode derrubar a fonte');
+ s.controller.stop();await p;
+});
+test('faixa und junto de faixa inglesa declarada continua recusada',async()=>{
+ const s=harness(),p=s.controller.start(937278,1,new AbortController().signal);await new Promise(setImmediate);
+ s.Hls.instance.audioTracks=[{lang:'und',name:'Undefined'},{lang:'en',name:'English'}];s.Hls.instance.emit('manifest');assert.equal(await p,false);
+});
 test('named foreign audio without an ISO tag is not accepted as dubbed',async()=>{
  const s=harness(),p=s.controller.start(820525,1,new AbortController().signal);await new Promise(setImmediate);
  s.Hls.instance.audioTracks=[{name:'English'}];s.Hls.instance.emit('manifest');assert.equal(await p,false);

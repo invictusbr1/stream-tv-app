@@ -23,7 +23,8 @@ app.get('/api/hls', async (req, res) => {
         return res.sendStatus(400);
     }
     // Só https, só host conhecido e nunca a rede de casa (proteção contra SSRF).
-    if (endereco.protocol !== 'https:' || !midia.hostPermitido(endereco.hostname) || seguranca.hostInterno(endereco.hostname)) return res.sendStatus(403);
+    const ehHttpLiberado = endereco.protocol === 'http:' && midia.httpPermitido(endereco.hostname);
+    if ((endereco.protocol !== 'https:' && !ehHttpLiberado) || !midia.hostPermitido(endereco.hostname) || seguranca.hostInterno(endereco.hostname)) return res.sendStatus(403);
     const transferencia = new AbortController();
     res.once('close', () => transferencia.abort());
     const cabecalhosBase = {
@@ -135,7 +136,8 @@ async function responderEscolhaDoAparelho(req, res, alvo) {
     if (!fonteId || !bruto) return false;
     let pedido;
     try { pedido = new URL(midia.textoDeBase64url(bruto)); } catch { return false; }
-    if (pedido.protocol !== 'https:' || pedido.username || pedido.password || seguranca.hostInterno(pedido.hostname)) return false;
+    const pedidoHttpLiberado = pedido.protocol === 'http:' && midia.httpPermitido(pedido.hostname);
+    if ((pedido.protocol !== 'https:' && !pedidoHttpLiberado) || pedido.username || pedido.password || seguranca.hostInterno(pedido.hostname)) return false;
     const motor = require('../fontes-motor');
     const fonte = motor.fontesAtivas().find(f => String(f.id) === fonteId);
     if (!fonte) return false;

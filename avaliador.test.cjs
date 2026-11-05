@@ -5,6 +5,17 @@ process.env.CONECTA_SEM_DURACAO='1';
 {const proxy=require('./midia-proxy');proxy.validarListaHls=(url,referer,tempo)=>proxy.validarMidia(url,referer,tempo);}
 const assert = require('node:assert/strict');
 const { analisarPlaylist, notaDaFonte } = require('./avaliador');
+
+test('WatchPlay (dublado garantido na página) vence FenixFlix que mente dublado no nome', () => {
+    const watch = notaDaFonte({ dados: { audio: 'pt-BR', dubladoConfiavel: true, source: 'WatchPlay', fonte: 'WatchPlay', resolucao: '720p' }, sonda: null, idiomaVerificado: '', ms: 1000 });
+    const fenixMente = notaDaFonte({ dados: { audio: 'pt-BR', source: '', fonte: 'FenixFlix \u00b7 dublado', resolucao: '720p' }, sonda: { altura: 720, largura: 1280, banda: 0 }, idiomaVerificado: '', ms: 1000 });
+    assert.ok(watch.nota > fenixMente.nota, `WatchPlay ${watch.nota} deveria vencer FenixFlix ${fenixMente.nota}`);
+    assert.equal(watch.detalhes.idioma, 'dublado declarado na p\u00e1gina da fonte');
+    // Prova ouvida de inglês ainda derruba tudo, mesmo com dubladoConfiavel.
+    const watchIngles = notaDaFonte({ dados: { audio: 'pt-BR', dubladoConfiavel: true, source: 'WatchPlay', fonte: 'WatchPlay', resolucao: '720p' }, sonda: null, idiomaVerificado: 'outro', ms: 1000 });
+    assert.ok(watchIngles.nota < 0, 'idioma ouvido como outro deve penalizar mesmo a WatchPlay');
+});
+
 // Testes do avaliador não consultam nem alteram a memória real de fornecedores.
 require('./midias-memoria.cjs').load=()=>[];
 require('./midias-memoria.cjs').update=()=>{};

@@ -1,151 +1,210 @@
 {
-  "atualizadoEm": "2026-10-15T22:38:41.860Z",
-  "perfis": [
+ "atualizadoEm": "2026-10-15T22:38:41.860Z",
+ "perfis": [
+  {
+   "id": "fenixflix-fenixhub",
+   "nome": "FenixFlix (FenixHub)",
+   "ativo": true,
+   "tipos": [
+    "movie",
+    "tv"
+   ],
+   "urlMovie": "https://fenixflix.fenixhub.online/stream/movie/{imdb}.json",
+   "urlTv": "https://fenixflix.fenixhub.online/stream/series/{imdb}:{temporada}:{episodio}.json",
+   "passos": [
     {
-      "id": "fenixflix-fenixhub",
-      "nome": "FenixFlix (FenixHub)",
-      "ativo": true,
-      "tipos": [
-        "movie",
-        "tv"
-      ],
-      "urlMovie": "https://fenixflix.fenixhub.online/stream/movie/{imdb}.json",
-      "urlTv": "https://fenixflix.fenixhub.online/stream/series/{imdb}:{temporada}:{episodio}.json",
-      "passos": [
-        {
-          "tipo": "json",
-          "caminho": "streams[0].url"
-        }
-      ],
-      "dublado": true,
-      "qualidade": "1080p",
-      "referer": "https://fenixflix.fenixhub.online/",
-      "nota": 8
-    },
-    {
-      "id": "fenixflix-fenixhub-fenixflix-1080p",
-      "ativo": false
+     "tipo": "json",
+     "caminho": "streams[0].url"
     }
-  ],
-  "listasTv": [
+   ],
+   "dublado": true,
+   "qualidade": "1080p",
+   "referer": "https://fenixflix.fenixhub.online/",
+   "nota": 8
+  },
+  {
+   "id": "fenixflix-fenixhub-fenixflix-1080p",
+   "ativo": false
+  },
+  {
+   "id": "bscine-servidor",
+   "nome": "BsCine",
+   "nota": 7.4,
+   "dublado": true,
+   "qualidade": "720p",
+   "tipos": [
+    "movie",
+    "tv"
+   ],
+   "urlMovie": "https://bscine.alwaysdata.net/stream/movie/{imdb}.json",
+   "urlTv": "https://bscine.alwaysdata.net/stream/series/{imdb}:{temporada}:{episodio}.json",
+   "referer": "https://bscine.alwaysdata.net/",
+   "origem": "caçada por título (catálogo de addons)",
+   "stremio": true,
+   "ativo": true,
+   "medidoEm": "2026-11-02T17:31:25.277Z",
+   "passos": [
     {
-      "id": "esportes",
-      "nome": "Esportes",
-      "url": "https://iptv-org.github.io/iptv/categories/sports.m3u",
-      "nota": 7.5,
-      "medidoEm": "2026-10-10T19:56:11.977Z",
-      "testes": 8,
-      "taxaSucesso": 75,
-      "qualidade": "1080p"
-    },
-    {
-      "id": "noticias",
-      "nome": "Notícias",
-      "url": "https://iptv-org.github.io/iptv/categories/news.m3u",
-      "nota": 8,
-      "medidoEm": "2026-10-10T19:56:24.248Z",
-      "testes": 8,
-      "taxaSucesso": 100,
-      "qualidade": "1080p"
-    },
-    {
-      "id": "musica",
-      "nome": "Música",
-      "url": "https://iptv-org.github.io/iptv/categories/music.m3u",
-      "nota": 8,
-      "medidoEm": "2026-10-10T19:56:49.196Z",
-      "testes": 8,
-      "taxaSucesso": 100,
-      "qualidade": "1080p"
-    },
-    {
-      "id": "documentarios",
-      "nome": "Documentários",
-      "url": "https://iptv-org.github.io/iptv/categories/documentary.m3u",
-      "nota": 6.7,
-      "medidoEm": "2026-10-10T19:56:51.873Z",
-      "testes": 8,
-      "taxaSucesso": 75,
-      "qualidade": "1080p"
-    },
-    {
-      "id": "familia",
-      "nome": "Família",
-      "url": "https://iptv-org.github.io/iptv/categories/family.m3u",
-      "nota": 6.5,
-      "medidoEm": "2026-10-10T19:57:11.467Z",
-      "testes": 8,
-      "taxaSucesso": 100,
-      "qualidade": "1080p"
-    },
-    {
-      "id": "religiosos",
-      "nome": "Religiosos",
-      "url": "https://iptv-org.github.io/iptv/categories/religious.m3u",
-      "nota": 7.8,
-      "medidoEm": "2026-10-10T19:57:53.045Z",
-      "testes": 8,
-      "taxaSucesso": 88,
-      "qualidade": "1080p"
-    },
-    {
-      "id": "cacador-verificados",
-      "nome": "Verificados pelo caçador",
-      "url": "https://raw.githubusercontent.com/invictusbr1/stream-tv-atualizacoes/main/tv-cacador-verificados.m3u",
-      "nota": 0,
-      "medidoEm": "2026-10-10T19:59:55.319Z",
-      "canais": 5,
-      "reproducaoConfirmada": true
+     "tipo": "json",
+     "caminho": "streams[0].url"
     }
-  ],
-  "placar": [
+   ],
+   "evidencia": "A Origem: faixa de áudio em português (padrão do arquivo) · 800p | Batman: O Cavaleiro das Trevas: faixa de áudio em português (padrão do arquivo) · 800p | Um Sonho de Liberdade: faixa de áudio em português (padrão do arquivo) · 720p",
+   "provas": [
     {
-      "id": "watchplay",
-      "nome": "WatchPlay",
-      "ajuste": 0.39,
-      "taxaFalha": 30,
-      "aberturas": 23,
-      "falhas": 10
+     "amostra": "A Origem",
+     "ok": true,
+     "url": "http://rfc-infinite.top/movie/91098174/vGBc4fp/311110.mp4",
+     "altura": 800,
+     "dublado": true,
+     "atendePadrao": true,
+     "evidencia": "faixa de áudio em português (padrão do arquivo)",
+     "motivo": ""
     },
     {
-      "id": "pipoca",
-      "nome": "PipocaCine",
-      "ajuste": -0.67,
-      "taxaFalha": 78,
-      "aberturas": 5,
-      "falhas": 18
+     "amostra": "Batman: O Cavaleiro das Trevas",
+     "ok": true,
+     "url": "http://rfc-infinite.top/movie/91098174/vGBc4fp/317885.mp4",
+     "altura": 800,
+     "dublado": true,
+     "atendePadrao": true,
+     "evidencia": "faixa de áudio em português (padrão do arquivo)",
+     "motivo": ""
     },
     {
-      "id": "mgeb",
-      "nome": "MGEB · dublado",
-      "ajuste": -0.38,
-      "taxaFalha": 67,
-      "aberturas": 7,
-      "falhas": 14
-    },
-    {
-      "id": "fenix",
-      "nome": "FenixFlix · dublado",
-      "ajuste": 0.79,
-      "taxaFalha": 11,
-      "aberturas": 17,
-      "falhas": 2
-    },
-    {
-      "id": "full-hd",
-      "nome": "Full HD",
-      "ajuste": 0.04,
-      "taxaFalha": 43,
-      "aberturas": 8,
-      "falhas": 6
-    },
-    {
-      "id": "vixsrc",
-      "nome": "Vixsrc",
-      "ajuste": -0.2,
-      "taxaFalha": 50,
-      "aberturas": 2,
-      "falhas": 2
+     "amostra": "Um Sonho de Liberdade",
+     "ok": true,
+     "url": "http://rfc-infinite.top/movie/91098174/vGBc4fp/406829.mp4",
+     "altura": 720,
+     "dublado": true,
+     "atendePadrao": true,
+     "evidencia": "faixa de áudio em português (padrão do arquivo)",
+     "motivo": ""
     }
-  ]
+   ],
+   "adicionadaPor": "link manual",
+   "adicionadaEm": "2026-11-02T17:31:30.978Z"
+  }
+ ],
+ "listasTv": [
+  {
+   "id": "esportes",
+   "nome": "Esportes",
+   "url": "https://iptv-org.github.io/iptv/categories/sports.m3u",
+   "nota": 7.5,
+   "medidoEm": "2026-10-10T19:56:11.977Z",
+   "testes": 8,
+   "taxaSucesso": 75,
+   "qualidade": "1080p"
+  },
+  {
+   "id": "noticias",
+   "nome": "Notícias",
+   "url": "https://iptv-org.github.io/iptv/categories/news.m3u",
+   "nota": 8,
+   "medidoEm": "2026-10-10T19:56:24.248Z",
+   "testes": 8,
+   "taxaSucesso": 100,
+   "qualidade": "1080p"
+  },
+  {
+   "id": "musica",
+   "nome": "Música",
+   "url": "https://iptv-org.github.io/iptv/categories/music.m3u",
+   "nota": 8,
+   "medidoEm": "2026-10-10T19:56:49.196Z",
+   "testes": 8,
+   "taxaSucesso": 100,
+   "qualidade": "1080p"
+  },
+  {
+   "id": "documentarios",
+   "nome": "Documentários",
+   "url": "https://iptv-org.github.io/iptv/categories/documentary.m3u",
+   "nota": 6.7,
+   "medidoEm": "2026-10-10T19:56:51.873Z",
+   "testes": 8,
+   "taxaSucesso": 75,
+   "qualidade": "1080p"
+  },
+  {
+   "id": "familia",
+   "nome": "Família",
+   "url": "https://iptv-org.github.io/iptv/categories/family.m3u",
+   "nota": 6.5,
+   "medidoEm": "2026-10-10T19:57:11.467Z",
+   "testes": 8,
+   "taxaSucesso": 100,
+   "qualidade": "1080p"
+  },
+  {
+   "id": "religiosos",
+   "nome": "Religiosos",
+   "url": "https://iptv-org.github.io/iptv/categories/religious.m3u",
+   "nota": 7.8,
+   "medidoEm": "2026-10-10T19:57:53.045Z",
+   "testes": 8,
+   "taxaSucesso": 88,
+   "qualidade": "1080p"
+  },
+  {
+   "id": "cacador-verificados",
+   "nome": "Verificados pelo caçador",
+   "url": "https://raw.githubusercontent.com/invictusbr1/stream-tv-atualizacoes/main/tv-cacador-verificados.m3u",
+   "nota": 0,
+   "medidoEm": "2026-10-10T19:59:55.319Z",
+   "canais": 5,
+   "reproducaoConfirmada": true
+  }
+ ],
+ "placar": [
+  {
+   "id": "watchplay",
+   "nome": "WatchPlay",
+   "ajuste": 0.39,
+   "taxaFalha": 30,
+   "aberturas": 23,
+   "falhas": 10
+  },
+  {
+   "id": "pipoca",
+   "nome": "PipocaCine",
+   "ajuste": -0.67,
+   "taxaFalha": 78,
+   "aberturas": 5,
+   "falhas": 18
+  },
+  {
+   "id": "mgeb",
+   "nome": "MGEB · dublado",
+   "ajuste": -0.38,
+   "taxaFalha": 67,
+   "aberturas": 7,
+   "falhas": 14
+  },
+  {
+   "id": "fenix",
+   "nome": "FenixFlix · dublado",
+   "ajuste": 0.79,
+   "taxaFalha": 11,
+   "aberturas": 17,
+   "falhas": 2
+  },
+  {
+   "id": "full-hd",
+   "nome": "Full HD",
+   "ajuste": 0.04,
+   "taxaFalha": 43,
+   "aberturas": 8,
+   "falhas": 6
+  },
+  {
+   "id": "vixsrc",
+   "nome": "Vixsrc",
+   "ajuste": -0.2,
+   "taxaFalha": 50,
+   "aberturas": 2,
+   "falhas": 2
+  }
+ ]
 }

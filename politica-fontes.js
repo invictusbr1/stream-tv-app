@@ -101,6 +101,8 @@ function ordenar(fontes, papel, alvo, contexto = {}) {
     return (fontes || [])
         .filter(f => papelDaFonte(f) === papel)
         .filter(f => !temAnuncio(f))
+        // Fonte desligada na política (morta, pede login...) não entra na fila.
+        .filter(f => !(regraDaFonte(f.id) && regraDaFonte(f.id).desligada === true))
         .filter(f => !alvo || !f.seAplica || f.seAplica(alvo))
         .map((fonte, i) => ({
             fonte, i,

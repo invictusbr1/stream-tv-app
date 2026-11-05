@@ -213,13 +213,17 @@ window.StreamPlayback = (() => {
         return candidates.reduce((best,c)=>c.level.height>best.level.height||(c.level.height===best.level.height&&(c.level.bitrate||0)>(best.level.bitrate||0))?c:best).index;
     }
     function portuguese(track){return /^(pt|por)(-|_|$)/i.test(track.lang||track.language||'')||/dublad|portugu[eê]s|portuguese|pt[-_ ]?br/i.test(track.name||track.label||'');}
+    function idiomaDeclaradoNaoPt(t){const l=String(t.lang||t.language||'').trim().toLowerCase();if(l&&!/^(und|unk|mul|zxx|mis|qaa)$/.test(l))return true;return /english|ingl[eê]s|espa[nñ]ol|spanish|fran[cç]ais|french|legendad|original/i.test(t.name||t.label||'');}
     function enforceAudio(permitirOriginal=false){
         if(!hls)return true;const tracks=hls.audioTracks||[];if(!tracks.length)return true;
         if(audioChoice>=0)return true;
         const pt=tracks.findIndex(portuguese);
         if(pt>=0){if(hls.audioTrack!==pt)hls.audioTrack=pt;rotuloAudio='Dublado';analiseAtual?.fonte({audio:rotuloAudio});sincronizarLegendas();return true;}
         // A named English track is just as explicit as an ISO language tag.
-        if(tracks.some(t=>t.lang||/english|ingl[eê]s|espa[nñ]ol|spanish|fran[cç]ais|french|legendad|original/i.test(t.name||''))){if(!permitirOriginal){failure('a fonte anunciada como dublada não oferece faixa em português');return false;}rotuloAudio='som original';analiseAtual?.fonte({audio:rotuloAudio});}
+        // "und" (indeterminado), "mul", "zxx"... NÃO declaram idioma: a MGEB
+        // publica a faixa dublada como LANGUAGE="und" NAME="Undefined" e o player
+        // recusava o filme como se fosse inglês. Só recusa idioma DECLARADO.
+        if(tracks.some(idiomaDeclaradoNaoPt)){if(!permitirOriginal){failure('a fonte anunciada como dublada não oferece faixa em português');return false;}rotuloAudio='som original';analiseAtual?.fonte({audio:rotuloAudio});}
         return true;
     }
     let taxaAtual=0;
