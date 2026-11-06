@@ -28,7 +28,7 @@ const MAXIMO_ARQUIVOS = 3;
 const PROTECAO_ACESSO = 2 * 60 * 60 * 1000; // 2 horas
 const VALIDADE = 3 * 24 * 60 * 60 * 1000; // 3 dias
 const PRONTO_PARA_TOCAR = 0.03;            // 3% já dá para começar
-const MINIMO_TOCAVEL = 20;                 // ou 20 segundos de vídeo
+const MINIMO_TOCAVEL = 12;                 // ou 12 segundos de vídeo (3 pedaços de 4 s)
 
 const trabalhos = new Map();
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36';
@@ -79,10 +79,24 @@ async function ffmpegPath() {
 }
 
 // Descobre a faixa de áudio em português (e a duração) do arquivo de origem.
+// Mesma fonte aberta de novo (ou em outro ponto do filme): reaproveita a
+// leitura do arquivo em vez de rodar o ffprobe outra vez.
+const faixasLidas = new Map();
 async function faixaPortuguesa(url, referer) {
+    const guardada = faixasLidas.get(url);
+    if (guardada && guardada.expira > Date.now()) return guardada.valor;
+    const valor = await lerFaixaPortuguesa(url, referer);
+    if (valor.duracao > 0) {
+        if (faixasLidas.size >= 100) faixasLidas.delete(faixasLidas.keys().next().value);
+        faixasLidas.set(url, { valor, expira: Date.now() + 2 * 60 * 60 * 1000 });
+    }
+    return valor;
+}
+async function lerFaixaPortuguesa(url, referer) {
     try {
         const central = require('./central/verificar-midia');
-        const faixas = await central.faixasDeAudio(url, referer);
+        // Prazo curto: é o que segura o "abrir" do filme convertido.
+        const faixas = await central.faixasDeAudio(url, referer, { timeout: 15000 });
         if (!faixas || !faixas.faixas.length) return { indice: 0, duracao: 0 };
         const portuguesa = faixas.faixas.find(f => /^pt|por/.test(f.idioma));
         return { indice: portuguesa ? portuguesa.ordem : 0, duracao: Number(faixas.duracao) || 0 };

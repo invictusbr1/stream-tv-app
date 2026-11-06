@@ -112,3 +112,47 @@ test('BsCine escolhida pelo aparelho não é encaminhada pela Oracle (cai na dis
         assert.equal(disputou, true);
     } finally { motor.fontesAtivas = original; avaliador.escolherMelhor = escolher; motor.escolher = escolherMotor; }
 });
+
+test('motor 1 (TorBox) abre direto quando tem Full HD; com 720p ou nada, motor=torbox responde indisponível e a fila normal segue', async () => {
+    const tb = require('./torbox-source'), ativa = tb.ativa, resolverTodos = tb.resolverTodos;
+    const avaliador = require('./avaliador'), escolher = avaliador.escolherMelhor;
+    const conversor = require('./conversor'), iniciar = conversor.iniciar;
+    let disputou = 0, opcoes = [];
+    tb.ativa = () => true;
+    tb.resolverTodos = async () => opcoes;
+    avaliador.escolherMelhor = async () => { disputou++; return null; };
+    conversor.iniciar = async (_url, op) => ({ id: op.id + '-m1', duracao: 7568 });
+    try {
+        const h = rotas()['/api/playback/:id'];
+        opcoes = [{ url: 'https://cdn.torbox.example/otto.mkv', audio: 'pt-BR', fonte: 'TorBox · dublado 1080p (conversão)', resolucao: '1080p', converter: true, segredo: true }];
+        const r1 = resposta();
+        await h({ params: { id: '937278' }, query: { transporte: 'servidor', conversao: '1', motor: 'torbox' }, headers: {} }, r1);
+        assert.equal(r1.corpo.fonteId, 'torbox');
+        assert.equal(r1.corpo.conversao, 'filme-937278-m1');
+        assert.equal(disputou, 0, 'motor 1 não espera o avaliador');
+        assert.ok(!JSON.stringify(r1.corpo).includes('cdn.torbox.example'), 'link com a chave não vai ao aparelho');
+
+        opcoes = [{ url: 'https://cdn.torbox.example/otto720.mkv', audio: 'pt-BR', resolucao: '720p', converter: true, segredo: true }];
+        const r2 = resposta();
+        await h({ params: { id: '937278' }, query: { transporte: 'servidor', conversao: '1', motor: 'torbox' }, headers: {} }, r2);
+        assert.deepEqual(r2.corpo, { indisponivel: true });
+        assert.equal(disputou, 0);
+
+        // Tela larga (rótulo 1036p) é Full HD: motor 1 aceita (régua de 800p).
+        opcoes = [{ url: 'https://cdn.torbox.example/otto-largo.mkv', audio: 'pt-BR', resolucao: '1036p', converter: true, segredo: true }];
+        const r2b = resposta();
+        await h({ params: { id: '937278' }, query: { transporte: 'servidor', conversao: '1', motor: 'torbox' }, headers: {} }, r2b);
+        assert.equal(r2b.corpo.fonteId, 'torbox');
+        opcoes = [{ url: 'https://cdn.torbox.example/otto720.mkv', audio: 'pt-BR', resolucao: '720p', converter: true, segredo: true }];
+        // Sem ?motor: 720p da TorBox não serve para o motor 1 → motor 2 (avaliador).
+        const r3 = resposta();
+        await h({ params: { id: '937278' }, query: {}, headers: {} }, r3);
+        assert.equal(disputou, 1);
+
+        // APK antigo (sem conversao=1): MKV não serve, cai no motor 2.
+        opcoes = [{ url: 'https://cdn.torbox.example/otto.mkv', audio: 'pt-BR', resolucao: '1080p', converter: true, segredo: true }];
+        const r4 = resposta();
+        await h({ params: { id: '937278' }, query: { transporte: 'servidor', motor: 'torbox' }, headers: {} }, r4);
+        assert.deepEqual(r4.corpo, { indisponivel: true });
+    } finally { tb.ativa = ativa; tb.resolverTodos = resolverTodos; avaliador.escolherMelhor = escolher; conversor.iniciar = iniciar; }
+});

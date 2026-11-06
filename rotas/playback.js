@@ -128,6 +128,25 @@ function paraPlayerDoPc(req) {
 // (ex.: TorBox) pelo transporte autenticado do próprio aparelho.
 // Ponto do filme (segundos) onde o player quer começar: a conversão começa
 // ali em vez de no 0 (continuar de onde parou / pular para a frente).
+// MOTOR 1 (teste, 06/11/2026): TorBox primeiro. Se ela tem o título dublado
+// em 800p ou mais (Full HD, inclusive tela larga 1036p), abre direto — sem esperar o avaliador testar todas as
+// fontes (que leva até ~9 s). Sem título ou abaixo de 800p: MOTOR 2 (fila
+// normal do avaliador). ?motor=torbox pede SÓ o motor 1 (o APK pergunta isso
+// antes de procurar no próprio aparelho).
+// Filme em tela larga (1920×1036, 1920×800) é Full HD com outra proporção:
+// a régua do motor 1 é 800p. Abaixo disso (720p, 480p) vai para o motor 2.
+const MOTOR1_MINIMO = 800;
+async function motorTorbox(req, alvo, exceto) {
+    if ((exceto || []).includes('torbox')) return null;
+    let tb;
+    try { tb = require('../torbox-source'); if (!tb.ativa()) return null; } catch { return null; }
+    const lista = await Promise.race([
+        tb.resolverTodos(alvo.tipo === 'tv' ? 'tv' : 'movie', alvo.tmdbId, alvo.temporada, alvo.episodio).catch(() => []),
+        new Promise(ok => setTimeout(() => ok([]), 7000)),
+    ]);
+    const boa = (lista || []).find(d => d && d.url && (parseInt(d.resolucao, 10) || 0) >= MOTOR1_MINIMO && !(d.converter && semConversaoNoPedido(req)));
+    return boa ? { ...boa, fonteId: 'torbox' } : null;
+}
 function inicioDoPedido(req) {
     const n = /^\d{1,6}$/.test(String(req.query.inicio || '')) ? Number(req.query.inicio) : 0;
     return n >= 60 ? n : 0;
@@ -215,9 +234,10 @@ app.get('/api/playback/:id', async (req, res) => {
         if (await responderEscolhaDoAparelho(req,res,alvo).catch(() => false)) return;
         // Avaliador em tempo real: testa as melhores fontes do título em
         // paralelo e escolhe a que entrega mais qualidade seguindo as regras.
-        let escolhido = null;
+        let escolhido = await motorTorbox(req, alvo, exceto);
         let avaliacao = null;
-        if (process.env.AVALIADOR !== '0') {
+        if (!escolhido && req.query.motor === 'torbox') return res.json({ indisponivel: true });
+        if (!escolhido && process.env.AVALIADOR !== '0') {
             const resultado = await avaliador.escolherMelhor('dublado', alvo, { exceto, codec: codecDoPedido(req), semConversao: semConversaoNoPedido(req) }).catch(() => null);
             if (resultado) { escolhido = resultado.escolhido; avaliacao = resultado.avaliacao; }
         }
@@ -311,7 +331,9 @@ app.get('/api/playback/serie/:id/:season/:episode', async (req, res) => {
         const alvo = { tipo: 'tv', tmdbId: id, temporada: season, episodio: episode };
         if (await responderCompatibilidade(req,res,alvo)) return;
         if (await responderEscolhaDoAparelho(req,res,alvo).catch(() => false)) return;
-        let escolhido = await require('../crystal-lake-source').resolver(alvo, { exceto });
+        let escolhido = await motorTorbox(req, alvo, exceto);
+        if (!escolhido && req.query.motor === 'torbox') return res.json({ indisponivel: true });
+        if (!escolhido) escolhido = await require('../crystal-lake-source').resolver(alvo, { exceto });
         let avaliacao = null;
         if (!escolhido && process.env.AVALIADOR !== '0') {
             const resultado = await require('../avaliador').escolherMelhor('dublado', alvo, { exceto, codec: codecDoPedido(req), semConversao: semConversaoNoPedido(req) }).catch(() => null);

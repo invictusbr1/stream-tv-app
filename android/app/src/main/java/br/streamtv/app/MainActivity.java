@@ -1052,7 +1052,9 @@ public final class MainActivity extends Activity {
             String path="tv".equals(tipo)?"/api/playback/serie/"+id+"/"+temporada+"/"+episodio:"/api/playback/"+id;
             String exc=excluded==null||excluded.isEmpty()?"":"&exceto="+Uri.encode(android.text.TextUtils.join(",",excluded));
             path+="?transporte=servidor&conversao=1&codec="+(hevc?"hevc":"avc")+exc+(escolhaDoAparelho==null?"":escolhaDoAparelho);
-            JSONObject data=new JSONObject(transport.json(path,25000));
+            // Motor 1 (TorBox) responde rápido ou diz "indisponível": prazo menor
+            // para não segurar a busca no aparelho se o servidor estiver lento.
+            JSONObject data=new JSONObject(transport.json(path,escolhaDoAparelho!=null&&escolhaDoAparelho.contains("motor=torbox")?22000:25000));
             if(!"pt-BR".equals(data.optString("audio"))||!java.util.Arrays.asList("file","hls").contains(data.optString("type")))return null;
             // Conversão (ex.: MKV da TorBox com som Dolby): o servidor copia a
             // imagem e só troca o áudio para AAC. A lista e os pedaços vêm por
@@ -1122,6 +1124,10 @@ public final class MainActivity extends Activity {
     private WebResourceResponse qualityPlayback(String tipo,String id,String temporada,String episodio,java.util.Set<String> excluded,boolean avcOnly) {
         final QualitySelector selector=avcOnly?compatibleQualitySelector:qualitySelector;
         boolean serverTried=false;
+        // MOTOR 1 (teste): TorBox no servidor primeiro. Só volta se tiver o título
+        // dublado em Full HD; senão o servidor responde "indisponível" na hora e
+        // segue o MOTOR 2 (busca no aparelho, como antes).
+        if(excluded==null||!excluded.contains("torbox")){WebResourceResponse motor1=serverPlayback(tipo,id,temporada,episodio,excluded,!avcOnly,"&motor=torbox");if(motor1!=null)return motor1;}
         if(SystemClock.elapsedRealtime()<serverRouteUntil&&(tipo+":"+id).equals(serverRouteTitle)){serverTried=true;WebResourceResponse recovered=serverPlayback(tipo,id,temporada,episodio,excluded,!avcOnly);if(recovered!=null)return recovered;serverRouteUntil=0;}
         final java.util.Set<String> exceto=Collections.unmodifiableSet(new java.util.HashSet<>(excluded));
         // Modo autônomo: filme E série são escolhidos aqui no aparelho. O vídeo
@@ -1313,6 +1319,8 @@ public final class MainActivity extends Activity {
     }
 
     private WebResourceResponse directEpisode(String id,String temporada,String episodio,java.util.Set<String> exceto) {
+        // MOTOR 1 (teste): TorBox no servidor primeiro (ver qualityPlayback).
+        if(exceto==null||!exceto.contains("torbox")){WebResourceResponse motor1=serverPlayback("tv",id,temporada,episodio,exceto,true,"&motor=torbox");if(motor1!=null)return motor1;}
         if(CrystalLakeSource.applies(id,temporada,episodio)&&!exceto.contains(CrystalLakeSource.ID)){
             try{CrystalLakeSource.Result resolved=crystalLakeResolve(episodio,true);if(resolved!=null){
                 JSONObject data=new JSONObject();data.put("url","/api/crystal-lake/1/"+episodio+"/master.m3u8");data.put("audio","pt-BR");data.put("type","hls");data.put("source","Crystal Lake · dublado");data.put("fonteId",CrystalLakeSource.ID);data.put("resolucao",resolved.resolution);data.put("largura",resolved.width);data.put("altura",resolved.height);
