@@ -129,7 +129,11 @@ test('encerrar no começo de uma nova consulta não reutiliza o ID da fonte ante
 
 test('fonte ainda em conversão não reinicia o filme ao tentar recuperar um ponto distante',async()=>{
  const s=harness();s.fetch(async()=>({conversao:'em-preparacao',fonteId:'fenix',source:'Fonte em preparação'}));
- assert.equal(await s.controller.start(238,1,null,null,null,false,null,{posicao:240}),false);
+ // Espera a conversão chegar no ponto salvo (até 120 consultas de 2 s); se não chegar, desiste sem recomeçar do zero.
+ const p=s.controller.start(238,1,null,null,null,false,null,{posicao:240});
+ for(let i=0;i<130;i++){await new Promise(setImmediate);for(const [id,fn] of [...s.timers.entries()].filter(([,fn])=>fn.delay===2000)){s.timers.delete(id);fn();}}
+ assert.equal(await p,false);
+ assert.equal(s.Hls.instance,undefined);
  assert.equal(s.controller.estado().fonteId,'fenix');assert.equal(s.controller.isActive(),false);s.controller.stop();
 });
 

@@ -153,6 +153,14 @@ function prioridadeDaMedicao({ dados, sonda, idiomaVerificado, ms }) {
     return [idioma, medida ? 1 : 0, idioma === 2 && medida ? gavetaDaAltura(altura) : 0, altura, dados.converter ? 0 : 1, sonda?.banda || 0, -(ms || 0)];
 }
 
+// Modo de TESTE: fonte marcada "principal": true em politica-fontes.json
+// passa na frente de todas as outras sempre que entregar dublado (idioma ≥ 1
+// no vetor). Fora disso a regra normal decide. Tirar a marca desfaz.
+function principalEmTeste(id) {
+    const regra = regraDaFonte(id);
+    return Boolean(regra && regra.principal === true);
+}
+
 function compararPrioridade(a, b) {
     for (let i = 0; i < a.length; i++) { if (a[i] !== b[i]) return b[i] - a[i]; }
     return 0;
@@ -162,5 +170,5 @@ module.exports = {
     REGRAS, tempos,
     temAnuncio, prioridade, prioridadeDaFicha, papelDaFonte, pontuar, ordenar,
     alturaEquivalente, alturaDoRotulo, gavetaDaAltura, NOMES_GAVETAS,
-    prioridadeDaMedicao, compararPrioridade,
+    prioridadeDaMedicao, compararPrioridade, principalEmTeste,
 };

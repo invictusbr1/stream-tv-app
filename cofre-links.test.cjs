@@ -60,3 +60,15 @@ test('conversor reaproveita conversão completa do disco após reinício do proc
         try { fs.rmSync(pasta, { recursive: true, force: true }); } catch {}
     }
 });
+
+test('modo de teste: fonte "principal" dublada vence mesmo com resolução menor; em outro idioma não', () => {
+    const politica = require('./politica-fontes');
+    if (!politica.principalEmTeste('torbox')) return;
+    const vetores = (tb, outra) => [{ fonteId: 'torbox', prioridade: tb }, { fonteId: 'fenix', prioridade: outra }];
+    const ordenar = lista => lista.sort((a, b) => {
+        const p = x => (politica.principalEmTeste(x.fonteId) && x.prioridade[0] >= 1 ? 1 : 0);
+        return (p(b) - p(a)) || politica.compararPrioridade(a.prioridade, b.prioridade);
+    });
+    assert.strictEqual(ordenar(vetores([2, 1, 3, 1080, 0, 0, 0], [2, 1, 5, 2160, 1, 0, 0]))[0].fonteId, 'torbox');
+    assert.strictEqual(ordenar(vetores([-1, 1, 0, 1080, 0, 0, 0], [2, 1, 2, 720, 1, 0, 0]))[0].fonteId, 'fenix');
+});

@@ -37,7 +37,8 @@
   "torbox": {
    "papel": "dublado",
    "prioridade": 93,
-   "nota": "Debrid (conta própria): torrents dublados no cache da TorBox, Full HD; MKV vai pelo conversor."
+   "nota": "TESTE desde 06/11/2026: \"principal\": true faz a TorBox vencer sempre que tiver o título dublado. Para voltar ao normal, apague a linha \"principal\".",
+   "principal": true
   },
   "clickhost": {
    "papel": "dublado",

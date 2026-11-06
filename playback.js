@@ -403,8 +403,18 @@ window.StreamPlayback = (() => {
         }
         if(data&&data.conversao&&version===playerVersion&&!(signal&&signal.aborted)){
             if(retomadaAlvo>0){
-                const atual=await lerJson('/api/conversao/'+encodeURIComponent(data.conversao),signal).catch(()=>null);
-                if(token!==generation||(signal&&signal.aborted)||version!==playerVersion)return false;
+                // A conversão anda bem mais rápido que o filme (a imagem só é
+                // copiada): em vez de desistir da fonte, espera ela chegar no
+                // ponto salvo, mostrando o avanço. Só desiste depois de 4 min.
+                let atual=null;
+                for(let tentativa=0;tentativa<120;tentativa++){
+                    atual=await lerJson('/api/conversao/'+encodeURIComponent(data.conversao),signal).catch(()=>null);
+                    if(token!==generation||(signal&&signal.aborted)||version!==playerVersion)return false;
+                    if(!atual||atual.erro||atual.convertido||Number(atual.segundos)>=retomadaAlvo+10)break;
+                    const pct=Math.max(0,Math.min(99,Math.round(Number(atual.segundos||0)/(retomadaAlvo+10)*100)));
+                    try{window.setLoading?.('Voltando de onde você parou','Preparando em alta qualidade… '+pct+'%');}catch(e){}
+                    await new Promise(r=>setTimeout(r,2000));
+                }
                 if(!(atual&&!atual.erro&&(atual.convertido||Number(atual.segundos)>=retomadaAlvo+10))){
                     fonteIdUsada=String(data.fonteId||'');fonteUsada=String(data.source||'');
                     analiseAtual?.fonte({fonteId:fonteIdUsada,fonte:fonteUsada});

@@ -194,7 +194,13 @@ function avaliarConferidas(conferidas, idiomas, titulo) {
                 ...(sonda?.videoCodec ? {videoCodec:sonda.videoCodec} : {}),
                 ...(sonda?.altura && sonda?.largura ? {resolucao:Math.round(alturaEquivalente(sonda.largura,sonda.altura))+'p'} : {})
             }, ms: registro.item.ms, prioridade: prioridadeDaFonte(medida) };
-    }).sort((a, b) => compararPrioridade(a.prioridade, b.prioridade));
+    }).sort(ordemFinal);
+}
+// Fonte principal em teste (politica-fontes.json "principal": true) vence
+// quando é dublada; o resto segue o vetor normal da política.
+function ordemFinal(a, b) {
+    const p = x => (politica.principalEmTeste(x.fonteId) && x.prioridade[0] >= 1 ? 1 : 0);
+    return (p(b) - p(a)) || compararPrioridade(a.prioridade, b.prioridade);
 }
 
 function resultadoDasAvaliacoes(avaliacoes, tempoMs) {
@@ -339,7 +345,7 @@ async function escolherMelhor(papel,alvo,opcoes={}){
         const key=a.fonteId+'\n'+a.dados.url,anterior=mapa.get(key);
         if(!anterior||compararPrioridade(a.prioridade,anterior.prioridade)<=0)mapa.set(key,a);
     }
-    const avaliacoes=[...mapa.values()].sort((a,b)=>compararPrioridade(a.prioridade,b.prioridade));
+    const avaliacoes=[...mapa.values()].sort(ordemFinal);
     const chave=`${papel}:${motor.chaveDoTitulo(alvo)}:${opcoes.codec||''}:${(opcoes.exceto||[]).join(',')}`;
     cache.delete(chave); // busca parcial não se torna escolha definitiva
     if(!avaliacoes.length)return null;
