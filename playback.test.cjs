@@ -657,3 +657,32 @@ test('filme ou série no áudio original mostra a opção Dublado nas Opções',
  // O estado pendente precisa sumir ao fechar o player.
  assert.match(html,/classList\.remove\('dublado-pendente'\)/);
 });
+
+test('filme em conversão mostra a duração real, não o trecho já convertido', async () => {
+ const s = harness('StreamTVAndroid');
+ s.fetch(async caminho => caminho === '/api/conversao/filme-937278-x'
+  ? { id: 'filme-937278-x', pronto: true, convertido: false, progresso: 4, segundos: 300, duracao: 7568 }
+  : { conversao: 'filme-937278-x', audio: 'pt-BR', fonteId: 'torbox', source: 'TorBox · dublado 1080p (conversão)', type: 'hls' });
+ const p = s.controller.start(937278, 1);
+ for (let i = 0; i < 4; i++) await new Promise(setImmediate);
+ const v = s.el('direct-video'); v.duration = 300; v.currentTime = 100; v.videoWidth = 1920; v.videoHeight = 1036; v.webkitDecodedFrameCount = 1;
+ s.Hls.instance.emit('manifest'); v.fire('loadedmetadata'); v.fire('playing'); v.fire('timeupdate');
+ assert.equal(s.el('direct-progress').value, Math.round(100 / 7568 * 1000));
+ assert.match(s.el('direct-time').textContent, /2:06:08/);
+ s.controller.stop(); await p;
+});
+
+test('filme em conversão aberto pelo catálogo espera chegar no minuto salvo e começa dele', async () => {
+ const s = harness('StreamTVAndroid');
+ s.context.filmeAtual = { id: 937278, titulo: 'O Pior Vizinho do Mundo' };
+ s.window.StreamPersonal = { position: () => 1980, record() {} };
+ let segundos = 600;
+ s.fetch(async caminho => caminho === '/api/conversao/filme-937278-y'
+  ? { id: 'filme-937278-y', pronto: true, convertido: false, segundos, duracao: 7568 }
+  : { conversao: 'filme-937278-y', audio: 'pt-BR', fonteId: 'torbox', source: 'TorBox · dublado 1080p (conversão)', type: 'hls' });
+ const p = s.controller.start(937278, 1);
+ for (let i = 0; i < 6; i++) { await new Promise(setImmediate); segundos += 400; for (const [id, fn] of [...s.timers.entries()].filter(([, fn]) => fn.delay === 2000)) { s.timers.delete(id); fn(); } }
+ for (let i = 0; i < 4; i++) await new Promise(setImmediate);
+ assert.equal(s.Hls.instance.config.startPosition, 1980);
+ s.controller.stop(); await p;
+});
