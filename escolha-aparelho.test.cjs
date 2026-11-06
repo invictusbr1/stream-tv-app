@@ -51,3 +51,53 @@ test('endereço que a fonte não devolve não é encaminhado (nada de proxy livr
         }
     } finally { motor.fontesAtivas = original; avaliador.escolherMelhor = escolher; motor.escolher = escolherMotor; }
 });
+
+test('upgrade=1: celular em 720p sobe para Full HD dublado medido da TorBox (com conversão) e ignora 720p', async () => {
+    const avaliador = require('./avaliador'), escolher = avaliador.escolherMelhor;
+    const conversor = require('./conversor'), iniciar = conversor.iniciar;
+    let converteu = 0;
+    conversor.iniciar = async (_url, op) => { converteu++; return { id: op.id + '-t1' }; };
+    try {
+        const h = rotas()['/api/playback/:id'];
+        // 1) Servidor tem Full HD widescreen (1920 × 1036) dublado na TorBox -> entrega conversão 1080p.
+        avaliador.escolherMelhor = async (_p, _a, op) => {
+            assert.equal(op.semConversao, false);
+            return {
+                escolhido: { url: 'https://cdn.torbox.example/otto.mkv', audio: 'pt-BR', fonte: 'TorBox · dublado 1080p (conversão)', fonteId: 'torbox', resolucao: '1080p', converter: true, segredo: true },
+                avaliacao: [{ fonteId: 'torbox', nota: 4.3, detalhes: { idioma: 'faixa em português é a padrão do arquivo', dimensoes: '1920 × 1036' } }],
+            };
+        };
+        const r1 = resposta();
+        await h({ params: { id: '937278' }, query: { transporte: 'servidor', conversao: '1', upgrade: '1', codec: 'hevc' }, headers: {} }, r1);
+        assert.equal(r1.codigo, 200);
+        assert.equal(r1.corpo.fonteId, 'torbox');
+        assert.equal(r1.corpo.conversao, 'filme-937278-t1');
+        assert.equal(converteu, 1);
+
+        // 2) Servidor só tem 720p -> responde indisponivel:true sem iniciar conversão (celular mantém o 720p local).
+        avaliador.escolherMelhor = async () => ({
+            escolhido: { url: 'https://cdn.torbox.example/hd.mkv', audio: 'pt-BR', fonteId: 'torbox', resolucao: '720p', converter: true },
+            avaliacao: [{ fonteId: 'torbox', nota: 4, detalhes: { idioma: 'faixa em português é a padrão do arquivo', dimensoes: '1280 × 720' } }],
+        });
+        const r2 = resposta();
+        await h({ params: { id: '937278' }, query: { transporte: 'servidor', conversao: '1', upgrade: '1', codec: 'hevc' }, headers: {} }, r2);
+        assert.equal(r2.codigo, 200);
+        assert.equal(r2.corpo.indisponivel, true);
+        assert.equal(converteu, 1, 'não inicia conversão de 720p no pedido de upgrade');
+    } finally { avaliador.escolherMelhor = escolher; conversor.iniciar = iniciar; }
+});
+
+test('BsCine escolhida pelo aparelho não é encaminhada pela Oracle (cai na disputa do servidor)', async () => {
+    const original = motor.fontesAtivas;
+    const avaliador = require('./avaliador'), escolher = avaliador.escolherMelhor;
+    let disputou = false;
+    avaliador.escolherMelhor = async () => { disputou = true; return null; };
+    const escolherMotor = motor.escolher; motor.escolher = async () => null;
+    motor.fontesAtivas = () => [{ id: 'bscine-servidor', papel: 'dublado', resolverTodos: async () => [{ url: 'https://rfc-infinite.example/v/1.mp4', type: 'file' }] }];
+    try {
+        const h = rotas()['/api/playback/:id'];
+        const res = resposta();
+        await h({ params: { id: '937278' }, query: { transporte: 'servidor', escolhida: 'bscine-servidor', u: midia.base64url('https://rfc-infinite.example/v/1.mp4') }, headers: {} }, res);
+        assert.equal(disputou, true);
+    } finally { motor.fontesAtivas = original; avaliador.escolherMelhor = escolher; motor.escolher = escolherMotor; }
+});

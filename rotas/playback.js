@@ -129,6 +129,17 @@ function paraPlayerDoPc(req) {
 function semConversaoNoPedido(req) {
     return req.query.transporte === 'servidor' && req.query.conversao !== '1';
 }
+// Quando o celular já achou 720p no próprio aparelho (?upgrade=1), só vale
+// trocar pelo servidor se houver Full HD/4K dublado medido (ex.: TorBox 1080p).
+function atendeUpgradeFullHd(escolhido, avaliacao) {
+    const topo = Array.isArray(avaliacao) ? avaliacao[0] : null;
+    const det = (topo && topo.detalhes) || {};
+    if (det.audioEmOutroIdioma || det.dubladoNaoConfirmado) return false;
+    const m = String(det.dimensoes || '').match(/(\d+)\s*[×x]\s*(\d+)/);
+    if (!m) return false;
+    const { alturaEquivalente } = require('../politica-fontes');
+    return alturaEquivalente(Number(m[1]), Number(m[2])) >= 1080 * 0.98;
+}
 function codecDoPedido(req) {
     if (req.query.codec === 'hevc') return 'hevc';
     if (req.query.codec === 'avc') return 'avc';
@@ -163,7 +174,9 @@ async function responderCompatibilidade(req, res, alvo) {
 async function responderEscolhaDoAparelho(req, res, alvo) {
     const fonteId = String(req.query.escolhida || '').slice(0, 60);
     const bruto = String(req.query.u || '');
-    if (!fonteId || !bruto) return false;
+    const exceto = String(req.query.exceto || '').split(',').map(s => s.trim()).filter(Boolean);
+    // O servidor de vídeo da BsCine recusa conexão vinda da Oracle: nunca encaminha por aqui.
+    if (!fonteId || !bruto || exceto.includes(fonteId) || /^bscine/i.test(fonteId)) return false;
     let pedido;
     try { pedido = new URL(midia.textoDeBase64url(bruto)); } catch { return false; }
     const pedidoHttpLiberado = pedido.protocol === 'http:' && midia.httpPermitido(pedido.hostname);
@@ -199,6 +212,9 @@ app.get('/api/playback/:id', async (req, res) => {
         if (process.env.AVALIADOR !== '0') {
             const resultado = await avaliador.escolherMelhor('dublado', alvo, { exceto, codec: codecDoPedido(req), semConversao: semConversaoNoPedido(req) }).catch(() => null);
             if (resultado) { escolhido = resultado.escolhido; avaliacao = resultado.avaliacao; }
+        }
+        if (req.query.upgrade === '1' && !atendeUpgradeFullHd(escolhido, avaliacao)) {
+            return res.json({ indisponivel: true });
         }
         if (!escolhido) escolhido = await motor.escolher('dublado', alvo, { exceto });
         if (escolhido) {
@@ -289,11 +305,15 @@ app.get('/api/playback/serie/:id/:season/:episode', async (req, res) => {
         let avaliacao = null;
         if (!escolhido && process.env.AVALIADOR !== '0') {
             const resultado = await require('../avaliador').escolherMelhor('dublado', alvo, { exceto, codec: codecDoPedido(req), semConversao: semConversaoNoPedido(req) }).catch(() => null);
+            if (req.query.upgrade === '1' && (!resultado || !atendeUpgradeFullHd(resultado.escolhido, resultado.avaliacao))) {
+                return res.json({ indisponivel: true });
+            }
             if (resultado) {
                 escolhido = require('../fontes-motor').prepararParaPlayer(resultado.escolhido);
                 avaliacao = resultado.avaliacao;
             }
         }
+        if (req.query.upgrade === '1' && !escolhido) return res.json({ indisponivel: true });
         if (!escolhido) escolhido = await require('../series-source').resolverEpisodio({ tmdbId: id, temporada: season, episodio: episode, cookie, exceto });
         if (!escolhido) throw new Error('sem fonte');
         // O player do PC toca o MKV original (com o som em português): sem conversão.

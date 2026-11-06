@@ -1050,8 +1050,9 @@ public final class MainActivity extends Activity {
         try{
             serverLastProblem="";ServerPlaybackTransport transport=serverTransport();
             String path="tv".equals(tipo)?"/api/playback/serie/"+id+"/"+temporada+"/"+episodio:"/api/playback/"+id;
-            path+="?transporte=servidor&conversao=1&codec="+(hevc?"hevc":"avc")+(escolhaDoAparelho==null?"":escolhaDoAparelho);
-            JSONObject data=new JSONObject(transport.json(path,20000));
+            String exc=excluded==null||excluded.isEmpty()?"":"&exceto="+Uri.encode(android.text.TextUtils.join(",",excluded));
+            path+="?transporte=servidor&conversao=1&codec="+(hevc?"hevc":"avc")+exc+(escolhaDoAparelho==null?"":escolhaDoAparelho);
+            JSONObject data=new JSONObject(transport.json(path,25000));
             if(!"pt-BR".equals(data.optString("audio"))||!java.util.Arrays.asList("file","hls").contains(data.optString("type")))return null;
             // Conversão (ex.: MKV da TorBox com som Dolby): o servidor copia a
             // imagem e só troca o áudio para AAC. A lista e os pedaços vêm por
@@ -1108,7 +1109,7 @@ public final class MainActivity extends Activity {
     }
     private WebResourceResponse serverMediaPath(String mediaPath,java.util.Map<String,String> requestHeaders){
         try{
-            ServerPlaybackTransport transport=serverTransport;if(transport==null)return error(502);
+            ServerPlaybackTransport transport=serverTransport();
             String range=null;for(java.util.Map.Entry<String,String> entry:requestHeaders.entrySet())if(entry.getKey().equalsIgnoreCase("Range"))range=entry.getValue();
             ServerPlaybackTransport.Response response=transport.media(mediaPath,range);
             return new WebResourceResponse(response.mime,null,response.status,"OK",response.headers,response.body);
@@ -1163,6 +1164,15 @@ public final class MainActivity extends Activity {
         if(chosen!=null){
             try{
                 JSONObject data=new JSONObject(chosen.json);QualitySelector.Measure m=chosen.measure;
+                // Quando o aparelho só achou 720p/SD (ou sem dimensão medida), pergunta se o
+                // servidor tem Full HD dublado medido (ex.: TorBox 1080p). Se não tiver, mantém o local.
+                double eq=m!=null&&m.width>0&&m.height>0?QualitySelector.equivalent(m.width,m.height):0;
+                Integer teto=QualitySelector.TETO.get();
+                if(!serverTried&&eq<1080*0.98&&(teto==null||teto<=0||teto>=1920)){
+                    serverTried=true;
+                    WebResourceResponse fullHd=serverPlayback(tipo,id,temporada,episodio,exceto,!avcOnly,"&upgrade=1");
+                    if(fullHd!=null)return fullHd;
+                }
                 boolean viaRelay=false;
                 if("file".equals(chosen.type)&&chosen.referer!=null&&!chosen.referer.isEmpty()){
                     // Arquivo direto com hotlink (FenixFlix/FrostStream/Kairou): o
@@ -1176,9 +1186,9 @@ public final class MainActivity extends Activity {
                     // encaminha ESTA escolha (mesma fonte e qualidade medidas aqui).
                     // O endereço original do fornecedor (antes do redirecionamento)
                     // é o que o servidor reconhece como opção daquela fonte.
-                    String escolha="&escolhida="+Uri.encode(chosen.id)+"&u="+codificar(chosen.url)+(m!=null&&m.height>0?"&altura="+m.height:"");
+                    String escolha=chosen.id.startsWith("bscine")?"":"&escolhida="+Uri.encode(chosen.id)+"&u="+codificar(chosen.url)+(m!=null&&m.height>0?"&altura="+m.height:"");
                     WebResourceResponse viaServer=serverPlayback(tipo,id,temporada,episodio,excluded,!avcOnly,escolha);
-                    if(viaServer==null)viaServer=serverPlayback(tipo,id,temporada,episodio,excluded,!avcOnly);
+                    if(viaServer==null&&!escolha.isEmpty())viaServer=serverPlayback(tipo,id,temporada,episodio,excluded,!avcOnly);
                     if(viaServer!=null)return viaServer;
                     // Servidor fora do ar: último recurso pelo encaminhador local.
                     String alvoEscolhido=chosen.deliveryUrl!=null?chosen.deliveryUrl:chosen.url;
