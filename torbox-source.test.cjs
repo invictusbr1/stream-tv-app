@@ -86,3 +86,15 @@ test('escolha: quem diz português vem antes do "DUAL" genérico maior', () => {
     const r = tb.escolherTorrents(streams, new Set(streams.map(s => s.infoHash)));
     assert.deepStrictEqual(r.map(e => [e.qualidade, e.stream.infoHash]), [['1080p', h('b')], ['720p', h('d')]]);
 });
+
+test('4K: aceita H.265/HDR, recusa Dolby Vision sem HDR de reserva; 1080p continua sem H.265', () => {
+    const k = c => c.repeat(40);
+    const streams = [
+        { infoHash: k('1'), name: 'Torrentio\n4k', title: 'Filme 2160p x265 HDR DUAL 🇧🇷\n💾 20 GB' },
+        { infoHash: k('2'), name: 'Torrentio\n4k', title: 'Filme 2160p DV x265 DUAL 🇧🇷\n💾 25 GB' },
+        { infoHash: k('3'), name: 'Torrentio\n1080p', title: 'Filme 1080p x265 DUAL 🇧🇷\n💾 4 GB' },
+        { infoHash: k('4'), name: 'Torrentio\n1080p', title: 'Filme 1080p DUAL 🇧🇷\n💾 3 GB' },
+    ];
+    const r = tb.escolherTorrents(streams, new Set([k('1'), k('2'), k('3'), k('4')]), 3);
+    assert.deepStrictEqual(r.map(x => [x.qualidade, x.stream.infoHash]), [['4K', k('1')], ['1080p', k('4')]]);
+});

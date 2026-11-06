@@ -71,6 +71,13 @@ public final class MainActivity extends Activity {
 
     // O WebView só entrega 4K quando o aparelho decodifica HEVC de verdade.
     // MediaCodecList responde na hora; sem HEVC o seletor fica no teto AVC.
+    /** Dados móveis (ou rede cobrada por uso): o servidor não manda 4K. */
+    private boolean redeMovel(){
+        try{
+            android.net.ConnectivityManager cm=(android.net.ConnectivityManager)getSystemService(CONNECTIVITY_SERVICE);
+            return cm!=null&&cm.isActiveNetworkMetered();
+        }catch(Exception semPermissao){return false;}
+    }
     private static boolean hevcSuportado(){
         try{
             if(android.os.Build.VERSION.SDK_INT<21)return false;
@@ -1051,7 +1058,10 @@ public final class MainActivity extends Activity {
             serverLastProblem="";ServerPlaybackTransport transport=serverTransport();
             String path="tv".equals(tipo)?"/api/playback/serie/"+id+"/"+temporada+"/"+episodio:"/api/playback/"+id;
             String exc=excluded==null||excluded.isEmpty()?"":"&exceto="+Uri.encode(android.text.TextUtils.join(",",excluded));
-            path+="?transporte=servidor&conversao=1&codec="+(hevc?"hevc":"avc")+exc+(escolhaDoAparelho==null?"":escolhaDoAparelho);
+            // 4K (TorBox): só se o aparelho decodifica H.265 de verdade, fora da
+            // rede móvel (um filme 4K gasta 15–25 GB) e sem o "sem 4K" do player.
+            Integer tetoPedido=QualitySelector.TETO.get();
+            path+="?transporte=servidor&conversao=1&codec="+(hevc&&hevcSuportado()?"hevc":"avc")+(redeMovel()?"&rede=movel":"")+(tetoPedido!=null&&tetoPedido>0&&tetoPedido<3000?"&sem4k=1":"")+exc+(escolhaDoAparelho==null?"":escolhaDoAparelho);
             // Motor 1 (TorBox) responde rápido ou diz "indisponível": prazo menor
             // para não segurar a busca no aparelho se o servidor estiver lento.
             JSONObject data=new JSONObject(transport.json(path,escolhaDoAparelho!=null&&escolhaDoAparelho.contains("motor=torbox")?22000:25000));

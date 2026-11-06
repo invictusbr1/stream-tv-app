@@ -136,15 +136,33 @@ function paraPlayerDoPc(req) {
 // Filme em tela larga (1920×1036, 1920×800) é Full HD com outra proporção:
 // a régua do motor 1 é 800p. Abaixo disso (720p, 480p) vai para o motor 2.
 const MOTOR1_MINIMO = 800;
-async function motorTorbox(req, alvo, exceto) {
+// 4K da TorBox só para quem comprova H.265 (o navegador manda codec=avc
+// quando não toca; o APK manda codec=hevc só se o aparelho decodifica), fora
+// da rede móvel e sem o pedido de versão compatível / "sem 4K" do player.
+function podeReceber4k(req) {
+    if (req.query.compat === 'avc' || req.query.sem4k === '1' || req.query.rede === 'movel') return false;
+    return codecDoPedido(req) !== 'avc';
+}
+async function motorTorbox(req, alvo, exceto, idBase = '') {
     if ((exceto || []).includes('torbox')) return null;
     let tb;
     try { tb = require('../torbox-source'); if (!tb.ativa()) return null; } catch { return null; }
     const lista = await Promise.race([
         tb.resolverTodos(alvo.tipo === 'tv' ? 'tv' : 'movie', alvo.tmdbId, alvo.temporada, alvo.episodio).catch(() => []),
-        new Promise(ok => setTimeout(() => ok([]), 7000)),
+        new Promise(ok => setTimeout(() => ok([]), 12000)),
     ]);
-    const boa = (lista || []).find(d => d && d.url && (parseInt(d.resolucao, 10) || 0) >= MOTOR1_MINIMO && !(d.converter && semConversaoNoPedido(req)));
+    const quer4k = podeReceber4k(req), pc = paraPlayerDoPc(req);
+    const ordem = [...(lista || [])].sort((a, b) => (parseInt(b && b.resolucao, 10) || 0) - (parseInt(a && a.resolucao, 10) || 0));
+    const boa = ordem.find(d => {
+        if (!d || !d.url || (parseInt(d.resolucao, 10) || 0) < MOTOR1_MINIMO) return false;
+        if (d.converter && semConversaoNoPedido(req)) return false;
+        if (d.quatroK) {
+            if (!quer4k) return false;
+            // Um 4K convertido por vez e só com disco folgado (o PC toca o original).
+            if (d.converter && !pc && !require('../conversor').pode4k(idBase)) return false;
+        }
+        return true;
+    });
     return boa ? { ...boa, fonteId: 'torbox' } : null;
 }
 function inicioDoPedido(req) {
@@ -230,13 +248,17 @@ app.get('/api/playback/:id', async (req, res) => {
         const avaliador = require('../avaliador');
         const exceto = String(req.query.exceto || '').split(',').map(item => item.trim()).filter(Boolean);
         const alvo = { tipo: 'movie', tmdbId: req.params.id };
-        if (await responderCompatibilidade(req,res,alvo)) return;
-        if (await responderEscolhaDoAparelho(req,res,alvo).catch(() => false)) return;
+        // Motor 1 vem antes de tudo (inclusive do pedido "versão compatível",
+        // que recebe o Full HD da TorBox); a escolha já medida pelo aparelho
+        // (?escolhida=) só chega depois que o motor 1 disse "indisponível".
+        const rapido = req.query.escolhida ? null : await motorTorbox(req, alvo, exceto, `filme-${req.params.id}`);
+        if (!rapido && req.query.motor === 'torbox') return res.json({ indisponivel: true });
+        if (!rapido && await responderCompatibilidade(req,res,alvo)) return;
+        if (!rapido && await responderEscolhaDoAparelho(req,res,alvo).catch(() => false)) return;
         // Avaliador em tempo real: testa as melhores fontes do título em
         // paralelo e escolhe a que entrega mais qualidade seguindo as regras.
-        let escolhido = await motorTorbox(req, alvo, exceto);
+        let escolhido = rapido;
         let avaliacao = null;
-        if (!escolhido && req.query.motor === 'torbox') return res.json({ indisponivel: true });
         if (!escolhido && process.env.AVALIADOR !== '0') {
             const resultado = await avaliador.escolherMelhor('dublado', alvo, { exceto, codec: codecDoPedido(req), semConversao: semConversaoNoPedido(req) }).catch(() => null);
             if (resultado) { escolhido = resultado.escolhido; avaliacao = resultado.avaliacao; }
@@ -273,7 +295,7 @@ app.get('/api/playback/:id', async (req, res) => {
                 const conversor = require('../conversor');
                 // `id` estável: o mesmo filme reaproveita a conversão em vez de criar
                 // uma pasta nova a cada abertura (era isso que enchia o disco).
-                const trabalho = await conversor.iniciarNoPonto(escolhido.url, { id: `filme-${req.params.id}`, referer: escolhido.referer || '', inicio: inicioDoPedido(req) });
+                const trabalho = await conversor.iniciarNoPonto(escolhido.url, { id: `filme-${req.params.id}`, referer: escolhido.referer || '', inicio: inicioDoPedido(req), faixa: escolhido.faixa || null, quatroK: Boolean(escolhido.quatroK) });
                 return res.json({
                     url: `/api/convertido/${trabalho.id}/index.m3u8`,
                     audio: escolhido.audio || 'pt-BR',
@@ -284,6 +306,7 @@ app.get('/api/playback/:id', async (req, res) => {
                     conversao: trabalho.id,
                     inicio: trabalho.inicio || 0,
                     duracao: trabalho.duracao || 0,
+                    videoCodec: escolhido.videoCodec || '',
                 });
             }
             const pronto = motor.prepararParaPlayer(escolhido);
@@ -329,10 +352,14 @@ app.get('/api/playback/serie/:id/:season/:episode', async (req, res) => {
     try {
         const exceto = String(req.query.exceto || '').split(',').map(item => item.trim()).filter(Boolean);
         const alvo = { tipo: 'tv', tmdbId: id, temporada: season, episodio: episode };
-        if (await responderCompatibilidade(req,res,alvo)) return;
-        if (await responderEscolhaDoAparelho(req,res,alvo).catch(() => false)) return;
-        let escolhido = await motorTorbox(req, alvo, exceto);
-        if (!escolhido && req.query.motor === 'torbox') return res.json({ indisponivel: true });
+        // Motor 1 vem antes de tudo (inclusive do pedido "versão compatível",
+        // que recebe o Full HD da TorBox); a escolha já medida pelo aparelho
+        // (?escolhida=) só chega depois que o motor 1 disse "indisponível".
+        const rapido = req.query.escolhida ? null : await motorTorbox(req, alvo, exceto, `serie-${id}-T${season}E${episode}`);
+        if (!rapido && req.query.motor === 'torbox') return res.json({ indisponivel: true });
+        if (!rapido && await responderCompatibilidade(req,res,alvo)) return;
+        if (!rapido && await responderEscolhaDoAparelho(req,res,alvo).catch(() => false)) return;
+        let escolhido = rapido;
         if (!escolhido) escolhido = await require('../crystal-lake-source').resolver(alvo, { exceto });
         let avaliacao = null;
         if (!escolhido && process.env.AVALIADOR !== '0') {
@@ -353,7 +380,7 @@ app.get('/api/playback/serie/:id/:season/:episode', async (req, res) => {
         if (escolhido.converter) {
             const conversor = require('../conversor');
             // `id` estável por episódio: reaproveita a conversão já feita.
-            const trabalho = await conversor.iniciarNoPonto(escolhido.url, { id: `serie-${id}-T${season}E${episode}`, referer: escolhido.referer || '', inicio: inicioDoPedido(req) });
+            const trabalho = await conversor.iniciarNoPonto(escolhido.url, { id: `serie-${id}-T${season}E${episode}`, referer: escolhido.referer || '', inicio: inicioDoPedido(req), faixa: escolhido.faixa || null, quatroK: Boolean(escolhido.quatroK) });
             return res.json({
                 url: `/api/convertido/${trabalho.id}/index.m3u8`,
                 audio: escolhido.audio || 'pt-BR',
@@ -364,6 +391,7 @@ app.get('/api/playback/serie/:id/:season/:episode', async (req, res) => {
                 conversao: trabalho.id,
                 inicio: trabalho.inicio || 0,
                 duracao: trabalho.duracao || 0,
+                videoCodec: escolhido.videoCodec || '',
             });
         }
         res.json({

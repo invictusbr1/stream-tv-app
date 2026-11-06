@@ -184,7 +184,11 @@ async function faixasDeAudio(url, referer = '', opcoes = {}) {
         container: dados.format && dados.format.format_name || '',
         duracao: Number((dados.format && dados.format.duration) || 0) || 0,
         imagem: { largura: Number(video.width) || 0, altura: Number(video.height) || 0,
-            codec: String(video.codec_name || '').toLowerCase(), pixels: String(video.pix_fmt || '') },
+            codec: String(video.codec_name || '').toLowerCase(), pixels: String(video.pix_fmt || ''),
+            // HDR (PQ/HLG) e Dolby Vision: o perfil 5 do Dolby Vision não tem
+            // imagem "comum" de reserva — fora de TV compatível sai roxo/verde.
+            transferencia: String(video.color_transfer || '').toLowerCase(),
+            dovi: Number(((video.side_data_list || []).find(d => /dovi/i.test(String(d.side_data_type || ''))) || {}).dv_profile) || 0 },
         faixas: audio.map((s, i) => ({
             ordem: i,
             idioma: String((s.tags || {}).language || '').toLowerCase(),

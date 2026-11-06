@@ -411,7 +411,10 @@ window.StreamPlayback = (() => {
         let compatTentada = false;
         const consultarCompat = async () => {
             compatTentada = true;
-            try { return await lerJson(consulta+(consulta.includes('?')?'&':'?')+'compat=avc',signal); } catch { return null; }
+            // Filme em conversão (TorBox 4K): a versão compatível (Full HD) começa
+            // no mesmo ponto do filme.
+            const ponto=conversaoAtiva?Math.floor(deslocamento+(video&&Number.isFinite(video.currentTime)?video.currentTime:0)):0;
+            try { return await lerJson(consulta+(consulta.includes('?')?'&':'?')+'compat=avc'+(ponto>=60?'&inicio='+ponto:''),signal); } catch { return null; }
         };
         if (podeCompat && !window.StreamPC?.ativo?.() && /^(hevc|h265)$/.test(data?.videoCodec||'') && !document.createElement('video').canPlayType('video/mp4; codecs="hvc1.2.4.L153.B0"')) {
             data = await consultarCompat();
@@ -428,7 +431,7 @@ window.StreamPlayback = (() => {
             // Em vez de esperar converter do 0 até o ponto salvo (2+ min), pede
             // ao servidor a conversão começando nele (~10–20 s).
             if(pontoSalvo>=60&&!(Number(data.inicio)>0)){
-                const noPonto=await lerJson(consulta+(consulta.includes('?')?'&':'?')+'inicio='+Math.floor(pontoSalvo),signal).catch(()=>null);
+                const noPonto=await lerJson(consulta+(consulta.includes('?')?'&':'?')+(compatTentada?'compat=avc&':'')+'inicio='+Math.floor(pontoSalvo),signal).catch(()=>null);
                 if(token!==generation||(signal&&signal.aborted)||version!==playerVersion)return false;
                 if(noPonto&&noPonto.conversao&&noPonto.audio==='pt-BR')data=noPonto;
             }
@@ -495,10 +498,30 @@ window.StreamPlayback = (() => {
             };
             const pictureTimeout=async()=>{
                 if(!current()||compatEmCurso)return;
-                if(data.type==='file'&&podeCompat&&!compatTentada){
+                if((data.type==='file'||data.conversao)&&podeCompat&&!compatTentada){
                     compatEmCurso=true;clearTimeout(startupTimer);video.pause();
-                    const nova=await consultarCompat();compatEmCurso=false;
-                    if(!current())return;
+                    const absoluto=conversaoAtiva?deslocamento+(Number.isFinite(video.currentTime)?video.currentTime:0):null;
+                    let nova=await consultarCompat();
+                    if(!current()){compatEmCurso=false;return;}
+                    // 4K da TorBox sem imagem: a versão compatível é o Full HD dela,
+                    // também convertido — espera ficar pronto antes de trocar.
+                    if(nova&&nova.conversao){
+                        try{window.setLoading?.('Trocando para Full HD','Este aparelho não mostrou o 4K; preparando a versão compatível…');}catch(e){}
+                        let pronto=false;
+                        for(let i=0;i<90&&current();i++){
+                            const est=await lerJson('/api/conversao/'+encodeURIComponent(nova.conversao),signal).catch(()=>null);
+                            if(est&&est.erro)break;
+                            if(est&&est.pronto){pronto=true;break;}
+                            await new Promise(r=>setTimeout(r,2000));
+                        }
+                        if(!current()){compatEmCurso=false;return;}
+                        if(!pronto){compatEmCurso=false;failure('a fonte não apresentou imagem');return;}
+                        deslocamento=Math.max(0,Number(nova.inicio)||0);conversaoAtiva=true;
+                        if(Number(nova.duracao)>0)duracaoTotal=Number(nova.duracao);
+                        if(absoluto!==null)retomadaAlvo=Math.max(0,absoluto-deslocamento);
+                        nova={...nova,url:'/api/convertido/'+encodeURIComponent(nova.conversao)+'/index.m3u8',type:'hls'};
+                    }
+                    compatEmCurso=false;
                     if(['file','hls'].includes(nova?.type)&&nova.audio==='pt-BR'&&enderecoDeMidia(String(nova.url||''))&&nova.url!==data.url){
                         data=nova;fonteIdUsada=String(nova.fonteId||'');fonteUsada=String(nova.source||'');
                         analiseAtual?.fonte({fonteId:fonteIdUsada,fonte:fonteUsada,audio:'Dublado'});

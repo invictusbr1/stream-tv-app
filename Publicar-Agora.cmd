@@ -2,7 +2,7 @@
 cd /d "%~dp0"
 title Publicar Conecta TV
 set LOG=%~dp0publicacao.log
-set VERSAO=2.13.146
+set VERSAO=2.13.147
 set SAIDA=%USERPROFILE%\Documents\Codex\apk-%VERSAO%
 echo Publicando o Conecta TV %VERSAO%. Leva alguns minutos, nao feche esta janela...
 echo === %date% %time% > "%LOG%"
@@ -37,7 +37,7 @@ if errorlevel 1 (echo FALHOU: compilacao Android >> "%LOG%" & goto fim)
 
 echo [5/5] Publicando a atualizacao do aplicativo...
 echo --- publicando APKs >> "%LOG%"
-powershell -NoProfile -ExecutionPolicy Bypass -File android\Publicar-Atualizacao.ps1 -Canal teste -ApkPath "%SAIDA%\Conecta-TV-Android-%VERSAO%.apk" -ApkTvPath "%SAIDA%\Conecta-TV-TV-%VERSAO%.apk" -Notes "TorBox: menos travamento (o filme so comeca com folga quando a conversao esta lenta e espera mais antes de trocar de fonte); mostra a velocidade da conversao." >> "%LOG%" 2>&1
+powershell -NoProfile -ExecutionPolicy Bypass -File android\Publicar-Atualizacao.ps1 -Canal teste -ApkPath "%SAIDA%\Conecta-TV-Android-%VERSAO%.apk" -ApkTvPath "%SAIDA%\Conecta-TV-TV-%VERSAO%.apk" -Notes "TorBox 4K para aparelhos que tocam H.265 (fora dos dados moveis); se o 4K nao mostrar imagem, troca sozinho para o Full HD." >> "%LOG%" 2>&1
 if errorlevel 1 (echo FALHOU: publicacao dos APKs >> "%LOG%" & goto fim)
 echo TUDO PUBLICADO NO CANAL DE TESTE >> "%LOG%"
 echo --- salvando a versao no git >> "%LOG%"

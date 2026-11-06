@@ -143,12 +143,16 @@ async function lerFaixaPortuguesa(url, referer) {
         const faixas = await central.faixasDeAudio(url, referer, { timeout: 15000 });
         if (!faixas || !faixas.faixas.length) return { indice: 0, duracao: 0 };
         const portuguesa = faixas.faixas.find(f => /^pt|por/.test(f.idioma));
-        return { indice: portuguesa ? portuguesa.ordem : 0, duracao: Number(faixas.duracao) || 0 };
+        // Sem faixa em português e com outra língua declarada (ex.: "ita",
+        // "eng"): NÃO converte a primeira faixa — 06/11/2026, Dexter T3E4 saiu
+        // em italiano. Faixas sem idioma ("und") seguem valendo.
+        const outra = faixas.faixas.some(f => f.idioma && f.idioma !== 'und' && !/^pt|por/.test(f.idioma));
+        return { indice: portuguesa ? portuguesa.ordem : 0, duracao: Number(faixas.duracao) || 0, semPortugues: !portuguesa && outra };
     } catch { return { indice: 0, duracao: 0 }; }
 }
 
 // Inicia (ou reaproveita) a conversão de um endereço.
-async function iniciar(url, { titulo = '', referer = '', id = '', inicio = 0 } = {}) {
+async function iniciar(url, { titulo = '', referer = '', id = '', inicio = 0, faixa = null, quatroK = false } = {}) {
     // `id` é a identidade do TRABALHO (filme-550 / serie-1399-T1E1), estável entre
     // aberturas. A chave real leva um carimbo de tempo porque a mesma obra pode
     // voltar com endereço novo: reaproveitar a conversão velha serviria um vídeo
@@ -192,13 +196,16 @@ async function iniciar(url, { titulo = '', referer = '', id = '', inicio = 0 } =
     const pasta = path.join(PASTA, chave);
     try { fs.mkdirSync(pasta, { recursive: true }); } catch { /* sem permissão */ }
     const arquivo = path.join(pasta, 'index.m3u8');
-    const registro = { arquivo, pasta, lastro, inicio: Math.max(0, Math.floor(Number(inicio) || 0)), segundos: 0, duracao: 0, pronto: false, terminou: false, erro: '', iniciadoEm: Date.now(), ultimoAcesso: Date.now(), processo: null };
+    const registro = { arquivo, pasta, lastro, quatroK: Boolean(quatroK), inicio: Math.max(0, Math.floor(Number(inicio) || 0)), segundos: 0, duracao: 0, pronto: false, terminou: false, erro: '', iniciadoEm: Date.now(), ultimoAcesso: Date.now(), processo: null };
     trabalhos.set(chave, registro);
 
     let binario;
     try { binario = await ffmpegPath(); } catch (erro) { registro.erro = 'conversor indisponível: ' + String(erro.message).slice(0, 80); return resumo(chave); }
-    const { indice, duracao } = await faixaPortuguesa(url, referer);
+    // A fonte pode já ter lido o arquivo (TorBox confere o áudio antes).
+    const lida = faixa && Number.isInteger(faixa.indice) ? { indice: faixa.indice, duracao: Number(faixa.duracao) || 0 } : await faixaPortuguesa(url, referer);
+    const { indice, duracao } = lida;
     registro.duracao = duracao;
+    if (lida.semPortugues) { registro.erro = 'o arquivo não tem áudio em português'; registro.terminou = true; return resumo(chave); }
 
     const cabecalhos = `User-Agent: ${UA}\r\n` + (referer ? `Referer: ${referer}\r\n` : '');
     const argumentos = [
@@ -290,12 +297,35 @@ function resumo(chave) {
 
 function estado(chave) { return resumo(chave); }
 
+// 4K convertido ocupa 15–25 GB: só um filme 4K por vez no servidor e só com
+// folga de disco (30 GB livres). Quem pedir outro 4K ao mesmo tempo recebe o
+// Full HD. `id` é a obra (filme-550 / serie-1399-T1E1): a mesma obra pode
+// continuar no 4K (outro ponto do filme, mesma pessoa).
+const LIVRE_PARA_4K = Number(process.env.CONVERSOES_LIVRE_4K_GB || 30) * 1024 ** 3;
+function pode4k(id = '') {
+    const base = String(id).replace(/^ini\d+-/, '');
+    for (const t of trabalhos.values()) {
+        if (!t.quatroK || t.erro) continue;
+        if (String(t.lastro || '').replace(/^ini\d+-/, '') === base) continue;
+        const emUso = !t.terminou || Date.now() - (t.ultimoAcesso || 0) < PARADA_SEM_USO;
+        if (emUso) return false;
+    }
+    try {
+        fs.mkdirSync(PASTA, { recursive: true });
+        if (typeof fs.statfsSync === 'function') {
+            const d = fs.statfsSync(PASTA);
+            if (Number(d.bavail) * Number(d.bsize) < LIVRE_PARA_4K) return false;
+        }
+    } catch { return false; }
+    return true;
+}
+
 // Conversão que já cobre o ponto `inicio` (segundos do filme) ou uma nova que
 // começa nele. Devolve o resumo + `inicio` (onde o vídeo convertido começa no
 // filme). Janelas: "filme-550" (desde o 0) e "ini1980-filme-550" (desde 33 min).
-async function iniciarNoPonto(url, { id = '', referer = '', inicio = 0 } = {}) {
+async function iniciarNoPonto(url, { id = '', referer = '', inicio = 0, faixa = null, quatroK = false } = {}) {
     const ponto = Math.max(0, Math.floor(Number(inicio) || 0));
-    if (!id || ponto < 60) return { ...(await module.exports.iniciar(url, { id, titulo: id, referer })), inicio: 0 };
+    if (!id || ponto < 60) return { ...(await module.exports.iniciar(url, { id, titulo: id, referer, faixa, quatroK })), inicio: 0 };
     const deste = new RegExp(`^(?:ini(\\d+)-)?${id.replace(/[^\w-]/g, '')}$`);
     let melhor = null;
     for (const [chave, t] of trabalhos) {
@@ -320,7 +350,7 @@ async function iniciarNoPonto(url, { id = '', referer = '', inicio = 0 } = {}) {
             try { t.processo.kill(); } catch { /* já saiu */ }
         }
     }
-    const resultado = await module.exports.iniciar(url, { id: `ini${ponto}-${id}`, titulo: id, referer, inicio: ponto });
+    const resultado = await module.exports.iniciar(url, { id: `ini${ponto}-${id}`, titulo: id, referer, faixa, quatroK, inicio: ponto });
     return { ...resultado, inicio: ponto };
 }
 function arquivoDe(chave) {
@@ -346,4 +376,4 @@ function encerrarTudo() {
     }
 }
 
-module.exports = { arrumarDisco, iniciar, iniciarNoPonto, estado, arquivoDe, caminhoDoPedaço, resumo, encerrarTudo, PASTA, identificar };
+module.exports = { pode4k, arrumarDisco, iniciar, iniciarNoPonto, estado, arquivoDe, caminhoDoPedaço, resumo, encerrarTudo, PASTA, identificar };

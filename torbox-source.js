@@ -28,7 +28,7 @@ const API = 'https://api.torbox.app/v1/api';
 // provedores) e o Absolute Cinema trazem dublados que a lista filtrada não
 // tinha — foi assim que o Curvas da Vida apareceu pronto na TorBox.
 const LISTAS = [
-    'https://torrentio.strem.fun/providers=yts,eztv,rarbg,1337x,thepiratebay,kickasstorrents,torrentgalaxy,magnetdl,comando,bludv|language=portuguese|qualityfilter=scr,cam,4k',
+    'https://torrentio.strem.fun/providers=yts,eztv,rarbg,1337x,thepiratebay,kickasstorrents,torrentgalaxy,magnetdl,comando,bludv|language=portuguese|qualityfilter=scr,cam',
     'https://torrentio.strem.fun',
     'https://cinema.debrid.in',
 ];
@@ -107,13 +107,18 @@ function tamanhoGB(rotulo) {
 // Melhor torrent de cada qualidade (Full HD primeiro, depois HD), só H.264.
 // Quem diz português com todas as letras (ou 🇵🇹) vem antes do "DUAL" genérico;
 // entre iguais, o maior arquivo (menos comprimido) ganha.
-function escolherTorrents(streams, emCache) {
+function escolherTorrents(streams, emCache, porQualidade = 1) {
     const pt = (streams || []).filter(s => s && hashDe(s) && emCache.has(hashDe(s)) && ehPortugues(rotuloDe(s)) && !/\b(?:cam|ts|hdcam|telesync)\b/i.test(rotuloDe(s)));
     const escolhidos = [];
-    for (const q of ['1080p', '720p']) {
-        const daQualidade = pt.filter(s => qualidade(rotuloDe(s)) === q && !ehHevc(rotuloDe(s)))
+    // 4K: quase sempre H.265 (é aceito só nele); Dolby Vision sem HDR de
+    // reserva fica de fora já pelo rótulo (ver também a leitura do arquivo).
+    const serve = (s, q) => q === '4K'
+        ? !(/\b(?:dv|dovi|dolby.?vision)\b/i.test(rotuloDe(s)) && !/\bhdr/i.test(rotuloDe(s)))
+        : !ehHevc(rotuloDe(s));
+    for (const q of ['4K', '1080p', '720p']) {
+        const daQualidade = pt.filter(s => qualidade(rotuloDe(s)) === q && serve(s, q))
             .sort((a, b) => (dubladoExplicito(rotuloDe(b)) - dubladoExplicito(rotuloDe(a))) || (tamanhoGB(rotuloDe(b)) - tamanhoGB(rotuloDe(a))));
-        if (daQualidade[0]) escolhidos.push({ stream: daQualidade[0], qualidade: q });
+        for (const stream of daQualidade.slice(0, porQualidade)) escolhidos.push({ stream, qualidade: q });
     }
     return escolhidos;
 }
@@ -207,12 +212,14 @@ async function buscar(chave, tipo, tmdbId, temporada, episodio, rastro = []) {
     const streams = juntar(respostas.map(r => (r.json && Array.isArray(r.json.streams) ? r.json.streams : [])));
     const hashes = streams.filter(s => ehPortugues(rotuloDe(s))).map(hashDe);
     const emCache = await emCacheNaTorBox(chave, hashes);
-    const escolhidos = escolherTorrents(streams, emCache);
+    // Até 3 reservas por qualidade: se o arquivo do primeiro não tiver áudio
+    // em português (conferido abaixo), tenta o seguinte.
+    const escolhidos = escolherTorrents(streams, emCache, 3);
     rastro.push(`${imdb}: listas ${respostas.map(r => r.status + '/' + ((r.json && r.json.streams) || []).length).join(' ')} · ${streams.length} torrents · ${hashes.length} PT · ${emCache.size} prontos · escolhidos ${escolhidos.map(e => e.qualidade).join('+') || 'nenhum'}`);
     if (!escolhidos.length) return [];
     const lista = await minhaLista(chave);
     limparConta(chave, lista).catch(() => {});
-    const saida = await Promise.all(escolhidos.map(async ({ stream, qualidade: q }) => {
+    const tentar = async ({ stream, qualidade: q }) => {
         const torrent = await torrentNaConta(chave, hashDe(stream), lista);
         if (!torrent) { rastro.push(`${q}: TorBox não aceitou o torrent`); return null; }
         const arquivo = escolherArquivo(torrent.files, { nome: (stream.behaviorHints || {}).filename, temporada: ehSerie ? temporada : 0, episodio: ehSerie ? episodio : 0 });
@@ -220,12 +227,28 @@ async function buscar(chave, tipo, tmdbId, temporada, episodio, rastro = []) {
         const { url, motivo } = await linkDoArquivo(chave, torrent.id, arquivo.id);
         if (!url) { rastro.push(`${q}: ${motivo}`); return null; }
         rastro.push(`${q}: link ok (${String(arquivo.short_name || arquivo.name || '').slice(-60)})`);
+        // Confere o áudio de verdade antes de oferecer: o rótulo do torrent
+        // engana (06/11/2026: Dexter T3E4 "dublado" tocou em italiano).
+        const info = await require('./central/verificar-midia').faixasDeAudio(url, '', { timeout: 10000 }).catch(() => null);
+        let faixa = null, midia = null;
+        if (info && info.faixas && info.faixas.length) {
+            const pt = info.faixas.find(f => /^pt|por/.test(f.idioma));
+            const outras = info.faixas.filter(f => f.idioma && f.idioma !== 'und' && !/^pt|por/.test(f.idioma)).map(f => f.idioma);
+            if (!pt && outras.length) { rastro.push(`${q}: sem áudio em português no arquivo (${[...new Set(outras)].join(', ')})`); return null; }
+            const img = info.imagem || {};
+            if (q !== '4K' && /^(hevc|h265)$/.test(String(img.codec || ''))) { rastro.push(`${q}: vídeo H.265 (muitos aparelhos não mostram)`); return null; }
+            if (img.dovi === 5) { rastro.push(`${q}: Dolby Vision perfil 5 (cores erradas fora de TV compatível)`); return null; }
+            faixa = { indice: pt ? pt.ordem : 0, duracao: Number(info.duracao) || 0 };
+            midia = { videoCodec: String(img.codec || ''), hdr: /smpte2084|arib-std-b67/.test(String(img.transferencia || '')), largura: Number(img.largura) || 0, altura: Number(img.altura) || 0 };
+        }
         const mp4 = /\.(mp4|m4v)$/i.test(arquivo.short_name || arquivo.name || '');
         return {
             url,
             audio: 'pt-BR',
             fonte: `TorBox · dublado ${q}${mp4 ? '' : ' (conversão)'}`,
-            resolucao: q,
+            resolucao: q === '4K' ? '2160p' : q,
+            quatroK: q === '4K',
+            ...(midia && midia.hdr ? { hdr: true } : {}),
             type: mp4 ? 'file' : 'convertido',
             // O link traz a chave da conta: nunca vai ao aparelho. MP4 passa
             // pelo repasse /api/torbox/<código>; MKV pelo conversor.
@@ -236,9 +259,15 @@ async function buscar(chave, tipo, tmdbId, temporada, episodio, rastro = []) {
             // "DUAL" sozinho também aparece em lançamento espanhol: só conta
             // como dublado confiável quando o rótulo diz português/Brasil.
             dubladoConfiavel: dubladoExplicito(rotuloDe(stream)),
-            videoCodec: 'h264',
+            ...(faixa ? { faixa } : {}),
+            videoCodec: (midia && midia.videoCodec) || (q === '4K' ? 'hevc' : 'h264'),
             validadeMs: VALIDADE,
         };
+    };
+    // Qualidades em paralelo; dentro de cada uma, as reservas em sequência.
+    const saida = await Promise.all(['4K', '1080p', '720p'].map(async q => {
+        for (const item of escolhidos.filter(e => e.qualidade === q)) { const ok = await tentar(item); if (ok) return ok; }
+        return null;
     }));
     return saida.filter(Boolean);
 }

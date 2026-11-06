@@ -156,3 +156,27 @@ test('motor 1 (TorBox) abre direto quando tem Full HD; com 720p ou nada, motor=t
         assert.deepEqual(r4.corpo, { indisponivel: true });
     } finally { tb.ativa = ativa; tb.resolverTodos = resolverTodos; avaliador.escolherMelhor = escolher; conversor.iniciar = iniciar; }
 });
+
+test('4K da TorBox: só para quem toca H.265, fora da rede móvel, um por vez; o resto recebe o Full HD', async () => {
+    const tb = require('./torbox-source'), ativa = tb.ativa, resolverTodos = tb.resolverTodos;
+    const conversor = require('./conversor'), iniciar = conversor.iniciar, pode4k = conversor.pode4k;
+    let livre = true;
+    tb.ativa = () => true;
+    tb.resolverTodos = async () => [
+        { url: 'https://cdn.torbox.example/f1080.mkv', audio: 'pt-BR', resolucao: '1080p', converter: true, segredo: true, videoCodec: 'h264' },
+        { url: 'https://cdn.torbox.example/f4k.mkv', audio: 'pt-BR', resolucao: '2160p', quatroK: true, converter: true, segredo: true, videoCodec: 'hevc' },
+    ];
+    conversor.pode4k = () => livre;
+    conversor.iniciar = async (url, op) => ({ id: op.id + (url.includes('f4k') ? '-4k' : '-hd'), duracao: 7000 });
+    const pedir = async query => { const r = resposta(); await rotas()['/api/playback/:id']({ params: { id: '872585' }, query: { transporte: 'servidor', conversao: '1', motor: 'torbox', ...query }, headers: {} }, r); return r.corpo; };
+    try {
+        assert.equal((await pedir({ codec: 'hevc' })).conversao, 'filme-872585-4k');
+        assert.equal((await pedir({ codec: 'hevc' })).videoCodec, 'hevc');
+        assert.equal((await pedir({ codec: 'avc' })).conversao, 'filme-872585-hd');
+        assert.equal((await pedir({ codec: 'hevc', rede: 'movel' })).conversao, 'filme-872585-hd');
+        assert.equal((await pedir({ codec: 'hevc', compat: 'avc' })).conversao, 'filme-872585-hd');
+        assert.equal((await pedir({ codec: 'hevc', sem4k: '1' })).conversao, 'filme-872585-hd');
+        livre = false; // outro 4K em andamento ou disco sem folga
+        assert.equal((await pedir({ codec: 'hevc' })).conversao, 'filme-872585-hd');
+    } finally { tb.ativa = ativa; tb.resolverTodos = resolverTodos; conversor.iniciar = iniciar; conversor.pode4k = pode4k; }
+});
