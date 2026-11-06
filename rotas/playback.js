@@ -126,6 +126,12 @@ function paraPlayerDoPc(req) {
 // APK até 2.13.137 recusa resposta com "conversao" (desistia do servidor).
 // Do 2.13.138 em diante ele avisa com conversao=1 e toca o MKV convertido
 // (ex.: TorBox) pelo transporte autenticado do próprio aparelho.
+// Ponto do filme (segundos) onde o player quer começar: a conversão começa
+// ali em vez de no 0 (continuar de onde parou / pular para a frente).
+function inicioDoPedido(req) {
+    const n = /^\d{1,6}$/.test(String(req.query.inicio || '')) ? Number(req.query.inicio) : 0;
+    return n >= 60 ? n : 0;
+}
 function semConversaoNoPedido(req) {
     return req.query.transporte === 'servidor' && req.query.conversao !== '1';
 }
@@ -247,7 +253,7 @@ app.get('/api/playback/:id', async (req, res) => {
                 const conversor = require('../conversor');
                 // `id` estável: o mesmo filme reaproveita a conversão em vez de criar
                 // uma pasta nova a cada abertura (era isso que enchia o disco).
-                const trabalho = await conversor.iniciar(escolhido.url, { titulo: `filme-${req.params.id}`, id: `filme-${req.params.id}`, referer: escolhido.referer || '' });
+                const trabalho = await conversor.iniciarNoPonto(escolhido.url, { id: `filme-${req.params.id}`, referer: escolhido.referer || '', inicio: inicioDoPedido(req) });
                 return res.json({
                     url: `/api/convertido/${trabalho.id}/index.m3u8`,
                     audio: escolhido.audio || 'pt-BR',
@@ -256,6 +262,8 @@ app.get('/api/playback/:id', async (req, res) => {
                     resolucao: escolhido.resolucao || '',
                     fonteId: escolhido.fonteId || '',
                     conversao: trabalho.id,
+                    inicio: trabalho.inicio || 0,
+                    duracao: trabalho.duracao || 0,
                 });
             }
             const pronto = motor.prepararParaPlayer(escolhido);
@@ -323,7 +331,7 @@ app.get('/api/playback/serie/:id/:season/:episode', async (req, res) => {
         if (escolhido.converter) {
             const conversor = require('../conversor');
             // `id` estável por episódio: reaproveita a conversão já feita.
-            const trabalho = await conversor.iniciar(escolhido.url, { titulo: `serie-${id}-T${season}E${episode}`, id: `serie-${id}-T${season}E${episode}`, referer: escolhido.referer || '' });
+            const trabalho = await conversor.iniciarNoPonto(escolhido.url, { id: `serie-${id}-T${season}E${episode}`, referer: escolhido.referer || '', inicio: inicioDoPedido(req) });
             return res.json({
                 url: `/api/convertido/${trabalho.id}/index.m3u8`,
                 audio: escolhido.audio || 'pt-BR',
@@ -332,6 +340,8 @@ app.get('/api/playback/serie/:id/:season/:episode', async (req, res) => {
                 resolucao: escolhido.resolucao || '',
                 fonteId: escolhido.fonteId || '',
                 conversao: trabalho.id,
+                inicio: trabalho.inicio || 0,
+                duracao: trabalho.duracao || 0,
             });
         }
         res.json({

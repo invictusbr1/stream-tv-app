@@ -95,7 +95,7 @@ window.StreamPlayback = (() => {
         panel.hidden=false;
         el('audio-info').textContent=portuguese(tracks[atual]||{})?'A faixa dublada em português está selecionada.':'Áudio original selecionado.';
     }
-    function saveProgress(){if((!video&&!pcAtivo)||!imagemConfirmada)return;const agora=pcAtivo?pcPosicao:video.currentTime,total=pcAtivo?pcDuracao:totalDoFilme();if(progressFilm)window.StreamAuth?.publicarAssistindo?.(progressFilm,agora);if(progressFilm&&resumeApplied)window.StreamPersonal?.record(progressFilm,agora,total);}
+    function saveProgress(){if((!video&&!pcAtivo)||!imagemConfirmada)return;const agora=pcAtivo?pcPosicao:posicaoNoFilme(),total=pcAtivo?pcDuracao:totalDoFilme();if(progressFilm)window.StreamAuth?.publicarAssistindo?.(progressFilm,agora);if(progressFilm&&resumeApplied)window.StreamPersonal?.record(progressFilm,agora,total);}
     function resume(){if(!video||!progressFilm||resumeApplied||!Number.isFinite(video.duration)||video.duration<=0)return;const position=retomadaAlvo??window.StreamPersonal?.position(progressFilm)??0;try{if(position>=(retomadaAlvo===null?1:0)&&position<video.duration)video.currentTime=position;else if(position>=video.duration&&retomadaAlvo!==null)video.currentTime=Math.max(0,video.duration-1);resumeApplied=true;}catch{}}
     document.addEventListener('visibilitychange',()=>{if(document.hidden){saveProgress();limparEspera();analiseAtual?.pausar(posicaoAtual());}else if(verificarAtual?.()&&imagemConfirmada&&intencaoTocar&&!video.paused&&!video.ended){analiseAtual?.tocando(posicaoAtual());if(video.readyState<3)esperando(verificarAtual);}});
     window.addEventListener?.('pagehide',saveProgress);
@@ -170,7 +170,16 @@ window.StreamPlayback = (() => {
     // video.duration vai subindo. A duração real vem do servidor (ffprobe do
     // arquivo original) e é a que aparece no relógio e na barra.
     let duracaoTotal=0;
-    function totalDoFilme(){const d=video&&Number.isFinite(video.duration)?video.duration:0;return duracaoTotal>d?duracaoTotal:d;}
+    // Conversão que começa no meio do filme (ex.: continuar do minuto 33): o
+    // vídeo convertido começa em `deslocamento` segundos do filme. O relógio, a
+    // barra e o "continuar assistindo" usam sempre o tempo do FILME.
+    let deslocamento=0,conversaoAtiva=false,ultimoInicio=null;
+    function totalDoFilme(){const d=video&&Number.isFinite(video.duration)?deslocamento+video.duration:0;return duracaoTotal>d?duracaoTotal:d;}
+    function posicaoNoFilme(){return deslocamento+(video?video.currentTime:0);}
+    // Fora do trecho já convertido: pede ao servidor uma conversão nova a
+    // partir do ponto (o ffmpeg pula direto para lá, sem converter o meio).
+    function foraDoConvertido(absoluto){if(!conversaoAtiva||!video||!Number.isFinite(video.duration))return false;const rel=absoluto-deslocamento;return rel<0||(rel>video.duration-2&&totalDoFilme()>deslocamento+video.duration+5);}
+    function reabrirNoPonto(absoluto){const u=ultimoInicio;if(!u)return;try{window.setLoading?.('Indo para '+clock(absoluto),'Preparando em alta qualidade…');}catch(e){}start(u.id,u.version,u.signal,u.caminho,undefined,u.originalPermitido,null,{...(opcoesAtuais||{}),posicao:Math.floor(absoluto)});}
     let pcAtivo=false,pcSessao='',pcPosicao=0,pcDuracao=0;
     let travamentoTimer=null,ajusteTimer=null,voltarMelhorTimer=null,restaurado=false,removerAbort=null,verificarAtual=null,intencaoTocar=false,pausadoPeloUsuario=false,qualidadeEscolhida='best',ajustouConexao=false;
     function limparEspera(){clearTimeout(travamentoTimer);clearTimeout(ajusteTimer);travamentoTimer=null;ajusteTimer=null;}
@@ -380,7 +389,7 @@ window.StreamPlayback = (() => {
         stop('trocou');const token=generation;
         opcoesAtuais=recebidas;analiseAtual=recebidas.sessao||null;
         analiseAtual?.iniciar({});
-        duracaoTotal=0;const ponto=recebidas.posicao;retomadaAlvo=ponto!==null&&ponto!==undefined&&Number.isFinite(Number(ponto))?Math.max(0,Number(ponto)):null;
+        duracaoTotal=0;deslocamento=0;conversaoAtiva=false;ultimoInicio={id,version,signal,caminho,originalPermitido};const ponto=recebidas.posicao;retomadaAlvo=ponto!==null&&ponto!==undefined&&Number.isFinite(Number(ponto))?Math.max(0,Number(ponto)):null;
         buscaEsgotada=false;ultimaPosicao=retomadaAlvo||0;imagemConfirmada=false;relatoFeito=false;fonteIdUsada='';fonteUsada='';alturaAtual=0;alturaAnunciada=0;audioChoice=-1;qualidadeEscolhida='best';ajustouConexao=false;
         const caminhoPedido=caminho||`/api/playback/${id}`;const preparado=urlDireta?null:usarPreparo(caminhoPedido,signal);
         let data;if(urlDireta){data={url:urlDireta,live:Boolean(fonteDireta?.live),audio:'fonte',source:fonteDireta?.nome||'Full HD',fonteId:fonteDireta?.id||'',audioInformado:fonteDireta?.audioInformado||'',type:fonteDireta?.tipo||(/\.mp4(\?|$)/i.test(urlDireta)?'file':'hls')};}else{try{data=preparado?await preparado.catch(()=>lerJson(caminhoPedido,signal)):await lerJson(caminhoPedido,signal);}catch{if(token===generation&&!(signal&&signal.aborted))analiseAtual?.falha('não foi possível consultar a fonte',retomadaAlvo||0);return false;}}// Fonte que precisa de conversão (arquivo MKV com som que o navegador não
@@ -413,6 +422,17 @@ window.StreamPlayback = (() => {
             // o minuto salvo (a lista ainda era curta) — 06/11/2026, O Pior Vizinho.
             let pontoSalvo=retomadaAlvo>0?retomadaAlvo:0;
             if(retomadaAlvo===null){try{pontoSalvo=Math.max(0,Number(typeof filmeAtual!=='undefined'&&filmeAtual?window.StreamPersonal?.position?.(filmeAtual):0)||0);}catch(e){pontoSalvo=0;}}
+            // Em vez de esperar converter do 0 até o ponto salvo (2+ min), pede
+            // ao servidor a conversão começando nele (~10–20 s).
+            if(pontoSalvo>=60&&!(Number(data.inicio)>0)){
+                const noPonto=await lerJson(consulta+(consulta.includes('?')?'&':'?')+'inicio='+Math.floor(pontoSalvo),signal).catch(()=>null);
+                if(token!==generation||(signal&&signal.aborted)||version!==playerVersion)return false;
+                if(noPonto&&noPonto.conversao&&noPonto.audio==='pt-BR')data=noPonto;
+            }
+            deslocamento=Math.max(0,Number(data.inicio)||0);conversaoAtiva=true;
+            if(Number(data.duracao)>0)duracaoTotal=Number(data.duracao);
+            const alvoNoFilme=pontoSalvo;pontoSalvo=Math.max(0,pontoSalvo-deslocamento);
+            if(pontoSalvo<=0&&deslocamento>0)retomadaAlvo=0;
             if(pontoSalvo>0){
                 // A conversão anda bem mais rápido que o filme (a imagem só é
                 // copiada): em vez de desistir da fonte, espera ela chegar no
@@ -430,11 +450,11 @@ window.StreamPlayback = (() => {
                 if(!(atual&&!atual.erro&&(atual.convertido||Number(atual.segundos)>=pontoSalvo+10))){
                     fonteIdUsada=String(data.fonteId||'');fonteUsada=String(data.source||'');
                     analiseAtual?.fonte({fonteId:fonteIdUsada,fonte:fonteUsada});
-                    analiseAtual?.falha('esta fonte ainda está em preparação e não permite retomar o ponto salvo',pontoSalvo);
+                    analiseAtual?.falha('esta fonte ainda está em preparação e não permite retomar o ponto salvo',alvoNoFilme);deslocamento=0;conversaoAtiva=false;
                     return false;
                 }
                 // Daqui em diante é uma retomada: o player começa no ponto salvo.
-                if(retomadaAlvo===null)retomadaAlvo=pontoSalvo;
+                retomadaAlvo=pontoSalvo;
             }else{
                 for(let tentativa=0;tentativa<900;tentativa++){
                     if(version!==playerVersion||(signal&&signal.aborted))return false;
@@ -500,7 +520,7 @@ video.addEventListener('playing',()=>{if(!current())return;window.StreamEpisodes
             video.addEventListener('canplay',()=>{if(!current())return;play();},{once:true});
             video.addEventListener('loadedmetadata',()=>{if(current()){qualityInfo();subtitleMenu();sincronizarLegendas();buscaLivre();atualizarVolume();resume();window.StreamLegendas?.anexar?.(video,progressFilm).then?.(()=>{if(!current())return;subtitleMenu();sincronizarLegendas();}).catch?.(()=>{});}});
             video.addEventListener('pause',()=>{if(current()){if(!video.error)intencaoTocar=false;limparEspera();analiseAtual?.pausar(posicaoAtual());saveProgress();el('direct-toggle').textContent='▶';el('direct-toggle').setAttribute('aria-label','Reproduzir');showControls();}});
-            video.addEventListener('timeupdate',()=>{if(current()){if(imagemConfirmada&&video.currentTime>ultimaPosicao+0.1){ultimaPosicao=video.currentTime;limparEspera();analiseAtual?.tocando(ultimaPosicao);}if(totalDoFilme()>60&&video.currentTime/totalDoFilme()>0.92)marcarVistoSozinho();resume();if(resumeApplied&&Date.now()-lastSaved>2000){saveProgress();lastSaved=Date.now();}if(settle)awaitPicture();el('direct-time').textContent=aoVivo?'AO VIVO':clock(video.currentTime)+' / '+clock(totalDoFilme());const barra=el('direct-progress');if(barra&&!arrastando)barra.value=totalDoFilme()>0?Math.round(video.currentTime/totalDoFilme()*1000):0;}});
+            video.addEventListener('timeupdate',()=>{if(current()){if(imagemConfirmada&&video.currentTime>ultimaPosicao+0.1){ultimaPosicao=video.currentTime;limparEspera();analiseAtual?.tocando(ultimaPosicao);}if(totalDoFilme()>60&&posicaoNoFilme()/totalDoFilme()>0.92)marcarVistoSozinho();resume();if(resumeApplied&&Date.now()-lastSaved>2000){saveProgress();lastSaved=Date.now();}if(settle)awaitPicture();el('direct-time').textContent=aoVivo?'AO VIVO':clock(posicaoNoFilme())+' / '+clock(totalDoFilme());const barra=el('direct-progress');if(barra&&!arrastando)barra.value=totalDoFilme()>0?Math.round(posicaoNoFilme()/totalDoFilme()*1000):0;}});
             video.addEventListener('waiting',()=>esperando(current));
             video.addEventListener('resize',()=>{if(current())qualityInfo();});
             video.addEventListener('stalled',()=>esperando(current));
@@ -553,9 +573,9 @@ video.addEventListener('playing',()=>{if(!current())return;window.StreamEpisodes
     function atualizarVolume(){const botao=el('volume-toggle');if(botao)botao.textContent=mudo||volume<=0?'🔇':volume<0.5?'🔉':'🔊';const faixa=el('volume-range');if(faixa&&!faixa.matches?.(':active'))faixa.value=String(Math.round((mudo?0:volume)*100));}
     function setVolume(valor){volume=Math.min(1,Math.max(0,Number(valor)||0));mudo=volume<=0;if(video){try{video.volume=volume;video.muted=mudo;}catch{}}try{localStorage.setItem('streamtv-volume',String(volume));localStorage.setItem('streamtv-mudo',String(mudo));}catch{}atualizarVolume();}
     function toggleMute(){mudo=!mudo;if(video){try{video.muted=mudo;}catch{}}try{localStorage.setItem('streamtv-mudo',String(mudo));}catch{}atualizarVolume();showControls();}
-    function irPara(valor){if(aoVivo||!video||!Number.isFinite(video.duration)||video.duration<=0)return;const total=totalDoFilme();const pronto=duracaoTotal>video.duration?Math.max(0,video.duration-2):video.duration;const destino=Math.min(pronto,Math.max(0,Number(valor)/1000*total));try{ultimaPosicao=destino;analiseAtual?.buscar(destino);video.currentTime=destino;el('direct-time').textContent=clock(destino)+' / '+clock(total);}catch{}}
-    function buscaLivre(){const barra=el('direct-progress');if(!barra)return;barra.addEventListener('pointerdown',()=>{arrastando=true;showControls(true);});barra.addEventListener('touchstart',()=>{arrastando=true;showControls(true);},{passive:true});const soltar=()=>{if(!arrastando)return;arrastando=false;irPara(barra.value);saveProgress();showControls();};barra.addEventListener('change',soltar);barra.addEventListener('pointerup',soltar);barra.addEventListener('touchend',soltar);barra.addEventListener('input',()=>{irPara(barra.value);showControls();});}
-    function seek(seconds){if(!aoVivo&&video&&Number.isFinite(video.duration)){const destino=Math.max(0,Math.min(video.duration,video.currentTime+seconds));ultimaPosicao=destino;analiseAtual?.buscar(destino);video.currentTime=destino;}showControls();}
+    function irPara(valor,soltou=true){if(aoVivo||!video||!Number.isFinite(video.duration)||video.duration<=0)return;const total=totalDoFilme();const absoluto=Math.max(0,Math.min(total,Number(valor)/1000*total));if(foraDoConvertido(absoluto)){el('direct-time').textContent=clock(absoluto)+' / '+clock(total);if(soltou)reabrirNoPonto(absoluto);return;}const destino=Math.min(video.duration,Math.max(0,absoluto-deslocamento));try{ultimaPosicao=destino;analiseAtual?.buscar(destino);video.currentTime=destino;el('direct-time').textContent=clock(deslocamento+destino)+' / '+clock(total);}catch{}}
+    function buscaLivre(){const barra=el('direct-progress');if(!barra)return;barra.addEventListener('pointerdown',()=>{arrastando=true;showControls(true);});barra.addEventListener('touchstart',()=>{arrastando=true;showControls(true);},{passive:true});const soltar=()=>{if(!arrastando)return;arrastando=false;irPara(barra.value);saveProgress();showControls();};barra.addEventListener('change',soltar);barra.addEventListener('pointerup',soltar);barra.addEventListener('touchend',soltar);barra.addEventListener('input',()=>{irPara(barra.value,false);showControls();});}
+    function seek(seconds){if(!aoVivo&&video&&Number.isFinite(video.duration)&&foraDoConvertido(posicaoNoFilme()+seconds)&&posicaoNoFilme()+seconds<totalDoFilme()){reabrirNoPonto(Math.max(0,posicaoNoFilme()+seconds));showControls();return;}if(!aoVivo&&video&&Number.isFinite(video.duration)){const destino=Math.max(0,Math.min(video.duration,video.currentTime+seconds));ultimaPosicao=destino;analiseAtual?.buscar(destino);video.currentTime=destino;}showControls();}
     // Mover o dedo ou o mouse traz os controles de volta enquanto o vídeo roda.
     // StreamChrome centraliza toque, mouse e o relógio de todos os controles.
     return {preparar,injetar,start,stop,play,quality,toggle,seek,showControls,setSubtitle:index=>setSubtitle(index,true),saveProgress,setSpeed,setAudio,audioMenu,setVolume,toggleMute,irPara,isActive:()=>direct,estado:()=>({buscaEsgotada,audio:rotuloAudio,legenda:subtitleChoice,fonte:fonteUsada,fonteId:fonteIdUsada,resolucao:alturaAtual?alturaAtual+'p':'',taxa:taxaAtual,posicao:posicaoAtual()})};

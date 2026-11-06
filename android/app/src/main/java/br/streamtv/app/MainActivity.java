@@ -1681,13 +1681,20 @@ public final class MainActivity extends Activity {
                     String id = path.substring("/api/playback/".length());
                     java.util.Set<String> exceto = PlaybackSources.exclusions(uri.getQueryParameter("exceto"));
                     QualitySelector.TETO.set("1".equals(uri.getQueryParameter("sem4k"))?2600:0);
-                    try { return qualityPlayback("movie",id,null,null,exceto,"avc".equals(uri.getQueryParameter("compat"))||"avc".equals(uri.getQueryParameter("codec"))); }
+                    boolean avcFilme="avc".equals(uri.getQueryParameter("compat"))||"avc".equals(uri.getQueryParameter("codec"));
+                    // Conversão (TorBox) começando no ponto salvo: vai direto ao servidor.
+                    String inicioFilme=uri.getQueryParameter("inicio");
+                    try {
+                        if(inicioFilme!=null&&inicioFilme.matches("[0-9]{2,6}")){WebResourceResponse noPonto=serverPlayback("movie",id,null,null,exceto,!avcFilme,"&inicio="+inicioFilme);if(noPonto!=null)return noPonto;}
+                        return qualityPlayback("movie",id,null,null,exceto,avcFilme); }
                     finally { QualitySelector.TETO.remove(); }
                 }
                 if (path != null && path.matches("/api/playback/serie/[0-9]{1,10}/[0-9]{1,3}/[1-9][0-9]{0,3}")) {
                     String[] partes = path.split("/");
                     QualitySelector.TETO.set("1".equals(uri.getQueryParameter("sem4k"))?2600:0);
                     try {
+                    String inicioSerie=uri.getQueryParameter("inicio");
+                    if(inicioSerie!=null&&inicioSerie.matches("[0-9]{2,6}")){WebResourceResponse noPonto=serverPlayback("tv",partes[4],partes[5],partes[6],PlaybackSources.exclusions(uri.getQueryParameter("exceto")),!("avc".equals(uri.getQueryParameter("compat"))||"avc".equals(uri.getQueryParameter("codec"))),"&inicio="+inicioSerie);if(noPonto!=null)return noPonto;}
                     if("avc".equals(uri.getQueryParameter("compat"))||"avc".equals(uri.getQueryParameter("codec")))return qualityPlayback("tv",partes[4],partes[5],partes[6],PlaybackSources.exclusions(uri.getQueryParameter("exceto")),true);
                     java.util.Set<String> excetoSerie = PlaybackSources.exclusions(uri.getQueryParameter("exceto"));
                     // Série também no aparelho (modo autônomo). O directEpisode

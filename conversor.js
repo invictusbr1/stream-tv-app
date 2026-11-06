@@ -90,7 +90,7 @@ async function faixaPortuguesa(url, referer) {
 }
 
 // Inicia (ou reaproveita) a conversão de um endereço.
-async function iniciar(url, { titulo = '', referer = '', id = '' } = {}) {
+async function iniciar(url, { titulo = '', referer = '', id = '', inicio = 0 } = {}) {
     // `id` é a identidade do TRABALHO (filme-550 / serie-1399-T1E1), estável entre
     // aberturas. A chave real leva um carimbo de tempo porque a mesma obra pode
     // voltar com endereço novo: reaproveitar a conversão velha serviria um vídeo
@@ -134,7 +134,7 @@ async function iniciar(url, { titulo = '', referer = '', id = '' } = {}) {
     const pasta = path.join(PASTA, chave);
     try { fs.mkdirSync(pasta, { recursive: true }); } catch { /* sem permissão */ }
     const arquivo = path.join(pasta, 'index.m3u8');
-    const registro = { arquivo, pasta, lastro, segundos: 0, duracao: 0, pronto: false, terminou: false, erro: '', iniciadoEm: Date.now(), ultimoAcesso: Date.now(), processo: null };
+    const registro = { arquivo, pasta, lastro, inicio: Math.max(0, Math.floor(Number(inicio) || 0)), segundos: 0, duracao: 0, pronto: false, terminou: false, erro: '', iniciadoEm: Date.now(), ultimoAcesso: Date.now(), processo: null };
     trabalhos.set(chave, registro);
 
     let binario;
@@ -146,6 +146,10 @@ async function iniciar(url, { titulo = '', referer = '', id = '' } = {}) {
     const argumentos = [
         '-hide_banner', '-y', '-loglevel', 'info',
         '-headers', cabecalhos,
+        // Começar no meio do filme (continuar de onde parou / pular para a
+        // frente): o ffmpeg pula direto para o ponto (o MKV tem índice) e a
+        // conversão começa ali, em segundos, em vez de converter desde o 0.
+        ...(registro.inicio > 0 ? ['-ss', String(registro.inicio)] : []),
         '-i', url,
         '-map', '0:v:0',
         '-map', `0:a:${indice}`,
@@ -215,10 +219,42 @@ function resumo(chave) {
         convertido: Boolean(registro.terminou),
         tamanho,
         erro: registro.erro || '',
+        inicio: registro.inicio || 0,
     };
 }
 
 function estado(chave) { return resumo(chave); }
+
+// Conversão que já cobre o ponto `inicio` (segundos do filme) ou uma nova que
+// começa nele. Devolve o resumo + `inicio` (onde o vídeo convertido começa no
+// filme). Janelas: "filme-550" (desde o 0) e "ini1980-filme-550" (desde 33 min).
+async function iniciarNoPonto(url, { id = '', referer = '', inicio = 0 } = {}) {
+    const ponto = Math.max(0, Math.floor(Number(inicio) || 0));
+    if (!id || ponto < 60) return { ...(await module.exports.iniciar(url, { id, titulo: id, referer })), inicio: 0 };
+    const deste = new RegExp(`^(?:ini(\\d+)-)?${id.replace(/[^\w-]/g, '')}$`);
+    let melhor = null;
+    for (const [chave, t] of trabalhos) {
+        const m = String(t.lastro || '').match(deste);
+        if (!m || t.erro || !t.arquivo) continue;
+        const ini = Number(m[1] || 0);
+        if (ini > ponto) continue;
+        const completo = t.terminou && t.pronto && fs.existsSync(t.arquivo);
+        const alcancou = ini + (t.segundos || 0) >= ponto + 15;
+        const vaiChegar = !t.terminou && ponto - ini <= 180;
+        if ((completo && (!t.duracao || ini + (t.segundos || t.duracao) >= ponto + 15)) || alcancou || vaiChegar) {
+            if (!melhor || ini > melhor.ini) melhor = { chave, ini, t };
+        }
+    }
+    if (melhor) { melhor.t.ultimoAcesso = Date.now(); return { ...resumo(melhor.chave), inicio: melhor.ini }; }
+    // Janela nova: para as conversões deste filme que ninguém está vendo.
+    for (const [, t] of trabalhos) {
+        if (deste.test(String(t.lastro || '')) && !t.terminou && t.processo && Date.now() - (t.ultimoAcesso || 0) > 30000) {
+            try { t.processo.kill(); } catch { /* já saiu */ }
+        }
+    }
+    const resultado = await module.exports.iniciar(url, { id: `ini${ponto}-${id}`, titulo: id, referer, inicio: ponto });
+    return { ...resultado, inicio: ponto };
+}
 function arquivoDe(chave) {
     const registro = trabalhos.get(chave);
     if (registro && fs.existsSync(registro.arquivo)) { registro.ultimoAcesso = Date.now(); return registro.arquivo; }
@@ -242,4 +278,4 @@ function encerrarTudo() {
     }
 }
 
-module.exports = { iniciar, estado, arquivoDe, caminhoDoPedaço, resumo, encerrarTudo, PASTA, identificar };
+module.exports = { iniciar, iniciarNoPonto, estado, arquivoDe, caminhoDoPedaço, resumo, encerrarTudo, PASTA, identificar };

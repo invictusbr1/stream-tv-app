@@ -686,3 +686,28 @@ test('filme em conversão aberto pelo catálogo espera chegar no minuto salvo e 
  assert.equal(s.Hls.instance.config.startPosition, 1980);
  s.controller.stop(); await p;
 });
+
+test('continuar do minuto 33 em conversão: pede ao servidor a conversão começando no ponto e mostra o tempo do filme', async () => {
+ const s = harness('StreamTVAndroid');
+ s.context.filmeAtual = { id: 937278, titulo: 'O Pior Vizinho do Mundo' };
+ const salvos = [];
+ s.window.StreamPersonal = { position: () => 1980, record: (f, p, t) => salvos.push([p, t]) };
+ const pedidos = [];
+ s.fetch(async caminho => {
+  pedidos.push(caminho);
+  if (caminho.startsWith('/api/conversao/')) return { pronto: true, convertido: false, segundos: 30, duracao: 7568 };
+  if (/inicio=1980/.test(caminho)) return { conversao: 'ini1980-filme-937278-z', inicio: 1980, duracao: 7568, audio: 'pt-BR', fonteId: 'torbox', source: 'TorBox', type: 'hls' };
+  return { conversao: 'filme-937278-z', audio: 'pt-BR', fonteId: 'torbox', source: 'TorBox', type: 'hls' };
+ });
+ const p = s.controller.start(937278, 1);
+ for (let i = 0; i < 6; i++) await new Promise(setImmediate);
+ assert.ok(pedidos.some(c => /\/api\/playback\/937278\?inicio=1980$/.test(c)));
+ assert.equal(s.Hls.instance.config.startPosition, 0);
+ const v = s.el('direct-video'); v.duration = 30; v.currentTime = 5; v.videoWidth = 1920; v.videoHeight = 1036; v.webkitDecodedFrameCount = 1;
+ s.Hls.instance.emit('manifest'); v.fire('loadedmetadata'); v.fire('playing'); v.fire('timeupdate');
+ assert.match(s.el('direct-time').textContent, /^33:00 \/ 2:06:08$/);
+ v.currentTime = 5; v.fire('timeupdate');
+ assert.match(s.el('direct-time').textContent, /^33:05 \/ 2:06:08$/);
+ assert.equal(s.el('direct-progress').value, Math.round(1985 / 7568 * 1000));
+ s.controller.stop(); await p;
+});
