@@ -21,7 +21,7 @@ const path = require('path');
 const { spawn } = require('child_process');
 
 const PASTA = path.join(os.homedir(), '.conecta-tv', 'conversoes');
-const MAXIMO_ARQUIVOS = 6;
+const MAXIMO_ARQUIVOS = 3;
 // Uma conversão é uma PASTA. Enquanto alguém estiver buscando a lista ou os
 // pedaços, a pasta fica protegida por este tempo — sem isso a limpeza apagaria
 // o filme no meio da reprodução.

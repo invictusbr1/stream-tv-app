@@ -12,3 +12,8 @@ test('todos os scripts locais da tela Android podem ser carregados pelo WebView'
 test('a permissao das mininovelas preserva o bloqueio de arquivos privados e caminhos arbitrarios',()=>{
  for(const file of ['config.local.json','../config.json','mininovelas.js/extra','outro.js','/mininovelas.js'])assert.equal(allowed.test(file),false,file);
 });
+test('tela Android consulta andamento de conversao por fetch local e mantem playback.js sincronizado',()=>{
+ const html=fs.readFileSync(path.join(assets,'index.html'),'utf8');
+ assert.match(html,/url\.startsWith\('\/api\/conversao\/'\)/);
+ assert.equal(fs.readFileSync(path.join(assets,'playback.js'),'utf8'),fs.readFileSync(path.join(__dirname,'..','playback.js'),'utf8'));
+});

@@ -410,7 +410,7 @@ window.StreamPlayback = (() => {
         if(data&&data.conversao&&version===playerVersion&&!(signal&&signal.aborted)){
             for(let tentativa=0;tentativa<900;tentativa++){
                 if(version!==playerVersion||(signal&&signal.aborted))return false;
-                const estado=await lerJson('/api/conversao/'+encodeURIComponent(data.conversao)).catch(()=>null);
+                const estado=await lerJson('/api/conversao/'+encodeURIComponent(data.conversao),signal).catch(()=>null);
                 if(estado&&estado.erro)return false;
                 const pct=Math.max(0,Math.min(99,Number(estado&&estado.progresso)||0));
                 try{window.setLoading?.('Preparando em alta qualidade','Convertendo o áudio para português… '+pct+'%');}catch(e){}
@@ -487,7 +487,7 @@ video.addEventListener('playing',()=>{if(!current())return;window.StreamEpisodes
             if(data.type==='file'){
                 video.src=data.url;el('direct-quality').hidden=false;el('quality-select').hidden=true;qualityInfo();subtitleMenu();play();
             }else if(window.Hls?.isSupported()){
-                hls=new Hls({startPosition:retomadaAlvo===null?-1:retomadaAlvo,enableWorker:true,maxBufferLength:45,maxMaxBufferLength:90,backBufferLength:30,manifestLoadingMaxRetry:2,levelLoadingMaxRetry:2,fragLoadingMaxRetry:3,fragLoadingRetryDelay:700,abrEwmaDefaultEstimate:1200000,subtitlePreference:{id:-1}});
+                hls=new Hls({startPosition:retomadaAlvo===null?(data.conversao?0:-1):retomadaAlvo,enableWorker:true,maxBufferLength:45,maxMaxBufferLength:90,backBufferLength:30,manifestLoadingMaxRetry:2,levelLoadingMaxRetry:2,fragLoadingMaxRetry:3,fragLoadingRetryDelay:700,abrEwmaDefaultEstimate:1200000,subtitlePreference:{id:-1}});
                 hls.on(Hls.Events.MANIFEST_PARSED,()=>{if(!current())return;if(!enforceAudio(originalPermitido&&data.audio!=='pt-BR'))return;qualityMenu();quality('best');audioMenu();subtitleMenu();sincronizarLegendas();play();});
                 hls.on(Hls.Events.LEVEL_SWITCHED,(_,d)=>{if(current()){const l=hls.levels[d.level];qualityInfo(l);}});
                 hls.on(Hls.Events.SUBTITLE_TRACKS_UPDATED,()=>{if(!current())return;subtitleMenu();sincronizarLegendas();});

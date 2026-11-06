@@ -123,7 +123,7 @@ function criarLimitador(opcoes = {}) {
         if (req.method === 'OPTIONS') return next();
         const agora = Date.now();
         limpar(agora);
-        const midia = req.path === '/api/hls';
+        const midia = req.path === '/api/hls' || req.path.startsWith('/api/convertido/') || req.path.startsWith('/api/torbox/');
         const chave = `${ipDoPedido(req)}|${midia ? 'midia' : 'geral'}`;
         const limite = midia ? maximoMidia : maximo;
         const duracao = midia ? janelaMidia : janela;

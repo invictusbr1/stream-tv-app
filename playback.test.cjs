@@ -602,6 +602,25 @@ test('APK reproduz mídia encaminhada pelo servidor no mesmo player e preserva a
  s.Hls.instance.levels=[{height:720,bitrate:1000},{height:2160,bitrate:15000000,videoCodec:'avc1.640033'}];s.Hls.instance.emit('manifest');assert.equal(s.Hls.instance.currentLevel,1);assert.equal(s.controller.estado().audio,'Dublado');s.controller.stop();
 });
 
+test('conversão no servidor aguarda ficar pronta e inicia do segundo zero mesmo em lista EVENT',async()=>{
+ const s=harness('StreamTVAndroid'),chamadas=[];let carregado='';
+ s.fetch(async caminho=>{
+  chamadas.push(caminho);
+  if(caminho==='/api/conversao/filme-937278-teste')return {id:'filme-937278-teste',pronto:true,progresso:27};
+  return {url:'/api/rede-midia?p=%2Fapi%2Fconvertido%2Ffilme-937278-teste%2Findex.m3u8',type:'hls',audio:'pt-BR',fonteId:'torbox',source:'TorBox · dublado 1080p (conversão)',conversao:'filme-937278-teste'};
+ });
+ const origLoad=s.Hls.prototype.loadSource;s.Hls.prototype.loadSource=function(u){carregado=u;};
+ try{
+  const pending=s.controller.start(937278,1);await new Promise(setImmediate);await new Promise(setImmediate);
+  assert(chamadas.includes('/api/conversao/filme-937278-teste'));
+  assert.equal(carregado,'/api/convertido/filme-937278-teste/index.m3u8');
+  assert.equal(s.Hls.instance.config.startPosition,0);
+  const v=s.el('direct-video');v.duration=7587;v.currentTime=0;v.videoWidth=1920;v.videoHeight=1036;v.webkitDecodedFrameCount=1;
+  s.Hls.instance.emit('manifest');v.fire('loadedmetadata');v.fire('playing');
+  assert.equal(await pending,true);s.controller.stop();
+ }finally{s.Hls.prototype.loadSource=origLoad;}
+});
+
 
 test('filme ou série no áudio original mostra a opção Dublado nas Opções',()=>{
  const html=fs.readFileSync(__dirname+'/index.html','utf8'),apk=fs.readFileSync(__dirname+'/android/app/src/main/assets/index.html','utf8');
