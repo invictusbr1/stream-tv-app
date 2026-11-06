@@ -202,7 +202,10 @@ window.StreamPlayback = (() => {
                 },45000);
             }
         },6000);
-        travamentoTimer=setTimeout(()=>{travamentoTimer=null;if(current()&&intencaoTocar&&!video.paused&&!video.seeking&&!video.ended&&!document.hidden)failure('o vídeo ficou sem avançar');},20000);
+        // Filme em conversão: a pausa costuma ser o servidor preparando o
+        // próximo trecho, não a fonte caída — espera mais antes de trocar.
+        if(conversaoAtiva){try{window.mostrarStatus?.('Carregando… o servidor está preparando o próximo trecho');}catch{}}
+        travamentoTimer=setTimeout(()=>{travamentoTimer=null;if(current()&&intencaoTocar&&!video.paused&&!video.seeking&&!video.ended&&!document.hidden)failure('o vídeo ficou sem avançar');},conversaoAtiva?60000:20000);
     }
     function stop(resultado='fechou'){if(pcAtivo){saveProgress();pcAtivo=false;pcSessao='';window.StreamPC?.api('parar',{}).catch(()=>{});el('pc-tocando')?.remove();}window.StreamCredits?.detach();window.StreamIntro?.detach();window.StreamEpisodes?.replaying?.();window.StreamFraming?.attach(null);saveProgress();analiseAtual?.encerrar(resultado,posicaoAtual());limparEspera();removerAbort?.();removerAbort=null;intencaoTocar=false;verificarAtual=null;opcoesAtuais=null;analiseAtual=null;imagemConfirmada=false;subtitleChoice=-1;subtitleManual=false;clearTimeout(relogioConfirmacao);if(video&&frameCallback!==null&&video.cancelVideoFrameCallback)video.cancelVideoFrameCallback(frameCallback);frameCallback=null;initialFocus=false;clearTimeout(controlsTimer);el('direct-controls').hidden=true;++generation;clearTimeout(startupTimer);if(settle){settle(false);settle=null;}if(hls){hls.destroy();hls=null;}if(video){video.pause();video.removeAttribute('src');video.load();video.remove();video=null;}direct=false;el('frame').hidden=false;el('direct-resume').hidden=true;el('direct-quality').hidden=true;el('quality-limit').textContent='';subtitleMenu();}
     // Quem diz o que o aparelho toca é o próprio motor de mídia: se o MediaSource
@@ -462,7 +465,8 @@ window.StreamPlayback = (() => {
                     if(estado&&estado.erro)return false;
                     if(estado&&Number(estado.duracao)>0)duracaoTotal=Number(estado.duracao);
                     const pct=Math.max(0,Math.min(99,Number(estado&&estado.progresso)||0));
-                    try{window.setLoading?.('Preparando em alta qualidade','Convertendo o áudio para português… '+pct+'%');}catch(e){}
+                    const vel=Number(estado&&estado.velocidade)||0;
+                    try{window.setLoading?.('Preparando em alta qualidade','Convertendo o áudio para português… '+pct+'%'+(vel?' · '+vel.toFixed(1)+'x':''));}catch(e){}
                     if(estado&&estado.pronto)break;
                     await new Promise(r=>setTimeout(r,2000));
                 }

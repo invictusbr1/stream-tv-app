@@ -67,6 +67,50 @@ function limparAntigos() {
     } catch { /* sem permissão: segue */ }
 }
 
+// ---------------------------------------------------------------- disco
+// 06/11/2026: o disco da Oracle encheu (o "Atualizar servidor" falhou no scp).
+// Cada filme convertido ocupa quase o tamanho do original (a imagem é
+// copiada) e as conversões seguiam até o fim mesmo sem ninguém assistindo.
+// Agora: conversão sem ninguém pedindo pedaços há 10 min é parada, e a pasta
+// inteira tem teto — passou dele, apaga as mais antigas que não estão em uso.
+const LIMITE_DISCO = Number(process.env.CONVERSOES_LIMITE_GB || 8) * 1024 ** 3;
+const PARADA_SEM_USO = 10 * 60 * 1000;
+
+function tamanhoDaPasta(pasta) {
+    let total = 0;
+    try { for (const nome of fs.readdirSync(pasta)) { try { total += fs.statSync(path.join(pasta, nome)).size; } catch { /* sumiu */ } } } catch { /* sem pasta */ }
+    return total;
+}
+
+function arrumarDisco() {
+    const agora = Date.now();
+    for (const t of trabalhos.values()) {
+        if (!t.terminou && t.processo && agora - (t.ultimoAcesso || t.iniciadoEm || 0) > PARADA_SEM_USO) {
+            try { t.processo.kill(); } catch { /* já saiu */ }
+            t.parouSemUso = true;
+        }
+    }
+    try {
+        if (!fs.existsSync(PASTA)) return;
+        const pastas = fs.readdirSync(PASTA)
+            .map(nome => { const caminho = path.join(PASTA, nome); let info = null; try { info = fs.statSync(caminho); } catch { /* sumiu */ } return { nome, caminho, info }; })
+            .filter(item => item.info && item.info.isDirectory())
+            .map(item => ({ ...item, tamanho: tamanhoDaPasta(item.caminho), registro: [...trabalhos.values()].find(t => t.pasta === item.caminho) }))
+            .sort((a, b) => ((a.registro && a.registro.ultimoAcesso) || a.info.mtimeMs) - ((b.registro && b.registro.ultimoAcesso) || b.info.mtimeMs));
+        let total = pastas.reduce((soma, item) => soma + item.tamanho, 0);
+        for (const item of pastas) {
+            if (total <= LIMITE_DISCO) break;
+            const emUso = item.registro && agora - (item.registro.ultimoAcesso || 0) < PARADA_SEM_USO;
+            if (emUso) continue;
+            if (item.registro && !item.registro.terminou && item.registro.processo) { try { item.registro.processo.kill(); } catch { /* já saiu */ } }
+            try { fs.rmSync(item.caminho, { recursive: true, force: true }); total -= item.tamanho; } catch { /* segue */ }
+            for (const [chave, t] of trabalhos) if (t.pasta === item.caminho) trabalhos.delete(chave);
+        }
+    } catch { /* sem permissão: segue */ }
+}
+const relogioDisco = setInterval(arrumarDisco, 60 * 1000);
+if (relogioDisco.unref) relogioDisco.unref();
+
 function identificar(titulo) {
     const limpo = String(titulo || 'video').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60) || 'video';
     return `${limpo}-${Date.now().toString(36)}`;
@@ -189,7 +233,13 @@ async function iniciar(url, { titulo = '', referer = '', id = '', inicio = 0 } =
                 registro.segundos = Number(achado[1]) * 3600 + Number(achado[2]) * 60 + Number(achado[3]);
                 if (registro.duracao > 0) registro.progresso = Math.min(99, Math.round((registro.segundos / registro.duracao) * 100));
                 else registro.progresso = Math.min(99, Math.round((registro.segundos / 3600) * 10));
-                if (!registro.pronto && (registro.progresso >= PRONTO_PARA_TOCAR * 100 || registro.segundos >= MINIMO_TOCAVEL)) registro.pronto = true;
+                // Velocidade da conversão ("speed=3.4x"): abaixo de 1x o filme
+                // alcança a conversão e trava. Conversão lenta só libera o play
+                // com folga maior (60 s prontos) para aguentar as oscilações.
+                const vel = texto.match(/speed=\s*([\d.]+)x/);
+                if (vel) { const v = Number(vel[1]) || 0; registro.velocidade = registro.velocidade ? Math.round((registro.velocidade * 0.7 + v * 0.3) * 10) / 10 : v; }
+                const folga = (registro.velocidade || 0) >= 1.5 ? MINIMO_TOCAVEL : 60;
+                if (!registro.pronto && (registro.progresso >= PRONTO_PARA_TOCAR * 100 && registro.segundos >= folga || registro.segundos >= folga)) registro.pronto = true;
             }
             if (/error|Invalid data|Server returned/i.test(texto)) ultimoErro = require('./cofre-links.cjs').semSegredo(texto.trim()).slice(-120);
         });
@@ -228,6 +278,7 @@ function resumo(chave) {
         id: chave,
         pronto: Boolean(registro.pronto),
         progresso: registro.progresso || 0,
+        velocidade: registro.velocidade || 0,
         segundos: registro.segundos || 0,
         duracao: registro.duracao || 0,
         convertido: Boolean(registro.terminou),
@@ -252,8 +303,11 @@ async function iniciarNoPonto(url, { id = '', referer = '', inicio = 0 } = {}) {
         if (!m || t.erro || !t.arquivo) continue;
         const ini = Number(m[1] || 0);
         if (ini > ponto) continue;
-        const completo = t.terminou && t.pronto && fs.existsSync(t.arquivo);
-        const alcancou = ini + (t.segundos || 0) >= ponto + 15;
+        const disco = t.terminou ? inspecionarDisco(t.pasta) : null;
+        const completo = Boolean(disco && disco.completo);
+        // Conversão parada no meio (sem uso / erro): só serve com folga de 5 min,
+        // senão o filme alcança o fim dela e trava.
+        const alcancou = ini + (t.segundos || 0) >= ponto + (t.terminou && !completo ? 300 : 15);
         const vaiChegar = !t.terminou && ponto - ini <= 180;
         if ((completo && (!t.duracao || ini + (t.segundos || t.duracao) >= ponto + 15)) || alcancou || vaiChegar) {
             if (!melhor || ini > melhor.ini) melhor = { chave, ini, t };
@@ -292,4 +346,4 @@ function encerrarTudo() {
     }
 }
 
-module.exports = { iniciar, iniciarNoPonto, estado, arquivoDe, caminhoDoPedaço, resumo, encerrarTudo, PASTA, identificar };
+module.exports = { arrumarDisco, iniciar, iniciarNoPonto, estado, arquivoDe, caminhoDoPedaço, resumo, encerrarTudo, PASTA, identificar };

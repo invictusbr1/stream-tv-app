@@ -26,6 +26,7 @@ const OCIOSO_MS = 2 * 60 * 1000;
 
 const ACOES = {
     'oracle-atualizar': { grupo: 'oracle', titulo: 'Atualizar servidor (Oracle)', cmd: 'Atualizar-Oracle-Agora.cmd' },
+    'oracle-espaco': { grupo: 'oracle-status', titulo: 'Liberar espaço no servidor', node: ['deploy/servidor/liberar-espaco-servidor.cjs'] },
     'oracle-status': { grupo: 'oracle-status', titulo: 'Estado do servidor', node: ['deploy/servidor/publicar-automatico.cjs', '--status'] },
     'oracle-recarregar': { grupo: 'oracle', titulo: 'Recarregar fontes na Oracle', cmd: 'Recarregar-Fontes-Oracle.cmd' },
     'app-publicar': { grupo: 'app', titulo: 'Publicar app (canal de teste)', cmd: 'Publicar-Agora.cmd', acompanhar: 'publicacao.log' },
