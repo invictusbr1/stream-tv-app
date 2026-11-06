@@ -301,7 +301,10 @@ function notaDaFonte(medida) {
 }
 
 // ---------------------------------------------------------------- escolha
-function filtrarPorCodec(registros,codec){
+function filtrarPorCodec(registros,codec,semConversao=false){
+    // O transporte do APK (transporte=servidor) não toca conversão em
+    // andamento: fonte que precisa converter sai da disputa para ele.
+    if(semConversao)registros=registros.filter(r=>!r.item.dados.converter);
     // HEVC é uma capacidade adicional, não uma obrigação: AVC continua válido.
     if(codec!=='avc')return registros;
     return registros.filter(r=>{
@@ -368,7 +371,7 @@ async function escolherRodada(papel, alvo, opcoes = {}) {
     if (guardado && guardado.expira > Date.now() && !opcoes.semCache && !guardado.conferidas.some(r=>r.item.lembrada||r.item.dados.efemera)) {
         // A sonda pode terminar depois do prazo da primeira abertura. Aproveita
         // essa prova na abertura seguinte, sem prender o título à reserva HD.
-        const compativeis=filtrarPorCodec(guardado.conferidas,opcoes.codec);
+        const compativeis=filtrarPorCodec(guardado.conferidas,opcoes.codec,opcoes.semConversao);
         if(!compativeis.length)return null;
         const atualizadas = avaliarConferidas(compativeis, motor.lerIdiomasVerificados()[motor.chaveDoTitulo(alvo)] || {}, motor.chaveDoTitulo(alvo));
         const anterior = guardado.resultado.escolhido.fonteId;
@@ -481,7 +484,7 @@ async function escolherRodada(papel, alvo, opcoes = {}) {
     // direto e não pede a versão compatível sozinho, então um 4K HEVC ali vira
     // tela de erro. Quando o pedido é AVC, a fonte medida em HEVC sai da
     // disputa — melhor 1080p H.264 tocando do que 4K que não abre.
-    const compativeis=filtrarPorCodec(conferidas,opcoes.codec);
+    const compativeis=filtrarPorCodec(conferidas,opcoes.codec,opcoes.semConversao);
     if(!compativeis.length)return null;
     const avaliacoes = avaliarConferidas(compativeis, idiomas, motor.chaveDoTitulo(alvo));
     if(opcoes._estado)opcoes._estado.avaliacoes=avaliacoes;
@@ -496,4 +499,4 @@ async function escolherRodada(papel, alvo, opcoes = {}) {
 
 function limparCache() { ++versaoMedicoes; cache.clear(); medidasDeArquivo.clear(); medicoesEmCurso.clear(); }
 
-module.exports = { resultadoDasAvaliacoes, escolherMelhor, sondar, sondarLista, sondarArquivo, analisarPlaylist, notaDaFonte, prioridadeDaFonte, compararPrioridade, gavetaDaAltura, limparCache, MAX_FONTES, ORCAMENTO };
+module.exports = { _filtrarPorCodec: filtrarPorCodec, resultadoDasAvaliacoes, escolherMelhor, sondar, sondarLista, sondarArquivo, analisarPlaylist, notaDaFonte, prioridadeDaFonte, compararPrioridade, gavetaDaAltura, limparCache, MAX_FONTES, ORCAMENTO };

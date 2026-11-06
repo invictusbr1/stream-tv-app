@@ -11,6 +11,30 @@ const { LOCAL_CONFIG, RAIZ, TMDB_KEY, fs, path, seguranca } = ctx;
 // (ou seja: sem anúncio no caminho do usuário).
 // ============================================================
 const midia = require('../midia-proxy');
+// Vídeo da TorBox repassado pelo servidor: o aparelho só conhece o código
+// aleatório; o link real (com a chave da conta) nunca sai daqui.
+app.get('/api/torbox/:id', async (req, res) => {
+    const real = require('../cofre-links.cjs').pegar(req.params.id);
+    if (!real) return res.status(404).send('link expirado: abra o título de novo');
+    const transferencia = new AbortController();
+    res.once('close', () => transferencia.abort());
+    const cabecalhos = { 'User-Agent': 'ConectaTV' };
+    const faixa = String(req.headers.range || '');
+    if (/^bytes=\d*-\d*$/.test(faixa)) cabecalhos.Range = faixa;
+    try {
+        const r = await fetch(real, { headers: cabecalhos, signal: transferencia.signal, redirect: 'follow' });
+        if (r.status !== 200 && r.status !== 206) { res.status(r.status === 416 ? 416 : 502).end(); try { await r.body?.cancel(); } catch { /* ok */ } return; }
+        res.status(r.status);
+        for (const nome of ['content-length', 'content-range', 'accept-ranges', 'last-modified', 'etag']) { const v = r.headers.get(nome); if (v) res.setHeader(nome, v); }
+        const tipo = String(r.headers.get('content-type') || '');
+        res.setHeader('Content-Type', /^video\//.test(tipo) ? tipo : /\.mp4|\.m4v/i.test(new URL(real).pathname) ? 'video/mp4' : 'video/x-matroska');
+        res.setHeader('Cache-Control', 'no-store');
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        if (!r.headers.get('accept-ranges')) res.setHeader('Accept-Ranges', 'bytes');
+        const { Readable } = require('node:stream');
+        Readable.fromWeb(r.body).on('error', () => res.destroy()).pipe(res);
+    } catch { if (!res.headersSent) res.status(502).end(); else res.destroy(); }
+});
 app.get('/api/hls', async (req, res) => {
     let endereco;
     let referer = '';
@@ -99,6 +123,12 @@ function paraPlayerDoPc(req) {
     return process.env.CONECTA_PC === '1' && req.query.pc === '1';
 }
 
+// APK até 2.13.137 recusa resposta com "conversao" (desistia do servidor).
+// Do 2.13.138 em diante ele avisa com conversao=1 e toca o MKV convertido
+// (ex.: TorBox) pelo transporte autenticado do próprio aparelho.
+function semConversaoNoPedido(req) {
+    return req.query.transporte === 'servidor' && req.query.conversao !== '1';
+}
 function codecDoPedido(req) {
     if (req.query.codec === 'hevc') return 'hevc';
     if (req.query.codec === 'avc') return 'avc';
@@ -112,7 +142,7 @@ async function responderCompatibilidade(req, res, alvo) {
     // Só se nenhuma servir é que cai na conversão do FenixFlix.
     let pronto = null;
     try {
-        const resultado = await require('../avaliador').escolherMelhor('dublado', alvo, { semCache: true, codec: 'avc' }).catch(() => null);
+        const resultado = await require('../avaliador').escolherMelhor('dublado', alvo, { semCache: true, codec: 'avc', semConversao: true }).catch(() => null);
         if (resultado && resultado.escolhido) pronto = require('../fontes-motor').prepararParaPlayer(resultado.escolhido);
     } catch { /* segue para a conversão */ }
     if (!pronto) {
@@ -167,7 +197,7 @@ app.get('/api/playback/:id', async (req, res) => {
         let escolhido = null;
         let avaliacao = null;
         if (process.env.AVALIADOR !== '0') {
-            const resultado = await avaliador.escolherMelhor('dublado', alvo, { exceto, codec: codecDoPedido(req) }).catch(() => null);
+            const resultado = await avaliador.escolherMelhor('dublado', alvo, { exceto, codec: codecDoPedido(req), semConversao: semConversaoNoPedido(req) }).catch(() => null);
             if (resultado) { escolhido = resultado.escolhido; avaliacao = resultado.avaliacao; }
         }
         if (!escolhido) escolhido = await motor.escolher('dublado', alvo, { exceto });
@@ -206,6 +236,7 @@ app.get('/api/playback/:id', async (req, res) => {
                     source: escolhido.fonte || 'Dublado (conversão)',
                     type: 'hls',
                     resolucao: escolhido.resolucao || '',
+                    fonteId: escolhido.fonteId || '',
                     conversao: trabalho.id,
                 });
             }
@@ -257,7 +288,7 @@ app.get('/api/playback/serie/:id/:season/:episode', async (req, res) => {
         let escolhido = await require('../crystal-lake-source').resolver(alvo, { exceto });
         let avaliacao = null;
         if (!escolhido && process.env.AVALIADOR !== '0') {
-            const resultado = await require('../avaliador').escolherMelhor('dublado', alvo, { exceto, codec: codecDoPedido(req) }).catch(() => null);
+            const resultado = await require('../avaliador').escolherMelhor('dublado', alvo, { exceto, codec: codecDoPedido(req), semConversao: semConversaoNoPedido(req) }).catch(() => null);
             if (resultado) {
                 escolhido = require('../fontes-motor').prepararParaPlayer(resultado.escolhido);
                 avaliacao = resultado.avaliacao;
@@ -277,6 +308,7 @@ app.get('/api/playback/serie/:id/:season/:episode', async (req, res) => {
                 source: escolhido.fonte || 'Dublado (conversão)',
                 type: 'hls',
                 resolucao: escolhido.resolucao || '',
+                fonteId: escolhido.fonteId || '',
                 conversao: trabalho.id,
             });
         }

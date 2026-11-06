@@ -273,7 +273,7 @@ window.StreamPlayback = (() => {
         // conhecidas e listas de reprodução (inclusive as de caminho protegido,
         // que são liberadas na hora pelo resolvedor).
         // nixplay.lat entrega o episódio dublado em MP4 (arquivo direto).
-        const enderecoDeMidia=url=>/^\/api\/crystal-lake\/1\/[1-8]\/master\.m3u8$/.test(url)||/^(\/api\/(?:hls\?|rede-midia\?|midia-local\?|convertido\/)|https:\/\/[a-z0-9-]+\.hclod\.qzz\.io\/|https:\/\/pipocacine\.lat\/|https:\/\/vixsrc\.to\/|https:\/\/nixplay\.lat\/)/i.test(url)||/^https:\/\/[a-z0-9.-]+\/(?:pl\/|[^\s]*\.(?:m3u8|mp4))/i.test(url)||/^https:\/\/[a-z0-9.-]+\/api\/hls\?/i.test(url);
+        const enderecoDeMidia=url=>/^\/api\/crystal-lake\/1\/[1-8]\/master\.m3u8$/.test(url)||/^(\/api\/(?:hls\?|rede-midia\?|midia-local\?|convertido\/|torbox\/[a-f0-9]{32}(?:\?|$))|https:\/\/[a-z0-9-]+\.hclod\.qzz\.io\/|https:\/\/pipocacine\.lat\/|https:\/\/vixsrc\.to\/|https:\/\/nixplay\.lat\/)/i.test(url)||/^https:\/\/[a-z0-9.-]+\/(?:pl\/|[^\s]*\.(?:m3u8|mp4))/i.test(url)||/^https:\/\/[a-z0-9.-]+\/api\/(?:hls\?|torbox\/[a-f0-9]{32}(?:\?|$))/i.test(url);
         // Arquivo que o próprio navegador já abriu (imagem e tamanho lidos) na
         // busca direta nas fontes aprovadas: endereço HTTPS sem credenciais.
         function arquivoConferidoNoNavegador(data){

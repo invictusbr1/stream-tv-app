@@ -1050,9 +1050,18 @@ public final class MainActivity extends Activity {
         try{
             serverLastProblem="";ServerPlaybackTransport transport=serverTransport();
             String path="tv".equals(tipo)?"/api/playback/serie/"+id+"/"+temporada+"/"+episodio:"/api/playback/"+id;
-            path+="?transporte=servidor&codec="+(hevc?"hevc":"avc")+(escolhaDoAparelho==null?"":escolhaDoAparelho);
+            path+="?transporte=servidor&conversao=1&codec="+(hevc?"hevc":"avc")+(escolhaDoAparelho==null?"":escolhaDoAparelho);
             JSONObject data=new JSONObject(transport.json(path,20000));
-            if(!"pt-BR".equals(data.optString("audio"))||data.has("conversao")||!java.util.Arrays.asList("file","hls").contains(data.optString("type")))return null;
+            if(!"pt-BR".equals(data.optString("audio"))||!java.util.Arrays.asList("file","hls").contains(data.optString("type")))return null;
+            // Conversão (ex.: MKV da TorBox com som Dolby): o servidor copia a
+            // imagem e só troca o áudio para AAC. A lista e os pedaços vêm por
+            // /api/rede-midia (autenticado, só /api/convertido/<código>/...) e o
+            // playback.js acompanha o andamento por /api/conversao/<código>.
+            if(data.has("conversao")){
+                String conversao=data.optString("conversao");
+                if(!ServerPlaybackTransport.conversionId(conversao))return null;
+                data.put("url","/api/convertido/"+conversao+"/index.m3u8");data.put("type","hls");
+            }
             String mediaUrl=data.getString("url");
             // Lista HLS vem pelo transporte do próprio aparelho (mesma origem do
             // WebView): o hls.js pede a lista e os pedaços por XHR, e o servidor
@@ -1089,11 +1098,19 @@ public final class MainActivity extends Activity {
             return new WebResourceResponse(response.mime,null,response.status,response.reason,response.headers,response.body);
         }catch(Exception unavailable){return error(502);}
     }
-    private WebResourceResponse serverMedia(Uri uri,java.util.Map<String,String> requestHeaders){
+    private WebResourceResponse serverMedia(Uri uri,java.util.Map<String,String> requestHeaders){return serverMediaPath(uri.getQueryParameter("p"),requestHeaders);}
+    // Andamento da conversão pedida ao servidor (o playback.js consulta a cada 2 s).
+    private WebResourceResponse serverConversionState(String id){
+        try{
+            ServerPlaybackTransport transport=serverTransport();
+            return respostaTexto("application/json",new JSONObject(transport.conversionState(id,10000)).toString());
+        }catch(Exception unavailable){return error(502);}
+    }
+    private WebResourceResponse serverMediaPath(String mediaPath,java.util.Map<String,String> requestHeaders){
         try{
             ServerPlaybackTransport transport=serverTransport;if(transport==null)return error(502);
             String range=null;for(java.util.Map.Entry<String,String> entry:requestHeaders.entrySet())if(entry.getKey().equalsIgnoreCase("Range"))range=entry.getValue();
-            ServerPlaybackTransport.Response response=transport.media(uri.getQueryParameter("p"),range);
+            ServerPlaybackTransport.Response response=transport.media(mediaPath,range);
             return new WebResourceResponse(response.mime,null,response.status,"OK",response.headers,response.body);
         }catch(Exception unavailable){return error(502);}
     }
@@ -1681,6 +1698,10 @@ public final class MainActivity extends Activity {
                 if (path != null && "/api/futebol/agenda".equals(path)) return futebolAgenda(uri);
                 if (path != null && path.matches("/api/crystal-lake/1/[1-8]/master\\.m3u8")) return crystalLakePlaylist(path.split("/")[4]);
                 if (path != null && "/api/rede-midia".equals(path)) return serverMedia(uri,request.getRequestHeaders());
+                // Conversão feita no servidor: andamento e lista final (o playback.js
+                // pede /api/convertido/<código>/index.m3u8 quando fica pronta).
+                if (path != null && path.matches("/api/conversao/[A-Za-z0-9_-]{1,96}")) return serverConversionState(path.substring("/api/conversao/".length()));
+                if (path != null && path.startsWith("/api/convertido/") && ServerPlaybackTransport.mediaPath(path)) return serverMediaPath(path,request.getRequestHeaders());
                 if (path != null && "/api/hls".equals(path)) return encaminharMidia(uri);
                 if (path != null && LocalMediaRelay.PATH.equals(path)) return midiaLocal(uri,request.getRequestHeaders());
                 // Fichas de fonte (o mesmo arquivo que o computador usa): a

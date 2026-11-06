@@ -18,6 +18,13 @@ final class ServerPlaybackTransport {
   try{URI u=new URI(path);if(u.isAbsolute()||u.getRawAuthority()!=null)return false;String p=u.getRawPath();return p.equals("/api/hls")&&u.getRawQuery()!=null||p.matches("/api/convertido/[A-Za-z0-9_-]{1,96}/[A-Za-z0-9_-]+\\.(m3u8|ts|m4s|mp4)")||p.matches("/api/crystal-lake/1/[1-8]/master\\.m3u8");}catch(Exception e){return false;}
  }
  static String local(String path)throws IOException{if(!mediaPath(path))throw new IOException("Caminho de mídia não permitido");return "/api/rede-midia?p="+URLEncoder.encode(path,"UTF-8");}
+ /** Código da conversão no servidor (ex.: filme-937278, serie-1405-T2E3). */
+ static boolean conversionId(String id){return id!=null&&id.matches("[A-Za-z0-9_-]{1,96}");}
+ /** Andamento da conversão (MKV com som Dolby → HLS com AAC); só JSON pequeno. */
+ String conversionState(String id,int timeout)throws IOException{
+  if(!conversionId(id))throw new IOException("Conversão inválida");
+  HttpURLConnection c=connect("/api/conversao/"+id,null,timeout);try{if(c.getResponseCode()!=200)throw new IOException("Conversão indisponível");return new String(read(c.getInputStream(),65536),StandardCharsets.UTF_8);}finally{c.disconnect();}
+ }
  private HttpURLConnection connect(String path,String range,int timeout)throws IOException{
   URL url=new URL(base,path);if(!url.getAuthority().equals(base.getAuthority())||!url.getProtocol().equals("https"))throw new IOException("Origem alterada");
   if(range!=null&&!range.matches("bytes=([0-9]+-[0-9]*|-[0-9]+)"))throw new IOException("Faixa inválida");

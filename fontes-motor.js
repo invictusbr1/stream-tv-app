@@ -252,6 +252,23 @@ const FONTES = [
         }
     },
     {
+        // TorBox (debrid, conta da família): torrents DUBLADOS que já estão no
+        // cache da TorBox abrem em ~1 s em Full HD. Só liga quando o servidor
+        // tem a chave (TORBOX_API_KEY no .env da Oracle ou CHAVE-TORBOX.local.txt
+        // no PC). MKV com som Dolby vai pelo conversor (só o áudio muda).
+        id: 'torbox',
+        efemera: true,
+        nome: 'Dublado · TorBox',
+        papel: 'dublado',
+        seAplica: alvo => (alvo.tipo === 'movie' || alvo.tipo === 'tv') && require('./torbox-source').ativa(),
+        resolverTodos: async alvo => require('./torbox-source').resolverTodos(alvo.tipo, alvo.tmdbId, alvo.temporada, alvo.episodio),
+        resolver: async alvo => {
+            const objeto = typeof alvo === 'object' ? alvo : { tipo: 'movie', tmdbId: alvo };
+            const dados = await require('./torbox-source').resolver(objeto.tipo, objeto.tmdbId, objeto.temporada, objeto.episodio);
+            return dados && dados.url ? dados : null;
+        }
+    },
+    {
         // ClickHost (embed-api.clickhost.xyz): descoberto dentro do Kairou em
         // 18/10/2026. Quando entrega, é Full HD/4K com áudio em português como
         // faixa padrão (medido no Toy Story 5: 3840x2160 HEVC, áudio "por") e o
@@ -670,6 +687,9 @@ function explicar(alvo) {
 // Preparo do endereço para o player: tudo passa pelo encaminhamento do
 // aplicativo (o navegador não consegue falar direto com alguns provedores).
 function prepararParaPlayer(escolhido) {
+    // Link com a chave da conta dentro (TorBox): o aparelho recebe só um
+    // código; o servidor busca o vídeo e repassa (cofre-links.cjs).
+    if (escolhido && escolhido.segredo) return { ...escolhido, final: false, urlAplicativo: '/api/torbox/' + require('./cofre-links.cjs').guardar(escolhido.url) };
     const midia = require('./midia-proxy');
     let host = '';
     try { host = new URL(escolhido.url).hostname; } catch { /* endereço inválido */ }

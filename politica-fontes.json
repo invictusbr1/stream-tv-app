@@ -34,6 +34,11 @@
    "desligada": true,
    "motivoDesligada": "fora do ar (Cloudflare 1014) desde 04/11/2026"
   },
+  "torbox": {
+   "papel": "dublado",
+   "prioridade": 93,
+   "nota": "Debrid (conta própria): torrents dublados no cache da TorBox, Full HD; MKV vai pelo conversor."
+  },
   "clickhost": {
    "papel": "dublado",
    "prioridade": 92

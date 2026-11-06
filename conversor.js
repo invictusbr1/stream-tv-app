@@ -142,7 +142,7 @@ async function iniciar(url, { titulo = '', referer = '', id = '' } = {}) {
                 else registro.progresso = Math.min(99, Math.round((registro.segundos / 3600) * 10));
                 if (!registro.pronto && (registro.progresso >= PRONTO_PARA_TOCAR * 100 || registro.segundos >= MINIMO_TOCAVEL)) registro.pronto = true;
             }
-            if (/error|Invalid data|Server returned/i.test(texto)) ultimoErro = texto.trim().slice(-120);
+            if (/error|Invalid data|Server returned/i.test(texto)) ultimoErro = require('./cofre-links.cjs').semSegredo(texto.trim()).slice(-120);
         });
         processo.on('exit', (codigo) => {
             registro.terminou = true;

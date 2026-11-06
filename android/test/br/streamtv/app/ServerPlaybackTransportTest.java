@@ -26,6 +26,14 @@ public final class ServerPlaybackTransportTest {
   t=new ServerPlaybackTransport("https://backend.invalid","code",u->{connection[0]=new Fake(u,"{\"type\":\"hls\"}","application/json",200);return connection[0];});
   check(t.json("/api/playback/serie/306956/1/134?transporte=servidor&codec=hevc",20000).contains("hls"));check(connection[0].getReadTimeout()==20000);
   try{t.json("/api/acesso?x=1",20000);throw new AssertionError();}catch(IOException expected){}
+  // Conversão no servidor (MKV da TorBox): só o código seguro passa e a consulta
+  // vai autenticada para /api/conversao/<código>.
+  for(String bad:Arrays.asList("","../acesso","a/b","filme-1?x=1","a\r\nb",null))check(!ServerPlaybackTransport.conversionId(bad));
+  check(ServerPlaybackTransport.conversionId("filme-937278")&&ServerPlaybackTransport.conversionId("serie-1405-T2E3"));
+  t=new ServerPlaybackTransport("https://backend.invalid","conv-code",u->{connection[0]=new Fake(u,"{\"pronto\":true,\"progresso\":40}","application/json",200);return connection[0];});
+  check(t.conversionState("filme-937278",10000).contains("pronto"));check(connection[0].getURL().getPath().equals("/api/conversao/filme-937278"));check(connection[0].getRequestProperty("X-Conecta-Codigo").equals("conv-code"));check(connection[0].closed);
+  try{t.conversionState("../acesso",10000);throw new AssertionError();}catch(IOException expected){}
+  check(ServerPlaybackTransport.mediaPath("/api/convertido/serie-1405-T2E3/index.m3u8")&&ServerPlaybackTransport.mediaPath("/api/convertido/filme-937278/seg00012.ts"));
   System.out.println("Transporte: origem, autenticação, HLS, Range, streaming e falhas conferidos.");
  }
  static byte[] read(InputStream in)throws IOException{ByteArrayOutputStream out=new ByteArrayOutputStream();byte[] b=new byte[8192];int n;while((n=in.read(b))!=-1)out.write(b,0,n);in.close();return out.toByteArray();}
