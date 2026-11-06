@@ -40,3 +40,23 @@ test('APK (transporte=servidor) não recebe fonte que precisa de conversão', ()
     assert.strictEqual(_filtrarPorCodec(r, 'avc', true).length, 1);
     assert.strictEqual(_filtrarPorCodec(r, 'avc', false).length, 2);
 });
+
+test('conversor reaproveita conversão completa do disco após reinício do processo', async () => {
+    const fs = require('node:fs'), path = require('node:path');
+    const conversor = require('./conversor');
+    const chave = 'filme-teste-reinicio-abc123';
+    const pasta = path.join(conversor.PASTA, chave);
+    fs.mkdirSync(pasta, { recursive: true });
+    try {
+        fs.writeFileSync(path.join(pasta, 'index.m3u8'), '#EXTM3U\n#EXTINF:10.0,\nseg00000.ts\n#EXTINF:12.4,\nseg00001.ts\n#EXT-X-ENDLIST\n');
+        const st = conversor.estado(chave);
+        assert.strictEqual(st.pronto, true);
+        assert.strictEqual(st.convertido, true);
+        assert.strictEqual(st.segundos, 22);
+        const reaproveitado = await conversor.iniciar('https://exemplo.invalid/video.mkv', { id: 'filme-teste-reinicio' });
+        assert.strictEqual(reaproveitado.id, chave);
+        assert.strictEqual(reaproveitado.convertido, true);
+    } finally {
+        try { fs.rmSync(pasta, { recursive: true, force: true }); } catch {}
+    }
+});

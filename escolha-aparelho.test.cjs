@@ -74,7 +74,18 @@ test('upgrade=1: celular em 720p sobe para Full HD dublado medido da TorBox (com
         assert.equal(r1.corpo.conversao, 'filme-937278-t1');
         assert.equal(converteu, 1);
 
-        // 2) Servidor só tem 720p -> responde indisponivel:true sem iniciar conversão (celular mantém o 720p local).
+        // 2) TorBox 1080p com conversão (ainda sem dimensoes medidas no avaliador, só rótulo 1080p e dublado confiável) -> também sobe para Full HD.
+        avaliador.escolherMelhor = async () => ({
+            escolhido: { url: 'https://cdn.torbox.example/otto.mkv', audio: 'pt-BR', fonte: 'TorBox · dublado 1080p (conversão)', fonteId: 'torbox', resolucao: '1080p', converter: true, segredo: true },
+            avaliacao: [{ fonteId: 'torbox', nota: 4.7, detalhes: { idioma: 'dublado declarado na página da fonte', qualidade: '1080p informado pela fonte' } }],
+        });
+        const r1b = resposta();
+        await h({ params: { id: '937278' }, query: { transporte: 'servidor', conversao: '1', upgrade: '1', codec: 'hevc' }, headers: {} }, r1b);
+        assert.equal(r1b.codigo, 200);
+        assert.equal(r1b.corpo.fonteId, 'torbox');
+        assert.equal(converteu, 2);
+
+        // 3) Servidor só tem 720p -> responde indisponivel:true sem iniciar conversão (celular mantém o 720p local).
         avaliador.escolherMelhor = async () => ({
             escolhido: { url: 'https://cdn.torbox.example/hd.mkv', audio: 'pt-BR', fonteId: 'torbox', resolucao: '720p', converter: true },
             avaliacao: [{ fonteId: 'torbox', nota: 4, detalhes: { idioma: 'faixa em português é a padrão do arquivo', dimensoes: '1280 × 720' } }],
@@ -83,7 +94,7 @@ test('upgrade=1: celular em 720p sobe para Full HD dublado medido da TorBox (com
         await h({ params: { id: '937278' }, query: { transporte: 'servidor', conversao: '1', upgrade: '1', codec: 'hevc' }, headers: {} }, r2);
         assert.equal(r2.codigo, 200);
         assert.equal(r2.corpo.indisponivel, true);
-        assert.equal(converteu, 1, 'não inicia conversão de 720p no pedido de upgrade');
+        assert.equal(converteu, 2, 'não inicia conversão de 720p no pedido de upgrade');
     } finally { avaliador.escolherMelhor = escolher; conversor.iniciar = iniciar; }
 });
 

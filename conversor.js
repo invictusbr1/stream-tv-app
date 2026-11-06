@@ -33,6 +33,17 @@ const MINIMO_TOCAVEL = 20;                 // ou 20 segundos de vídeo
 const trabalhos = new Map();
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36';
 
+function inspecionarDisco(pasta) {
+    try {
+        const m3u8 = path.join(pasta, 'index.m3u8');
+        if (!fs.existsSync(m3u8)) return null;
+        const texto = fs.readFileSync(m3u8, 'utf8');
+        let soma = 0;
+        for (const m of texto.matchAll(/#EXTINF:([0-9.]+)/g)) soma += Number(m[1]) || 0;
+        return { arquivo: m3u8, completo: /#EXT-X-ENDLIST/.test(texto), segundos: Math.round(soma) };
+    } catch { return null; }
+}
+
 function limparAntigos() {
     try {
         fs.mkdirSync(PASTA, { recursive: true });
@@ -40,14 +51,18 @@ function limparAntigos() {
             .map(nome => ({ nome, caminho: path.join(PASTA, nome), info: fs.statSync(path.join(PASTA, nome)) }))
             .filter(item => item.info.isDirectory())
             .sort((a, b) => b.info.mtimeMs - a.info.mtimeMs);
+        let mantidas = 0;
         for (const item of pastas) {
             const registro = [...trabalhos.values()].find(t => t.pasta === item.caminho);
             const trabalhando = Boolean(registro && !registro.terminou);
             const vistoAgora = Boolean(registro && registro.ultimoAcesso && Date.now() - registro.ultimoAcesso < PROTECAO_ACESSO);
-            if (trabalhando || vistoAgora) continue;
+            if (trabalhando || vistoAgora) { mantidas++; continue; }
+            const disco = inspecionarDisco(item.caminho);
+            const orfaIncompleta = !registro && (!disco || !disco.completo);
             const velho = Date.now() - item.info.mtimeMs > VALIDADE;
-            const excedente = pastas.indexOf(item) >= MAXIMO_ARQUIVOS;
-            if (velho || excedente) { try { fs.rmSync(item.caminho, { recursive: true, force: true }); } catch { /* segue */ } }
+            const excedente = mantidas >= MAXIMO_ARQUIVOS;
+            if (orfaIncompleta || velho || excedente) { try { fs.rmSync(item.caminho, { recursive: true, force: true }); } catch { /* segue */ } }
+            else mantidas++;
         }
     } catch { /* sem permissão: segue */ }
 }
@@ -93,6 +108,22 @@ async function iniciar(url, { titulo = '', referer = '', id = '' } = {}) {
         registroBom.ultimoAcesso = Date.now();
         return resumo(chaveBoa);
     }
+    try {
+        if (fs.existsSync(PASTA)) {
+            const candidatas = fs.readdirSync(PASTA)
+                .filter(nome => nome === lastro || nome.startsWith(lastro + '-'))
+                .map(nome => ({ nome, caminho: path.join(PASTA, nome), info: fs.statSync(path.join(PASTA, nome)) }))
+                .filter(item => item.info.isDirectory())
+                .sort((a, b) => b.info.mtimeMs - a.info.mtimeMs);
+            for (const item of candidatas) {
+                const disco = inspecionarDisco(item.caminho);
+                if (disco && disco.completo) {
+                    trabalhos.set(item.nome, { arquivo: disco.arquivo, pasta: item.caminho, lastro, segundos: disco.segundos, duracao: disco.segundos, progresso: 100, pronto: true, terminou: true, erro: '', iniciadoEm: item.info.mtimeMs, ultimoAcesso: Date.now(), processo: null });
+                    return resumo(item.nome);
+                }
+            }
+        }
+    } catch { /* segue para nova conversão */ }
 
     limparAntigos();
     const existente = trabalhos.get(chave);
@@ -157,7 +188,15 @@ async function iniciar(url, { titulo = '', referer = '', id = '' } = {}) {
 }
 
 function resumo(chave) {
-    const registro = trabalhos.get(chave);
+    let registro = trabalhos.get(chave);
+    if (!registro && /^[A-Za-z0-9_-]{1,96}$/.test(String(chave || ''))) {
+        const pasta = path.join(PASTA, String(chave));
+        const disco = inspecionarDisco(pasta);
+        if (disco && disco.completo) {
+            registro = { arquivo: disco.arquivo, pasta, lastro: String(chave).replace(/-[a-z0-9]+$/i, ''), segundos: disco.segundos, duracao: disco.segundos, progresso: 100, pronto: true, terminou: true, erro: '', iniciadoEm: Date.now(), ultimoAcesso: Date.now(), processo: null };
+            trabalhos.set(String(chave), registro);
+        }
+    }
     if (!registro) return { id: chave, pronto: false, progresso: 0, erro: 'conversão não encontrada' };
     let tamanho = 0;
     try {

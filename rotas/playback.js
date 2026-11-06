@@ -136,9 +136,11 @@ function atendeUpgradeFullHd(escolhido, avaliacao) {
     const det = (topo && topo.detalhes) || {};
     if (det.audioEmOutroIdioma || det.dubladoNaoConfirmado) return false;
     const m = String(det.dimensoes || '').match(/(\d+)\s*[×x]\s*(\d+)/);
-    if (!m) return false;
-    const { alturaEquivalente } = require('../politica-fontes');
-    return alturaEquivalente(Number(m[1]), Number(m[2])) >= 1080 * 0.98;
+    if (m) {
+        const { alturaEquivalente } = require('../politica-fontes');
+        return alturaEquivalente(Number(m[1]), Number(m[2])) >= 1080 * 0.98;
+    }
+    return Boolean(escolhido && escolhido.fonteId === 'torbox' && parseInt(escolhido.resolucao, 10) >= 1080);
 }
 function codecDoPedido(req) {
     if (req.query.codec === 'hevc') return 'hevc';

@@ -133,6 +133,19 @@ test('fonte ainda em conversão não reinicia o filme ao tentar recuperar um pon
  assert.equal(s.controller.estado().fonteId,'fenix');assert.equal(s.controller.isActive(),false);s.controller.stop();
 });
 
+test('fonte convertida permite retomar ponto salvo quando o trecho já está pronto',async()=>{
+ const s=harness('StreamTVAndroid');
+ s.fetch(async caminho=>caminho==='/api/conversao/filme-937278-ok'
+  ?{id:'filme-937278-ok',pronto:true,convertido:true,progresso:100,segundos:7568}
+  :{conversao:'filme-937278-ok',audio:'pt-BR',fonteId:'torbox',source:'TorBox · dublado 1080p (conversão)',type:'hls'});
+ const p=s.controller.start(937278,1,null,null,null,false,null,{posicao:672});
+ await new Promise(setImmediate);await new Promise(setImmediate);
+ assert.equal(s.Hls.instance.config.startPosition,672);
+ const v=s.el('direct-video');v.duration=7568;v.currentTime=672;v.videoWidth=1920;v.videoHeight=1036;v.webkitDecodedFrameCount=1;
+ s.Hls.instance.emit('manifest');v.fire('loadedmetadata');v.fire('playing');
+ assert.equal(await p,true);s.controller.stop();
+});
+
 test('resposta antiga de conversão não altera a fonte ou o diagnóstico do novo filme',async()=>{
  const s=harness();let resolver;s.fetch(()=>new Promise(resolve=>resolver=resolve));
  const antigo=s.controller.start(238,1,null,null,null,false,null,{posicao:240});
