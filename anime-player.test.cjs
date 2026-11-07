@@ -33,7 +33,7 @@ test('carregamento expira uma vez e a preferência de anime persiste sem afetar 
 test('MP4 validado usa somente o player nativo sem abrir iframe ou scripts externos',async()=>{
  const s=setup(),calls=[];const url='https://meusanimes.blog.alibabacdn.net/video/a/video.mp4?X-Amz-Signature='+'a'.repeat(64);
  s.options.version=7;s.options.playbackOptions={posicao:12};s.options.request=async()=>({...s.good,tipo:'file',url,tmdbId:37854,fonteId:'proplayer-legendado',semAnuncio:true});
- s.host.StreamPlayback={start:async(...args)=>{calls.push(args);return true;}};
+ s.host.StreamPlayback={start:async(...args)=>{if(String(args[3]||'').startsWith('/api/playback/anime-legendado/'))return false;calls.push(args);return true;}};
  assert.equal(await s.player.abrir(s.options),true);assert.equal(s.frame().src,'about:blank');assert.equal(calls.length,1);assert.equal(calls[0][4],url);assert.equal(calls[0][1],7);assert.deepEqual(calls[0][7],{posicao:12});assert.equal(s.player.isActive(),false);
 });
 
@@ -43,4 +43,14 @@ test('mídia direta recusa publicidade, outro título, outro episódio e URL de 
   const s=setup();s.options.version=1;s.options.request=async()=>({...s.good,tipo:'file',url,tmdbId:37854,fonteId:'proplayer-legendado',semAnuncio:true,...extra});s.host.StreamPlayback={start:async()=>{throw Error('não pode tocar');}};
   assert.equal(await s.player.abrir(s.options),false);assert.equal(s.frame().src,'about:blank');
  }
+});
+
+test('motor 1 do anime legendado: tenta a TorBox primeiro e, se tocar, nem consulta as fontes de sempre',async()=>{
+ const s=setup(),calls=[];let consultou=false;
+ s.options.version=3;s.options.request=async()=>{consultou=true;return s.good;};
+ s.host.StreamPlayback={start:async(...args)=>{calls.push(args);return true;}};
+ assert.equal(await s.player.abrir(s.options),true);
+ assert.equal(consultou,false);
+ assert.match(String(calls[0][3]),/^\/api\/playback\/anime-legendado\/\d+\/\d+\/\d+/);
+ assert.equal(calls[0][5],true);
 });

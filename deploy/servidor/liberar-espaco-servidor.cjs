@@ -25,8 +25,17 @@ echo "Pacotes de atualização: $(du -sh /home/ubuntu/conecta-updates 2>/dev/nul
 find /home/ubuntu/conecta-updates -maxdepth 1 -type f -mmin +30 -delete 2>/dev/null
 echo "Cópias de versões antigas: $(du -sh /var/lib/conecta-tv-updates/backups 2>/dev/null | cut -f1)"
 ls -1dt /var/lib/conecta-tv-updates/backups/* 2>/dev/null | tail -n +3 | xargs -r rm -rf
-docker image prune -f >/dev/null 2>&1
-docker builder prune -f >/dev/null 2>&1
+echo "Versões antigas guardadas do app (anterior-*): $(docker images --filter reference='conecta-tv*:anterior-*' -q 2>/dev/null | wc -l)"
+# Centenas de versões antigas levam vários minutos para apagar: roda em
+# segundo plano no próprio servidor (não depende desta janela ficar aberta).
+cat > /usr/local/sbin/conecta-limpar-versoes <<'LIMPAR'
+#!/bin/sh
+for repo in conecta-tv conecta-tv-central conecta-tv-https; do docker images --filter "reference=$repo:anterior-*" --format '{{.Repository}}:{{.Tag}}' 2>/dev/null | tail -n +2 | xargs -r -n 20 docker rmi >/dev/null 2>&1 || true; done
+docker image prune -f >/dev/null 2>&1 || true
+docker builder prune -f >/dev/null 2>&1 || true
+LIMPAR
+chmod 0755 /usr/local/sbin/conecta-limpar-versoes
+systemd-run --quiet --collect --unit=conecta-limpar-versoes-$(date +%s) /usr/local/sbin/conecta-limpar-versoes && echo "Apagando as versões antigas em segundo plano (leva uns 5 a 15 minutos)."
 journalctl --vacuum-size=200M >/dev/null 2>&1
 echo "DEPOIS: $(df -h / | tail -1 | awk '{print "usado "$3" de "$2" ("$5"), livre "$4}')"
 echo FIM
@@ -42,12 +51,12 @@ function principal() {
     ssh.stdout.on('data', d => { saida += d; });
     ssh.stderr.on('data', d => { erro += d; });
     ssh.stdin.end(SCRIPT);
-    const relogio = setTimeout(() => ssh.kill(), 180000);
+    const relogio = setTimeout(() => ssh.kill(), 600000);
     ssh.on('close', codigo => {
         clearTimeout(relogio);
         const linhas = String(saida).split(/\r?\n/).filter(l => l.trim() && l.trim() !== 'FIM');
         linhas.forEach(l => console.log(l));
-        if (/\bFIM\b/.test(saida)) console.log('Pronto. Agora aperte "Atualizar servidor".');
+        if (/\bFIM\b/.test(saida)) console.log('Pronto. Daqui a uns 10 minutos aperte "Diagnóstico do servidor" para ver o espaço liberado.');
         else { console.log('Não deu certo (código ' + codigo + '). ' + String(erro).trim().slice(-300)); process.exitCode = 1; }
     });
 }

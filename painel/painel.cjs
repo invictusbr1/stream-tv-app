@@ -26,6 +26,7 @@ const OCIOSO_MS = 2 * 60 * 1000;
 
 const ACOES = {
     'oracle-atualizar': { grupo: 'oracle', titulo: 'Atualizar servidor (Oracle)', cmd: 'Atualizar-Oracle-Agora.cmd' },
+    'oracle-diagnostico': { grupo: 'oracle-status', titulo: 'Diagnóstico do servidor (disco, 4K, conversões)', node: ['deploy/servidor/diagnostico-servidor.cjs'] },
     'oracle-espaco': { grupo: 'oracle-status', titulo: 'Liberar espaço no servidor', node: ['deploy/servidor/liberar-espaco-servidor.cjs'] },
     'oracle-status': { grupo: 'oracle-status', titulo: 'Estado do servidor', node: ['deploy/servidor/publicar-automatico.cjs', '--status'] },
     'oracle-recarregar': { grupo: 'oracle', titulo: 'Recarregar fontes na Oracle', cmd: 'Recarregar-Fontes-Oracle.cmd' },
@@ -45,6 +46,7 @@ const ACOES = {
     'torbox-link': { grupo: 'cacador-relatorio', titulo: 'TorBox: examinar o link (gasta 1 download)', node: ['central/testar-torbox.cjs', '--link'] },
     'torbox-slots': { grupo: 'cacador-relatorio', titulo: 'TorBox: testar slots (gasta 1 download, ~1 min)', node: ['central/testar-torbox.cjs', '--slots'] },
     'torbox-procurar': { grupo: 'cacador-relatorio', titulo: 'TorBox: procurar Curvas da Vida (não gasta downloads)', node: ['central/testar-torbox.cjs', '--procurar', 'tt2083383'] },
+    'torbox-anime': { grupo: 'cacador-relatorio', titulo: 'TorBox: testar anime legendado', node: ['central/testar-torbox.cjs', '--anime'] },
     'torbox-fonte': { grupo: 'cacador-relatorio', titulo: 'TorBox: testar a fonte do app', node: ['central/testar-torbox.cjs', '--fonte'] },
     'torbox-chave-servidor': { grupo: 'cacador-relatorio', titulo: 'TorBox: enviar chave ao servidor', node: ['deploy/servidor/enviar-chave-torbox.cjs'] },
     'central-erros': { grupo: 'central-erros', titulo: 'Erros recentes da Central', cmd: 'Cacador-PC.cmd', args: ['--erros'] },

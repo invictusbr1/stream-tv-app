@@ -115,24 +115,28 @@ function tamanhoGB(rotulo) {
 // Melhor torrent de cada qualidade (Full HD primeiro, depois HD), só H.264.
 // Quem diz português com todas as letras (ou 🇵🇹) vem antes do "DUAL" genérico;
 // entre iguais, o maior arquivo (menos comprimido) ganha.
-function escolherTorrents(streams, emCache, porQualidade = 1) {
+function escolherTorrents(streams, emCache, porQualidade = 1, { hevcOk = false } = {}) {
     const pt = (streams || []).filter(s => s && hashDe(s) && emCache.has(hashDe(s)) && ehPortugues(rotuloDe(s)) && !/\b(?:cam|ts|hdcam|telesync)\b/i.test(rotuloDe(s)));
     const escolhidos = [];
     // 4K: quase sempre H.265 (é aceito só nele); Dolby Vision sem HDR de
     // reserva fica de fora já pelo rótulo (ver também a leitura do arquivo).
     const serve = (s, q) => q === '4K'
         ? !(/\b(?:dv|dovi|dolby.?vision)\b/i.test(rotuloDe(s)) && !/\bhdr/i.test(rotuloDe(s)))
-        : !ehHevc(rotuloDe(s));
+        // Full HD/HD em H.265 (x265) é muito comum nos lançamentos brasileiros:
+        // vale para aparelho que toca H.265 (hevcOk); para os outros, não.
+        : hevcOk || !ehHevc(rotuloDe(s));
     for (const q of ['4K', '1080p', '720p']) {
         const daQualidade = pt.filter(s => qualidade(rotuloDe(s)) === q && serve(s, q))
-            .sort((a, b) => (dubladoExplicito(rotuloDe(b)) - dubladoExplicito(rotuloDe(a))) || (tamanhoGB(rotuloDe(b)) - tamanhoGB(rotuloDe(a))));
+            .sort((a, b) => (dubladoExplicito(rotuloDe(b)) - dubladoExplicito(rotuloDe(a)))
+                || (q !== '4K' ? ehHevc(rotuloDe(a)) - ehHevc(rotuloDe(b)) : 0)
+                || (tamanhoGB(rotuloDe(b)) - tamanhoGB(rotuloDe(a))));
         for (const stream of daQualidade.slice(0, porQualidade)) escolhidos.push({ stream, qualidade: q });
     }
     return escolhidos;
 }
 
 // Arquivo certo dentro do torrent (pacote de temporada tem vários).
-function escolherArquivo(arquivos, { nome = '', temporada = 0, episodio = 0 } = {}) {
+function escolherArquivo(arquivos, { nome = '', temporada = 0, episodio = 0, indice = null } = {}) {
     const videos = (arquivos || []).filter(a => VIDEO.test(a.name || a.short_name || '') && !AMOSTRA.test(a.short_name || a.name || ''));
     const curto = a => String(a.short_name || a.name || '').toLowerCase();
     if (nome) {
@@ -145,6 +149,12 @@ function escolherArquivo(arquivos, { nome = '', temporada = 0, episodio = 0 } = 
         const padrao = new RegExp(`(?:s0*${s}[ ._-]*e0*${e}(?!\\d))|(?:\\b0*${s}x0*${e}(?!\\d))`, 'i');
         const achado = videos.find(a => padrao.test(curto(a)));
         if (achado) return achado;
+        // Nome fora do padrão (ex.: "Episodio 03.mkv"): vale o arquivo que a
+        // lista indicou (fileIdx), desde que o nome traga o número do episódio.
+        if (indice !== null && indice !== undefined) {
+            const porIndice = videos.find(a => Number(a.id) === Number(indice));
+            if (porIndice && new RegExp(`(?:^|[^a-z0-9])(?:e|ep|episodio|episódio|episode|cap|capitulo)?[ ._-]*0*${e}(?!\\d)`, 'i').test(curto(porIndice))) return porIndice;
+        }
         if (videos.length > 1) return null; // pacote sem o episódio: melhor nada que o errado
     }
     return videos.sort((a, b) => (Number(b.size) || 0) - (Number(a.size) || 0))[0] || null;
@@ -221,6 +231,7 @@ async function linkDoArquivo(chave, torrentId, arquivoId) {
 // é arrumada em segundo plano, fora do caminho de quem está esperando o play.
 const preludios = new Map();
 const conferidos = new Map();
+const emConferencia = new Map();
 const PRELUDIO_VALIDADE = 10 * 60 * 1000;
 let limpezaAgendada = false;
 function manterConta(chave) {
@@ -229,36 +240,60 @@ function manterConta(chave) {
     setImmediate(() => { minhaLista(chave).then(lista => limparConta(chave, lista)).catch(() => {}).finally(() => { limpezaAgendada = false; }); });
 }
 
-async function buscar(chave, tipo, tmdbId, temporada, episodio, rastro = [], { qualidades = ['4K', '1080p', '720p'], primeiro = false } = {}) {
+async function buscar(chave, tipo, tmdbId, temporada, episodio, rastro = [], { qualidades = ['4K', '1080p', '720p'], primeiro = false, hevcOk = false } = {}) {
     const ehSerie = tipo === 'tv';
     const imdb = await require('./fenix-source').imdbDe(tmdbId, ehSerie ? 'tv' : 'movie');
     if (!imdb) { rastro.push('sem código IMDb no TMDB'); return []; }
     const caminho = ehSerie ? `series/${imdb}:${temporada || 1}:${episodio || 1}` : `movie/${imdb}`;
     const guardado = preludios.get(caminho);
-    if (guardado && guardado.expira > Date.now()) return depoisDoPreludio(chave, guardado.valor, { ehSerie, temporada, episodio, rastro, qualidades, primeiro });
+    if (guardado && guardado.expira > Date.now()) return depoisDoPreludio(chave, guardado.valor, { ehSerie, temporada, episodio, rastro, qualidades, primeiro, hevcOk });
     // Lista lenta não segura as outras: 4 s cada, todas ao mesmo tempo.
     const respostas = await Promise.all(LISTAS.map(base => pedir(`${base}/stream/${caminho}.json`, {}, 4000)));
     const streams = juntar(respostas.map(r => (r.json && Array.isArray(r.json.streams) ? r.json.streams : [])));
     const hashes = streams.filter(s => ehPortugues(rotuloDe(s))).map(hashDe);
     const emCache = await emCacheNaTorBox(chave, hashes);
-    // Até 3 reservas por qualidade: se o arquivo do primeiro não tiver áudio
-    // em português (conferido abaixo), tenta o seguinte.
-    const escolhidos = escolherTorrents(streams, emCache, 3);
-    preludios.set(caminho, { valor: { escolhidos, imdb }, expira: Date.now() + PRELUDIO_VALIDADE });
+    const escolhidos = escolherTorrents(streams, emCache, 4, { hevcOk });
+    preludios.set(caminho, { valor: { streams, emCache, imdb }, expira: Date.now() + PRELUDIO_VALIDADE });
     if (preludios.size > 300) preludios.delete(preludios.keys().next().value);
     rastro.push(`${imdb}: listas ${respostas.map(r => r.status + '/' + ((r.json && r.json.streams) || []).length).join(' ')} · ${streams.length} torrents · ${hashes.length} PT · ${emCache.size} prontos · escolhidos ${escolhidos.map(e => e.qualidade).join('+') || 'nenhum'}`);
-    return depoisDoPreludio(chave, { escolhidos, imdb }, { ehSerie, temporada, episodio, rastro, qualidades, primeiro });
+    return depoisDoPreludio(chave, { streams, emCache, imdb }, { ehSerie, temporada, episodio, rastro, qualidades, primeiro, hevcOk });
 }
 
-async function depoisDoPreludio(chave, { escolhidos }, { ehSerie, temporada, episodio, rastro, qualidades, primeiro }) {
-    if (!escolhidos.length) return [];
+// Só "existe torrent dublado pronto nesta qualidade?" — sem abrir nada. É o
+// que permite ao motor 1 desistir NA HORA quando a TorBox não tem o título
+// (e esperar com calma quando tem).
+async function preludio(tipo, tmdbId, temporada, episodio, { hevcOk = false } = {}) {
+    const chave = lerChave();
+    const id = String(tmdbId || '').trim();
+    if (!chave || !/^\d{1,10}$/.test(id) || (tipo !== 'movie' && tipo !== 'tv')) return null;
+    const ehSerie = tipo === 'tv';
+    const imdb = await require('./fenix-source').imdbDe(id, ehSerie ? 'tv' : 'movie');
+    if (!imdb) return { qualidades: [] };
+    const caminho = ehSerie ? `series/${imdb}:${temporada || 1}:${episodio || 1}` : `movie/${imdb}`;
+    let guardado = preludios.get(caminho);
+    if (!guardado || guardado.expira <= Date.now()) {
+        const respostas = await Promise.all(LISTAS.map(base => pedir(`${base}/stream/${caminho}.json`, {}, 4000)));
+        const streams = juntar(respostas.map(r => (r.json && Array.isArray(r.json.streams) ? r.json.streams : [])));
+        const emCache = await emCacheNaTorBox(chave, streams.filter(s => ehPortugues(rotuloDe(s))).map(hashDe));
+        guardado = { valor: { streams, emCache, imdb }, expira: Date.now() + PRELUDIO_VALIDADE };
+        preludios.set(caminho, guardado);
+    }
+    const escolhidos = escolherTorrents(guardado.valor.streams, guardado.valor.emCache, 4, { hevcOk });
+    return { qualidades: [...new Set(escolhidos.map(e => e.qualidade))] };
+}
+
+async function depoisDoPreludio(chave, { streams, emCache }, { ehSerie, temporada, episodio, rastro, qualidades, primeiro, hevcOk = false }) {
+    // Até 4 reservas por qualidade: se o arquivo do primeiro não tiver áudio
+    // em português (conferido abaixo), tenta o seguinte.
+    const escolhidos = escolherTorrents(streams, emCache, 4, { hevcOk });
+    if (!escolhidos.length) { const vazio = []; vazio.semCandidatos = true; return vazio; }
     manterConta(chave);
     const tentarNovo = async ({ stream, qualidade: q }) => {
         // Sem ler a conta inteira: criar de novo um torrent que já está nela
         // só devolve o mesmo (é o mais rápido).
         const torrent = await torrentNaConta(chave, hashDe(stream), []);
         if (!torrent) { rastro.push(`${q}: TorBox não aceitou o torrent`); return null; }
-        const arquivo = escolherArquivo(torrent.files, { nome: (stream.behaviorHints || {}).filename, temporada: ehSerie ? temporada : 0, episodio: ehSerie ? episodio : 0 });
+        const arquivo = escolherArquivo(torrent.files, { nome: (stream.behaviorHints || {}).filename, temporada: ehSerie ? temporada : 0, episodio: ehSerie ? episodio : 0, indice: Number.isInteger(stream.fileIdx) ? stream.fileIdx : null });
         if (!arquivo) { rastro.push(`${q}: arquivo do vídeo não encontrado (${(torrent.files || []).length} arquivos)`); return null; }
         const { url, motivo } = await linkDoArquivo(chave, torrent.id, arquivo.id);
         if (!url) { rastro.push(`${q}: ${motivo}`); return null; }
@@ -272,7 +307,7 @@ async function depoisDoPreludio(chave, { escolhidos }, { ehSerie, temporada, epi
             const outras = info.faixas.filter(f => f.idioma && f.idioma !== 'und' && !/^pt|por/.test(f.idioma)).map(f => f.idioma);
             if (!pt && outras.length) { rastro.push(`${q}: sem áudio em português no arquivo (${[...new Set(outras)].join(', ')})`); return null; }
             const img = info.imagem || {};
-            if (q !== '4K' && /^(hevc|h265)$/.test(String(img.codec || ''))) { rastro.push(`${q}: vídeo H.265 (muitos aparelhos não mostram)`); return null; }
+            if (q !== '4K' && !hevcOk && /^(hevc|h265)$/.test(String(img.codec || ''))) { rastro.push(`${q}: vídeo H.265 (muitos aparelhos não mostram)`); return null; }
             if (img.dovi === 5) { rastro.push(`${q}: Dolby Vision perfil 5 (cores erradas fora de TV compatível)`); return null; }
             faixa = { indice: pt ? pt.ordem : 0, duracao: Number(info.duracao) || 0 };
             // Só dispensa a conversão quando o celular/navegador toca o áudio
@@ -289,6 +324,7 @@ async function depoisDoPreludio(chave, { escolhidos }, { ehSerie, temporada, epi
             fonte: `TorBox · dublado ${q}${mp4 ? '' : ' (conversão)'}`,
             resolucao: q === '4K' ? '2160p' : q,
             quatroK: q === '4K',
+            tamanho: Number(arquivo.size) || 0,
             ...(midia && midia.hdr ? { hdr: true } : {}),
             type: mp4 ? 'file' : 'convertido',
             // O link traz a chave da conta: nunca vai ao aparelho. MP4 passa
@@ -307,10 +343,16 @@ async function depoisDoPreludio(chave, { escolhidos }, { ehSerie, temporada, epi
     };
     // O mesmo arquivo conferido serve por 2 h (motor 1, motor 2, outro aparelho).
     const tentar = async item => {
-        const marca = `${hashDe(item.stream)}|${ehSerie ? `${temporada}x${episodio}` : 'filme'}`;
+        const marca = `${hashDe(item.stream)}|${ehSerie ? `${temporada}x${episodio}` : 'filme'}|${hevcOk ? 'h' : 'a'}`;
         const ja = conferidos.get(marca);
         if (ja && ja.expira > Date.now()) return ja.valor ? { ...ja.valor } : null;
-        const valor = await tentarNovo(item);
+        // Dois pedidos ao mesmo tempo (4K e Full HD em paralelo, dois
+        // aparelhos) conferem o mesmo arquivo uma vez só.
+        if (emConferencia.has(marca)) { const v = await emConferencia.get(marca); return v ? { ...v } : null; }
+        const trabalho = tentarNovo(item).catch(() => null);
+        emConferencia.set(marca, trabalho);
+        let valor;
+        try { valor = await trabalho; } finally { emConferencia.delete(marca); }
         conferidos.set(marca, { valor, expira: Date.now() + (valor ? VALIDADE - 10 * 60 * 1000 : VALIDADE_VAZIO) });
         if (conferidos.size > 500) conferidos.delete(conferidos.keys().next().value);
         return valor ? { ...valor } : null;
@@ -346,27 +388,105 @@ async function resolverTodos(tipo, tmdbId, temporada, episodio, rastro = null) {
     try {
         const valor = await trabalho;
         if (cache.size >= 300) cache.delete(cache.keys().next().value);
-        cache.set(marca, { valor, expira: Date.now() + (valor.length ? VALIDADE - 10 * 60 * 1000 : VALIDADE_VAZIO) });
+        cache.set(marca, { valor, expira: Date.now() + (valor.length ? VALIDADE - 10 * 60 * 1000 : valor.semCandidatos ? VALIDADE_VAZIO : 3 * 60 * 1000) });
         return valor.map(d => ({ ...d }));
     } finally { emAndamento.delete(marca); }
 }
 
 // MOTOR 1: a melhor opção dublada que serve (4K quando pedido, senão Full HD),
 // sem esperar as outras qualidades. null = não tem (vai para o motor 2).
-async function resolverMelhor(tipo, tmdbId, temporada, episodio, { quer4k = false } = {}) {
+async function resolverMelhor(tipo, tmdbId, temporada, episodio, { quer4k = false, so4k = false, hevcOk = false } = {}) {
     const chave = lerChave();
     const id = String(tmdbId || '').trim();
     if (!chave || !/^\d{1,10}$/.test(id) || (tipo !== 'movie' && tipo !== 'tv')) return null;
-    const marca = (tipo === 'tv' ? `tv:${id}:${temporada || 1}:${episodio || 1}` : `movie:${id}`) + (quer4k ? '|4k' : '|hd');
+    const marca = (tipo === 'tv' ? `tv:${id}:${temporada || 1}:${episodio || 1}` : `movie:${id}`) + (so4k ? '|so4k' : quer4k ? '|4k' : '|hd') + (hevcOk || quer4k ? 'h' : 'a');
     const guardado = cache.get(marca);
     if (guardado && guardado.expira > Date.now()) return guardado.valor[0] ? { ...guardado.valor[0] } : null;
     if (emAndamento.has(marca)) { const v = await emAndamento.get(marca); return v[0] ? { ...v[0] } : null; }
-    const trabalho = buscar(chave, tipo, id, temporada, episodio, [], { qualidades: quer4k ? ['4K', '1080p'] : ['1080p'], primeiro: true }).catch(() => []);
+    const trabalho = buscar(chave, tipo, id, temporada, episodio, [], { qualidades: so4k ? ['4K'] : quer4k ? ['4K', '1080p'] : ['1080p'], primeiro: true, hevcOk: hevcOk || quer4k }).catch(() => []);
     emAndamento.set(marca, trabalho);
     try {
         const valor = await trabalho;
         if (cache.size >= 300) cache.delete(cache.keys().next().value);
-        cache.set(marca, { valor, expira: Date.now() + (valor.length ? VALIDADE - 10 * 60 * 1000 : VALIDADE_VAZIO) });
+        // "Não tem nada dublado pronto" vale 20 min; "tinha, mas falhou ao
+        // abrir" (limite da TorBox, rede) só 3 min — não prende no motor 2.
+        cache.set(marca, { valor, expira: Date.now() + (valor.length ? VALIDADE - 10 * 60 * 1000 : valor.semCandidatos ? VALIDADE_VAZIO : 3 * 60 * 1000) });
+        return valor[0] ? { ...valor[0] } : null;
+    } finally { emAndamento.delete(marca); }
+}
+
+// ---------------------------------------------------------------- anime
+// SÓ ANIME, SÓ LEGENDADO (pedido do Marlon, 07/11/2026: "deixando bem claro
+// que é só no anime"). Filme, série, dorama e novela continuam só dublados.
+// Procura o episódio em torrent com áudio original e LEGENDA EM PORTUGUÊS
+// DENTRO do arquivo (lançamentos com várias legendas, ex.: Crunchyroll), já
+// pronto na TorBox. A legenda vira legenda do player na conversão.
+const LISTAS_ANIME = ['https://torrentio.strem.fun', 'https://cinema.debrid.in'];
+const DICA_LEGENDA = /multi.?subs?|multiple.?sub|multisub|\bmulti\b|pt-?br|portugu|legendad|🇧🇷|🇵🇹|erai-raws|\bcr\b|crunchyroll|varyg/i;
+function legendaPortuguesa(legendas) {
+    // Só legenda em texto (ASS/SRT/WebVTT) vira legenda do player; imagem (PGS) não.
+    const texto = l => /^(ass|ssa|subrip|srt|webvtt|mov_text|text)$/.test(String(l.codec || ''));
+    const pt = l => /^(por|pt|pob|pt-br|ptbr)$/.test(String(l.idioma || '')) || /portugu|brazil|brasil|pt-?br/i.test(String(l.titulo || ''));
+    const todas = (legendas || []).filter(l => texto(l) && pt(l));
+    // Português do Brasil antes de Portugal; legenda completa antes de "sinais".
+    return todas.sort((a, b) => (/brazil|brasil|pt-?br/i.test(b.titulo) - /brazil|brasil|pt-?br/i.test(a.titulo)) || (/sign|song|placa/i.test(a.titulo) - /sign|song|placa/i.test(b.titulo)))[0] || null;
+}
+async function resolverAnimeLegendado(tmdbId, temporada, episodio, { hevcOk = false } = {}) {
+    const chave = lerChave();
+    const id = String(tmdbId || '').trim();
+    if (!chave || !/^\d{1,10}$/.test(id) || !/^\d{1,3}$/.test(String(temporada)) || !/^\d{1,4}$/.test(String(episodio))) return null;
+    const marca = `anime:${id}:${temporada}:${episodio}|${hevcOk ? 'h' : 'a'}`;
+    const guardado = cache.get(marca);
+    if (guardado && guardado.expira > Date.now()) return guardado.valor[0] ? { ...guardado.valor[0] } : null;
+    if (emAndamento.has(marca)) { const v = await emAndamento.get(marca); return v[0] ? { ...v[0] } : null; }
+    const trabalho = (async () => {
+        const imdb = await require('./fenix-source').imdbDe(id, 'tv');
+        if (!imdb) { const v = []; v.semCandidatos = true; return v; }
+        const caminho = `series/${imdb}:${temporada}:${episodio}`;
+        const respostas = await Promise.all(LISTAS_ANIME.map(base => pedir(`${base}/stream/${caminho}.json`, {}, 4000)));
+        const streams = juntar(respostas.map(r => (r.json && Array.isArray(r.json.streams) ? r.json.streams : [])))
+            .filter(st => !/\b(?:cam|ts|hdcam|telesync)\b/i.test(rotuloDe(st)) && !dubladoExplicito(rotuloDe(st)));
+        const emCache = await emCacheNaTorBox(chave, streams.map(hashDe).slice(0, 100));
+        const candidatos = streams.filter(st => emCache.has(hashDe(st)))
+            .map(st => ({ st, r: rotuloDe(st) }))
+            .map(x => ({ ...x, q: qualidade(x.r), hevc: ehHevc(x.r), dica: DICA_LEGENDA.test(x.r) }))
+            .filter(x => (x.q === '1080p' || x.q === '720p') && (hevcOk || !x.hevc))
+            .sort((a, b) => (b.dica - a.dica) || ((b.q === '1080p') - (a.q === '1080p')) || (a.hevc - b.hevc) || (tamanhoGB(b.r) - tamanhoGB(a.r)))
+            .slice(0, 3);
+        if (!candidatos.length) { const v = []; v.semCandidatos = true; return v; }
+        // Os 3 melhores conferidos AO MESMO TEMPO (não segura o anime quando
+        // nenhum tem legenda em português); vale o primeiro da ordem que servir.
+        const conferir = async ({ st, q }) => {
+            const torrent = await torrentNaConta(chave, hashDe(st), []);
+            if (!torrent) return null;
+            const arquivo = escolherArquivo(torrent.files, { nome: (st.behaviorHints || {}).filename, temporada, episodio, indice: Number.isInteger(st.fileIdx) ? st.fileIdx : null });
+            if (!arquivo) return null;
+            const { url } = await linkDoArquivo(chave, torrent.id, arquivo.id);
+            if (!url) return null;
+            const info = await require('./central/verificar-midia').faixasDeAudio(url, '', { timeout: 8000 }).catch(() => null);
+            if (!info || !info.faixas || !info.faixas.length) return null;
+            const legenda = legendaPortuguesa(info.legendas);
+            if (!legenda) return null;
+            const img = info.imagem || {};
+            if (!hevcOk && /^(hevc|h265)$/.test(String(img.codec || ''))) return null;
+            const audio = info.faixas.find(f => /^(jpn|ja)$/.test(f.idioma)) || info.faixas.find(f => f.padrao) || info.faixas[0];
+            return {
+                url, audio: 'original', fonte: `TorBox · legendado ${q}`, fonteId: 'torbox-legendado', resolucao: q,
+                type: 'convertido', final: false, segredo: true, converter: true, efemera: true, anime: true,
+                legendaPortugues: true, legendaEmbutida: true,
+                faixa: { indice: audio.ordem, duracao: Number(info.duracao) || 0 }, legenda: { indice: legenda.ordem },
+                videoCodec: String(img.codec || ''), validadeMs: VALIDADE,
+            };
+        };
+        const achados = await Promise.all(candidatos.map(c => conferir(c).catch(() => null)));
+        const bom = achados.find(Boolean);
+        return bom ? [bom] : [];
+    })().catch(() => []);
+    emAndamento.set(marca, trabalho);
+    try {
+        const valor = await trabalho;
+        if (cache.size >= 300) cache.delete(cache.keys().next().value);
+        cache.set(marca, { valor, expira: Date.now() + (valor.length ? VALIDADE - 10 * 60 * 1000 : valor.semCandidatos ? VALIDADE_VAZIO : 3 * 60 * 1000) });
         return valor[0] ? { ...valor[0] } : null;
     } finally { emAndamento.delete(marca); }
 }
@@ -375,4 +495,4 @@ async function resolver(tipo, tmdbId, temporada, episodio) {
     return (await resolverTodos(tipo, tmdbId, temporada, episodio))[0] || null;
 }
 
-module.exports = { resolver, resolverMelhor, resolverTodos, ativa, lerChave, ehPortugues, dubladoExplicito, qualidade, ehHevc, escolherTorrents, escolherArquivo, tamanhoGB, hashDe, juntar, LISTAS };
+module.exports = { resolverAnimeLegendado, legendaPortuguesa, preludio, resolver, resolverMelhor, resolverTodos, ativa, lerChave, ehPortugues, dubladoExplicito, qualidade, ehHevc, escolherTorrents, escolherArquivo, tamanhoGB, hashDe, juntar, LISTAS };

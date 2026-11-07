@@ -37,7 +37,9 @@ function inspecionarDisco(pasta) {
     try {
         const m3u8 = path.join(pasta, 'index.m3u8');
         if (!fs.existsSync(m3u8)) return null;
-        const texto = fs.readFileSync(m3u8, 'utf8');
+        let texto = fs.readFileSync(m3u8, 'utf8');
+        // Lista mestra (anime legendado): o vídeo está em index0.m3u8.
+        if (/#EXT-X-STREAM-INF/.test(texto)) { try { texto = fs.readFileSync(path.join(pasta, 'index0.m3u8'), 'utf8'); } catch { return null; } }
         let soma = 0;
         for (const m of texto.matchAll(/#EXTINF:([0-9.]+)/g)) soma += Number(m[1]) || 0;
         return { arquivo: m3u8, completo: /#EXT-X-ENDLIST/.test(texto), segundos: Math.round(soma) };
@@ -152,7 +154,7 @@ async function lerFaixaPortuguesa(url, referer) {
 }
 
 // Inicia (ou reaproveita) a conversão de um endereço.
-async function iniciar(url, { titulo = '', referer = '', id = '', inicio = 0, faixa = null, quatroK = false } = {}) {
+async function iniciar(url, { titulo = '', referer = '', id = '', inicio = 0, faixa = null, quatroK = false, legenda = null } = {}) {
     // `id` é a identidade do TRABALHO (filme-550 / serie-1399-T1E1), estável entre
     // aberturas. A chave real leva um carimbo de tempo porque a mesma obra pode
     // voltar com endereço novo: reaproveitar a conversão velha serviria um vídeo
@@ -204,6 +206,8 @@ async function iniciar(url, { titulo = '', referer = '', id = '', inicio = 0, fa
     // A fonte pode já ter lido o arquivo (TorBox confere o áudio antes).
     const lida = faixa && Number.isInteger(faixa.indice) ? { indice: faixa.indice, duracao: Number(faixa.duracao) || 0 } : await faixaPortuguesa(url, referer);
     const { indice, duracao } = lida;
+    const comLegenda = Boolean(legenda && Number.isInteger(legenda.indice) && legenda.indice >= 0);
+    registro.legenda = comLegenda;
     registro.duracao = duracao;
     if (lida.semPortugues) { registro.erro = 'o arquivo não tem áudio em português'; registro.terminou = true; return resumo(chave); }
 
@@ -211,6 +215,11 @@ async function iniciar(url, { titulo = '', referer = '', id = '', inicio = 0, fa
     const argumentos = [
         '-hide_banner', '-y', '-loglevel', 'info',
         '-headers', cabecalhos,
+        // Conexão com o arquivo (TorBox/CDN) que trava no meio: sem isto o
+        // ffmpeg ficava parado para sempre e o player esperava "Voltando de
+        // onde você parou" até desistir (07/11/2026, Homem-Aranha). Agora a
+        // leitura parada há 15 s cai e ele reconecta sozinho do mesmo ponto.
+        ...(/^https?:/i.test(url) ? ['-rw_timeout', '15000000', '-reconnect', '1', '-reconnect_streamed', '1', '-reconnect_on_network_error', '1', '-reconnect_delay_max', '5'] : []),
         // Começar no meio do filme (continuar de onde parou / pular para a
         // frente): o ffmpeg pula direto para o ponto (o MKV tem índice) e a
         // conversão começa ali, em segundos, em vez de converter desde o 0.
@@ -218,16 +227,24 @@ async function iniciar(url, { titulo = '', referer = '', id = '', inicio = 0, fa
         '-i', url,
         '-map', '0:v:0',
         '-map', `0:a:${indice}`,
+        ...(comLegenda ? ['-map', `0:s:${legenda.indice}`] : []),
         '-c:v', 'copy',
         '-c:a', 'aac', '-b:a', '160k', '-ac', '2',
+        ...(comLegenda ? ['-c:s', 'webvtt'] : []),
         // HLS: o player começa com os primeiros pedaços e a lista cresce
         // enquanto a conversão continua (formato que o aplicativo já domina).
         '-f', 'hls',
         '-hls_time', '4',
         '-hls_playlist_type', 'event',
         '-hls_flags', 'independent_segments',
-        '-hls_segment_filename', path.join(pasta, 'seg%05d.ts'),
-        arquivo,
+        // Anime legendado (TorBox): a legenda portuguesa do arquivo vira
+        // legenda do player, em pedaços junto com o vídeo. A lista principal
+        // continua sendo index.m3u8 (vira a "mestra": vídeo em index0.m3u8,
+        // legenda em index0_vtt.m3u8) — o resto do app não muda.
+        ...(comLegenda
+            ? ['-master_pl_name', 'index.m3u8', '-var_stream_map', 'v:0,a:0,s:0,sgroup:legendas,language:por',
+                '-hls_segment_filename', path.join(pasta, 'seg%v_%05d.ts'), path.join(pasta, 'index%v.m3u8')]
+            : ['-hls_segment_filename', path.join(pasta, 'seg%05d.ts'), arquivo]),
     ];
     try {
         const processo = spawn(binario, argumentos, { windowsHide: true });
@@ -237,7 +254,9 @@ async function iniciar(url, { titulo = '', referer = '', id = '', inicio = 0, fa
             const texto = String(pedaco);
             const achado = texto.match(/time=(\d+):(\d+):(\d+)\.(\d+)/);
             if (achado) {
-                registro.segundos = Number(achado[1]) * 3600 + Number(achado[2]) * 60 + Number(achado[3]);
+                const agoraSeg = Number(achado[1]) * 3600 + Number(achado[2]) * 60 + Number(achado[3]);
+                if (agoraSeg > (registro.segundos || 0)) registro.ultimoProgresso = Date.now();
+                registro.segundos = agoraSeg;
                 if (registro.duracao > 0) registro.progresso = Math.min(99, Math.round((registro.segundos / registro.duracao) * 100));
                 else registro.progresso = Math.min(99, Math.round((registro.segundos / 3600) * 10));
                 // Velocidade da conversão ("speed=3.4x"): abaixo de 1x o filme
@@ -286,6 +305,7 @@ function resumo(chave) {
         pronto: Boolean(registro.pronto),
         progresso: registro.progresso || 0,
         velocidade: registro.velocidade || 0,
+        parado: !registro.terminou && Date.now() - (registro.ultimoProgresso || registro.iniciadoEm || 0) > 20000,
         segundos: registro.segundos || 0,
         duracao: registro.duracao || 0,
         convertido: Boolean(registro.terminou),
@@ -302,7 +322,7 @@ function estado(chave) { return resumo(chave); }
 // Full HD. `id` é a obra (filme-550 / serie-1399-T1E1): a mesma obra pode
 // continuar no 4K (outro ponto do filme, mesma pessoa).
 const LIVRE_PARA_4K = Number(process.env.CONVERSOES_LIVRE_4K_GB || 30) * 1024 ** 3;
-function pode4k(id = '') {
+function pode4k(id = '', tamanho = 0) {
     const base = String(id).replace(/^ini\d+-/, '');
     for (const t of trabalhos.values()) {
         if (!t.quatroK || t.erro) continue;
@@ -314,7 +334,10 @@ function pode4k(id = '') {
         fs.mkdirSync(PASTA, { recursive: true });
         if (typeof fs.statfsSync === 'function') {
             const d = fs.statfsSync(PASTA);
-            if (Number(d.bavail) * Number(d.bsize) < LIVRE_PARA_4K) return false;
+            // Folga = tamanho do arquivo 4K + 5 GB (quando a fonte informa);
+            // sem o tamanho, os 30 GB de antes.
+            const precisa = Number(tamanho) > 0 ? Number(tamanho) + 5 * 1024 ** 3 : LIVRE_PARA_4K;
+            if (Number(d.bavail) * Number(d.bsize) < precisa) return false;
         }
     } catch { return false; }
     return true;
@@ -323,9 +346,10 @@ function pode4k(id = '') {
 // Conversão que já cobre o ponto `inicio` (segundos do filme) ou uma nova que
 // começa nele. Devolve o resumo + `inicio` (onde o vídeo convertido começa no
 // filme). Janelas: "filme-550" (desde o 0) e "ini1980-filme-550" (desde 33 min).
-async function iniciarNoPonto(url, { id = '', referer = '', inicio = 0, faixa = null, quatroK = false } = {}) {
+async function iniciarNoPonto(url, { id = '', referer = '', inicio = 0, faixa = null, quatroK = false, novo = false, legenda = null } = {}) {
     const ponto = Math.max(0, Math.floor(Number(inicio) || 0));
-    if (!id || ponto < 60) return { ...(await module.exports.iniciar(url, { id, titulo: id, referer, faixa, quatroK })), inicio: 0 };
+    if (novo && ponto < 60) for (const [chave, t] of trabalhos) if (t.lastro === id && !(t.terminou && t.pronto && inspecionarDisco(t.pasta)?.completo)) { try { if (t.processo && !t.terminou) t.processo.kill(); } catch { /* já saiu */ } trabalhos.delete(chave); }
+    if (!id || ponto < 60) return { ...(await module.exports.iniciar(url, { id, titulo: id, referer, faixa, quatroK, legenda })), inicio: 0 };
     const deste = new RegExp(`^(?:ini(\\d+)-)?${id.replace(/[^\w-]/g, '')}$`);
     let melhor = null;
     for (const [chave, t] of trabalhos) {
@@ -338,11 +362,21 @@ async function iniciarNoPonto(url, { id = '', referer = '', inicio = 0, faixa = 
         // Conversão parada no meio (sem uso / erro): só serve com folga de 5 min,
         // senão o filme alcança o fim dela e trava.
         const alcancou = ini + (t.segundos || 0) >= ponto + (t.terminou && !completo ? 300 : 15);
-        const vaiChegar = !t.terminou && ponto - ini <= 180;
+        // Só espera uma conversão que está andando (avançou nos últimos 20 s).
+        const andando = Date.now() - (t.ultimoProgresso || t.iniciadoEm || 0) < 20000;
+        const vaiChegar = !t.terminou && andando && ponto - ini <= 180;
         if ((completo && (!t.duracao || ini + (t.segundos || t.duracao) >= ponto + 15)) || alcancou || vaiChegar) {
             if (!melhor || ini > melhor.ini) melhor = { chave, ini, t };
         }
     }
+    // `novo`: o player viu a conversão reaproveitada parada e pede outra.
+    if (melhor && novo) {
+        try { if (melhor.t.processo && !melhor.t.terminou) melhor.t.processo.kill(); } catch { /* já saiu */ }
+        trabalhos.delete(melhor.chave);
+        melhor = null;
+    }
+    // A janela nova não pode cair de volta na parada (mesmo nome de trabalho).
+    if (novo) for (const [chave, t] of trabalhos) if (t.lastro === `ini${ponto}-${id}` && !(t.terminou && t.pronto && inspecionarDisco(t.pasta)?.completo)) { try { if (t.processo && !t.terminou) t.processo.kill(); } catch { /* já saiu */ } trabalhos.delete(chave); }
     if (melhor) { melhor.t.ultimoAcesso = Date.now(); return { ...resumo(melhor.chave), inicio: melhor.ini }; }
     // Janela nova: para as conversões deste filme que ninguém está vendo.
     for (const [, t] of trabalhos) {
@@ -350,7 +384,7 @@ async function iniciarNoPonto(url, { id = '', referer = '', inicio = 0, faixa = 
             try { t.processo.kill(); } catch { /* já saiu */ }
         }
     }
-    const resultado = await module.exports.iniciar(url, { id: `ini${ponto}-${id}`, titulo: id, referer, faixa, quatroK, inicio: ponto });
+    const resultado = await module.exports.iniciar(url, { id: `ini${ponto}-${id}`, titulo: id, referer, faixa, quatroK, legenda, inicio: ponto });
     return { ...resultado, inicio: ponto };
 }
 function arquivoDe(chave) {

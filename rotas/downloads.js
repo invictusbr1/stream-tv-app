@@ -172,7 +172,7 @@ app.get('/api/convertido/:id/:pedaco', (req, res) => {
     if (!arquivo) return res.status(404).end();
     res.setHeader('Cache-Control', 'no-store');
     res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Content-Type', /\.m3u8$/i.test(nome) ? 'application/vnd.apple.mpegurl' : /\.ts$/i.test(nome) ? 'video/mp2t' : 'application/octet-stream');
+    res.setHeader('Content-Type', /\.m3u8$/i.test(nome) ? 'application/vnd.apple.mpegurl' : /\.ts$/i.test(nome) ? 'video/mp2t' : /\.vtt$/i.test(nome) ? 'text/vtt; charset=utf-8' : 'application/octet-stream');
     return fs.createReadStream(arquivo).pipe(res);
 });
 

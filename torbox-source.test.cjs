@@ -98,3 +98,38 @@ test('4K: aceita H.265/HDR, recusa Dolby Vision sem HDR de reserva; 1080p contin
     const r = tb.escolherTorrents(streams, new Set([k('1'), k('2'), k('3'), k('4')]), 3);
     assert.deepStrictEqual(r.map(x => [x.qualidade, x.stream.infoHash]), [['4K', k('1')], ['1080p', k('4')]]);
 });
+
+test('Full HD x265: só entra para aparelho que toca H.265, e depois do x264', () => {
+    const k = c => c.repeat(40);
+    const streams = [
+        { infoHash: k('5'), name: 'Torrentio\n1080p', title: 'Filme 1080p x265 DUBLADO\n💾 2 GB' },
+        { infoHash: k('6'), name: 'Torrentio\n1080p', title: 'Filme 1080p x264 DUBLADO\n💾 3 GB' },
+    ];
+    const cache = new Set([k('5'), k('6')]);
+    assert.deepStrictEqual(tb.escolherTorrents(streams, cache, 4).map(x => x.stream.infoHash), [k('6')]);
+    assert.deepStrictEqual(tb.escolherTorrents(streams, cache, 4, { hevcOk: true }).map(x => x.stream.infoHash), [k('6'), k('5')]);
+});
+
+test('pacote com nome fora do padrão: usa o arquivo indicado pela lista quando o nome tem o episódio', () => {
+    const arquivos = [
+        { id: 0, name: 'Serie/Episodio 01.mkv', size: 5 },
+        { id: 1, name: 'Serie/Episodio 02.mkv', size: 5 },
+        { id: 2, name: 'Serie/Episodio 03.mkv', size: 5 },
+    ];
+    assert.strictEqual(tb.escolherArquivo(arquivos, { temporada: 1, episodio: 3, indice: 2 }).id, 2);
+    assert.strictEqual(tb.escolherArquivo(arquivos, { temporada: 1, episodio: 3, indice: 1 }), null);
+    assert.strictEqual(tb.escolherArquivo(arquivos, { temporada: 1, episodio: 3 }), null);
+});
+
+test('anime legendado: escolhe a legenda portuguesa em texto (Brasil antes de Portugal, completa antes de "sinais")', () => {
+    const l = tb.legendaPortuguesa([
+        { ordem: 0, idioma: 'eng', titulo: 'English', codec: 'ass' },
+        { ordem: 1, idioma: 'por', titulo: 'Portuguese (Portugal)', codec: 'ass' },
+        { ordem: 2, idioma: 'por', titulo: 'Português (Brasil) Signs', codec: 'ass' },
+        { ordem: 3, idioma: 'por', titulo: 'Português (Brasil)', codec: 'ass' },
+        { ordem: 4, idioma: 'por', titulo: 'PGS', codec: 'hdmv_pgs_subtitle' },
+    ]);
+    assert.strictEqual(l.ordem, 3);
+    assert.strictEqual(tb.legendaPortuguesa([{ ordem: 0, idioma: 'eng', codec: 'subrip' }]), null);
+    assert.strictEqual(tb.legendaPortuguesa([{ ordem: 0, idioma: 'por', codec: 'hdmv_pgs_subtitle' }]), null);
+});

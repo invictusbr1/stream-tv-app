@@ -189,6 +189,14 @@ async function faixasDeAudio(url, referer = '', opcoes = {}) {
             // imagem "comum" de reserva — fora de TV compatível sai roxo/verde.
             transferencia: String(video.color_transfer || '').toLowerCase(),
             dovi: Number(((video.side_data_list || []).find(d => /dovi/i.test(String(d.side_data_type || ''))) || {}).dv_profile) || 0 },
+        // Legendas do arquivo (anime legendado da TorBox usa a portuguesa).
+        legendas: (dados.streams || []).filter(s => s.codec_type === 'subtitle').map((s, i) => ({
+            ordem: i,
+            idioma: String((s.tags || {}).language || '').toLowerCase(),
+            titulo: String((s.tags || {}).title || ''),
+            codec: String(s.codec_name || '').toLowerCase(),
+            padrao: Number((s.disposition || {}).default || 0) === 1,
+        })),
         faixas: audio.map((s, i) => ({
             ordem: i,
             idioma: String((s.tags || {}).language || '').toLowerCase(),

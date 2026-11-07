@@ -21,6 +21,16 @@
    if(opcoes.episode?.anime!==true||opcoes.audio!=='legendado')return false;
    parar('trocou');const minhaGeracao=geracao;
    const valido=()=>minhaGeracao===geracao&&!opcoes.signal?.aborted&&opcoes.valido();
+   // MOTOR 1 do anime legendado (SÓ ANIME): TorBox com legenda em português
+   // dentro do arquivo, em Full HD. Sem isso, segue para as fontes de sempre.
+   if(host.StreamPlayback&&typeof host.StreamPlayback.start==='function'){
+    const semHevc=typeof host.navegadorSemHevc==='function'&&host.navegadorSemHevc();
+    const caminho='/api/playback/anime-legendado/'+Number(opcoes.id)+'/'+Number(opcoes.episode.season)+'/'+Number(opcoes.episode.number)+(semHevc?'?codec=avc':'');
+    let tocou=false;
+    try{tocou=await host.StreamPlayback.start(opcoes.id,opcoes.version,opcoes.signal,caminho,undefined,true,null,opcoes.playbackOptions);}catch{tocou=false;}
+    if(!valido())return false;
+    if(tocou){opcoes.onLoad?.({audio:'Legendado',legendaEmbutida:true,fonte:'TorBox · legendado',fonteId:'torbox-legendado'});return true;}
+   }
    const query=new URLSearchParams({id:String(opcoes.id),temporada:String(opcoes.episode.season),episodio:String(opcoes.episode.number),audio:'legendado'});
    let dados;
    try{dados=await opcoes.request('/api/anime-player?'+query,opcoes.signal);}catch{return false;}

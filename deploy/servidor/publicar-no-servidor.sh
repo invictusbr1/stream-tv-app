@@ -189,3 +189,31 @@ for directory,pattern,keep in [(state/'backups','anterior-*',3),(incoming,'*.tar
   if entry.is_dir(): shutil.rmtree(entry)
   else: entry.unlink()
 PY
+# Limpeza automática (07/11/2026: o disco de 45 GB chegou a 34 GB usados com
+# só 2 GB de vídeos convertidos — o resto eram imagens antigas do Docker de
+# cada atualização). Só apaga o que se refaz sozinho; nunca volumes de dados.
+# Cada atualização guarda a versão anterior como "anterior-<id>" para poder
+# voltar atrás; elas nunca eram apagadas e somavam ~30 GB. Fica só a última.
+# Em segundo plano: com muitas versões acumuladas leva minutos, e a trava
+# de publicação não pode ficar presa esperando.
+cat > /usr/local/sbin/conecta-limpar-versoes <<'LIMPAR'
+#!/bin/sh
+for repo in conecta-tv conecta-tv-central conecta-tv-https; do docker images --filter "reference=$repo:anterior-*" --format '{{.Repository}}:{{.Tag}}' 2>/dev/null | tail -n +2 | xargs -r -n 20 docker rmi >/dev/null 2>&1 || true; done
+docker image prune -f >/dev/null 2>&1 || true
+docker builder prune -f --filter until=168h >/dev/null 2>&1 || true
+journalctl --vacuum-size=200M >/dev/null 2>&1 || true
+LIMPAR
+chmod 0755 /usr/local/sbin/conecta-limpar-versoes || true
+systemd-run --quiet --collect --unit="conecta-limpar-versoes-$(date +%s)" /usr/local/sbin/conecta-limpar-versoes >/dev/null 2>&1 || true
+# E todo dia, mesmo sem atualização (instalado/atualizado a cada publicação).
+cat > /etc/cron.daily/conecta-tv-limpeza <<'LIMPEZA'
+#!/bin/sh
+# Conecta TV: limpeza diária do que se refaz sozinho (imagens Docker sem uso,
+# cache de construção antigo, registros do sistema). Volumes de dados ficam.
+for repo in conecta-tv conecta-tv-central conecta-tv-https; do docker images --filter "reference=$repo:anterior-*" --format '{{.Repository}}:{{.Tag}}' 2>/dev/null | tail -n +2 | xargs -r -n 20 docker rmi >/dev/null 2>&1 || true; done
+docker image prune -f >/dev/null 2>&1 || true
+docker builder prune -f --filter until=168h >/dev/null 2>&1 || true
+journalctl --vacuum-size=200M >/dev/null 2>&1 || true
+find /home/ubuntu/conecta-updates -maxdepth 1 -type f -name '*.tar.gz' -mtime +3 -delete 2>/dev/null || true
+LIMPEZA
+chmod 0755 /etc/cron.daily/conecta-tv-limpeza 2>/dev/null || true

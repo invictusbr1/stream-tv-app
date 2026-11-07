@@ -114,13 +114,14 @@ test('BsCine escolhida pelo aparelho não é encaminhada pela Oracle (cai na dis
 });
 
 test('motor 1 (TorBox) abre direto quando tem Full HD; com 720p ou nada, motor=torbox responde indisponível e a fila normal segue', async () => {
-    const tb = require('./torbox-source'), ativa = tb.ativa, resolverTodos = tb.resolverTodos, resolverMelhor = tb.resolverMelhor;
+    const tb = require('./torbox-source'), ativa = tb.ativa, resolverTodos = tb.resolverTodos, resolverMelhor = tb.resolverMelhor, preludio = tb.preludio;
     const avaliador = require('./avaliador'), escolher = avaliador.escolherMelhor;
     const conversor = require('./conversor'), iniciar = conversor.iniciar;
     let disputou = 0, opcoes = [];
     tb.ativa = () => true;
     // Motor 1 de verdade: a melhor opção que serve (4K só se pedido), a partir da lista simulada.
-    tb.resolverMelhor = async (_t, _i, _s, _e, op = {}) => (await tb.resolverTodos()).filter(d => op.quer4k || !d.quatroK).sort((a, b) => (parseInt(b.resolucao, 10) || 0) - (parseInt(a.resolucao, 10) || 0))[0] || null;
+    tb.resolverMelhor = async (_t, _i, _s, _e, op = {}) => (await tb.resolverTodos()).filter(d => op.so4k ? d.quatroK : (op.quer4k || !d.quatroK)).sort((a, b) => (parseInt(b.resolucao, 10) || 0) - (parseInt(a.resolucao, 10) || 0))[0] || null;
+    tb.preludio = async () => ({ qualidades: [...new Set((await tb.resolverTodos()).map(d => d.quatroK ? '4K' : (parseInt(d.resolucao, 10) >= 800 ? '1080p' : '720p')))] });
     tb.resolverTodos = async () => opcoes;
     avaliador.escolherMelhor = async () => { disputou++; return null; };
     conversor.iniciar = async (_url, op) => ({ id: op.id + '-m1', duracao: 7568 });
@@ -156,16 +157,17 @@ test('motor 1 (TorBox) abre direto quando tem Full HD; com 720p ou nada, motor=t
         const r4 = resposta();
         await h({ params: { id: '937278' }, query: { transporte: 'servidor', motor: 'torbox' }, headers: {} }, r4);
         assert.deepEqual(r4.corpo, { indisponivel: true });
-    } finally { tb.ativa = ativa; tb.resolverTodos = resolverTodos; tb.resolverMelhor = resolverMelhor; avaliador.escolherMelhor = escolher; conversor.iniciar = iniciar; }
+    } finally { tb.ativa = ativa; tb.resolverTodos = resolverTodos; tb.resolverMelhor = resolverMelhor; tb.preludio = preludio; avaliador.escolherMelhor = escolher; conversor.iniciar = iniciar; }
 });
 
 test('4K da TorBox: só para quem toca H.265, fora da rede móvel, um por vez; o resto recebe o Full HD', async () => {
-    const tb = require('./torbox-source'), ativa = tb.ativa, resolverTodos = tb.resolverTodos, resolverMelhor = tb.resolverMelhor;
+    const tb = require('./torbox-source'), ativa = tb.ativa, resolverTodos = tb.resolverTodos, resolverMelhor = tb.resolverMelhor, preludio = tb.preludio;
     const conversor = require('./conversor'), iniciar = conversor.iniciar, pode4k = conversor.pode4k;
     let livre = true;
     tb.ativa = () => true;
     // Motor 1 de verdade: a melhor opção que serve (4K só se pedido), a partir da lista simulada.
-    tb.resolverMelhor = async (_t, _i, _s, _e, op = {}) => (await tb.resolverTodos()).filter(d => op.quer4k || !d.quatroK).sort((a, b) => (parseInt(b.resolucao, 10) || 0) - (parseInt(a.resolucao, 10) || 0))[0] || null;
+    tb.resolverMelhor = async (_t, _i, _s, _e, op = {}) => (await tb.resolverTodos()).filter(d => op.so4k ? d.quatroK : (op.quer4k || !d.quatroK)).sort((a, b) => (parseInt(b.resolucao, 10) || 0) - (parseInt(a.resolucao, 10) || 0))[0] || null;
+    tb.preludio = async () => ({ qualidades: [...new Set((await tb.resolverTodos()).map(d => d.quatroK ? '4K' : (parseInt(d.resolucao, 10) >= 800 ? '1080p' : '720p')))] });
     tb.resolverTodos = async () => [
         { url: 'https://cdn.torbox.example/f1080.mkv', audio: 'pt-BR', resolucao: '1080p', converter: true, segredo: true, videoCodec: 'h264' },
         { url: 'https://cdn.torbox.example/f4k.mkv', audio: 'pt-BR', resolucao: '2160p', quatroK: true, converter: true, segredo: true, videoCodec: 'hevc' },
@@ -182,5 +184,49 @@ test('4K da TorBox: só para quem toca H.265, fora da rede móvel, um por vez; o
         assert.equal((await pedir({ codec: 'hevc', sem4k: '1' })).conversao, 'filme-872585-hd');
         livre = false; // outro 4K em andamento ou disco sem folga
         assert.equal((await pedir({ codec: 'hevc' })).conversao, 'filme-872585-hd');
-    } finally { tb.ativa = ativa; tb.resolverTodos = resolverTodos; tb.resolverMelhor = resolverMelhor; conversor.iniciar = iniciar; conversor.pode4k = pode4k; }
+    } finally { tb.ativa = ativa; tb.resolverTodos = resolverTodos; tb.resolverMelhor = resolverMelhor; tb.preludio = preludio; conversor.iniciar = iniciar; conversor.pode4k = pode4k; }
+});
+
+test('próximo episódio: /api/torbox/preparar responde na hora e deixa a TorBox conferida (sem tocar)', async () => {
+    const tb = require('./torbox-source'), ativa = tb.ativa, preludio = tb.preludio, resolverMelhor = tb.resolverMelhor;
+    const chamadas = [];
+    tb.ativa = () => true;
+    tb.preludio = async (...a) => { chamadas.push(['preludio', ...a.slice(0, 4)]); return { qualidades: ['1080p', '4K'] }; };
+    tb.resolverMelhor = async (...a) => { chamadas.push(['melhor', ...a.slice(0, 4), a[4]]); return null; };
+    try {
+        const r = resposta();
+        rotas()['/api/torbox/preparar']({ query: { tipo: 'tv', id: '1405', temporada: '2', episodio: '4', codec: 'avc' }, headers: {} }, r);
+        assert.deepEqual(r.corpo, { ok: true });
+        await new Promise(ok => setTimeout(ok, 10));
+        assert.deepEqual(chamadas[0], ['preludio', 'tv', '1405', '2', '4']);
+        // Aparelho sem H.265 (codec=avc): só o Full HD, nada de 4K.
+        assert.equal(chamadas.filter(c => c[0] === 'melhor').length, 1);
+        assert.equal(chamadas[1][5].hevcOk, false);
+        const ruim = resposta();
+        rotas()['/api/torbox/preparar']({ query: { tipo: 'tv', id: 'x' }, headers: {} }, ruim);
+        assert.equal(ruim.codigo, 400);
+    } finally { tb.ativa = ativa; tb.preludio = preludio; tb.resolverMelhor = resolverMelhor; }
+});
+
+test('anime legendado (só anime): TorBox com legenda PT vira conversão com legenda; sem arquivo, "indisponivel"', async () => {
+    const tb = require('./torbox-source'), ativa = tb.ativa, resolverAnime = tb.resolverAnimeLegendado;
+    const conversor = require('./conversor'), iniciar = conversor.iniciar;
+    let pedidoConversao = null, achado = null;
+    tb.ativa = () => true;
+    tb.resolverAnimeLegendado = async () => achado;
+    conversor.iniciar = async (_u, op) => { pedidoConversao = op; return { id: op.id + '-x', duracao: 1420 }; };
+    try {
+        const h = rotas()['/api/playback/anime-legendado/:id/:season/:episode'];
+        const r0 = resposta();
+        await h({ params: { id: '37854', season: '1', episode: '5' }, query: {}, headers: {} }, r0);
+        assert.deepEqual(r0.corpo, { indisponivel: true });
+        achado = { url: 'https://cdn.torbox.example/op.mkv', segredo: true, converter: true, fonte: 'TorBox · legendado 1080p', resolucao: '1080p', faixa: { indice: 0, duracao: 1420 }, legenda: { indice: 3 } };
+        const r1 = resposta();
+        await h({ params: { id: '37854', season: '1', episode: '5' }, query: {}, headers: {} }, r1);
+        assert.equal(r1.corpo.fonteId, 'torbox-legendado');
+        assert.equal(r1.corpo.audio, 'original');
+        assert.equal(r1.corpo.conversao, 'anime-37854-T1E5-x');
+        assert.deepEqual(pedidoConversao.legenda, { indice: 3 });
+        assert.ok(!JSON.stringify(r1.corpo).includes('cdn.torbox.example'));
+    } finally { tb.ativa = ativa; tb.resolverAnimeLegendado = resolverAnime; conversor.iniciar = iniciar; }
 });

@@ -1038,7 +1038,7 @@ public final class MainActivity extends Activity {
     private WebResourceResponse rotaDoServidor(Uri uri){
         java.net.HttpURLConnection c=null;
         try{
-            String path=uri.getPath();if(path==null||!path.matches("/api/tv/futemax(/jogos)?"))return error(404);
+            String path=uri.getPath();if(path==null||!path.matches("/api/tv/futemax(/jogos)?|/api/torbox/preparar|/api/playback/anime-legendado/[0-9]{1,10}/[0-9]{1,3}/[1-9][0-9]{0,3}"))return error(404);
             ServerPlaybackTransport transport=serverTransport();
             String query=uri.getEncodedQuery();
             URL url=new URL(transport.base,path+(query==null||query.isEmpty()?"":"?"+query));
@@ -1730,6 +1730,10 @@ public final class MainActivity extends Activity {
                 // que resolve a lista HLS; os pedaços do vídeo continuam sendo
                 // buscados pelo encaminhador do próprio aparelho.
                 if (path != null && ("/api/tv/futemax".equals(path) || "/api/tv/futemax/jogos".equals(path))) return rotaDoServidor(uri);
+                // Deixa a TorBox do próximo episódio pronta (o servidor só confere; não toca).
+                if (path != null && "/api/torbox/preparar".equals(path)) return rotaDoServidor(uri);
+                // Anime legendado pela TorBox (só anime): quem resolve é o servidor.
+                if (path != null && path.matches("/api/playback/anime-legendado/[0-9]{1,10}/[0-9]{1,3}/[1-9][0-9]{0,3}")) return rotaDoServidor(uri);
                 if (path != null && "/api/futebol/agenda".equals(path)) return futebolAgenda(uri);
                 if (path != null && path.matches("/api/crystal-lake/1/[1-8]/master\\.m3u8")) return crystalLakePlaylist(path.split("/")[4]);
                 if (path != null && "/api/rede-midia".equals(path)) return serverMedia(uri,request.getRequestHeaders());

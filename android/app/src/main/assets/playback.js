@@ -176,6 +176,21 @@ window.StreamPlayback = (() => {
     let deslocamento=0,conversaoAtiva=false,ultimoInicio=null;
     function totalDoFilme(){const d=video&&Number.isFinite(video.duration)?deslocamento+video.duration:0;return duracaoTotal>d?duracaoTotal:d;}
     function posicaoNoFilme(){return deslocamento+(video?video.currentTime:0);}
+    // Série (e anime dublado, dorama, novela, desenho): passada a metade do
+    // episódio, pede ao servidor para deixar a TorBox do PRÓXIMO pronta — ao
+    // apertar "próximo", ele abre como o filme (motor 1 já com a resposta).
+    let proximoPreparado='';
+    function prepararProximo(){
+        try{
+            if(aoVivo||!video||totalDoFilme()<120||posicaoNoFilme()/totalDoFilme()<0.5)return;
+            const m=String(ultimoInicio?.caminho||'').match(/^\/api\/playback\/serie\/(\d{1,10})\/(\d{1,3})\/(\d{1,4})/);
+            if(!m)return;
+            const chave=m[1]+'/'+m[2]+'/'+(Number(m[3])+1);
+            if(proximoPreparado===chave)return;proximoPreparado=chave;
+            const semHevc=/[?&]codec=avc(?:&|$)/.test(String(ultimoInicio.caminho));
+            fetch('/api/torbox/preparar?tipo=tv&id='+m[1]+'&temporada='+m[2]+'&episodio='+(Number(m[3])+1)+(semHevc?'&codec=avc':''),{cache:'no-store'}).catch(()=>{});
+        }catch(e){}
+    }
     // Fora do trecho já convertido: pede ao servidor uma conversão nova a
     // partir do ponto (o ffmpeg pula direto para lá, sem converter o meio).
     function foraDoConvertido(absoluto){if(!conversaoAtiva||!video||!Number.isFinite(video.duration))return false;const rel=absoluto-deslocamento;return rel<0||(rel>video.duration-2&&totalDoFilme()>deslocamento+video.duration+5);}
@@ -438,16 +453,35 @@ window.StreamPlayback = (() => {
             deslocamento=Math.max(0,Number(data.inicio)||0);conversaoAtiva=true;
             if(Number(data.duracao)>0)duracaoTotal=Number(data.duracao);
             const alvoNoFilme=pontoSalvo;pontoSalvo=Math.max(0,pontoSalvo-deslocamento);
+            // Conversão parada (sem avançar há 20 s): pede UMA vez outra ao
+            // servidor (&novo=1), em vez de esperar até desistir.
+            let refez=false;
+            const refazer=async()=>{
+                if(refez)return false;refez=true;
+                const ponto=Math.floor(Math.max(alvoNoFilme,deslocamento));
+                const nova=await lerJson(consulta+(consulta.includes('?')?'&':'?')+(compatTentada?'compat=avc&':'')+(ponto>=60?'inicio='+ponto+'&':'')+'novo=1',signal).catch(()=>null);
+                if(token!==generation||(signal&&signal.aborted)||version!==playerVersion)return false;
+                if(!(nova&&nova.conversao&&nova.audio==='pt-BR'))return false;
+                data=nova;deslocamento=Math.max(0,Number(nova.inicio)||0);
+                if(Number(nova.duracao)>0)duracaoTotal=Number(nova.duracao);
+                pontoSalvo=Math.max(0,alvoNoFilme-deslocamento);
+                return true;
+            };
             if(pontoSalvo<=0&&deslocamento>0)retomadaAlvo=0;
             if(pontoSalvo>0){
                 // A conversão anda bem mais rápido que o filme (a imagem só é
                 // copiada): em vez de desistir da fonte, espera ela chegar no
                 // ponto salvo, mostrando o avanço. Só desiste depois de 4 min.
-                let atual=null;
+                let atual=null,ultimoSeg=-1,paradoDesde=Date.now();
                 for(let tentativa=0;tentativa<120;tentativa++){
                     atual=await lerJson('/api/conversao/'+encodeURIComponent(data.conversao),signal).catch(()=>null);
                     if(token!==generation||(signal&&signal.aborted)||version!==playerVersion)return false;
                     if(atual&&Number(atual.duracao)>0)duracaoTotal=Number(atual.duracao);
+                    const seg=Number(atual&&atual.segundos)||0;
+                    if(seg!==ultimoSeg){ultimoSeg=seg;paradoDesde=Date.now();}
+                    if(atual&&!atual.erro&&!atual.convertido&&(atual.parado||Date.now()-paradoDesde>=20000)&&!refez){
+                        if(await refazer()){ultimoSeg=-1;paradoDesde=Date.now();continue;}
+                    }
                     if(!atual||atual.erro||atual.convertido||Number(atual.segundos)>=pontoSalvo+10)break;
                     const pct=Math.max(0,Math.min(99,Math.round(Number(atual.segundos||0)/(pontoSalvo+10)*100)));
                     try{window.setLoading?.('Voltando de onde você parou','Preparando em alta qualidade… '+pct+'%');}catch(e){}
@@ -466,6 +500,7 @@ window.StreamPlayback = (() => {
                     if(version!==playerVersion||(signal&&signal.aborted))return false;
                     const estado=await lerJson('/api/conversao/'+encodeURIComponent(data.conversao),signal).catch(()=>null);
                     if(estado&&estado.erro)return false;
+                    if(estado&&estado.parado&&!estado.pronto&&!refez){if(await refazer())continue;}
                     if(estado&&Number(estado.duracao)>0)duracaoTotal=Number(estado.duracao);
                     const pct=Math.max(0,Math.min(99,Number(estado&&estado.progresso)||0));
                     const vel=Number(estado&&estado.velocidade)||0;
@@ -548,7 +583,7 @@ video.addEventListener('playing',()=>{if(!current())return;window.StreamEpisodes
             video.addEventListener('canplay',()=>{if(!current())return;play();},{once:true});
             video.addEventListener('loadedmetadata',()=>{if(current()){qualityInfo();subtitleMenu();sincronizarLegendas();buscaLivre();atualizarVolume();resume();window.StreamLegendas?.anexar?.(video,progressFilm).then?.(()=>{if(!current())return;subtitleMenu();sincronizarLegendas();}).catch?.(()=>{});}});
             video.addEventListener('pause',()=>{if(current()){if(!video.error)intencaoTocar=false;limparEspera();analiseAtual?.pausar(posicaoAtual());saveProgress();el('direct-toggle').textContent='▶';el('direct-toggle').setAttribute('aria-label','Reproduzir');showControls();}});
-            video.addEventListener('timeupdate',()=>{if(current()){if(imagemConfirmada&&video.currentTime>ultimaPosicao+0.1){ultimaPosicao=video.currentTime;limparEspera();analiseAtual?.tocando(ultimaPosicao);}if(totalDoFilme()>60&&posicaoNoFilme()/totalDoFilme()>0.92)marcarVistoSozinho();resume();if(resumeApplied&&Date.now()-lastSaved>2000){saveProgress();lastSaved=Date.now();}if(settle)awaitPicture();el('direct-time').textContent=aoVivo?'AO VIVO':clock(posicaoNoFilme())+' / '+clock(totalDoFilme());const barra=el('direct-progress');if(barra&&!arrastando)barra.value=totalDoFilme()>0?Math.round(posicaoNoFilme()/totalDoFilme()*1000):0;}});
+            video.addEventListener('timeupdate',()=>{if(current()){if(imagemConfirmada&&video.currentTime>ultimaPosicao+0.1){ultimaPosicao=video.currentTime;limparEspera();analiseAtual?.tocando(ultimaPosicao);}if(totalDoFilme()>60&&posicaoNoFilme()/totalDoFilme()>0.92)marcarVistoSozinho();prepararProximo();resume();if(resumeApplied&&Date.now()-lastSaved>2000){saveProgress();lastSaved=Date.now();}if(settle)awaitPicture();el('direct-time').textContent=aoVivo?'AO VIVO':clock(posicaoNoFilme())+' / '+clock(totalDoFilme());const barra=el('direct-progress');if(barra&&!arrastando)barra.value=totalDoFilme()>0?Math.round(posicaoNoFilme()/totalDoFilme()*1000):0;}});
             video.addEventListener('waiting',()=>esperando(current));
             video.addEventListener('resize',()=>{if(current())qualityInfo();});
             video.addEventListener('stalled',()=>esperando(current));

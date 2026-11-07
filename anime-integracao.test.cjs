@@ -44,6 +44,8 @@ function setup() {
     window.StreamAnimePlayer = player;
     const playback = { stop() { playbackActive = false; }, estado() { return playbackState; }, isActive() { return playbackActive; },
         async start(...args) {
+            // Motor 1 do anime legendado (TorBox) sem arquivo neste teste.
+            if (String(args[3] || '').startsWith('/api/playback/anime-legendado/')) return false;
             starts.push(args);
             const ok = await play(...args);
             playbackActive = Boolean(ok);

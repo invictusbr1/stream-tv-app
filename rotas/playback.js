@@ -11,6 +11,27 @@ const { LOCAL_CONFIG, RAIZ, TMDB_KEY, fs, path, seguranca } = ctx;
 // (ou seja: sem anúncio no caminho do usuário).
 // ============================================================
 const midia = require('../midia-proxy');
+// Prepara a TorBox de um título SEM tocar nem converter: confere qual
+// arquivo dublado serve (link + áudio) e guarda. Usado para o PRÓXIMO
+// episódio enquanto o atual passa (série, anime dublado, dorama, novela,
+// desenho): ao apertar "próximo", o motor 1 já tem a resposta. Responde na
+// hora; o trabalho segue em segundo plano. (Vem antes de /api/torbox/:id.)
+app.get('/api/torbox/preparar', (req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    const tipo = req.query.tipo === 'tv' ? 'tv' : 'movie';
+    const id = String(req.query.id || ''), temporada = String(req.query.temporada || ''), episodio = String(req.query.episodio || '');
+    if (!/^\d{1,10}$/.test(id) || (tipo === 'tv' && (!/^\d{1,3}$/.test(temporada) || !/^[1-9]\d{0,3}$/.test(episodio)))) return res.status(400).json({ ok: false });
+    let tb;
+    try { tb = require('../torbox-source'); if (!tb.ativa()) return res.json({ ok: false, motivo: 'TorBox desligada' }); } catch { return res.json({ ok: false }); }
+    const quer4k = podeReceber4k(req);
+    const t = tipo === 'tv' ? temporada : undefined, e = tipo === 'tv' ? episodio : undefined;
+    tb.preludio(tipo, id, t, e, { hevcOk: quer4k }).then(pre => {
+        if (!pre || !pre.qualidades.length) return;
+        if (pre.qualidades.includes('1080p')) tb.resolverMelhor(tipo, id, t, e, { hevcOk: quer4k }).catch(() => {});
+        if (quer4k && pre.qualidades.includes('4K')) tb.resolverMelhor(tipo, id, t, e, { quer4k: true, so4k: true }).catch(() => {});
+    }).catch(() => {});
+    res.json({ ok: true });
+});
 // Vídeo da TorBox repassado pelo servidor: o aparelho só conhece o código
 // aleatório; o link real (com a chave da conta) nunca sai daqui.
 app.get('/api/torbox/:id', async (req, res) => {
@@ -149,17 +170,30 @@ async function motorTorbox(req, alvo, exceto, idBase = '') {
     try { tb = require('../torbox-source'); if (!tb.ativa()) return null; } catch { return null; }
     const quer4k = podeReceber4k(req), pc = paraPlayerDoPc(req);
     const tipo = alvo.tipo === 'tv' ? 'tv' : 'movie';
-    // A melhor que servir, parando no primeiro acerto (resolverMelhor).
-    const tentar = q4 => Promise.race([
-        tb.resolverMelhor(tipo, alvo.tmdbId, alvo.temporada, alvo.episodio, { quer4k: q4 }).catch(() => null),
-        new Promise(ok => setTimeout(() => ok(null), 12000)),
-    ]);
+    const espera = (p, ms) => Promise.race([Promise.resolve(p).catch(() => null), new Promise(ok => setTimeout(() => ok(null), Math.max(0, ms)))]);
+    const inicio = Date.now(), PRAZO = 18000;
+    // 1) Existe dublado pronto em 800p+? Responde em ~1–4 s. Sem nada: motor 2
+    //    na hora, sem gastar o prazo esperando.
+    const pre = await espera(tb.preludio(tipo, alvo.tmdbId, alvo.temporada, alvo.episodio, { hevcOk: quer4k }), 7000);
+    if (!pre) return null;
+    const tem4k = pre.qualidades.includes('4K'), temHd = pre.qualidades.includes('1080p');
+    if (!temHd && !(quer4k && tem4k)) return null;
+    // 2) Tem: confere o arquivo (link + áudio). 4K e Full HD em paralelo — se
+    //    o 4K não servir (sem áudio PT, sem disco, H.265 não suportado…), o
+    //    Full HD já está pronto, sem esperar uma segunda rodada.
     const serve = d => Boolean(d && d.url && (parseInt(d.resolucao, 10) || 0) >= MOTOR1_MINIMO && !(d.converter && semConversaoNoPedido(req)));
-    let boa = quer4k ? await tentar(true) : null;
-    // Um 4K convertido por vez e só com disco folgado (o PC toca o original).
-    if (boa && boa.quatroK && boa.converter && !pc && !require('../conversor').pode4k(idBase)) boa = null;
-    if (!serve(boa)) boa = await tentar(false);
-    if (!serve(boa) || (boa.quatroK && !quer4k)) boa = null;
+    const p4k = quer4k && tem4k ? tb.resolverMelhor(tipo, alvo.tmdbId, alvo.temporada, alvo.episodio, { quer4k: true, so4k: true }) : null;
+    const pHd = temHd ? tb.resolverMelhor(tipo, alvo.tmdbId, alvo.temporada, alvo.episodio, { hevcOk: quer4k }) : null;
+    let boa = null;
+    if (p4k) {
+        const r4 = await espera(p4k, PRAZO - (Date.now() - inicio));
+        // Um 4K convertido por vez e só com disco folgado (o PC toca o original).
+        if (serve(r4) && !(r4.converter && !pc && !require('../conversor').pode4k(idBase, r4.tamanho))) boa = r4;
+    }
+    if (!boa && pHd) {
+        const rHd = await espera(pHd, PRAZO - (Date.now() - inicio));
+        if (serve(rHd) && !rHd.quatroK) boa = rHd;
+    }
     return boa ? { ...boa, fonteId: 'torbox' } : null;
 }
 function inicioDoPedido(req) {
@@ -292,7 +326,7 @@ app.get('/api/playback/:id', async (req, res) => {
                 const conversor = require('../conversor');
                 // `id` estável: o mesmo filme reaproveita a conversão em vez de criar
                 // uma pasta nova a cada abertura (era isso que enchia o disco).
-                const trabalho = await conversor.iniciarNoPonto(escolhido.url, { id: `filme-${req.params.id}`, referer: escolhido.referer || '', inicio: inicioDoPedido(req), faixa: escolhido.faixa || null, quatroK: Boolean(escolhido.quatroK) });
+                const trabalho = await conversor.iniciarNoPonto(escolhido.url, { id: `filme-${req.params.id}`, referer: escolhido.referer || '', inicio: inicioDoPedido(req), faixa: escolhido.faixa || null, quatroK: Boolean(escolhido.quatroK), novo: req.query.novo === '1' });
                 return res.json({
                     url: `/api/convertido/${trabalho.id}/index.m3u8`,
                     audio: escolhido.audio || 'pt-BR',
@@ -377,7 +411,7 @@ app.get('/api/playback/serie/:id/:season/:episode', async (req, res) => {
         if (escolhido.converter) {
             const conversor = require('../conversor');
             // `id` estável por episódio: reaproveita a conversão já feita.
-            const trabalho = await conversor.iniciarNoPonto(escolhido.url, { id: `serie-${id}-T${season}E${episode}`, referer: escolhido.referer || '', inicio: inicioDoPedido(req), faixa: escolhido.faixa || null, quatroK: Boolean(escolhido.quatroK) });
+            const trabalho = await conversor.iniciarNoPonto(escolhido.url, { id: `serie-${id}-T${season}E${episode}`, referer: escolhido.referer || '', inicio: inicioDoPedido(req), faixa: escolhido.faixa || null, quatroK: Boolean(escolhido.quatroK), novo: req.query.novo === '1' });
             return res.json({
                 url: `/api/convertido/${trabalho.id}/index.m3u8`,
                 audio: escolhido.audio || 'pt-BR',
@@ -414,6 +448,40 @@ app.get('/api/playback/serie/:id/:season/:episode', async (req, res) => {
 // FULL HD SEM ANÚNCIO — resolvedor do Vixsrc (endereço direto do vídeo).
 // Usado como opção de melhor qualidade; o áudio é o da fonte (normalmente original).
 // ============================================================
+// ANIME LEGENDADO pela TorBox — SÓ ANIME (pedido do Marlon, 07/11/2026).
+// Áudio original + legenda em português que vem DENTRO do arquivo; o
+// conversor transforma a legenda em legenda do player. Sem arquivo assim
+// pronto, responde "indisponivel" e o anime segue para as fontes de sempre.
+app.get('/api/playback/anime-legendado/:id/:season/:episode', async (req, res) => {
+    const { id, season, episode } = req.params;
+    if (!/^\d{1,10}$/.test(id) || !/^\d{1,3}$/.test(season) || !/^[1-9]\d{0,3}$/.test(episode)) return res.sendStatus(400);
+    res.setHeader('Cache-Control', 'no-store');
+    try {
+        const exceto = String(req.query.exceto || '').split(',').map(x => x.trim()).filter(Boolean);
+        let tb;
+        try { tb = require('../torbox-source'); } catch { return res.json({ indisponivel: true }); }
+        if (exceto.includes('torbox-legendado') || !tb.ativa()) return res.json({ indisponivel: true });
+        const hevcOk = codecDoPedido(req) !== 'avc';
+        const achado = await Promise.race([
+            tb.resolverAnimeLegendado(id, season, episode, { hevcOk }).catch(() => null),
+            new Promise(ok => setTimeout(() => ok(null), 14000)),
+        ]);
+        if (!achado) return res.json({ indisponivel: true });
+        // O player do PC toca o arquivo original (legenda incluída) direto.
+        if (paraPlayerDoPc(req)) {
+            const pronto = require('../fontes-motor').prepararParaPlayer({ ...achado, final: false });
+            return res.json({ url: pronto.urlAplicativo, audio: 'original', source: achado.fonte, fonteId: 'torbox-legendado', type: 'file', resolucao: achado.resolucao, legendaPortugues: true, legendaEmbutida: true, anime: true });
+        }
+        const conversor = require('../conversor');
+        const trabalho = await conversor.iniciarNoPonto(achado.url, { id: `anime-${id}-T${season}E${episode}`, inicio: inicioDoPedido(req), faixa: achado.faixa, legenda: achado.legenda, novo: req.query.novo === '1' });
+        res.json({
+            url: `/api/convertido/${trabalho.id}/index.m3u8`, audio: 'original', source: achado.fonte, fonteId: 'torbox-legendado',
+            type: 'hls', resolucao: achado.resolucao, videoCodec: achado.videoCodec || '', conversao: trabalho.id,
+            inicio: trabalho.inicio || 0, duracao: trabalho.duracao || 0,
+            legendaPortugues: true, legendaEmbutida: true, anime: true,
+        });
+    } catch { if (!res.headersSent) res.json({ indisponivel: true }); }
+});
 app.get('/anime-player.js',(req,res)=>{res.setHeader('Cache-Control','no-store');res.type('js').send(fs.readFileSync(path.join(RAIZ,'anime-player.js')));});
 app.get('/api/anime-player',async(req,res)=>{
  const id=String(req.query.id||''),temporada=String(req.query.temporada||''),episodio=String(req.query.episodio||''),audio=String(req.query.audio||'legendado');

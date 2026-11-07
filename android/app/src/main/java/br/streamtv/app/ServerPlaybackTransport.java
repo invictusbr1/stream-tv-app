@@ -15,7 +15,7 @@ final class ServerPlaybackTransport {
  }
  static boolean mediaPath(String path){
   if(path==null||path.length()>16384||path.contains("#")||path.matches("(?s).*[\\r\\n].*"))return false;
-  try{URI u=new URI(path);if(u.isAbsolute()||u.getRawAuthority()!=null)return false;String p=u.getRawPath();return p.equals("/api/hls")&&u.getRawQuery()!=null||p.matches("/api/convertido/[A-Za-z0-9_-]{1,96}/[A-Za-z0-9_-]+\\.(m3u8|ts|m4s|mp4)")||p.matches("/api/crystal-lake/1/[1-8]/master\\.m3u8");}catch(Exception e){return false;}
+  try{URI u=new URI(path);if(u.isAbsolute()||u.getRawAuthority()!=null)return false;String p=u.getRawPath();return p.equals("/api/hls")&&u.getRawQuery()!=null||p.matches("/api/convertido/[A-Za-z0-9_-]{1,96}/[A-Za-z0-9_-]+\\.(m3u8|ts|m4s|mp4|vtt)")||p.matches("/api/crystal-lake/1/[1-8]/master\\.m3u8");}catch(Exception e){return false;}
  }
  static String local(String path)throws IOException{if(!mediaPath(path))throw new IOException("Caminho de mídia não permitido");return "/api/rede-midia?p="+URLEncoder.encode(path,"UTF-8");}
  /** Código da conversão no servidor (ex.: filme-937278, serie-1405-T2E3). */

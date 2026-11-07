@@ -416,5 +416,26 @@ async function procurar() {
     console.log('RESULTADO:' + JSON.stringify({ resumo, resultados }));
 }
 
-if (require.main === module) (process.argv.includes('--procurar') ? procurar() : process.argv.includes('--slots') ? slots() : process.argv.includes('--link') ? link() : process.argv.includes('--fonte') ? fonte() : process.argv.includes('--tocar') ? tocar() : principal()).catch(erro => { console.log('erro: ' + erro.message); process.exitCode = 1; });
+// ------------------------------------------------------------ modo --anime
+// Anime legendado pela TorBox (SÓ ANIME): para 4 animes, procura o episódio 1
+// com legenda em português dentro do arquivo. Não toca nem converte.
+async function anime() {
+    const tb = require('../torbox-source');
+    if (!tb.ativa()) { console.log('Sem chave.'); return; }
+    const alvos = [
+        { nome: 'Frieren T1E1', id: '209867' }, { nome: 'Solo Leveling T1E1', id: '127532' },
+        { nome: 'Jujutsu Kaisen T1E1', id: '95479' }, { nome: 'Demon Slayer T1E1', id: '85937' },
+    ];
+    const resultados = [];
+    for (const a of alvos) {
+        const t0 = Date.now();
+        const r = await tb.resolverAnimeLegendado(a.id, 1, 1, { hevcOk: true }).catch(() => null);
+        const s = ((Date.now() - t0) / 1000).toFixed(1);
+        resultados.push({ nome: a.nome, status: r ? 'forte' : 'sem dublado', qualidade: r ? r.resolucao : '', detalhe: r ? `${s} s · ${r.fonte} · vídeo ${r.videoCodec || '?'} · faixa de áudio ${r.faixa && r.faixa.indice} · legenda ${r.legenda && r.legenda.indice}` : `${s} s · nenhum arquivo pronto com legenda em português` });
+        console.log(`${a.nome}: ${resultados[resultados.length - 1].detalhe}`);
+    }
+    console.log('RESULTADO:' + JSON.stringify({ resumo: ['Anime legendado (só anime): verde = achou episódio com legenda em português dentro do arquivo, pronto na TorBox. Não gasta conversão.'], resultados }));
+}
+
+if (require.main === module) (process.argv.includes('--anime') ? anime() : process.argv.includes('--procurar') ? procurar() : process.argv.includes('--slots') ? slots() : process.argv.includes('--link') ? link() : process.argv.includes('--fonte') ? fonte() : process.argv.includes('--tocar') ? tocar() : principal()).catch(erro => { console.log('erro: ' + erro.message); process.exitCode = 1; });
 module.exports = { lerChave, ehPortugues, qualidade, tamanho, origem, TITULOS, escolherArquivo, veredito };
