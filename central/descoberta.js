@@ -195,6 +195,36 @@ async function coletarGithub(memoria, { buscarJson, buscarTexto, token = '', bus
     return total;
 }
 
+// Lista da comunidade (Stremio-Community/stremio-addons-list): cada addon
+// enviado ao catálogo stremio-addons.net vira uma "issue" com o endereço do
+// manifest. Busca as brasileiras/dubladas mais novas — é por aqui que addon
+// novo aparece primeiro. Funciona sem token (limite baixo, uma vez por dia).
+const BUSCAS_LISTA_COMUNIDADE = ['dublado', 'brasil', 'pt-br', 'brazuca', 'portugues', 'português', 'nacional', 'novelas', 'legendado'];
+async function coletarListaComunidade(memoria, { buscarJson, token = '', buscas = BUSCAS_LISTA_COMUNIDADE, registrar = () => {} }) {
+    const cab = { Accept: 'application/vnd.github+json', ...(token ? { Authorization: `Bearer ${token}` } : {}) };
+    const vistas = new Set();
+    let total = 0;
+    for (const termo of buscas) {
+        const q = `repo:Stremio-Community/stremio-addons-list ${termo}`;
+        const r = await buscarJson(`https://api.github.com/search/issues?q=${encodeURIComponent(q)}&sort=created&order=desc&per_page=30`, { headers: cab }).catch(() => null);
+        for (const issue of (r && Array.isArray(r.items) ? r.items : [])) {
+            if (vistas.has(issue.number)) continue;
+            vistas.add(issue.number);
+            const etiquetas = (issue.labels || []).map(l => String(l.name || l)).join(',');
+            // Recusada pelo catálogo (inativa, endereço inválido/fora do ar) não vale testar.
+            if (/inactive|invalid|unreachable/i.test(etiquetas)) continue;
+            const texto = `${issue.title || ''} ${issue.body || ''}`;
+            if (ADULTO.test(texto)) continue;
+            for (const m of String(issue.body || '').match(/https?:\/\/[^\s)"'<>\]]+\/manifest\.json/g) || []) {
+                const base = baseDe(m);
+                if (base && memoria.ver({ base, nome: String(issue.title || '').slice(0, 80), descricao: String(issue.body || '').replace(/\s+/g, ' ').slice(0, 200), origem: 'lista-comunidade', pista: `stremio-addons-list#${issue.number}`, prioridade: 1 })) total++;
+            }
+        }
+    }
+    registrar(`Lista da comunidade (stremio-addons.net): ${vistas.size} addon(s) olhados, ${total} endereço(s) novo(s)`);
+    return total;
+}
+
 // Pistas: a página de quem já foi aprovado (ou promete) aponta para outros.
 async function coletarPistas(memoria, { buscarTexto, limite = 6, registrar = () => {} }) {
     const { extrairFornecedores } = require('./extrair-fornecedores');
@@ -354,6 +384,6 @@ function relatorio(memoria, { dias = 7, agora = Date.now() } = {}) {
 }
 
 module.exports = {
-    baseDe, enderecoPublico, AMOSTRAS_DE_TRIAGEM, criarMemoria, pontuar, prontoParaTestar, coletarCatalogos, coletarDiretorios, coletarGithub, coletarPistas,
+    baseDe, enderecoPublico, AMOSTRAS_DE_TRIAGEM, criarMemoria, pontuar, prontoParaTestar, coletarCatalogos, coletarDiretorios, coletarGithub, coletarListaComunidade, coletarPistas,
     detetive, triar, explorar, relatorio, normalizarNome, DIRETORIOS_PADRAO, BUSCAS_GITHUB, RETESTE,
 };

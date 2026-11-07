@@ -9,20 +9,20 @@
 
 const { lerChave, ehPortugues } = require('./testar-torbox.cjs');
 
+// 07/11/2026: addons brasileiros/dublados achados na lista da comunidade
+// (stremio-addons.net / Stremio-Community/stremio-addons-list). A primeira
+// lista (05/11) já foi conferida: só Torrentio e Absolute Cinema serviram.
 const ADDONS = [
-    'https://7a82163c306e-stremio-netflix-catalog-addon.baby-beamup.club/manifest.json',
-    'https://torrentio.strem.fun/manifest.json',
-    'https://comet.elfhosted.com/manifest.json',
-    'https://aiostreams.elfhosted.com/stremio/manifest.json',
-    'https://top-streaming.stream/manifest.json',
-    'https://streamvix.hayd.uk/%7B%22tmdbApiKey%22%3A%22%22%2C%22mediaFlowProxyUrl%22%3A%22%22%2C%22mediaFlowProxyPassword%22%3A%22%22%2C%22animeunityEnabled%22%3A%22on%22%2C%22animesaturnEnabled%22%3A%22on%22%2C%22animeworldEnabled%22%3A%22on%22%7D/manifest.json',
-    'https://pengu.uk/manifest.json',
-    'https://hdhub.thevolecitor.qzz.io/eyJ0b3Jib3giOiJ1bnNldCIsInF1YWxpdGllcyI6IjIxNjBwLDEwODBwLDcyMHAiLCJzb3J0IjoiZGVzYyJ9/manifest.json',
-    'https://flixnest.app/flix-streams/manifest.json',
-    'https://v2.stravo.site/local/manifest.json',
-    'https://hyper.stravo.site/local/manifest.json',
-    'https://cinema.debrid.in/manifest.json',
-    'https://lat-add.lzid.me/1mgpZVfBxAtZkeGzXkVBcVMkawBkRXCS/manifest.json',
+    'https://torrentio.strem.fun/brazuca/manifest.json',
+    'https://94c8cb9f702d-brazuca-torrents.baby-beamup.club/manifest.json',
+    'https://94c8cb9f702d-brazuca-mp4.baby-beamup.club/manifest.json',
+    'https://150203dd784e-cinetorrent-addon.baby-beamup.club/manifest.json',
+    'https://e78422d452bf-rede-canais-addon.baby-beamup.club/manifest.json',
+    'https://skyflix.onrender.com/manifest.json',
+    'https://mycine.alwaysdata.net/manifest.json',
+    'https://netcineaddon.onrender.com/manifest.json',
+    'https://oneplay-addon-stremio.onrender.com/stremio_oneplay/manifest.json',
+    'https://tugaplay.onrender.com/manifest.json',
 ];
 const TORRENTIO_PT = 'https://torrentio.strem.fun/providers=yts,eztv,rarbg,1337x,thepiratebay,kickasstorrents,torrentgalaxy,magnetdl,comando,bludv|language=portuguese|qualityfilter=scr,cam';
 const TITULOS = [

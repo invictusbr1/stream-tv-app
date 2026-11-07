@@ -311,5 +311,110 @@ async function link() {
     console.log('RESULTADO:' + JSON.stringify({ resumo: ['Onde a chave aparece no link da TorBox (mostrada como ***).'], resultados: linhas.map(l => ({ nome: l.split(':')[0], status: /HTTP 20[06]/.test(l) ? 'forte' : '', qualidade: '', detalhe: l.split(lerChave()).join('***') })) }));
 }
 
-if (require.main === module) (process.argv.includes('--link') ? link() : process.argv.includes('--fonte') ? fonte() : process.argv.includes('--tocar') ? tocar() : principal()).catch(erro => { console.log('erro: ' + erro.message); process.exitCode = 1; });
+// ------------------------------------------------------------ modo --slots
+// Antes de assinar o Essencial (3 slots): os filmes abertos ficam na conta e
+// podem ocupar slot. Aqui: abre 1 episódio, olha como ele aparece na conta,
+// APAGA da conta e confere se o link continua tocando (no começo e no meio).
+// Se continuar, o app pode liberar o slot logo depois de pegar o link.
+async function slots() {
+    const chave = lerChave();
+    if (!chave) { console.log('Sem chave.'); return; }
+    const auth = { Authorization: `Bearer ${chave}` };
+    const linhas = [];
+    const pedaco = async (url, inicio) => {
+        try {
+            const r = await fetch(url, { headers: { Range: `bytes=${inicio}-${inicio + 1023}` } });
+            try { r.body && await r.body.cancel(); } catch { /* ok */ }
+            return r.status;
+        } catch (e) { return 'erro ' + (e.cause && e.cause.code || e.message); }
+    };
+    let torrentId = null, apagado = false;
+    try {
+        const eu = await pedir(`${API}/user/me`, { headers: auth });
+        const d = (eu.json && eu.json.data) || {};
+        const campos = Object.keys(d).filter(k => /slot|active|concurrent|limit/i.test(k)).map(k => `${k}=${typeof d[k] === 'object' ? JSON.stringify(d[k]).slice(0, 60) : d[k]}`);
+        linhas.push({ nome: 'Conta', detalhe: `plano ${d.plan} · ${campos.join(' · ') || 'sem campos de slot na resposta'}` });
+        const antes = await pedir(`${API}/torrents/mylist?bypass_cache=true`, { headers: auth });
+        const listaAntes = Array.isArray(antes.json && antes.json.data) ? antes.json.data : [];
+        linhas.push({ nome: 'Na conta antes', detalhe: `${listaAntes.length} torrents · ativos: ${listaAntes.filter(t => t.active).length} · estados: ${[...new Set(listaAntes.map(t => t.download_state))].join(', ') || '-'}` });
+
+        const r = await pedir(`${TORRENTIO}/stream/series/tt0773262:2:3.json`);
+        const pt = ((r.json && r.json.streams) || []).filter(x => x.infoHash && ehPortugues(`${x.name || ''} ${x.title || ''}`));
+        const cache = await emCache(chave, pt.map(x => x.infoHash.toLowerCase()));
+        const st = pt.find(x => cache.has(x.infoHash.toLowerCase()));
+        if (!st) throw new Error('Dexter T2E3 não está pronto agora');
+        const form = new FormData(); form.append('magnet', `magnet:?xt=urn:btih:${st.infoHash}`);
+        const c = await pedir(`${API}/torrents/createtorrent`, { method: 'POST', body: form, headers: auth }, 30000);
+        torrentId = c.json && c.json.data && c.json.data.torrent_id;
+        if (!torrentId) throw new Error('a TorBox não aceitou o torrent' + (c.json && c.json.detail ? ` (${String(c.json.detail).slice(0, 100)})` : ''));
+        let t = null;
+        for (let i = 0; i < 8; i++) { const l = await pedir(`${API}/torrents/mylist?id=${torrentId}&bypass_cache=true`, { headers: auth }); t = l.json && l.json.data; if (t && Array.isArray(t.files) && t.files.length) break; await new Promise(ok => setTimeout(ok, 1500)); }
+        if (!t || !t.files || !t.files.length) throw new Error('sem arquivos no torrent');
+        linhas.push({ nome: 'Depois de abrir', detalhe: `estado "${t.download_state}" · ativo: ${t.active} · terminado: ${t.download_finished} · semeando: ${t.seeding !== undefined ? t.seeding : '?'}` });
+        const arq = t.files.sort((a, b) => b.size - a.size)[0];
+        const dl = await pedir(`${API}/torrents/requestdl?token=${encodeURIComponent(chave)}&torrent_id=${torrentId}&file_id=${arq.id}&redirect=false`, { headers: auth }, 30000);
+        const link = dl.json && dl.json.data;
+        if (typeof link !== 'string') throw new Error('sem link');
+        const meio = Math.max(0, Math.floor((Number(arq.size) || 0) / 2));
+        linhas.push({ nome: 'Link antes de apagar', detalhe: `começo HTTP ${await pedaco(link, 0)} · meio HTTP ${await pedaco(link, meio)}` });
+
+        const del = await pedir(`${API}/torrents/controltorrent`, { method: 'POST', headers: { ...auth, 'Content-Type': 'application/json' }, body: JSON.stringify({ torrent_id: torrentId, operation: 'delete' }) });
+        apagado = Boolean(del.json && del.json.success !== false);
+        linhas.push({ nome: 'Apagar da conta', detalhe: apagado ? 'apagado' : `não apagou (HTTP ${del.status})` });
+        for (const espera of [5, 60]) {
+            await new Promise(ok => setTimeout(ok, espera * 1000 - (espera === 60 ? 5000 : 0)));
+            const a = await pedaco(link, 0), b = await pedaco(link, meio + 5 * 1024 * 1024);
+            linhas.push({ nome: `Link ${espera} s depois de apagar`, detalhe: `começo HTTP ${a} · meio HTTP ${b}`, ok: a === 206 && b === 206 });
+        }
+        const depois = await pedir(`${API}/torrents/mylist?bypass_cache=true`, { headers: auth });
+        const listaDepois = Array.isArray(depois.json && depois.json.data) ? depois.json.data : [];
+        linhas.push({ nome: 'Na conta depois', detalhe: `${listaDepois.length} torrents · ativos: ${listaDepois.filter(x => x.active).length}` });
+    } catch (e) { linhas.push({ nome: 'Erro', detalhe: e.message }); }
+    finally {
+        if (torrentId && !apagado) await pedir(`${API}/torrents/controltorrent`, { method: 'POST', headers: { ...auth, 'Content-Type': 'application/json' }, body: JSON.stringify({ torrent_id: torrentId, operation: 'delete' }) }).catch(() => {});
+    }
+    const limpar = x => String(x).split(chave).join('***');
+    const fim = linhas.filter(l => /depois de apagar/.test(l.nome));
+    const resumo = [fim.length && fim.every(l => l.ok)
+        ? 'O LINK CONTINUA TOCANDO depois de apagar da conta: o app pode liberar o slot logo depois de abrir o filme.'
+        : 'O link PAROU (ou não deu para testar) depois de apagar: o app precisa manter o filme na conta enquanto alguém assiste.'];
+    linhas.forEach(l => console.log(`${l.nome}: ${limpar(l.detalhe)}`));
+    resumo.forEach(l => console.log(l));
+    console.log('RESULTADO:' + JSON.stringify({ resumo, resultados: linhas.map(l => ({ nome: l.nome, status: l.ok ? 'forte' : '', qualidade: '', detalhe: limpar(l.detalhe) })) }));
+}
+
+// ------------------------------------------------------------ modo --procurar
+// Procura TUDO de um título nas listas que a TorBox usa e mostra cada torrent
+// com cara de português: rótulo, tamanho, se está pronto na TorBox e o motivo
+// de o app ter (ou não) usado. Não gasta download. Padrão: Curvas da Vida.
+async function procurar() {
+    const chave = lerChave();
+    if (!chave) { console.log('Sem chave.'); return; }
+    const i = process.argv.indexOf('--procurar');
+    const alvo = /^tt\d{5,10}(:\d+:\d+)?$/.test(process.argv[i + 1] || '') ? process.argv[i + 1] : 'tt2083383';
+    const tipo = alvo.includes(':') ? 'series' : 'movie';
+    const tb = require('../torbox-source');
+    const respostas = await Promise.all(tb.LISTAS.map(base => pedir(`${base}/stream/${tipo}/${alvo}.json`, {}, 20000).catch(() => ({ status: 0, json: null }))));
+    const streams = tb.juntar(respostas.map(r => (r.json && Array.isArray(r.json.streams) ? r.json.streams : [])));
+    const rotulo = s => `${s.name || ''} ${s.title || ''} ${s.description || ''} ${(s.behaviorHints || {}).filename || ''}`;
+    // Mostra também os "suspeitos" (DUAL/MULTI sem dizer o idioma) e os latinos.
+    const interessa = s => tb.ehPortugues(rotulo(s)) || /\b(dual|multi)\b|🇵🇹|🇧🇷|lat(ino)?\b|castellano/i.test(rotulo(s));
+    const candidatos = streams.filter(interessa);
+    const prontos = await emCache(chave, candidatos.map(s => tb.hashDe(s)));
+    const resultados = candidatos.map(s => {
+        const r = rotulo(s).replace(/\s+/g, ' ');
+        const dublado = tb.dubladoExplicito(r) ? 'dublado PT declarado' : tb.ehPortugues(r) ? 'DUAL sem dizer o idioma' : 'outro idioma (latino/espanhol/multi)';
+        const pronto = prontos.has(tb.hashDe(s));
+        return { nome: `${tb.qualidade(r) || '?'} · ${tamanho(r) || '?'} · ${origem(r) || ''}`.trim(), status: pronto && tb.ehPortugues(r) ? 'forte' : tb.ehPortugues(r) ? 'dublado sem cache' : 'sem dublado', qualidade: tb.qualidade(r) || '', detalhe: `${pronto ? 'PRONTO na TorBox' : 'não está pronto'} · ${dublado} · ${r.slice(0, 160)}` };
+    });
+    const resumo = [
+        `${alvo}: listas ${respostas.map(r => r.status + '/' + ((r.json && r.json.streams) || []).length).join(' ')} · ${streams.length} torrents no total · ${candidatos.length} com cara de português/dual · ${resultados.filter(r => /PRONTO/.test(r.detalhe)).length} prontos na TorBox.`,
+        'Verde = dublado pronto (o app já usa). Amarelo = dublado, mas a TorBox ainda não tem o arquivo — dá para pedir para ela baixar.',
+    ];
+    resultados.forEach(r => console.log(`${r.nome}: ${r.detalhe}`));
+    resumo.forEach(l => console.log(l));
+    console.log('RESULTADO:' + JSON.stringify({ resumo, resultados }));
+}
+
+if (require.main === module) (process.argv.includes('--procurar') ? procurar() : process.argv.includes('--slots') ? slots() : process.argv.includes('--link') ? link() : process.argv.includes('--fonte') ? fonte() : process.argv.includes('--tocar') ? tocar() : principal()).catch(erro => { console.log('erro: ' + erro.message); process.exitCode = 1; });
 module.exports = { lerChave, ehPortugues, qualidade, tamanho, origem, TITULOS, escolherArquivo, veredito };

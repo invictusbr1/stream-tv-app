@@ -43,6 +43,8 @@ const ACOES = {
     'torbox-tocar': { grupo: 'cacador-relatorio', titulo: 'TorBox: tocar 3 de verdade (gasta 3 downloads)', node: ['central/testar-torbox.cjs', '--tocar'] },
     'addons-testar': { grupo: 'cacador-relatorio', titulo: 'Conferir addons do Stremio (com TorBox)', node: ['central/testar-addons.cjs'] },
     'torbox-link': { grupo: 'cacador-relatorio', titulo: 'TorBox: examinar o link (gasta 1 download)', node: ['central/testar-torbox.cjs', '--link'] },
+    'torbox-slots': { grupo: 'cacador-relatorio', titulo: 'TorBox: testar slots (gasta 1 download, ~1 min)', node: ['central/testar-torbox.cjs', '--slots'] },
+    'torbox-procurar': { grupo: 'cacador-relatorio', titulo: 'TorBox: procurar Curvas da Vida (não gasta downloads)', node: ['central/testar-torbox.cjs', '--procurar', 'tt2083383'] },
     'torbox-fonte': { grupo: 'cacador-relatorio', titulo: 'TorBox: testar a fonte do app', node: ['central/testar-torbox.cjs', '--fonte'] },
     'torbox-chave-servidor': { grupo: 'cacador-relatorio', titulo: 'TorBox: enviar chave ao servidor', node: ['deploy/servidor/enviar-chave-torbox.cjs'] },
     'central-erros': { grupo: 'central-erros', titulo: 'Erros recentes da Central', cmd: 'Cacador-PC.cmd', args: ['--erros'] },

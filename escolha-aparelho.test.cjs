@@ -114,11 +114,13 @@ test('BsCine escolhida pelo aparelho não é encaminhada pela Oracle (cai na dis
 });
 
 test('motor 1 (TorBox) abre direto quando tem Full HD; com 720p ou nada, motor=torbox responde indisponível e a fila normal segue', async () => {
-    const tb = require('./torbox-source'), ativa = tb.ativa, resolverTodos = tb.resolverTodos;
+    const tb = require('./torbox-source'), ativa = tb.ativa, resolverTodos = tb.resolverTodos, resolverMelhor = tb.resolverMelhor;
     const avaliador = require('./avaliador'), escolher = avaliador.escolherMelhor;
     const conversor = require('./conversor'), iniciar = conversor.iniciar;
     let disputou = 0, opcoes = [];
     tb.ativa = () => true;
+    // Motor 1 de verdade: a melhor opção que serve (4K só se pedido), a partir da lista simulada.
+    tb.resolverMelhor = async (_t, _i, _s, _e, op = {}) => (await tb.resolverTodos()).filter(d => op.quer4k || !d.quatroK).sort((a, b) => (parseInt(b.resolucao, 10) || 0) - (parseInt(a.resolucao, 10) || 0))[0] || null;
     tb.resolverTodos = async () => opcoes;
     avaliador.escolherMelhor = async () => { disputou++; return null; };
     conversor.iniciar = async (_url, op) => ({ id: op.id + '-m1', duracao: 7568 });
@@ -154,14 +156,16 @@ test('motor 1 (TorBox) abre direto quando tem Full HD; com 720p ou nada, motor=t
         const r4 = resposta();
         await h({ params: { id: '937278' }, query: { transporte: 'servidor', motor: 'torbox' }, headers: {} }, r4);
         assert.deepEqual(r4.corpo, { indisponivel: true });
-    } finally { tb.ativa = ativa; tb.resolverTodos = resolverTodos; avaliador.escolherMelhor = escolher; conversor.iniciar = iniciar; }
+    } finally { tb.ativa = ativa; tb.resolverTodos = resolverTodos; tb.resolverMelhor = resolverMelhor; avaliador.escolherMelhor = escolher; conversor.iniciar = iniciar; }
 });
 
 test('4K da TorBox: só para quem toca H.265, fora da rede móvel, um por vez; o resto recebe o Full HD', async () => {
-    const tb = require('./torbox-source'), ativa = tb.ativa, resolverTodos = tb.resolverTodos;
+    const tb = require('./torbox-source'), ativa = tb.ativa, resolverTodos = tb.resolverTodos, resolverMelhor = tb.resolverMelhor;
     const conversor = require('./conversor'), iniciar = conversor.iniciar, pode4k = conversor.pode4k;
     let livre = true;
     tb.ativa = () => true;
+    // Motor 1 de verdade: a melhor opção que serve (4K só se pedido), a partir da lista simulada.
+    tb.resolverMelhor = async (_t, _i, _s, _e, op = {}) => (await tb.resolverTodos()).filter(d => op.quer4k || !d.quatroK).sort((a, b) => (parseInt(b.resolucao, 10) || 0) - (parseInt(a.resolucao, 10) || 0))[0] || null;
     tb.resolverTodos = async () => [
         { url: 'https://cdn.torbox.example/f1080.mkv', audio: 'pt-BR', resolucao: '1080p', converter: true, segredo: true, videoCodec: 'h264' },
         { url: 'https://cdn.torbox.example/f4k.mkv', audio: 'pt-BR', resolucao: '2160p', quatroK: true, converter: true, segredo: true, videoCodec: 'hevc' },
@@ -178,5 +182,5 @@ test('4K da TorBox: só para quem toca H.265, fora da rede móvel, um por vez; o
         assert.equal((await pedir({ codec: 'hevc', sem4k: '1' })).conversao, 'filme-872585-hd');
         livre = false; // outro 4K em andamento ou disco sem folga
         assert.equal((await pedir({ codec: 'hevc' })).conversao, 'filme-872585-hd');
-    } finally { tb.ativa = ativa; tb.resolverTodos = resolverTodos; conversor.iniciar = iniciar; conversor.pode4k = pode4k; }
+    } finally { tb.ativa = ativa; tb.resolverTodos = resolverTodos; tb.resolverMelhor = resolverMelhor; conversor.iniciar = iniciar; conversor.pode4k = pode4k; }
 });

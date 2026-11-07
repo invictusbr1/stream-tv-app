@@ -462,7 +462,7 @@ window.StreamPlayback = (() => {
                 // Daqui em diante é uma retomada: o player começa no ponto salvo.
                 retomadaAlvo=pontoSalvo;
             }else{
-                for(let tentativa=0;tentativa<900;tentativa++){
+                for(let tentativa=0;tentativa<1800;tentativa++){
                     if(version!==playerVersion||(signal&&signal.aborted))return false;
                     const estado=await lerJson('/api/conversao/'+encodeURIComponent(data.conversao),signal).catch(()=>null);
                     if(estado&&estado.erro)return false;
@@ -471,7 +471,8 @@ window.StreamPlayback = (() => {
                     const vel=Number(estado&&estado.velocidade)||0;
                     try{window.setLoading?.('Preparando em alta qualidade','Convertendo o áudio para português… '+pct+'%'+(vel?' · '+vel.toFixed(1)+'x':''));}catch(e){}
                     if(estado&&estado.pronto)break;
-                    await new Promise(r=>setTimeout(r,2000));
+                    // Consulta a cada 1 s: o filme começa assim que o trecho fica pronto.
+                    await new Promise(r=>setTimeout(r,1000));
                 }
             }
             data={...data,url:'/api/convertido/'+encodeURIComponent(data.conversao)+'/index.m3u8',type:'hls'};

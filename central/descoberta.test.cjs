@@ -122,3 +122,18 @@ test('endereços de exemplo de README não entram; triagem diferencia torrent, s
     assert.equal(dec.status, 'promissora');
     assert.match(dec.motivo, /se declara dublado/);
 });
+
+test('lista da comunidade (stremio-addons.net): pega o manifest das issues brasileiras e pula as recusadas', async () => {
+    const d = require('./descoberta');
+    const vistos = [];
+    const memoria = { ver: c => { vistos.push(c); return true; } };
+    const buscarJson = async () => ({ items: [
+        { number: 25, title: 'Brazuca Torrents', labels: [{ name: 'approved' }], body: 'Manifest: https://94c8cb9f702d-brazuca-torrents.baby-beamup.club/manifest.json' },
+        { number: 150, title: 'Tudublado', labels: [{ name: 'addon inactive' }], body: 'https://tudublado.com.br/manifest.json' },
+        { number: 900, title: 'Adult BR', labels: [], body: 'xxx https://x.example.org/manifest.json' },
+    ] });
+    const n = await d.coletarListaComunidade(memoria, { buscarJson, buscas: ['dublado'] });
+    assert.equal(n, 1);
+    assert.equal(vistos[0].origem, 'lista-comunidade');
+    assert.match(vistos[0].base, /brazuca-torrents\.baby-beamup\.club/);
+});

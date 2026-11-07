@@ -333,6 +333,10 @@ async function descobrir({ estado = lerEstado(), quantos = 12, forcar = false } 
         await descoberta.coletarGithub(memoria, { buscarJson, buscarTexto: buscarTextoSimples, token: tokenDoGithub(), registrar: reg });
         marca.githubEm = Date.now();
     }
+    if (vencido('listaComunidadeEm', 24 * 3600000)) {
+        await descoberta.coletarListaComunidade(memoria, { buscarJson, token: tokenDoGithub(), registrar: reg }).catch(() => 0);
+        marca.listaComunidadeEm = Date.now();
+    }
     await descoberta.detetive(memoria, { fichas: deps.fichasAtuais(), buscarJson, registrar: reg });
     const { players } = await descoberta.coletarPistas(memoria, { buscarTexto: buscarTextoSimples, registrar: reg });
     const resultados = [];

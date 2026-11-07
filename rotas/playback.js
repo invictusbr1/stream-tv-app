@@ -147,22 +147,19 @@ async function motorTorbox(req, alvo, exceto, idBase = '') {
     if ((exceto || []).includes('torbox')) return null;
     let tb;
     try { tb = require('../torbox-source'); if (!tb.ativa()) return null; } catch { return null; }
-    const lista = await Promise.race([
-        tb.resolverTodos(alvo.tipo === 'tv' ? 'tv' : 'movie', alvo.tmdbId, alvo.temporada, alvo.episodio).catch(() => []),
-        new Promise(ok => setTimeout(() => ok([]), 12000)),
-    ]);
     const quer4k = podeReceber4k(req), pc = paraPlayerDoPc(req);
-    const ordem = [...(lista || [])].sort((a, b) => (parseInt(b && b.resolucao, 10) || 0) - (parseInt(a && a.resolucao, 10) || 0));
-    const boa = ordem.find(d => {
-        if (!d || !d.url || (parseInt(d.resolucao, 10) || 0) < MOTOR1_MINIMO) return false;
-        if (d.converter && semConversaoNoPedido(req)) return false;
-        if (d.quatroK) {
-            if (!quer4k) return false;
-            // Um 4K convertido por vez e só com disco folgado (o PC toca o original).
-            if (d.converter && !pc && !require('../conversor').pode4k(idBase)) return false;
-        }
-        return true;
-    });
+    const tipo = alvo.tipo === 'tv' ? 'tv' : 'movie';
+    // A melhor que servir, parando no primeiro acerto (resolverMelhor).
+    const tentar = q4 => Promise.race([
+        tb.resolverMelhor(tipo, alvo.tmdbId, alvo.temporada, alvo.episodio, { quer4k: q4 }).catch(() => null),
+        new Promise(ok => setTimeout(() => ok(null), 12000)),
+    ]);
+    const serve = d => Boolean(d && d.url && (parseInt(d.resolucao, 10) || 0) >= MOTOR1_MINIMO && !(d.converter && semConversaoNoPedido(req)));
+    let boa = quer4k ? await tentar(true) : null;
+    // Um 4K convertido por vez e só com disco folgado (o PC toca o original).
+    if (boa && boa.quatroK && boa.converter && !pc && !require('../conversor').pode4k(idBase)) boa = null;
+    if (!serve(boa)) boa = await tentar(false);
+    if (!serve(boa) || (boa.quatroK && !quer4k)) boa = null;
     return boa ? { ...boa, fonteId: 'torbox' } : null;
 }
 function inicioDoPedido(req) {

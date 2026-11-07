@@ -31,10 +31,18 @@ const LISTAS = [
     'https://torrentio.strem.fun/providers=yts,eztv,rarbg,1337x,thepiratebay,kickasstorrents,torrentgalaxy,magnetdl,comando,bludv|language=portuguese|qualityfilter=scr,cam',
     'https://torrentio.strem.fun',
     'https://cinema.debrid.in',
+    // Torrentio Brazuca (lista da comunidade, conferido em 07/11/2026): trouxe
+    // dublados prontos na TorBox que as outras listas não tinham.
+    'https://torrentio.strem.fun/brazuca',
 ];
 const VALIDADE = 2 * 60 * 60 * 1000;      // link e resultado por título
 const VALIDADE_VAZIO = 20 * 60 * 1000;    // "não tem" é revisto em 20 min
-const GUARDAR_NA_CONTA = 48 * 60 * 60 * 1000;
+// Teste de 06/11/2026 (botão "TorBox: testar slots"): filme já pronto no
+// cache entra na conta como "cached", NÃO ativo — não ocupa slot — e o link
+// continua tocando depois de apagado. Mesmo assim a conta é mantida enxuta:
+// sai o que tem mais de 24 h e nunca ficam mais de 60 (os mais antigos saem).
+const GUARDAR_NA_CONTA = 24 * 60 * 60 * 1000;
+const MAXIMO_NA_CONTA = 60;
 const VIDEO = /\.(mkv|mp4|m4v|avi|ts|webm)$/i;
 const AMOSTRA = /\bsample\b|\btrailer\b/i;
 
@@ -170,11 +178,15 @@ async function minhaLista(chave) {
 
 // Apaga da conta o que foi aberto há mais de 2 dias (no máximo a cada 6 h).
 async function limparConta(chave, lista) {
-    if (Date.now() - ultimaLimpeza < 6 * 60 * 60 * 1000) return;
+    if (Date.now() - ultimaLimpeza < 60 * 60 * 1000) return;
     ultimaLimpeza = Date.now();
-    for (const t of lista) {
+    const ordenada = [...lista].sort((a, b) => (Date.parse(b.created_at || '') || 0) - (Date.parse(a.created_at || '') || 0));
+    for (const [posicao, t] of ordenada.entries()) {
         const criado = Date.parse(t.created_at || '') || 0;
-        if (!criado || Date.now() - criado < GUARDAR_NA_CONTA) continue;
+        // Ativo (baixando de verdade) nunca é apagado aqui.
+        if (t.active) continue;
+        const velho = criado && Date.now() - criado >= GUARDAR_NA_CONTA;
+        if (!velho && posicao < MAXIMO_NA_CONTA) continue;
         await pedir(`${API}/torrents/controltorrent`, { method: 'POST', headers: { Authorization: `Bearer ${chave}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ torrent_id: t.id, operation: 'delete' }) });
     }
 }
@@ -203,24 +215,48 @@ async function linkDoArquivo(chave, torrentId, arquivoId) {
     return { url: link, motivo: '' };
 }
 
-async function buscar(chave, tipo, tmdbId, temporada, episodio, rastro = []) {
+// Rapidez (07/11/2026): a parte de "quais torrents existem e estão prontos"
+// fica guardada 10 min por título (o motor 1 e o motor 2 dividem); cada
+// arquivo já conferido (link + leitura do áudio) fica guardado 2 h; e a conta
+// é arrumada em segundo plano, fora do caminho de quem está esperando o play.
+const preludios = new Map();
+const conferidos = new Map();
+const PRELUDIO_VALIDADE = 10 * 60 * 1000;
+let limpezaAgendada = false;
+function manterConta(chave) {
+    if (limpezaAgendada || Date.now() - ultimaLimpeza < 60 * 60 * 1000) return;
+    limpezaAgendada = true;
+    setImmediate(() => { minhaLista(chave).then(lista => limparConta(chave, lista)).catch(() => {}).finally(() => { limpezaAgendada = false; }); });
+}
+
+async function buscar(chave, tipo, tmdbId, temporada, episodio, rastro = [], { qualidades = ['4K', '1080p', '720p'], primeiro = false } = {}) {
     const ehSerie = tipo === 'tv';
     const imdb = await require('./fenix-source').imdbDe(tmdbId, ehSerie ? 'tv' : 'movie');
     if (!imdb) { rastro.push('sem código IMDb no TMDB'); return []; }
     const caminho = ehSerie ? `series/${imdb}:${temporada || 1}:${episodio || 1}` : `movie/${imdb}`;
-    const respostas = await Promise.all(LISTAS.map(base => pedir(`${base}/stream/${caminho}.json`, {}, 6000)));
+    const guardado = preludios.get(caminho);
+    if (guardado && guardado.expira > Date.now()) return depoisDoPreludio(chave, guardado.valor, { ehSerie, temporada, episodio, rastro, qualidades, primeiro });
+    // Lista lenta não segura as outras: 4 s cada, todas ao mesmo tempo.
+    const respostas = await Promise.all(LISTAS.map(base => pedir(`${base}/stream/${caminho}.json`, {}, 4000)));
     const streams = juntar(respostas.map(r => (r.json && Array.isArray(r.json.streams) ? r.json.streams : [])));
     const hashes = streams.filter(s => ehPortugues(rotuloDe(s))).map(hashDe);
     const emCache = await emCacheNaTorBox(chave, hashes);
     // Até 3 reservas por qualidade: se o arquivo do primeiro não tiver áudio
     // em português (conferido abaixo), tenta o seguinte.
     const escolhidos = escolherTorrents(streams, emCache, 3);
+    preludios.set(caminho, { valor: { escolhidos, imdb }, expira: Date.now() + PRELUDIO_VALIDADE });
+    if (preludios.size > 300) preludios.delete(preludios.keys().next().value);
     rastro.push(`${imdb}: listas ${respostas.map(r => r.status + '/' + ((r.json && r.json.streams) || []).length).join(' ')} · ${streams.length} torrents · ${hashes.length} PT · ${emCache.size} prontos · escolhidos ${escolhidos.map(e => e.qualidade).join('+') || 'nenhum'}`);
+    return depoisDoPreludio(chave, { escolhidos, imdb }, { ehSerie, temporada, episodio, rastro, qualidades, primeiro });
+}
+
+async function depoisDoPreludio(chave, { escolhidos }, { ehSerie, temporada, episodio, rastro, qualidades, primeiro }) {
     if (!escolhidos.length) return [];
-    const lista = await minhaLista(chave);
-    limparConta(chave, lista).catch(() => {});
-    const tentar = async ({ stream, qualidade: q }) => {
-        const torrent = await torrentNaConta(chave, hashDe(stream), lista);
+    manterConta(chave);
+    const tentarNovo = async ({ stream, qualidade: q }) => {
+        // Sem ler a conta inteira: criar de novo um torrent que já está nela
+        // só devolve o mesmo (é o mais rápido).
+        const torrent = await torrentNaConta(chave, hashDe(stream), []);
         if (!torrent) { rastro.push(`${q}: TorBox não aceitou o torrent`); return null; }
         const arquivo = escolherArquivo(torrent.files, { nome: (stream.behaviorHints || {}).filename, temporada: ehSerie ? temporada : 0, episodio: ehSerie ? episodio : 0 });
         if (!arquivo) { rastro.push(`${q}: arquivo do vídeo não encontrado (${(torrent.files || []).length} arquivos)`); return null; }
@@ -230,7 +266,7 @@ async function buscar(chave, tipo, tmdbId, temporada, episodio, rastro = []) {
         // Confere o áudio de verdade antes de oferecer: o rótulo do torrent
         // engana (06/11/2026: Dexter T3E4 "dublado" tocou em italiano).
         const info = await require('./central/verificar-midia').faixasDeAudio(url, '', { timeout: 10000 }).catch(() => null);
-        let faixa = null, midia = null;
+        let faixa = null, midia = null, audioDireto = false;
         if (info && info.faixas && info.faixas.length) {
             const pt = info.faixas.find(f => /^pt|por/.test(f.idioma));
             const outras = info.faixas.filter(f => f.idioma && f.idioma !== 'und' && !/^pt|por/.test(f.idioma)).map(f => f.idioma);
@@ -239,9 +275,14 @@ async function buscar(chave, tipo, tmdbId, temporada, episodio, rastro = []) {
             if (q !== '4K' && /^(hevc|h265)$/.test(String(img.codec || ''))) { rastro.push(`${q}: vídeo H.265 (muitos aparelhos não mostram)`); return null; }
             if (img.dovi === 5) { rastro.push(`${q}: Dolby Vision perfil 5 (cores erradas fora de TV compatível)`); return null; }
             faixa = { indice: pt ? pt.ordem : 0, duracao: Number(info.duracao) || 0 };
+            // Só dispensa a conversão quando o celular/navegador toca o áudio
+            // como está: AAC/MP3 e o português é a faixa que o player vai usar.
+            // 06/11/2026: MP4 4K com som Dolby (EAC3) abriu MUDO no S26 Ultra.
+            const alvoAudio = pt || (info.faixas.length === 1 ? info.faixas[0] : null);
+            audioDireto = Boolean(alvoAudio && /^(aac|mp3)$/.test(String(alvoAudio.codec || '')) && (info.faixas.length === 1 || alvoAudio.padrao));
             midia = { videoCodec: String(img.codec || ''), hdr: /smpte2084|arib-std-b67/.test(String(img.transferencia || '')), largura: Number(img.largura) || 0, altura: Number(img.altura) || 0 };
         }
-        const mp4 = /\.(mp4|m4v)$/i.test(arquivo.short_name || arquivo.name || '');
+        const mp4 = /\.(mp4|m4v)$/i.test(arquivo.short_name || arquivo.name || '') && audioDireto;
         return {
             url,
             audio: 'pt-BR',
@@ -264,11 +305,28 @@ async function buscar(chave, tipo, tmdbId, temporada, episodio, rastro = []) {
             validadeMs: VALIDADE,
         };
     };
-    // Qualidades em paralelo; dentro de cada uma, as reservas em sequência.
-    const saida = await Promise.all(['4K', '1080p', '720p'].map(async q => {
+    // O mesmo arquivo conferido serve por 2 h (motor 1, motor 2, outro aparelho).
+    const tentar = async item => {
+        const marca = `${hashDe(item.stream)}|${ehSerie ? `${temporada}x${episodio}` : 'filme'}`;
+        const ja = conferidos.get(marca);
+        if (ja && ja.expira > Date.now()) return ja.valor ? { ...ja.valor } : null;
+        const valor = await tentarNovo(item);
+        conferidos.set(marca, { valor, expira: Date.now() + (valor ? VALIDADE - 10 * 60 * 1000 : VALIDADE_VAZIO) });
+        if (conferidos.size > 500) conferidos.delete(conferidos.keys().next().value);
+        return valor ? { ...valor } : null;
+    };
+    const daQualidade = async q => {
         for (const item of escolhidos.filter(e => e.qualidade === q)) { const ok = await tentar(item); if (ok) return ok; }
         return null;
-    }));
+    };
+    // Motor 1: a melhor qualidade que servir, uma de cada vez, e para no
+    // primeiro acerto (não espera conferir 720p para entregar o 1080p).
+    if (primeiro) {
+        for (const q of qualidades) { const ok = await daQualidade(q); if (ok) return [ok]; }
+        return [];
+    }
+    // Motor 2: todas as qualidades em paralelo.
+    const saida = await Promise.all(qualidades.map(daQualidade));
     return saida.filter(Boolean);
 }
 
@@ -293,8 +351,28 @@ async function resolverTodos(tipo, tmdbId, temporada, episodio, rastro = null) {
     } finally { emAndamento.delete(marca); }
 }
 
+// MOTOR 1: a melhor opção dublada que serve (4K quando pedido, senão Full HD),
+// sem esperar as outras qualidades. null = não tem (vai para o motor 2).
+async function resolverMelhor(tipo, tmdbId, temporada, episodio, { quer4k = false } = {}) {
+    const chave = lerChave();
+    const id = String(tmdbId || '').trim();
+    if (!chave || !/^\d{1,10}$/.test(id) || (tipo !== 'movie' && tipo !== 'tv')) return null;
+    const marca = (tipo === 'tv' ? `tv:${id}:${temporada || 1}:${episodio || 1}` : `movie:${id}`) + (quer4k ? '|4k' : '|hd');
+    const guardado = cache.get(marca);
+    if (guardado && guardado.expira > Date.now()) return guardado.valor[0] ? { ...guardado.valor[0] } : null;
+    if (emAndamento.has(marca)) { const v = await emAndamento.get(marca); return v[0] ? { ...v[0] } : null; }
+    const trabalho = buscar(chave, tipo, id, temporada, episodio, [], { qualidades: quer4k ? ['4K', '1080p'] : ['1080p'], primeiro: true }).catch(() => []);
+    emAndamento.set(marca, trabalho);
+    try {
+        const valor = await trabalho;
+        if (cache.size >= 300) cache.delete(cache.keys().next().value);
+        cache.set(marca, { valor, expira: Date.now() + (valor.length ? VALIDADE - 10 * 60 * 1000 : VALIDADE_VAZIO) });
+        return valor[0] ? { ...valor[0] } : null;
+    } finally { emAndamento.delete(marca); }
+}
+
 async function resolver(tipo, tmdbId, temporada, episodio) {
     return (await resolverTodos(tipo, tmdbId, temporada, episodio))[0] || null;
 }
 
-module.exports = { resolver, resolverTodos, ativa, lerChave, ehPortugues, dubladoExplicito, qualidade, ehHevc, escolherTorrents, escolherArquivo, tamanhoGB, hashDe, juntar };
+module.exports = { resolver, resolverMelhor, resolverTodos, ativa, lerChave, ehPortugues, dubladoExplicito, qualidade, ehHevc, escolherTorrents, escolherArquivo, tamanhoGB, hashDe, juntar, LISTAS };
