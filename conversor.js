@@ -183,7 +183,7 @@ async function lerFaixaPortuguesa(url, referer) {
 }
 
 // Inicia (ou reaproveita) a conversão de um endereço.
-async function iniciar(url, { titulo = '', referer = '', id = '', inicio = 0, faixa = null, quatroK = false, legenda = null, legendaExterna = '' } = {}) {
+async function iniciar(url, { titulo = '', referer = '', id = '', inicio = 0, faixa = null, quatroK = false, legenda = null, legendaExterna = '', etiqueta = '' } = {}) {
     // `id` é a identidade do TRABALHO (filme-550 / serie-1399-T1E1), estável entre
     // aberturas. A chave real leva um carimbo de tempo porque a mesma obra pode
     // voltar com endereço novo: reaproveitar a conversão velha serviria um vídeo
@@ -246,7 +246,12 @@ async function iniciar(url, { titulo = '', referer = '', id = '', inicio = 0, fa
     }
     registro.legenda = comLegenda || Boolean(arquivoLegenda);
     registro.duracao = duracao;
-    if (lida.semPortugues) { registro.erro = 'o arquivo não tem áudio em português'; registro.terminou = true; return resumo(chave); }
+    if (lida.semPortugues) {
+        registro.erro = 'o arquivo não tem áudio em português'; registro.terminou = true;
+        // O rótulo dizia dublado e não era: este torrent sai da escolha (08/11/2026, Black Clover T2E2 4K).
+        if (etiqueta) { try { require('./torbox-source').marcarRuim(etiqueta); } catch { /* sem TorBox */ } }
+        return resumo(chave);
+    }
 
     const cabecalhos = `User-Agent: ${UA}\r\n` + (referer ? `Referer: ${referer}\r\n` : '');
     const argumentos = [
@@ -295,6 +300,8 @@ async function iniciar(url, { titulo = '', referer = '', id = '', inicio = 0, fa
             if (!registro.terminou && !(registro.segundos > 0)) {
                 registro.erro = 'a fonte não entregou o vídeo (nada chegou em 45 s)';
                 semDados.set(String(lastro).replace(/^ini\d+-/, ''), Date.now());
+                // Só ESTE torrent fica de fora por um tempo; os outros da TorBox continuam valendo.
+                if (etiqueta) { try { require('./torbox-source').marcarRuim(etiqueta); } catch { /* sem TorBox */ } }
                 try { processo.kill('SIGKILL'); } catch { /* já saiu */ }
             }
         }, 45000);
@@ -398,10 +405,10 @@ function pode4k(id = '', tamanho = 0) {
 // Conversão que já cobre o ponto `inicio` (segundos do filme) ou uma nova que
 // começa nele. Devolve o resumo + `inicio` (onde o vídeo convertido começa no
 // filme). Janelas: "filme-550" (desde o 0) e "ini1980-filme-550" (desde 33 min).
-async function iniciarNoPonto(url, { id = '', referer = '', inicio = 0, faixa = null, quatroK = false, novo = false, legenda = null, legendaExterna = '' } = {}) {
+async function iniciarNoPonto(url, { id = '', referer = '', inicio = 0, faixa = null, quatroK = false, novo = false, legenda = null, legendaExterna = '', etiqueta = '' } = {}) {
     const ponto = Math.max(0, Math.floor(Number(inicio) || 0));
     if (novo && ponto < 60) for (const [chave, t] of trabalhos) if (t.lastro === id && !(t.terminou && t.pronto && inspecionarDisco(t.pasta)?.completo)) { try { if (t.processo && !t.terminou) t.processo.kill(); } catch { /* já saiu */ } trabalhos.delete(chave); }
-    if (!id || ponto < 60) return { ...(await module.exports.iniciar(url, { id, titulo: id, referer, faixa, quatroK, legenda, legendaExterna })), inicio: 0 };
+    if (!id || ponto < 60) return { ...(await module.exports.iniciar(url, { id, titulo: id, referer, faixa, quatroK, legenda, legendaExterna, etiqueta })), inicio: 0 };
     const deste = new RegExp(`^(?:ini(\\d+)-)?${id.replace(/[^\w-]/g, '')}$`);
     let melhor = null;
     for (const [chave, t] of trabalhos) {
@@ -436,7 +443,7 @@ async function iniciarNoPonto(url, { id = '', referer = '', inicio = 0, faixa = 
             try { t.processo.kill(); } catch { /* já saiu */ }
         }
     }
-    const resultado = await module.exports.iniciar(url, { id: `ini${ponto}-${id}`, titulo: id, referer, faixa, quatroK, legenda, legendaExterna, inicio: ponto });
+    const resultado = await module.exports.iniciar(url, { id: `ini${ponto}-${id}`, titulo: id, referer, faixa, quatroK, legenda, legendaExterna, etiqueta, inicio: ponto });
     return { ...resultado, inicio: ponto };
 }
 function arquivoDe(chave) {

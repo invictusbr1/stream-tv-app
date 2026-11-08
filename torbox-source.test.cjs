@@ -148,3 +148,17 @@ test('listas: fixas + TODAS as aprovadas pelo caçador (sem cortar em 8), só ht
         assert.ok(!l.some(x => /inseguro|desligada/.test(x)));
     } finally { pl.listasTorbox = original; }
 });
+
+test('torrent que não entregou o arquivo fica de fora; os outros continuam', () => {
+    const tb = require('./torbox-source');
+    const h1 = 'a'.repeat(40), h2 = 'b'.repeat(40);
+    const st = (h, t) => ({ infoHash: h, title: t, name: 'Torrentio' });
+    const streams = [st(h1, 'Serie S01E01 1080p WEB-DL DUAL Dublado'), st(h2, 'Serie S01E01 1080p WEBRip Dublado PT-BR')];
+    const pronto = new Set([h1, h2]);
+    const antes = tb.escolherTorrents(streams, pronto, 4).map(e => (e.stream.infoHash));
+    assert.ok(antes.includes(h1) && antes.includes(h2));
+    tb.marcarRuim(h1);
+    const depois = tb.escolherTorrents(streams, pronto, 4).map(e => (e.stream.infoHash));
+    assert.ok(!depois.includes(h1) && depois.includes(h2));
+    assert.equal(tb.ehRuim(h1), true);
+});

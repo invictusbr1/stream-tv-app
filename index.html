@@ -1634,6 +1634,14 @@ html.modo-tv #anime-pagina .ap-hero h1{font-size:48px}
 @keyframes esperaFato{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
 html.modo-tv #espera-extra{max-width:760px}html.modo-tv #espera-aviso,html.modo-tv #espera-fato{font-size:18px}html.modo-tv #espera-tempo{font-size:15px}
 @media(prefers-reduced-motion:reduce){#espera-fato{animation:none}#espera-barra i{transition:none}}
+/* Com a arte do título (sala de espera): título e sinopse vão para o alto e
+   o andamento fica embaixo — antes um ficava por cima do outro (08/11/2026).
+   Lá a sinopse já aparece, então as curiosidades ficam de fora. */
+#loading.com-sala .sala-info{top:clamp(64px,14vh,170px);bottom:auto}
+#loading.com-sala #espera-extra{max-width:min(560px,100%)}
+#loading.com-sala #espera-fato{display:none!important}
+@media(max-height:620px){#loading.com-sala #sala-sinopse{display:none}#loading.com-sala .sala-info{top:52px}#loading.com-sala #espera-aviso{font-size:12px;padding:8px 10px}#loading.com-sala #espera-tempo{display:none}}
+@media(max-height:430px){#loading.com-sala #sala-meta{display:none}#loading.com-sala #sala-logo{max-height:60px}}
 </style>
 <script id="espera-script">
 (()=>{

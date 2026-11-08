@@ -132,7 +132,19 @@ function tamanhoGB(rotulo) {
 // Melhor torrent de cada qualidade (Full HD primeiro, depois HD), só H.264.
 // Quem diz português com todas as letras (ou 🇵🇹) vem antes do "DUAL" genérico;
 // entre iguais, o maior arquivo (menos comprimido) ganha.
+// Torrents que "estavam prontos" mas não entregaram o arquivo (08/11/2026,
+// Off Campus T1E1): ficam de fora por 6 h; a próxima escolha pega outro.
+const ruins = new Map();
+function ehRuim(h) { const em = ruins.get(String(h || '').toLowerCase()); return Boolean(em && Date.now() - em < 6 * 60 * 60 * 1000); }
+function marcarRuim(h) {
+    const hash = String(h || '').toLowerCase();
+    if (!/^[a-f0-9]{40}$/.test(hash)) return;
+    ruins.set(hash, Date.now());
+    if (ruins.size > 500) ruins.delete(ruins.keys().next().value);
+    cache.clear();
+}
 function escolherTorrents(streams, emCache, porQualidade = 1, { hevcOk = false } = {}) {
+    streams = (streams || []).filter(st => !ehRuim(hashDe(st)));
     const pt = (streams || []).filter(s => s && hashDe(s) && emCache.has(hashDe(s)) && ehPortugues(rotuloDe(s)) && !/\b(?:cam|ts|hdcam|telesync)\b/i.test(rotuloDe(s)));
     const escolhidos = [];
     // 4K: quase sempre H.265 (é aceito só nele); Dolby Vision sem HDR de
@@ -277,7 +289,7 @@ async function buscar(chave, tipo, tmdbId, temporada, episodio, rastro = [], { q
     const hashes = streams.filter(s => ehPortugues(rotuloDe(s))).map(hashDe);
     const emCache = await emCacheNaTorBox(chave, hashes);
     const escolhidos = escolherTorrents(streams, emCache, 4, { hevcOk });
-    preludios.set(caminho, { valor: { streams, emCache, imdb }, expira: Date.now() + PRELUDIO_VALIDADE });
+    preludios.set(caminho, { valor: { streams, emCache, imdb }, expira: Date.now() + (respostas.filter(r => !r || !r.json).length * 2 >= respostas.length ? 60 * 1000 : PRELUDIO_VALIDADE) });
     if (preludios.size > 300) preludios.delete(preludios.keys().next().value);
     rastro.push(`${imdb}: listas ${respostas.map(r => r.status + '/' + ((r.json && r.json.streams) || []).length).join(' ')} · ${streams.length} torrents · ${hashes.length} PT · ${emCache.size} prontos · escolhidos ${escolhidos.map(e => e.qualidade).join('+') || 'nenhum'}`);
     return depoisDoPreludio(chave, { streams, emCache, imdb }, { ehSerie, temporada, episodio, rastro, qualidades, primeiro, hevcOk });
@@ -299,7 +311,7 @@ async function preludio(tipo, tmdbId, temporada, episodio, { hevcOk = false } = 
         const respostas = await Promise.all(listas().map(base => pedir(`${base}/stream/${caminho}.json`, {}, 4000)));
         const streams = juntar(respostas.map(r => (r.json && Array.isArray(r.json.streams) ? r.json.streams : [])));
         const emCache = await emCacheNaTorBox(chave, streams.filter(s => ehPortugues(rotuloDe(s))).map(hashDe));
-        guardado = { valor: { streams, emCache, imdb }, expira: Date.now() + PRELUDIO_VALIDADE };
+        guardado = { valor: { streams, emCache, imdb }, expira: Date.now() + (respostas.filter(r => !r || !r.json).length * 2 >= respostas.length ? 60 * 1000 : PRELUDIO_VALIDADE) };
         preludios.set(caminho, guardado);
     }
     const escolhidos = escolherTorrents(guardado.valor.streams, guardado.valor.emCache, 4, { hevcOk });
@@ -326,6 +338,9 @@ async function depoisDoPreludio(chave, { streams, emCache }, { ehSerie, temporad
         // engana (06/11/2026: Dexter T3E4 "dublado" tocou em italiano).
         const info = await require('./central/verificar-midia').faixasDeAudio(url, '', { timeout: 10000 }).catch(() => null);
         let faixa = null, midia = null, audioDireto = false;
+        // 4K sem conseguir conferir o áudio não vale o risco (arquivo enorme,
+        // rótulo "dublado" que não era): fica o Full HD conferido.
+        if (q === '4K' && !(info && info.faixas && info.faixas.length)) { rastro.push('4K: não consegui conferir o áudio'); return null; }
         if (info && info.faixas && info.faixas.length) {
             const pt = info.faixas.find(f => /^pt|por/.test(f.idioma));
             const outras = info.faixas.filter(f => f.idioma && f.idioma !== 'und' && !/^pt|por/.test(f.idioma)).map(f => f.idioma);
@@ -344,6 +359,7 @@ async function depoisDoPreludio(chave, { streams, emCache }, { ehSerie, temporad
         const mp4 = /\.(mp4|m4v)$/i.test(arquivo.short_name || arquivo.name || '') && audioDireto;
         return {
             url,
+            hash: hashDe(stream),
             audio: 'pt-BR',
             fonte: `TorBox · dublado ${q}${mp4 ? '' : ' (conversão)'}`,
             resolucao: q === '4K' ? '2160p' : q,
@@ -521,8 +537,12 @@ async function resolverAnimeLegendado(tmdbId, temporada, episodio, { hevcOk = fa
             // por episódio é Full HD de sobra e flui pela rede de casa e móvel.
             .map(x => ({ ...x, leve: x.gb > 0 && x.gb <= ANIME_GB_LEVE ? 1 : x.gb === 0 ? 0.5 : 0 }))
             .sort((a, b) => (b.dica - a.dica) || (b.leve - a.leve) || ((b.q === '1080p') - (a.q === '1080p')) || (a.hevc - b.hevc) || (a.leve ? b.gb - a.gb : a.gb - b.gb))
-            .slice(0, 3);
-        if (!candidatos.length) { const v = []; v.semCandidatos = true; return v; }
+            .slice(0, 6);
+        // Lista que não respondeu (servidor ocupado, por exemplo durante uma
+        // atualização) não pode virar "não tem legendado" por 20 min: com metade
+        // ou mais das listas fora, o "não achei" vale só 2 min (08/11/2026).
+        const foraDoAr = respostas.filter(r => !r || !r.json).length;
+        if (!candidatos.length) { const v = []; if (foraDoAr * 2 < respostas.length) v.semCandidatos = true; else v.instavel = true; return v; }
         // Os 3 melhores conferidos AO MESMO TEMPO (não segura o anime quando
         // nenhum tem legenda em português); vale o primeiro da ordem que servir.
         const conferir = async ({ st, q }) => {
@@ -554,7 +574,10 @@ async function resolverAnimeLegendado(tmdbId, temporada, episodio, { hevcOk = fa
                 videoCodec: String(img.codec || ''), validadeMs: VALIDADE,
             };
         };
-        const achados = await Promise.all(candidatos.map(c => conferir(c).catch(() => null)));
+        // Duas rodadas de 3 (08/11/2026): os 3 primeiros às vezes não têm
+        // legenda em português nem online; os 3 seguintes costumam ter.
+        let achados = await Promise.all(candidatos.slice(0, 3).map(c => conferir(c).catch(() => null)));
+        if (!achados.some(Boolean) && candidatos.length > 3) achados = await Promise.all(candidatos.slice(3, 6).map(c => conferir(c).catch(() => null)));
         // Vale o primeiro da ordem com taxa que a rede aguenta; se todos forem
         // pesados, o mais leve deles.
         const validos = achados.filter(Boolean);
@@ -567,7 +590,7 @@ async function resolverAnimeLegendado(tmdbId, temporada, episodio, { hevcOk = fa
     try {
         const valor = await trabalho;
         if (cache.size >= 300) cache.delete(cache.keys().next().value);
-        cache.set(marca, { valor, expira: Date.now() + (valor.length ? VALIDADE - 10 * 60 * 1000 : valor.semCandidatos ? VALIDADE_VAZIO : 3 * 60 * 1000) });
+        cache.set(marca, { valor, expira: Date.now() + (valor.length ? VALIDADE - 10 * 60 * 1000 : valor.instavel ? 2 * 60 * 1000 : valor.semCandidatos ? VALIDADE_VAZIO : 3 * 60 * 1000) });
         return valor[0] ? { ...valor[0] } : null;
     } finally { emAndamento.delete(marca); }
 }
@@ -577,4 +600,4 @@ async function resolver(tipo, tmdbId, temporada, episodio) {
 }
 
 module.exports = {
-    legendaOnlinePt, listas, listasAnime, LISTAS_ANIME_FIXAS: () => LISTAS_ANIME, emCache: emCacheNaTorBox, rotuloDe, resolverAnimeLegendado, legendaPortuguesa, preludio, resolver, resolverMelhor, resolverTodos, ativa, lerChave, ehPortugues, dubladoExplicito, qualidade, ehHevc, escolherTorrents, escolherArquivo, tamanhoGB, hashDe, juntar, LISTAS };
+    marcarRuim, ehRuim, legendaOnlinePt, listas, listasAnime, LISTAS_ANIME_FIXAS: () => LISTAS_ANIME, emCache: emCacheNaTorBox, rotuloDe, resolverAnimeLegendado, legendaPortuguesa, preludio, resolver, resolverMelhor, resolverTodos, ativa, lerChave, ehPortugues, dubladoExplicito, qualidade, ehHevc, escolherTorrents, escolherArquivo, tamanhoGB, hashDe, juntar, LISTAS };

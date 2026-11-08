@@ -166,9 +166,8 @@ function podeReceber4k(req) {
 }
 async function motorTorbox(req, alvo, exceto, idBase = '') {
     if ((exceto || []).includes('torbox')) return null;
-    // Arquivo da TorBox que não entregou nada há pouco (o vigia do conversor
-    // desistiu): nas próximas 2 h vai direto para as outras fontes.
-    try { if (idBase && require('../conversor').falhouSemDados(idBase)) return null; } catch { /* segue */ }
+    // Torrent que não entregou nada há pouco (o vigia do conversor desistiu)
+    // fica de fora sozinho — os outros dublados da TorBox continuam valendo.
     let tb;
     try { tb = require('../torbox-source'); if (!tb.ativa()) return null; } catch { return null; }
     const quer4k = podeReceber4k(req), pc = paraPlayerDoPc(req);
@@ -329,7 +328,7 @@ app.get('/api/playback/:id', async (req, res) => {
                 const conversor = require('../conversor');
                 // `id` estável: o mesmo filme reaproveita a conversão em vez de criar
                 // uma pasta nova a cada abertura (era isso que enchia o disco).
-                const trabalho = await conversor.iniciarNoPonto(escolhido.url, { id: `filme-${req.params.id}`, referer: escolhido.referer || '', inicio: inicioDoPedido(req), faixa: escolhido.faixa || null, quatroK: Boolean(escolhido.quatroK), novo: req.query.novo === '1' });
+                const trabalho = await conversor.iniciarNoPonto(escolhido.url, { id: `filme-${req.params.id}`, referer: escolhido.referer || '', etiqueta: escolhido.hash || '', inicio: inicioDoPedido(req), faixa: escolhido.faixa || null, quatroK: Boolean(escolhido.quatroK), novo: req.query.novo === '1' });
                 return res.json({
                     url: `/api/convertido/${trabalho.id}/index.m3u8`,
                     audio: escolhido.audio || 'pt-BR',
@@ -414,7 +413,7 @@ app.get('/api/playback/serie/:id/:season/:episode', async (req, res) => {
         if (escolhido.converter) {
             const conversor = require('../conversor');
             // `id` estável por episódio: reaproveita a conversão já feita.
-            const trabalho = await conversor.iniciarNoPonto(escolhido.url, { id: `serie-${id}-T${season}E${episode}`, referer: escolhido.referer || '', inicio: inicioDoPedido(req), faixa: escolhido.faixa || null, quatroK: Boolean(escolhido.quatroK), novo: req.query.novo === '1' });
+            const trabalho = await conversor.iniciarNoPonto(escolhido.url, { id: `serie-${id}-T${season}E${episode}`, referer: escolhido.referer || '', etiqueta: escolhido.hash || '', inicio: inicioDoPedido(req), faixa: escolhido.faixa || null, quatroK: Boolean(escolhido.quatroK), novo: req.query.novo === '1' });
             return res.json({
                 url: `/api/convertido/${trabalho.id}/index.m3u8`,
                 audio: escolhido.audio || 'pt-BR',
