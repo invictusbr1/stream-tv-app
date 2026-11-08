@@ -448,7 +448,7 @@ window.StreamPlayback = (() => {
             if(pontoSalvo>=60&&!(Number(data.inicio)>0)){
                 const noPonto=await lerJson(consulta+(consulta.includes('?')?'&':'?')+(compatTentada?'compat=avc&':'')+'inicio='+Math.floor(pontoSalvo),signal).catch(()=>null);
                 if(token!==generation||(signal&&signal.aborted)||version!==playerVersion)return false;
-                if(noPonto&&noPonto.conversao&&noPonto.audio==='pt-BR')data=noPonto;
+                if(noPonto&&noPonto.conversao&&(noPonto.audio==='pt-BR'||originalPermitido))data=noPonto;
             }
             deslocamento=Math.max(0,Number(data.inicio)||0);conversaoAtiva=true;
             if(Number(data.duracao)>0)duracaoTotal=Number(data.duracao);
@@ -461,7 +461,7 @@ window.StreamPlayback = (() => {
                 const ponto=Math.floor(Math.max(alvoNoFilme,deslocamento));
                 const nova=await lerJson(consulta+(consulta.includes('?')?'&':'?')+(compatTentada?'compat=avc&':'')+(ponto>=60?'inicio='+ponto+'&':'')+'novo=1',signal).catch(()=>null);
                 if(token!==generation||(signal&&signal.aborted)||version!==playerVersion)return false;
-                if(!(nova&&nova.conversao&&nova.audio==='pt-BR'))return false;
+                if(!(nova&&nova.conversao&&(nova.audio==='pt-BR'||originalPermitido)))return false;
                 data=nova;deslocamento=Math.max(0,Number(nova.inicio)||0);
                 if(Number(nova.duracao)>0)duracaoTotal=Number(nova.duracao);
                 pontoSalvo=Math.max(0,alvoNoFilme-deslocamento);
@@ -502,9 +502,12 @@ window.StreamPlayback = (() => {
                     if(estado&&estado.erro)return false;
                     if(estado&&estado.parado&&!estado.pronto&&!refez){if(await refazer())continue;}
                     if(estado&&Number(estado.duracao)>0)duracaoTotal=Number(estado.duracao);
-                    const pct=Math.max(0,Math.min(99,Number(estado&&estado.progresso)||0));
                     const vel=Number(estado&&estado.velocidade)||0;
-                    try{window.setLoading?.('Preparando em alta qualidade','Convertendo o áudio para português… '+pct+'%'+(vel?' · '+vel.toFixed(1)+'x':''));}catch(e){}
+                    // Porcentagem de "pronto para começar" (o servidor libera com
+                    // 12 s prontos, ou 60 s se a conversão for lenta), não do filme
+                    // inteiro — antes ficava parado em 1–3% e parecia travado.
+                    const pct=Math.max(0,Math.min(99,Math.round((Number(estado&&estado.segundos)||0)/(vel>=1.5?12:60)*100)));
+                    try{window.setLoading?.('Preparando em alta qualidade',(data.audio==='pt-BR'?'Convertendo o áudio para português… ':'Preparando o episódio legendado… ')+pct+'%'+(vel?' · '+vel.toFixed(1)+'x':''));}catch(e){}
                     if(estado&&estado.pronto)break;
                     // Consulta a cada 1 s: o filme começa assim que o trecho fica pronto.
                     await new Promise(r=>setTimeout(r,1000));

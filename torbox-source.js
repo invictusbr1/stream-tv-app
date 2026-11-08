@@ -448,6 +448,8 @@ function legendaPortuguesa(legendas) {
     // Português do Brasil antes de Portugal; legenda completa antes de "sinais".
     return todas.sort((a, b) => (/brazil|brasil|pt-?br/i.test(b.titulo) - /brazil|brasil|pt-?br/i.test(a.titulo)) || (/sign|song|placa/i.test(a.titulo) - /sign|song|placa/i.test(b.titulo)))[0] || null;
 }
+const ANIME_GB_LEVE = 2.5;   // GB por episódio
+const ANIME_MBPS_MAX = 14;   // taxa máxima preferida (Mbps)
 async function resolverAnimeLegendado(tmdbId, temporada, episodio, { hevcOk = false } = {}) {
     const chave = lerChave();
     const id = String(tmdbId || '').trim();
@@ -469,7 +471,12 @@ async function resolverAnimeLegendado(tmdbId, temporada, episodio, { hevcOk = fa
             .map(st => ({ st, r: rotuloDe(st) }))
             .map(x => ({ ...x, q: qualidade(x.r), hevc: ehHevc(x.r), dica: DICA_LEGENDA.test(x.r) }))
             .filter(x => (x.q === '1080p' || x.q === '720p') && (hevcOk || !x.hevc))
-            .sort((a, b) => (b.dica - a.dica) || ((b.q === '1080p') - (a.q === '1080p')) || (a.hevc - b.hevc) || (tamanhoGB(b.r) - tamanhoGB(a.r)))
+            .map(x => ({ ...x, gb: tamanhoGB(x.r) }))
+            // Arquivo LEVE primeiro (08/11/2026): o remux de 5–6 GB por episódio
+            // (~30 Mbps) convertia a 1,2x e não chegava no celular. Até 2,5 GB
+            // por episódio é Full HD de sobra e flui pela rede de casa e móvel.
+            .map(x => ({ ...x, leve: x.gb > 0 && x.gb <= ANIME_GB_LEVE ? 1 : x.gb === 0 ? 0.5 : 0 }))
+            .sort((a, b) => (b.dica - a.dica) || (b.leve - a.leve) || ((b.q === '1080p') - (a.q === '1080p')) || (a.hevc - b.hevc) || (a.leve ? b.gb - a.gb : a.gb - b.gb))
             .slice(0, 3);
         if (!candidatos.length) { const v = []; v.semCandidatos = true; return v; }
         // Os 3 melhores conferidos AO MESMO TEMPO (não segura o anime quando
@@ -488,7 +495,10 @@ async function resolverAnimeLegendado(tmdbId, temporada, episodio, { hevcOk = fa
             const img = info.imagem || {};
             if (!hevcOk && /^(hevc|h265)$/.test(String(img.codec || ''))) return null;
             const audio = info.faixas.find(f => /^(jpn|ja)$/.test(f.idioma)) || info.faixas.find(f => f.padrao) || info.faixas[0];
+            const duracao = Number(info.duracao) || 0;
+            const mbps = duracao > 0 && Number(arquivo.size) > 0 ? Math.round(Number(arquivo.size) * 8 / duracao / 1e5) / 10 : 0;
             return {
+                mbps,
                 url, audio: 'original', fonte: `TorBox · legendado ${q}`, fonteId: 'torbox-legendado', resolucao: q,
                 type: 'convertido', final: false, segredo: true, converter: true, efemera: true, anime: true,
                 legendaPortugues: true, legendaEmbutida: true,
@@ -497,7 +507,10 @@ async function resolverAnimeLegendado(tmdbId, temporada, episodio, { hevcOk = fa
             };
         };
         const achados = await Promise.all(candidatos.map(c => conferir(c).catch(() => null)));
-        const bom = achados.find(Boolean);
+        // Vale o primeiro da ordem com taxa que a rede aguenta; se todos forem
+        // pesados, o mais leve deles.
+        const validos = achados.filter(Boolean);
+        const bom = validos.find(x => !x.mbps || x.mbps <= ANIME_MBPS_MAX) || validos.sort((a, b) => a.mbps - b.mbps)[0];
         return bom ? [bom] : [];
     })().catch(() => []);
     emAndamento.set(marca, trabalho);
