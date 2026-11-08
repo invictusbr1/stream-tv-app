@@ -496,6 +496,7 @@ window.StreamPlayback = (() => {
                         if(await refazer()){ultimoSeg=-1;paradoDesde=Date.now();continue;}
                     }
                     if(!atual||atual.erro||atual.convertido||Number(atual.segundos)>=pontoSalvo+10)break;
+                    if(ultimoSeg<=0&&tentativa>=13)break; // nada chegou em ~25 s: troca de fonte
                     const pct=Math.max(0,Math.min(99,Math.round(Number(atual.segundos||0)/(pontoSalvo+10)*100)));
                     try{window.setLoading?.('Voltando de onde você parou','Preparando em alta qualidade… '+pct+'%');}catch(e){}
                     await new Promise(r=>setTimeout(r,2000));
@@ -509,10 +510,14 @@ window.StreamPlayback = (() => {
                 // Daqui em diante é uma retomada: o player começa no ponto salvo.
                 retomadaAlvo=pontoSalvo;
             }else{
+                const comecouEm=Date.now();
                 for(let tentativa=0;tentativa<1800;tentativa++){
                     if(version!==playerVersion||(signal&&signal.aborted))return false;
                     const estado=await lerJson('/api/conversao/'+encodeURIComponent(data.conversao),signal).catch(()=>null);
-                    if(estado&&estado.erro)return false;
+                    if(estado&&estado.erro){fonteIdUsada=String(data.fonteId||'');fonteUsada=String(data.source||'');analiseAtual?.falha('a conversão falhou: '+String(estado.erro).slice(0,80),0);return false;}
+                    // Nada chegou em 25 s (já contando a nova tentativa): a fonte
+                    // não entrega — passa para a próxima em vez de esperar o limite.
+                    if(estado&&!estado.pronto&&!(Number(estado.segundos)>0)&&Date.now()-comecouEm>25000){fonteIdUsada=String(data.fonteId||'');fonteUsada=String(data.source||'');analiseAtual?.falha('a fonte não começou a entregar o vídeo',0);return false;}
                     if(estado&&estado.parado&&!estado.pronto&&!refez){if(await refazer())continue;}
                     if(estado&&Number(estado.duracao)>0)duracaoTotal=Number(estado.duracao);
                     const vel=Number(estado&&estado.velocidade)||0;

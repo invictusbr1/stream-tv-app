@@ -166,6 +166,9 @@ function podeReceber4k(req) {
 }
 async function motorTorbox(req, alvo, exceto, idBase = '') {
     if ((exceto || []).includes('torbox')) return null;
+    // Arquivo da TorBox que não entregou nada há pouco (o vigia do conversor
+    // desistiu): nas próximas 2 h vai direto para as outras fontes.
+    try { if (idBase && require('../conversor').falhouSemDados(idBase)) return null; } catch { /* segue */ }
     let tb;
     try { tb = require('../torbox-source'); if (!tb.ativa()) return null; } catch { return null; }
     const quer4k = podeReceber4k(req), pc = paraPlayerDoPc(req);

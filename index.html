@@ -619,6 +619,8 @@ html:not(.modo-tv) .brand{font-size:18px;letter-spacing:3px}
 <button class="primary" id="direct-resume" hidden onclick="StreamPlayback.play()">▶ Reproduzir</button><div id="loading" role="status" aria-live="polite"><div id="sala-espera" hidden aria-hidden="true"><img id="sala-fundo" alt=""><div class="sala-sombra"></div><div class="sala-info"><img id="sala-logo" alt="" hidden><p id="sala-titulo"></p><p id="sala-meta"></p><p id="sala-sinopse"></p></div></div><div class="spinner loading-mark" aria-hidden="true"><svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg"><g fill="#fff3d5"><path class="popcorn-kernel" d="M15 28c-5 0-7-6-3-9-2-5 4-8 7-5 4-3 9 1 7 5 4 4 0 9-4 8-2 3-5 3-7 1Z"/><path class="popcorn-kernel" d="M28 22c-5-1-6-7-2-9-1-5 5-7 8-4 5-2 9 3 6 7 3 4-1 8-5 7-3 2-6 2-7-1Z"/><path class="popcorn-kernel" d="M41 29c-5-1-6-7-2-10-1-4 5-7 8-3 4-2 8 2 6 6 4 4 0 9-4 8-3 2-6 1-8-1Z"/></g><path d="M13 30h38l-5 27a4 4 0 0 1-4 3H22a4 4 0 0 1-4-3Z" fill="#e50924"/><path d="m21 32 3 26h6l-1-26Zm14 0-1 26h6l3-26Z" fill="#fff3d5"/><path d="M13 30h38" stroke="#fff3d5" stroke-width="3" stroke-linecap="round"/></svg></div><div id="load-msg"></div><div id="load-sub"></div><div id="acoes-erro" hidden><button class="primary" onclick="tentarNovamente()">Tentar novamente</button><button class="quiet" onclick="abrirOpcoes()">Ver opções</button><button class="quiet" onclick="abrirFeedback('Não abre')">Avisar o problema</button></div></div></div>
 <div class="scrim" id="opcoes" hidden onclick="if(event.target===this) fecharOpcoes()"><aside class="options" role="dialog" aria-modal="true" aria-labelledby="options-title"><div class="options-head"><h2 id="options-title">Fontes e ajustes</h2><button class="icon-btn" id="options-close" onclick="fecharOpcoes()" aria-label="Fechar">×</button></div><div class="options-settings"><button id="menu-quality-btn" class="ctl" onclick="fecharOpcoes(false);abrirMenuPlayer('menu-qualidade')" aria-label="Qualidade do vídeo">Qualidade</button><button id="menu-subs-btn" class="ctl" onclick="fecharOpcoes(false);abrirMenuPlayer('menu-legendas')" aria-label="Legendas">Legendas</button><button id="menu-audio-btn" class="ctl" onclick="fecharOpcoes(false);abrirMenuPlayer('menu-audio')" aria-label="Faixa de áudio">Áudio</button><button id="menu-speed-btn" class="ctl" onclick="fecharOpcoes(false);abrirMenuPlayer('menu-velocidade')" aria-label="Velocidade de reprodução">Velocidade</button><button id="fullscreen-toggle" class="ctl" onclick="fecharOpcoes(false);telaCheia()" aria-label="Tela cheia">Tela cheia</button></div><details id="intro-settings" hidden><summary>Abertura deste episódio</summary><p class="options-status">Marque o início e o fim. Vale só neste aparelho, episódio e versão do vídeo.</p><div class="intro-fields"><label>Início<input id="intro-start" inputmode="numeric" placeholder="0:00" maxlength="8" aria-label="Início da abertura"></label><button class="quiet" type="button" onclick="StreamIntro.here('start')">Início aqui</button><label>Fim<input id="intro-end" inputmode="numeric" placeholder="1:30" maxlength="8" aria-label="Fim da abertura"></label><button class="quiet" type="button" onclick="StreamIntro.here('end')">Fim aqui</button></div><div class="intro-actions"><button class="quiet" type="button" onclick="StreamIntro.save()">Salvar</button><button class="quiet" type="button" onclick="StreamIntro.remove()">Remover</button></div><p id="intro-note" class="options-status" role="status"></p></details><details id="credits-settings" hidden><summary>Créditos deste episódio</summary><p class="options-status">A contagem começa na marcação dos créditos. Você pode ajustar o ponto para este episódio e esta versão do vídeo.</p><div class="intro-fields"><label>Início dos créditos<input id="credits-start" inputmode="numeric" placeholder="40:00" maxlength="8" aria-label="Início dos créditos"></label><button class="quiet" type="button" onclick="StreamCredits.here()">Marcar aqui</button></div><div class="intro-actions"><button class="quiet" type="button" onclick="StreamCredits.save()">Salvar</button><button class="quiet" type="button" onclick="StreamCredits.remove()">Remover</button></div><label class="credits-fallback">Sem marcação<select id="credits-fallback" aria-label="Próximo episódio sem marcação de créditos" onchange="StreamCredits.setApproximate(this.value==='90')"><option value="0">Aguardar fim do vídeo</option><option value="90">Antecipar 90 segundos</option></select></label><p id="credits-estimate" class="options-status" hidden>Tempo aproximado: pode incluir cenas finais. Você pode cancelar a contagem para continuar assistindo.</p><p id="credits-note" class="options-status" role="status"></p></details><div class="anime-audio-options"><div class="options-label">Idioma do anime</div><button id="menu-anime-btn" class="ctl" hidden onclick="selecionarAudioAnime('legendado')" aria-label="Assistir anime legendado">Legendado</button><button id="menu-dub-btn" class="ctl" hidden onclick="trocarFonteDublada()" aria-label="Assistir dublado">Dublado</button></div><button id="source-help" class="ctl" onclick="proximaFonte()" aria-label="Tentar outra fonte" hidden>Tentar outra fonte</button><p id="options-status" class="options-status"></p><div class="options-label">Fontes</div><div id="fontes"></div><button class="quiet retry" id="proxima" onclick="proximaFonte()">Tentar a próxima automaticamente</button><p class="regras-fontes">Só entram fontes dubladas, sem anúncio e em HD. Quando o título não tem dublagem em nenhuma fonte, o aplicativo abre a alta definição com legenda em português — e avisa na tela.</p></aside></div></section></section>
 <script>
+// Uma leitura só do config.json para todos os módulos (antes eram até 6).
+window.configConecta=window.configConecta||(()=>{let p=null;return ()=>(p||(p=fetch('/config.json',{cache:'no-store'}).then(r=>r.ok?r.json():{}).catch(()=>({})).then(c=>{if(!c||!Object.keys(c).length)p=null;return c||{};}))).then(c=>({...c}));})();
 const API = '/api';
 let players=[],playerRequest=null,playerTimer=null,playerVersion=0,fonteAtual=-1,filmeAtual=null,ultimoFoco=null,fontesParaPular=[];
 let tentadas=new Set(),searchVersion=0,rankRequest=null;
@@ -824,7 +826,7 @@ async function fichasParaNavegador(){
 const imdbDoNavegador=new Map();
 async function imdbParaNavegador(tipo,id){
  const chave=tipo+':'+id;if(imdbDoNavegador.has(chave))return imdbDoNavegador.get(chave);
- const cfg=await fetch('/config.json').then(r=>r.json()).catch(()=>({}));if(!cfg.tmdbKey)return '';
+ const cfg=await (window.configConecta?window.configConecta():fetch('/config.json',{cache:'no-store'}).then(r=>r.ok?r.json():{}).catch(()=>({})));if(!cfg.tmdbKey)return '';
  const d=await fetch(`https://api.themoviedb.org/3/${tipo==='tv'?'tv':'movie'}/${encodeURIComponent(id)}/external_ids?api_key=${encodeURIComponent(cfg.tmdbKey)}`).then(r=>r.ok?r.json():{}).catch(()=>({}));
  const imdb=/^tt\d{5,10}$/.test(String(d.imdb_id||''))?d.imdb_id:'';if(imdb)imdbDoNavegador.set(chave,imdb);return imdb;
 }
@@ -911,7 +913,7 @@ async function abrirPlayer(id,titulo,episode=null,retomada=null){
  if(!retomada&&contextoReproducao)contextoReproducao.ativo=false;
  playerRequest?.abort();pararFrame(true);
  const version=++playerVersion,req=new AbortController();playerRequest=req;
- const timer=setTimeout(()=>{if(version===playerVersion&&contextoReproducao?.ativo){contextoReproducao.sessao?.falha('tempo limite ao procurar outra opção',contextoReproducao.posicao||0);req.abort();mostrarErro('A preparação demorou mais que o esperado.','Seu ponto foi preservado. Tente novamente em instantes.');}else req.abort();},65000);
+ const timer=setTimeout(()=>{if(version===playerVersion&&contextoReproducao?.ativo){contextoReproducao.sessao?.falha('tempo limite ao procurar outra opção',contextoReproducao.posicao||0);req.abort();mostrarErro('A preparação demorou mais que o esperado.','Seu ponto foi preservado. Tente novamente em instantes.');}else req.abort();},95000);
  if(!retomada)ultimoFoco=document.activeElement;
  filmeAtual={id,titulo,episode};
  const contexto=retomada?retomada.contexto:criarContextoReproducao(filmeAtual);
@@ -1237,7 +1239,7 @@ async function lerManifesto(){
     }
     (async()=>{
         try{
-            const config=await fetch('/config.json',{cache:'no-store'}).then(r=>r.ok?r.json():{}).catch(()=>({}));
+            const config=await (window.configConecta?window.configConecta():fetch('/config.json',{cache:'no-store'}).then(r=>r.ok?r.json():{}).catch(()=>({})));
             const instalada=String(config.versionName||'');
             const feed=await lerManifesto();
             const publicada=feed?String(feed.versionName||''):'';
@@ -1615,6 +1617,77 @@ html.modo-tv #anime-pagina .ap-hero h1{font-size:48px}
  }
  botao.addEventListener('click',abrir);
  window.StreamTela={abrir,enviar,enviarDlna};
+})();
+</script>
+<style id="espera-estilo">
+/* Companheiro da espera (08/11/2026): a primeira abertura de um título pode
+   levar ~1 minuto. Só texto e uma barrinha — nada de vídeo, nada pesado. */
+#espera-extra{display:none;margin-top:14px;max-width:560px;text-align:left}
+#loading.vis:not(.erro) #espera-extra{display:block}
+#espera-barra{height:3px;border-radius:3px;background:#ffffff1f;overflow:hidden;margin-bottom:10px}
+#espera-barra i{display:block;height:100%;width:0;background:linear-gradient(90deg,#e50914,#ff6b6b);border-radius:3px;transition:width 1s linear}
+#espera-tempo{font-size:12px;color:#8d97a8;margin-bottom:8px}
+#espera-aviso{font-size:13px;line-height:1.5;color:#dfe5ee;background:#ffffff10;border:1px solid #ffffff1c;border-radius:10px;padding:10px 12px;margin-bottom:8px}
+#espera-aviso[hidden],#espera-fato[hidden]{display:none}
+#espera-fato{font-size:13px;line-height:1.5;color:#c3cad6;min-height:20px;animation:esperaFato .5s ease}
+#espera-fato b{color:#fff}
+@keyframes esperaFato{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+html.modo-tv #espera-extra{max-width:760px}html.modo-tv #espera-aviso,html.modo-tv #espera-fato{font-size:18px}html.modo-tv #espera-tempo{font-size:15px}
+@media(prefers-reduced-motion:reduce){#espera-fato{animation:none}#espera-barra i{transition:none}}
+</style>
+<script id="espera-script">
+(()=>{
+ 'use strict';
+ const box=document.getElementById('loading');if(!box)return;
+ const extra=document.createElement('div');extra.id='espera-extra';
+ extra.innerHTML='<div id="espera-barra" aria-hidden="true"><i></i></div><div id="espera-tempo"></div><div id="espera-aviso" hidden></div><div id="espera-fato" hidden></div>';
+ (document.getElementById('acoes-erro')||null)?box.insertBefore(extra,document.getElementById('acoes-erro')):box.append(extra);
+ const barra=extra.querySelector('#espera-barra i'),tempo=extra.querySelector('#espera-tempo'),aviso=extra.querySelector('#espera-aviso'),fato=extra.querySelector('#espera-fato');
+ let inicio=0,relogio=null,fatos=[],n=0,chave='';
+ const abertos=(()=>{try{return new Set(JSON.parse(localStorage.getItem('streamtv-ja-abertos')||'[]'));}catch{return new Set();}})();
+ function lembrarAberto(k){try{abertos.add(k);localStorage.setItem('streamtv-ja-abertos',JSON.stringify([...abertos].slice(-400)));}catch{}}
+ const atual=()=>{try{return typeof filmeAtual!=='undefined'?filmeAtual:null;}catch{return null;}};
+ const chaveDe=f=>f?(f.episode?'tv:'+f.id+':'+f.episode.season+':'+f.episode.number:'movie:'+f.id):'';
+ async function carregarFatos(f){
+  fatos=[];n=0;
+  if(!f||!/^\d{1,10}$/.test(String(f.id)))return;
+  try{
+   const d=await fetch('/api/ficha/'+(f.episode?'tv':'movie')+'/'+f.id,{cache:'force-cache'}).then(r=>r.ok?r.json():null);
+   if(!d||chaveDe(atual())!==chave)return;
+   const lista=[];
+   if(d.frase)lista.push('“'+d.frase+'”');
+   if(d.direcao&&d.direcao.length)lista.push('<b>'+(f.episode?'Criação':'Direção')+':</b> '+d.direcao.join(', '));
+   if(d.elenco&&d.elenco.length)lista.push('<b>No elenco:</b> '+d.elenco.slice(0,3).map(p=>p.nome+(p.personagem?' ('+p.personagem+')':'')).join(', '));
+   if(d.nota)lista.push('<b>Nota do público:</b> ★ '+d.nota+' de 10, com '+Number(d.votos||0).toLocaleString('pt-BR')+' votos');
+   if(d.estreia)lista.push('<b>Estreia:</b> '+d.estreia.split('-').reverse().join('/'));
+   if(f.episode&&d.temporadas)lista.push('<b>A série tem</b> '+d.temporadas+' temporada'+(d.temporadas>1?'s':'')+(d.episodios?' e '+d.episodios+' episódios':''));
+   if(!f.episode&&d.duracao)lista.push('<b>Duração:</b> '+Math.floor(d.duracao/60)+'h'+String(d.duracao%60).padStart(2,'0'));
+   if(d.colecao)lista.push('<b>Faz parte de:</b> '+d.colecao);
+   if(d.criticas&&d.criticas[0]&&!d.criticas[0].ingles)lista.push('<b>A crítica:</b> “'+d.criticas[0].texto.slice(0,140)+'…”');
+   const esc=s=>String(s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+   fatos=lista.map(t=>t.replace(/<b>(.*?)<\/b>/g,'\u0001$1\u0002')).map(t=>esc(t).replace(/\u0001/g,'<b>').replace(/\u0002/g,'</b>'));
+  }catch{fatos=[];}
+ }
+ function tique(){
+  const s=Math.floor((Date.now()-inicio)/1000);
+  // Barra que anda rápido no começo e devagar depois (sem prometer tempo exato).
+  barra.style.width=Math.min(95,Math.round(100*(1-Math.exp(-s/22))))+'%';
+  tempo.textContent=s>=3?'Preparando há '+s+' s':'';
+  const primeira=!abertos.has(chave);
+  if(s>=6&&aviso.hidden){aviso.hidden=false;aviso.textContent=primeira?'🍿 Primeira vez deste vídeo por aqui? O servidor está buscando e preparando a melhor versão — pode levar até 1 minuto. Da próxima vez abre bem mais rápido.':'🍿 Preparando o vídeo em alta qualidade… só mais um pouquinho.';}
+  if(s===35)aviso.textContent='⏳ Esta fonte está demorando. Se ela não responder, o app troca sozinho para outra — não precisa fechar.';
+  if(s===70)aviso.textContent='🔄 Conferindo outra fonte para você. Quase lá!';
+  if(fatos.length&&s>=4&&(s-4)%7===0){fato.hidden=false;fato.innerHTML=fatos[n%fatos.length];n++;fato.style.animation='none';void fato.offsetWidth;fato.style.animation='';}
+ }
+ function comecar(){
+  const f=atual(),k=chaveDe(f);
+  if(relogio&&k===chave)return;
+  parar(false);chave=k;inicio=Date.now();aviso.hidden=true;fato.hidden=true;barra.style.width='0';
+  carregarFatos(f);relogio=setInterval(tique,1000);tique();
+ }
+ function parar(tocou){clearInterval(relogio);relogio=null;if(tocou&&chave)lembrarAberto(chave);}
+ // Liga quando a tela de carregamento aparece e desliga quando ela some.
+ new MutationObserver(()=>{const vis=box.classList.contains('vis')&&!box.classList.contains('erro');if(vis)comecar();else if(relogio)parar(!box.classList.contains('erro'));}).observe(box,{attributes:true,attributeFilter:['class']});
 })();
 </script>
 </body></html>

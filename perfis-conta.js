@@ -122,7 +122,7 @@
   // como alterados quando mudam desde o último envio.
   const nuvem = (() => {
     let config = null, emCurso = null, timer = null, ativa = false;
-    async function cfg() { return config || (config = await fetch('/config.json', { cache: 'no-store' }).then(r => r.ok ? r.json() : {}).catch(() => ({}))); }
+    async function cfg() { return config || (config = await (window.configConecta?window.configConecta():fetch('/config.json',{cache:'no-store'}).then(r=>r.ok?r.json():{}).catch(()=>({})))); }
     async function rest(caminho, opcoes = {}) {
       const c = await cfg();
       const token = window.StreamAuth?.getAccessToken?.();

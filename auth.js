@@ -3,7 +3,7 @@
   let configPromise;
 
   function loadConfig() {
-    return configPromise || (configPromise = fetch('/config.json', { cache: 'no-store' }).then(r => r.ok ? r.json() : {}).catch(() => ({})));
+    return configPromise || (configPromise = (window.configConecta?window.configConecta():fetch('/config.json',{cache:'no-store'}).then(r=>r.ok?r.json():{}).catch(()=>({}))));
   }
 
   function readSession() {

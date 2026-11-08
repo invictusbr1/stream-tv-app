@@ -40,7 +40,7 @@
     async function lerConfig() {
         if (cacheConfig) return cacheConfig;
         try {
-            const config = await fetch('/config.json', { cache: 'no-store' }).then(r => (r.ok ? r.json() : {})).catch(() => ({}));
+            const config = await (window.configConecta?window.configConecta():fetch('/config.json',{cache:'no-store'}).then(r=>r.ok?r.json():{}).catch(()=>({})));
             cacheConfig = config || {};
         } catch { cacheConfig = {}; }
         return cacheConfig;

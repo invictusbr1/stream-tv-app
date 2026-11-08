@@ -31,6 +31,8 @@ const PRONTO_PARA_TOCAR = 0.03;            // 3% já dá para começar
 const MINIMO_TOCAVEL = 12;                 // ou 12 segundos de vídeo (3 pedaços de 4 s)
 
 const trabalhos = new Map();
+const semDados = new Map(); // lastro → quando a fonte não entregou nada
+function falhouSemDados(lastro) { const em = semDados.get(String(lastro || '')); return Boolean(em && Date.now() - em < 2 * 60 * 60 * 1000); }
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36';
 
 function inspecionarDisco(pasta) {
@@ -285,6 +287,18 @@ async function iniciar(url, { titulo = '', referer = '', id = '', inicio = 0, fa
     try {
         const processo = spawn(binario, argumentos, { windowsHide: true });
         registro.processo = processo;
+        // Fonte que não entrega NADA (08/11/2026, Off Campus T1E1: TorBox dizia
+        // "pronto", o ffmpeg ficou em 0 s para sempre e o app esperava até o
+        // tempo limite). Sem nenhum segundo convertido em 45 s, desiste com
+        // erro — o player passa para a próxima fonte em vez de esperar.
+        const vigia = setTimeout(() => {
+            if (!registro.terminou && !(registro.segundos > 0)) {
+                registro.erro = 'a fonte não entregou o vídeo (nada chegou em 45 s)';
+                semDados.set(String(lastro).replace(/^ini\d+-/, ''), Date.now());
+                try { processo.kill('SIGKILL'); } catch { /* já saiu */ }
+            }
+        }, 45000);
+        if (vigia.unref) vigia.unref();
         let ultimoErro = '';
         processo.stderr.on('data', (pedaco) => {
             const texto = String(pedaco);
@@ -306,9 +320,11 @@ async function iniciar(url, { titulo = '', referer = '', id = '', inicio = 0, fa
             if (/error|Invalid data|Server returned/i.test(texto)) ultimoErro = require('./cofre-links.cjs').semSegredo(texto.trim()).slice(-120);
         });
         processo.on('exit', (codigo) => {
+            clearTimeout(vigia);
             registro.terminou = true;
             registro.emUso = false;
             if (codigo === 0) { registro.pronto = true; registro.progresso = 100; }
+            else if (registro.erro) { /* o vigia já explicou */ }
             else if (!registro.pronto && !fs.existsSync(arquivo)) registro.erro = ultimoErro || 'não consegui converter o arquivo';
             else registro.pronto = true; // parou no meio, mas o trecho já serve
         });
@@ -447,4 +463,4 @@ function encerrarTudo() {
 }
 
 module.exports = {
-    ajustarSrt, pode4k, arrumarDisco, iniciar, iniciarNoPonto, estado, arquivoDe, caminhoDoPedaço, resumo, encerrarTudo, PASTA, identificar };
+    falhouSemDados, ajustarSrt, pode4k, arrumarDisco, iniciar, iniciarNoPonto, estado, arquivoDe, caminhoDoPedaço, resumo, encerrarTudo, PASTA, identificar };

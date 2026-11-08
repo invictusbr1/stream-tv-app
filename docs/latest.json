@@ -1,14 +1,14 @@
 {
-    "versionCode":  482,
-    "versionName":  "2.13.153",
-    "apkUrl":  "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.153/Conecta-TV-Android-2.13.153.apk",
-    "sha256":  "ce8c68cb6d277e1e151827936b9fd7424c5a9e04fc2b7c9a586257dac664293b",
-    "bytes":  585686,
-    "notes":  "Novo: Assistir na TV (manda o video do celular para a TV com o Conecta TV aberto) e Espelhar a tela; anime legendado nao falha mais na primeira busca.",
+    "versionCode":  483,
+    "versionName":  "2.13.154",
+    "apkUrl":  "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.154/Conecta-TV-Android-2.13.154.apk",
+    "sha256":  "50cd59b5a6bce05a7fb375985df5bfda42bbc2d25b4cd4a9370299937c177311",
+    "bytes":  671043,
+    "notes":  "Novo: mandar o video para a TV pelo Wi-Fi sem app na TV (DLNA: Samsung, LG e outras), com controle de pausar e parar.",
     "exeUrl":  "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.117/Conecta.TV.exe",
     "exeSha256":  "9f1cbee5931e53e469dd488a7b3bfbfca9dd8077681a87ded02bad70ab657f7d",
     "exeBytes":  120134995,
-    "apkTvUrl":  "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.153/Conecta-TV-TV-2.13.153.apk",
-    "apkTvSha256":  "abc12b6d9a88d3d1326fc79f53fab53a9c12b24012cb83c9682473fb5843af00",
-    "apkTvBytes":  585333
+    "apkTvUrl":  "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.154/Conecta-TV-TV-2.13.154.apk",
+    "apkTvSha256":  "f686679a82e17c0413457381461ba2a6eb8bfb0a67b80351327fe7b02e755d83",
+    "apkTvBytes":  670732
 }

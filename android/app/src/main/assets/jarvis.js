@@ -65,7 +65,7 @@
   }
 
   function loadConfig() {
-    if (!configPromise) configPromise = fetch('/config.json', { cache: 'no-store' }).then(r => (r.ok ? r.json() : {})).catch(() => ({}));
+    if (!configPromise) configPromise = (window.configConecta?window.configConecta():fetch('/config.json',{cache:'no-store'}).then(r=>r.ok?r.json():{}).catch(()=>({})));
     return configPromise;
   }
 
