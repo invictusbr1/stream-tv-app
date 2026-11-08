@@ -28,8 +28,18 @@
     const exceto=(Array.isArray(opcoes.exceto)?opcoes.exceto:[]).filter(x=>/^[\w.-]{1,60}$/.test(String(x)));
     const params=[semHevc?'codec=avc':'',exceto.length?'exceto='+encodeURIComponent(exceto.join(',')):''].filter(Boolean);
     const caminho='/api/playback/anime-legendado/'+Number(opcoes.id)+'/'+Number(opcoes.episode.season)+'/'+Number(opcoes.episode.number)+(params.length?'?'+params.join('&'):'');
+    // Primeiro pergunta se o episódio legendado existe (a 1ª busca pode
+    // levar mais de 20 s); só pede o vídeo quando ele está pronto.
+    let preparo=null;
+    for(let volta=0;volta<2;volta++){
+     try{preparo=await opcoes.request(caminho+(caminho.includes('?')?'&':'?')+'preparar=1',opcoes.signal);}catch{preparo=null;}
+     if(!valido())return false;
+     if(!preparo||!preparo.procurando)break;
+     try{host.setLoading?.('Procurando o episódio legendado','Conferindo as fontes de anime… isso pode levar alguns segundos.');}catch{}
+    }
     let tocou=false;
-    try{tocou=await host.StreamPlayback.start(opcoes.id,opcoes.version,opcoes.signal,caminho,undefined,true,null,opcoes.playbackOptions);}catch{tocou=false;}
+    if(preparo&&(preparo.indisponivel||preparo.procurando))tocou=false;
+    else try{tocou=await host.StreamPlayback.start(opcoes.id,opcoes.version,opcoes.signal,caminho,undefined,true,null,opcoes.playbackOptions);}catch{tocou=false;}
     if(!valido())return false;
     if(tocou){opcoes.onLoad?.({audio:'Legendado',legendaEmbutida:true,fonte:'TorBox · legendado',fonteId:'torbox-legendado'});return true;}
    }

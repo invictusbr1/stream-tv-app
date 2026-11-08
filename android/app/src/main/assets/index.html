@@ -751,8 +751,8 @@ html.web-redesign{--bg:#080b12;--panel:#151b28;--accent:#ee4055}
 
 <button class="primary" id="direct-resume" hidden onclick="StreamPlayback.play()">▶ Reproduzir</button><div id="loading" role="status" aria-live="polite"><div id="sala-espera" hidden aria-hidden="true"><img id="sala-fundo" alt=""><div class="sala-sombra"></div><div class="sala-info"><img id="sala-logo" alt="" hidden><p id="sala-titulo"></p><p id="sala-meta"></p><p id="sala-sinopse"></p></div></div><div class="spinner loading-mark" aria-hidden="true"><svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg"><g fill="#fff3d5"><path class="popcorn-kernel" d="M15 28c-5 0-7-6-3-9-2-5 4-8 7-5 4-3 9 1 7 5 4 4 0 9-4 8-2 3-5 3-7 1Z"/><path class="popcorn-kernel" d="M28 22c-5-1-6-7-2-9-1-5 5-7 8-4 5-2 9 3 6 7 3 4-1 8-5 7-3 2-6 2-7-1Z"/><path class="popcorn-kernel" d="M41 29c-5-1-6-7-2-10-1-4 5-7 8-3 4-2 8 2 6 6 4 4 0 9-4 8-3 2-6 1-8-1Z"/></g><path d="M13 30h38l-5 27a4 4 0 0 1-4 3H22a4 4 0 0 1-4-3Z" fill="#e50924"/><path d="m21 32 3 26h6l-1-26Zm14 0-1 26h6l3-26Z" fill="#fff3d5"/><path d="M13 30h38" stroke="#fff3d5" stroke-width="3" stroke-linecap="round"/></svg></div><div id="load-msg"></div><div id="load-sub"></div><div id="acoes-erro" hidden><button class="primary" onclick="tentarNovamente()">Tentar novamente</button><button class="quiet" onclick="abrirOpcoes()">Ver opções</button><button class="quiet" onclick="abrirFeedback('Não abre')">Avisar o problema</button></div></div></div>
 <div class="scrim" id="opcoes" hidden onclick="if(event.target===this) fecharOpcoes()"><aside class="options" role="dialog" aria-modal="true" aria-labelledby="options-title"><div class="options-head"><h2 id="options-title">Fontes e ajustes</h2><button class="icon-btn" id="options-close" onclick="fecharOpcoes()" aria-label="Fechar">×</button></div><div class="options-settings"><button id="menu-quality-btn" class="ctl" onclick="fecharOpcoes(false);abrirMenuPlayer('menu-qualidade')" aria-label="Qualidade do vídeo">Qualidade</button><button id="menu-subs-btn" class="ctl" onclick="fecharOpcoes(false);abrirMenuPlayer('menu-legendas')" aria-label="Legendas">Legendas</button><button id="menu-audio-btn" class="ctl" onclick="fecharOpcoes(false);abrirMenuPlayer('menu-audio')" aria-label="Faixa de áudio">Áudio</button><button id="menu-speed-btn" class="ctl" onclick="fecharOpcoes(false);abrirMenuPlayer('menu-velocidade')" aria-label="Velocidade de reprodução">Velocidade</button><button id="fullscreen-toggle" class="ctl" onclick="fecharOpcoes(false);telaCheia()" aria-label="Tela cheia">Tela cheia</button></div><details id="intro-settings" hidden><summary>Abertura deste episódio</summary><p class="options-status">Marque o início e o fim. Vale só neste aparelho, episódio e versão do vídeo.</p><div class="intro-fields"><label>Início<input id="intro-start" inputmode="numeric" placeholder="0:00" maxlength="8" aria-label="Início da abertura"></label><button class="quiet" type="button" onclick="StreamIntro.here('start')">Início aqui</button><label>Fim<input id="intro-end" inputmode="numeric" placeholder="1:30" maxlength="8" aria-label="Fim da abertura"></label><button class="quiet" type="button" onclick="StreamIntro.here('end')">Fim aqui</button></div><div class="intro-actions"><button class="quiet" type="button" onclick="StreamIntro.save()">Salvar</button><button class="quiet" type="button" onclick="StreamIntro.remove()">Remover</button></div><p id="intro-note" class="options-status" role="status"></p></details><details id="credits-settings" hidden><summary>Créditos deste episódio</summary><p class="options-status">A contagem começa na marcação dos créditos. Você pode ajustar o ponto para este episódio e esta versão do vídeo.</p><div class="intro-fields"><label>Início dos créditos<input id="credits-start" inputmode="numeric" placeholder="40:00" maxlength="8" aria-label="Início dos créditos"></label><button class="quiet" type="button" onclick="StreamCredits.here()">Marcar aqui</button></div><div class="intro-actions"><button class="quiet" type="button" onclick="StreamCredits.save()">Salvar</button><button class="quiet" type="button" onclick="StreamCredits.remove()">Remover</button></div><label class="credits-fallback">Sem marcação<select id="credits-fallback" aria-label="Próximo episódio sem marcação de créditos" onchange="StreamCredits.setApproximate(this.value==='90')"><option value="0">Aguardar fim do vídeo</option><option value="90">Antecipar 90 segundos</option></select></label><p id="credits-estimate" class="options-status" hidden>Tempo aproximado: pode incluir cenas finais. Você pode cancelar a contagem para continuar assistindo.</p><p id="credits-note" class="options-status" role="status"></p></details><div class="anime-audio-options"><div class="options-label">Idioma do anime</div><button id="menu-anime-btn" class="ctl" hidden onclick="selecionarAudioAnime('legendado')" aria-label="Assistir anime legendado">Legendado</button><button id="menu-dub-btn" class="ctl" hidden onclick="trocarFonteDublada()" aria-label="Assistir dublado">Dublado</button></div><button id="source-help" class="ctl" onclick="proximaFonte()" aria-label="Tentar outra fonte" hidden>Tentar outra fonte</button><p id="options-status" class="options-status"></p><div class="options-label">Fontes</div><div id="fontes"></div><button class="quiet retry" id="proxima" onclick="proximaFonte()">Tentar a próxima automaticamente</button><p class="regras-fontes">Só entram fontes dubladas, sem anúncio e em HD. Quando o título não tem dublagem em nenhuma fonte, o aplicativo abre a alta definição com legenda em português — e avisa na tela.</p></aside></div></section></section>
-<script src="/listas-tv.js?v1794145224172"></script><script src="/catalog.js?v1794145224172"></script><script src="/android.js?v1794145224172"></script><script src="/quality-diagnostic.js?v1794145224172"></script>
-<script src="/vidsrc-source.js?v1794145224172"></script>
+<script src="/listas-tv.js?v1794154973818"></script><script src="/catalog.js?v1794154973818"></script><script src="/android.js?v1794154973818"></script><script src="/quality-diagnostic.js?v1794154973818"></script>
+<script src="/vidsrc-source.js?v1794154973818"></script>
 <script>
 const API = '/api';
 let players=[],playerRequest=null,playerTimer=null,playerVersion=0,fonteAtual=-1,filmeAtual=null,ultimoFoco=null,fontesParaPular=[];
@@ -1323,7 +1323,7 @@ async function alternarFullHd(){
 function fechar(){if(fonteAtual>=0&&players[fonteAtual])lembrarFonte(players[fonteAtual].nome);if(contextoReproducao){contextoReproducao.ativo=false;contextoReproducao.recuperando=false;}window.StreamExitFullscreen?.();++playerVersion;playerRequest?.abort();pararFrame(true);if(document.fullscreenElement)document.exitFullscreen().catch(()=>{});el('player').classList.remove('expanded');fecharOpcoes(false);el('player').classList.remove('ativo');el('player').classList.remove('dublado-pendente');el('loading').classList.remove('vis');el('abrir-externo')?.removeAttribute('href');players=[];fonteAtual=-1;document.body.style.overflow='';ultimoFoco?.focus();window.StreamPersonal?.render();}
 document.addEventListener('keydown',e=>{if(!el('player').classList.contains('ativo'))return;if(e.key==='Escape'){e.preventDefault();if(!el('opcoes').hidden)fecharOpcoes();else fechar();}if(e.key==='Tab'&&!el('opcoes').hidden){const nodes=[...el('opcoes').querySelectorAll('button:not(:disabled),select,a[href],summary')].filter(n=>n.getClientRects().length);const first=nodes[0],last=nodes[nodes.length-1];if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus();}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus();}}});
 carregarRankings();
-</script><script src="/hls.min.js?v1794145224172"></script><script src="/reproducao-sessao.js?v1794145224172"></script><script src="/anime-player.js?v1794145224172"></script><script src="/enquadramento.js?v1794145224172"></script><script src="/abertura.js?v1794145224172"></script><script src="/creditos.js?v1794145224172"></script><script src="/playback.js?v1794145224172"></script><script src="/library.js?v1794145224172"></script><script src="/personal.js?v1794145224172"></script><script src="/episodios.js?v1794145224172"></script><script src="/auth.js?v1794145224172"></script><script src="/avatares.js?v1794145224172"></script><script src="/perfis-conta.js?v1794145224172"></script><script src="/jarvis.js?v1794145224172"></script><script src="/acesso.js?v1794145224172"></script><script src="/avisos-servidor.js?v1794145224172"></script><script src="/legendas.js?v1794145224172"></script>
+</script><script src="/hls.min.js?v1794154973818"></script><script src="/reproducao-sessao.js?v1794154973818"></script><script src="/anime-player.js?v1794154973818"></script><script src="/enquadramento.js?v1794154973818"></script><script src="/abertura.js?v1794154973818"></script><script src="/creditos.js?v1794154973818"></script><script src="/playback.js?v1794154973818"></script><script src="/library.js?v1794154973818"></script><script src="/personal.js?v1794154973818"></script><script src="/episodios.js?v1794154973818"></script><script src="/auth.js?v1794154973818"></script><script src="/avatares.js?v1794154973818"></script><script src="/perfis-conta.js?v1794154973818"></script><script src="/jarvis.js?v1794154973818"></script><script src="/acesso.js?v1794154973818"></script><script src="/avisos-servidor.js?v1794154973818"></script><script src="/legendas.js?v1794154973818"></script>
 <div id="update-aviso" class="toast" hidden><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" style="fill:none;stroke:#ff5566;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round"><path d="M12 4v10"></path><path d="M8 10.5l4 4 4-4"></path><path d="M5 19h14"></path></svg><strong>Nova versão disponível</strong><span>Atualize sem perder o histórico.</span><a href="/check-updates">Atualizar</a><button class="fechar" aria-label="Fechar aviso" onclick="document.getElementById('update-aviso').hidden=true">×</button></div>
 <script>
 (function(){
@@ -1392,9 +1392,9 @@ async function lerManifesto(){
     })();
 })();
 </script>
-<script src="/futebol.js?v1794145224172"></script>
-<script src="/mininovelas-source.js?v1794145224172"></script>
-<script src="/mininovelas.js?v1794145224172"></script>
+<script src="/futebol.js?v1794154973818"></script>
+<script src="/mininovelas-source.js?v1794154973818"></script>
+<script src="/mininovelas.js?v1794154973818"></script>
 <style id="setas-fileiras">
 /* Setas nas fileiras de filmes para mouse (PC e navegador). No celular e na TV
    continuam o dedo e o controle remoto — as setas nem aparecem. */
@@ -1605,6 +1605,107 @@ async function lerManifesto(){
  // Busca e outros atalhos que mudam a tela também tiram a página de anime.
  document.addEventListener('submit',()=>sair(),true);
  window.StreamAnimePagina={abrir:abrirPagina,sair,_dados:()=>dados};
+})();
+</script>
+<style id="tela-estilo">
+/* Enviar para a TV (08/11/2026) */
+#tela-btn svg{width:22px;height:22px}
+#tela-folha{position:fixed;inset:0;z-index:2147483000;display:grid;place-items:end center;background:#000a}
+#tela-folha[hidden]{display:none}
+#tela-folha .tela-caixa{width:min(520px,100%);background:#121722;border:1px solid #ffffff1c;border-radius:18px 18px 0 0;padding:20px 18px calc(18px + env(safe-area-inset-bottom));color:#e8ecf3;max-height:80vh;overflow:auto}
+@media(min-width:700px){#tela-folha{place-items:center}#tela-folha .tela-caixa{border-radius:18px}}
+#tela-folha h2{margin:0 0 4px;font-size:19px}
+#tela-folha .tela-sub{margin:0 0 14px;color:#8d97a8;font-size:13px;line-height:1.5}
+#tela-folha .tela-lista{display:grid;gap:8px}
+#tela-folha .tela-item{display:flex;align-items:center;gap:12px;width:100%;text-align:left;padding:14px;border-radius:12px;background:#ffffff0d;border:1px solid #ffffff14;color:inherit;font:inherit;font-size:15px;cursor:pointer;text-decoration:none}
+#tela-folha .tela-item:hover,#tela-folha .tela-item:focus{background:#ffffff1f;outline:2px solid #fff3}
+#tela-folha .tela-item small{display:block;color:#8d97a8;font-size:12px;margin-top:2px}
+#tela-folha .tela-icone{font-size:24px;width:32px;text-align:center}
+#tela-folha .tela-vazio{color:#9ba6b8;font-size:14px;line-height:1.55;padding:6px 2px}
+#tela-folha .tela-rodape{display:flex;justify-content:flex-end;margin-top:14px}
+#tela-aviso{position:fixed;left:50%;bottom:calc(28px + env(safe-area-inset-bottom));transform:translateX(-50%);z-index:2147483001;background:#121722f2;border:1px solid #ffffff26;color:#fff;padding:12px 18px;border-radius:12px;font-size:15px;max-width:90vw;box-shadow:0 10px 30px #0008}
+#tela-aviso[hidden]{display:none}
+</style>
+<div id="tela-folha" hidden role="dialog" aria-modal="true" aria-labelledby="tela-titulo"><div class="tela-caixa"><h2 id="tela-titulo">📺 Assistir na TV</h2><p class="tela-sub">A TV precisa estar com o <b>Conecta TV aberto</b> (app no Mi Box/Android TV, ou o site no navegador da Samsung/LG). Ela continua do mesmo ponto, com a melhor qualidade que conseguir.</p><div class="tela-lista" id="tela-lista"></div><div class="tela-rodape"><button class="quiet" type="button" id="tela-fechar">Fechar</button></div></div></div>
+<div id="tela-aviso" hidden role="status" aria-live="polite"></div>
+<script id="tela-script">
+(()=>{
+ 'use strict';
+ const UA=navigator.userAgent||'';
+ const ehTv=document.documentElement.classList.contains('modo-tv')||/SMART-TV|Tizen|Web0S|webOS|NetCast|HbbTV|Android ?TV|AndroidTV|GoogleTV|BRAVIA|FireTV|AFT[A-Z]|StreamTVAndroidTV|Roku|VIDAA|Hisense/i.test(UA);
+ const appCelular=/StreamTVAndroid/.test(UA)&&!ehTv;
+ const $=id=>document.getElementById(id);
+ function meuId(){try{let id=localStorage.getItem('streamtv-dispositivo');if(!/^[a-z0-9]{6,32}$/.test(id||'')){id='d'+Math.random().toString(36).slice(2,10)+Date.now().toString(36).slice(-4);localStorage.setItem('streamtv-dispositivo',id);}return id;}catch{return '';}}
+ const tipoTv=/Tizen/i.test(UA)?'Samsung':/Web0S|webOS|NetCast/i.test(UA)?'LG':/StreamTVAndroidTV|Android ?TV|AndroidTV|GoogleTV|AFT/i.test(UA)?'Android TV':/Roku/i.test(UA)?'Roku':'TV';
+ const nomePadrao=tipoTv==='Android TV'?'TV (Mi Box / Android TV)':tipoTv==='TV'?'TV':'TV '+tipoTv;
+ let avisoTimer=null;
+ function aviso(t,ms=4500){const a=$('tela-aviso');if(!a)return;a.textContent=t;a.hidden=false;clearTimeout(avisoTimer);avisoTimer=setTimeout(()=>{a.hidden=true;},ms);}
+ // ---------------------------------------------------------------- TV (recebe)
+ if(ehTv){
+  let ocupado=false;
+  async function perguntar(){
+   if(ocupado||document.hidden)return;const eu=meuId();if(!eu)return;ocupado=true;
+   try{
+    const r=await fetch('/api/tela/receber?'+new URLSearchParams({eu,tipo:tipoTv,nome:nomePadrao}),{cache:'no-store'});
+    const d=r.ok?await r.json():null;const p=d&&d.pedido;
+    if(p&&/^\d{1,10}$/.test(String(p.id))){
+     const alvo={id:p.id,titulo:p.titulo||'',...(p.episode?{episode:p.episode}:{}),...(p.capa?{capa:p.capa}:{})};
+     try{if(p.posicao>=5)window.StreamPersonal?.save?.(alvo,p.posicao,null,true);}catch{}
+     aviso('📱 '+(p.de||'Celular')+' mandou: '+(p.titulo||'vídeo'));
+     try{window.StreamAnimePagina?.sair?.();}catch{}
+     window.abrirPlayer?.(p.id,p.titulo||'',p.episode||null);
+    }
+   }catch{}finally{ocupado=false;}
+  }
+  setInterval(perguntar,3000);setTimeout(perguntar,800);
+  document.addEventListener('visibilitychange',()=>{if(!document.hidden)perguntar();});
+  return;
+ }
+ // ------------------------------------------------------- celular/PC (manda)
+ const ferramentas=$('player-tools');if(!ferramentas)return;
+ const botao=document.createElement('button');botao.id='tela-btn';botao.className='ctl';botao.type='button';botao.setAttribute('aria-label','Assistir na TV');botao.title='Assistir na TV';
+ botao.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 17V6a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2h-6"/><path d="M3 20h.01M3 16a4 4 0 0 1 4 4M3 12a8 8 0 0 1 8 8"/></svg>';
+ ferramentas.insertBefore(botao,$('options-toggle')||null);
+ const folha=$('tela-folha'),lista=$('tela-lista');
+ function fechar(){folha.hidden=true;}
+ $('tela-fechar').onclick=fechar;folha.addEventListener('click',e=>{if(e.target===folha)fechar();});
+ document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!folha.hidden)fechar();});
+ function item(icone,titulo,sub,acao,href){const b=document.createElement(href?'a':'button');b.className='tela-item';if(href)b.href=href;else b.type='button';const i=document.createElement('span');i.className='tela-icone';i.textContent=icone;const t=document.createElement('span');t.textContent=titulo;const s=document.createElement('small');s.textContent=sub;t.append(s);b.append(i,t);if(acao)b.addEventListener('click',acao);return b;}
+ function oQueToca(){
+  const f=window.filmeAtual||(typeof filmeAtual!=='undefined'?filmeAtual:null);if(!f||!/^\d{1,10}$/.test(String(f.id)))return null;
+  const est=window.StreamPlayback?.estado?.()||{};let posicao=Number(est.posicao)||0;
+  if(!posicao){try{posicao=Number(window.StreamPersonal?.position?.(f))||0;}catch{}}
+  return {f,posicao};
+ }
+ async function enviar(tela){
+  const atual=oQueToca();if(!atual){aviso('Abra um filme ou episódio primeiro.');return;}
+  const {f,posicao}=atual,ep=f.episode;
+  const q=new URLSearchParams({para:tela.id,id:String(f.id),titulo:f.titulo||'',posicao:String(Math.floor(posicao)),tipo:ep?'tv':'movie'});
+  if(ep){q.set('temporada',String(ep.season));q.set('episodio',String(ep.number));if(ep.anime){q.set('anime','1');q.set('audio',ep.audio||'legendado');}}
+  lista.replaceChildren(Object.assign(document.createElement('p'),{className:'tela-vazio',textContent:'Mandando para '+tela.nome+'…'}));
+  try{
+   const r=await fetch('/api/tela/enviar?'+q,{cache:'no-store'});const d=await r.json().catch(()=>({}));
+   if(!r.ok||!d.ok){aviso(d.motivo||'A TV não respondeu. Confira se o Conecta TV está aberto nela.');fechar();return;}
+   try{window.StreamPlayback?.saveProgress?.();}catch{}
+   try{const v=$('direct-video');if(v&&!v.paused)v.pause();}catch{}
+   fechar();aviso('📺 Tocando em '+(d.nome||tela.nome)+'. A TV continua do mesmo ponto.',6000);
+  }catch{aviso('Sem conexão com o servidor agora.');fechar();}
+ }
+ async function abrir(){
+  folha.hidden=false;lista.replaceChildren(Object.assign(document.createElement('p'),{className:'tela-vazio',textContent:'Procurando as TVs da família…'}));
+  let telas=[];try{const r=await fetch('/api/tela/receptores?eu='+encodeURIComponent(meuId()),{cache:'no-store'});telas=r.ok?await r.json():[];}catch{telas=[];}
+  if(folha.hidden)return;lista.replaceChildren();
+  const icone=t=>/Samsung/.test(t.tipo)?'🖥️':/LG/.test(t.tipo)?'🖥️':/Android/.test(t.tipo)?'📦':'📺';
+  for(const t of (Array.isArray(telas)?telas:[]))lista.append(item(icone(t),t.nome,(t.tipo==='TV'?'TV':t.tipo)+' · Conecta TV aberto',()=>enviar(t)));
+  if(!telas.length)lista.append(Object.assign(document.createElement('p'),{className:'tela-vazio',textContent:'Nenhuma TV com o Conecta TV aberto agora. Abra o app na TV (ou o site no navegador dela) e toque de novo aqui.'}));
+  // Espelhar a tela inteira (Smart View, Screen Share, Chromecast): serve para
+  // qualquer TV que aceite espelhamento, mesmo sem o Conecta TV nela.
+  if(appCelular)lista.append(item('🪞','Espelhar a tela do celular','Smart View (Samsung), Screen Share (LG), Chromecast/Mi Box — abre o espelhamento do Android',null,'/espelhar-tela'));
+  else lista.append(Object.assign(document.createElement('p'),{className:'tela-vazio',textContent:'Dica: no Chrome do computador, menu ⋮ › Transmitir… espelha esta aba para Chromecast/Mi Box.'}));
+  lista.querySelector('button,a')?.focus();
+ }
+ botao.addEventListener('click',abrir);
+ window.StreamTela={abrir,enviar};
 })();
 </script>
 <script id="android-phone-details">/* Loaded only by the browser page adapter. */

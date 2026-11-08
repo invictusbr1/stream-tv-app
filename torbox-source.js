@@ -503,6 +503,8 @@ async function resolverAnimeLegendado(tmdbId, temporada, episodio, { hevcOk = fa
         const imdb = await require('./fenix-source').imdbDe(id, 'tv');
         if (!imdb) { const v = []; v.semCandidatos = true; return v; }
         const caminho = `series/${imdb}:${temporada}:${episodio}`;
+        // Lista de legendas online já em paralelo (o resultado fica guardado).
+        legendaOnlinePt(imdb, temporada, episodio, '').catch(() => null);
         // Anime: as listas de anime + as aprovadas pelo caçador (várias têm anime).
         const respostas = await Promise.all([...new Set([...listasAnime(), ...listas()])].map(base => pedir(`${base}/stream/${caminho}.json`, {}, 4000)));
         const streams = juntar(respostas.map(r => (r.json && Array.isArray(r.json.streams) ? r.json.streams : [])))

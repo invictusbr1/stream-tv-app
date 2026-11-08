@@ -462,11 +462,18 @@ app.get('/api/playback/anime-legendado/:id/:season/:episode', async (req, res) =
         try { tb = require('../torbox-source'); } catch { return res.json({ indisponivel: true }); }
         if (exceto.includes('torbox-legendado') || !tb.ativa()) return res.json({ indisponivel: true });
         const hevcOk = codecDoPedido(req) !== 'avc';
+        // A primeira busca de um episódio pode passar de 14 s (10 listas de
+        // anime + conferir o arquivo na TorBox + legenda). Antes ela perdia o
+        // prazo e o app dizia "não tem" — e na 2ª vez tocava (08/11/2026,
+        // Black Clover T2E2). Agora o app pergunta com ?preparar=1 (espera até
+        // 20 s, e repete) e só depois pede o vídeo, que já sai na hora.
+        const ESGOTOU = Symbol('esgotou');
         const achado = await Promise.race([
             tb.resolverAnimeLegendado(id, season, episode, { hevcOk }).catch(() => null),
-            new Promise(ok => setTimeout(() => ok(null), 14000)),
+            new Promise(ok => setTimeout(() => ok(ESGOTOU), req.query.preparar === '1' ? 20000 : 14000)),
         ]);
-        if (!achado) return res.json({ indisponivel: true });
+        if (req.query.preparar === '1') return res.json(achado === ESGOTOU ? { procurando: true } : achado ? { pronto: true, resolucao: achado.resolucao, legendaOnline: Boolean(achado.legendaExterna) } : { indisponivel: true });
+        if (!achado || achado === ESGOTOU) return res.json(achado === ESGOTOU ? { indisponivel: true, procurando: true } : { indisponivel: true });
         // O player do PC toca o arquivo original (legenda incluída) direto.
         if (paraPlayerDoPc(req) && !achado.legendaExterna) {
             const pronto = require('../fontes-motor').prepararParaPlayer({ ...achado, final: false });

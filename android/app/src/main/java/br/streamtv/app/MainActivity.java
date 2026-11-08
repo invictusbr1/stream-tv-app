@@ -1035,10 +1035,22 @@ public final class MainActivity extends Activity {
     }
     // Rotas que só o servidor sabe responder (ex.: lista e jogo do Futemax). Só
     // caminhos /api/tv/futemax passam; o vídeo continua no encaminhador local.
+    // Espelhar a tela (08/11/2026): abre o espelhamento do próprio Android —
+    // Smart View na Samsung, "Transmitir" no Android puro/Xiaomi (Chromecast,
+    // Mi Box, TVs com Google TV ou Miracast). Tenta do mais específico ao geral.
+    private void abrirEspelhamento(){
+        String[] acoes={"android.settings.CAST_SETTINGS","android.settings.WIFI_DISPLAY_SETTINGS","android.settings.DISPLAY_SETTINGS"};
+        android.content.Intent samsung=new android.content.Intent();samsung.setClassName("com.samsung.android.smartmirroring","com.samsung.android.smartmirroring.CaptureActivity");samsung.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK);
+        try{startActivity(samsung);return;}catch(Exception naoSamsung){/* outro fabricante */}
+        for(String acao:acoes){
+            try{android.content.Intent i=new android.content.Intent(acao);i.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK);startActivity(i);return;}catch(Exception semTela){/* próxima */}
+        }
+        android.widget.Toast.makeText(this,"Puxe a barra de notificações e toque em Smart View / Transmitir tela.",android.widget.Toast.LENGTH_LONG).show();
+    }
     private WebResourceResponse rotaDoServidor(Uri uri){
         java.net.HttpURLConnection c=null;
         try{
-            String path=uri.getPath();if(path==null||!path.matches("/api/tv/futemax(/jogos)?|/api/torbox/preparar|/api/playback/anime-legendado/[0-9]{1,10}/[0-9]{1,3}/[1-9][0-9]{0,3}|/api/anime/pagina|/api/anime/recomendacoes|/api/ficha/(movie|tv)/[0-9]{1,10}|/api/comentarios/(movie|tv)/[0-9]{1,10}(/enviar|/apagar)?"))return error(404);
+            String path=uri.getPath();if(path==null||!path.matches("/api/tv/futemax(/jogos)?|/api/torbox/preparar|/api/playback/anime-legendado/[0-9]{1,10}/[0-9]{1,3}/[1-9][0-9]{0,3}|/api/anime/pagina|/api/anime/recomendacoes|/api/ficha/(movie|tv)/[0-9]{1,10}|/api/comentarios/(movie|tv)/[0-9]{1,10}(/enviar|/apagar)?|/api/tela/(receber|receptores|enviar)"))return error(404);
             ServerPlaybackTransport transport=serverTransport();
             String query=uri.getEncodedQuery();
             URL url=new URL(transport.base,path+(query==null||query.isEmpty()?"":"?"+query));
@@ -1736,6 +1748,8 @@ public final class MainActivity extends Activity {
                 if (path != null && ("/api/anime/pagina".equals(path) || "/api/anime/recomendacoes".equals(path))) return rotaDoServidor(uri);
                 // Ficha do título e comentários da família: ficam no servidor.
                 if (path != null && path.matches("/api/(ficha|comentarios)/(movie|tv)/[0-9]{1,10}(/enviar|/apagar)?")) return rotaDoServidor(uri);
+                // "Assistir na TV": o celular manda o título; a TV (Mi Box) pergunta se há pedido.
+                if (path != null && path.matches("/api/tela/(receber|receptores|enviar)")) return rotaDoServidor(uri);
                 // Anime legendado pela TorBox (só anime): quem resolve é o servidor.
                 if (path != null && path.matches("/api/playback/anime-legendado/[0-9]{1,10}/[0-9]{1,3}/[1-9][0-9]{0,3}")) return rotaDoServidor(uri);
                 if (path != null && "/api/futebol/agenda".equals(path)) return futebolAgenda(uri);
@@ -1769,6 +1783,7 @@ public final class MainActivity extends Activity {
             @Override public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
                 Uri uri = request.getUrl();
                 if (trusted && request.isForMainFrame() && request.hasGesture() && local(uri) && "/check-updates".equals(uri.getPath())) { updater.check(true); return true; }
+                if (trusted && request.isForMainFrame() && request.hasGesture() && local(uri) && "/espelhar-tela".equals(uri.getPath())) { abrirEspelhamento(); return true; }
                 if (trusted && request.isForMainFrame() && request.hasGesture() && local(uri) && abrirFutebol(uri)) return true;
                 if (trusted && request.isForMainFrame() && fullscreenAction(uri)) return true;
                 if (trusted && request.isForMainFrame() && local(uri) && "/assistir.html".equals(uri.getPath())) setInlineFullscreen(true);
@@ -1783,6 +1798,7 @@ public final class MainActivity extends Activity {
             @Override public boolean shouldOverrideUrlLoading(WebView view, String url) {
                 Uri uri = Uri.parse(url);
                 if (trusted && local(uri) && "/check-updates".equals(uri.getPath())) { updater.check(true); return true; }
+                if (trusted && local(uri) && "/espelhar-tela".equals(uri.getPath())) { abrirEspelhamento(); return true; }
                 if (trusted && local(uri) && abrirFutebol(uri)) return true;
                 if (trusted && fullscreenAction(uri)) return true;
                 if (trusted && local(uri) && "/assistir.html".equals(uri.getPath())) setInlineFullscreen(true);

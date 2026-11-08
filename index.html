@@ -1475,6 +1475,107 @@ html.modo-tv #anime-pagina .ap-hero h1{font-size:48px}
  window.StreamAnimePagina={abrir:abrirPagina,sair,_dados:()=>dados};
 })();
 </script>
+<style id="tela-estilo">
+/* Enviar para a TV (08/11/2026) */
+#tela-btn svg{width:22px;height:22px}
+#tela-folha{position:fixed;inset:0;z-index:2147483000;display:grid;place-items:end center;background:#000a}
+#tela-folha[hidden]{display:none}
+#tela-folha .tela-caixa{width:min(520px,100%);background:#121722;border:1px solid #ffffff1c;border-radius:18px 18px 0 0;padding:20px 18px calc(18px + env(safe-area-inset-bottom));color:#e8ecf3;max-height:80vh;overflow:auto}
+@media(min-width:700px){#tela-folha{place-items:center}#tela-folha .tela-caixa{border-radius:18px}}
+#tela-folha h2{margin:0 0 4px;font-size:19px}
+#tela-folha .tela-sub{margin:0 0 14px;color:#8d97a8;font-size:13px;line-height:1.5}
+#tela-folha .tela-lista{display:grid;gap:8px}
+#tela-folha .tela-item{display:flex;align-items:center;gap:12px;width:100%;text-align:left;padding:14px;border-radius:12px;background:#ffffff0d;border:1px solid #ffffff14;color:inherit;font:inherit;font-size:15px;cursor:pointer;text-decoration:none}
+#tela-folha .tela-item:hover,#tela-folha .tela-item:focus{background:#ffffff1f;outline:2px solid #fff3}
+#tela-folha .tela-item small{display:block;color:#8d97a8;font-size:12px;margin-top:2px}
+#tela-folha .tela-icone{font-size:24px;width:32px;text-align:center}
+#tela-folha .tela-vazio{color:#9ba6b8;font-size:14px;line-height:1.55;padding:6px 2px}
+#tela-folha .tela-rodape{display:flex;justify-content:flex-end;margin-top:14px}
+#tela-aviso{position:fixed;left:50%;bottom:calc(28px + env(safe-area-inset-bottom));transform:translateX(-50%);z-index:2147483001;background:#121722f2;border:1px solid #ffffff26;color:#fff;padding:12px 18px;border-radius:12px;font-size:15px;max-width:90vw;box-shadow:0 10px 30px #0008}
+#tela-aviso[hidden]{display:none}
+</style>
+<div id="tela-folha" hidden role="dialog" aria-modal="true" aria-labelledby="tela-titulo"><div class="tela-caixa"><h2 id="tela-titulo">📺 Assistir na TV</h2><p class="tela-sub">A TV precisa estar com o <b>Conecta TV aberto</b> (app no Mi Box/Android TV, ou o site no navegador da Samsung/LG). Ela continua do mesmo ponto, com a melhor qualidade que conseguir.</p><div class="tela-lista" id="tela-lista"></div><div class="tela-rodape"><button class="quiet" type="button" id="tela-fechar">Fechar</button></div></div></div>
+<div id="tela-aviso" hidden role="status" aria-live="polite"></div>
+<script id="tela-script">
+(()=>{
+ 'use strict';
+ const UA=navigator.userAgent||'';
+ const ehTv=document.documentElement.classList.contains('modo-tv')||/SMART-TV|Tizen|Web0S|webOS|NetCast|HbbTV|Android ?TV|AndroidTV|GoogleTV|BRAVIA|FireTV|AFT[A-Z]|StreamTVAndroidTV|Roku|VIDAA|Hisense/i.test(UA);
+ const appCelular=/StreamTVAndroid/.test(UA)&&!ehTv;
+ const $=id=>document.getElementById(id);
+ function meuId(){try{let id=localStorage.getItem('streamtv-dispositivo');if(!/^[a-z0-9]{6,32}$/.test(id||'')){id='d'+Math.random().toString(36).slice(2,10)+Date.now().toString(36).slice(-4);localStorage.setItem('streamtv-dispositivo',id);}return id;}catch{return '';}}
+ const tipoTv=/Tizen/i.test(UA)?'Samsung':/Web0S|webOS|NetCast/i.test(UA)?'LG':/StreamTVAndroidTV|Android ?TV|AndroidTV|GoogleTV|AFT/i.test(UA)?'Android TV':/Roku/i.test(UA)?'Roku':'TV';
+ const nomePadrao=tipoTv==='Android TV'?'TV (Mi Box / Android TV)':tipoTv==='TV'?'TV':'TV '+tipoTv;
+ let avisoTimer=null;
+ function aviso(t,ms=4500){const a=$('tela-aviso');if(!a)return;a.textContent=t;a.hidden=false;clearTimeout(avisoTimer);avisoTimer=setTimeout(()=>{a.hidden=true;},ms);}
+ // ---------------------------------------------------------------- TV (recebe)
+ if(ehTv){
+  let ocupado=false;
+  async function perguntar(){
+   if(ocupado||document.hidden)return;const eu=meuId();if(!eu)return;ocupado=true;
+   try{
+    const r=await fetch('/api/tela/receber?'+new URLSearchParams({eu,tipo:tipoTv,nome:nomePadrao}),{cache:'no-store'});
+    const d=r.ok?await r.json():null;const p=d&&d.pedido;
+    if(p&&/^\d{1,10}$/.test(String(p.id))){
+     const alvo={id:p.id,titulo:p.titulo||'',...(p.episode?{episode:p.episode}:{}),...(p.capa?{capa:p.capa}:{})};
+     try{if(p.posicao>=5)window.StreamPersonal?.save?.(alvo,p.posicao,null,true);}catch{}
+     aviso('📱 '+(p.de||'Celular')+' mandou: '+(p.titulo||'vídeo'));
+     try{window.StreamAnimePagina?.sair?.();}catch{}
+     window.abrirPlayer?.(p.id,p.titulo||'',p.episode||null);
+    }
+   }catch{}finally{ocupado=false;}
+  }
+  setInterval(perguntar,3000);setTimeout(perguntar,800);
+  document.addEventListener('visibilitychange',()=>{if(!document.hidden)perguntar();});
+  return;
+ }
+ // ------------------------------------------------------- celular/PC (manda)
+ const ferramentas=$('player-tools');if(!ferramentas)return;
+ const botao=document.createElement('button');botao.id='tela-btn';botao.className='ctl';botao.type='button';botao.setAttribute('aria-label','Assistir na TV');botao.title='Assistir na TV';
+ botao.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 17V6a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2h-6"/><path d="M3 20h.01M3 16a4 4 0 0 1 4 4M3 12a8 8 0 0 1 8 8"/></svg>';
+ ferramentas.insertBefore(botao,$('options-toggle')||null);
+ const folha=$('tela-folha'),lista=$('tela-lista');
+ function fechar(){folha.hidden=true;}
+ $('tela-fechar').onclick=fechar;folha.addEventListener('click',e=>{if(e.target===folha)fechar();});
+ document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!folha.hidden)fechar();});
+ function item(icone,titulo,sub,acao,href){const b=document.createElement(href?'a':'button');b.className='tela-item';if(href)b.href=href;else b.type='button';const i=document.createElement('span');i.className='tela-icone';i.textContent=icone;const t=document.createElement('span');t.textContent=titulo;const s=document.createElement('small');s.textContent=sub;t.append(s);b.append(i,t);if(acao)b.addEventListener('click',acao);return b;}
+ function oQueToca(){
+  const f=window.filmeAtual||(typeof filmeAtual!=='undefined'?filmeAtual:null);if(!f||!/^\d{1,10}$/.test(String(f.id)))return null;
+  const est=window.StreamPlayback?.estado?.()||{};let posicao=Number(est.posicao)||0;
+  if(!posicao){try{posicao=Number(window.StreamPersonal?.position?.(f))||0;}catch{}}
+  return {f,posicao};
+ }
+ async function enviar(tela){
+  const atual=oQueToca();if(!atual){aviso('Abra um filme ou episódio primeiro.');return;}
+  const {f,posicao}=atual,ep=f.episode;
+  const q=new URLSearchParams({para:tela.id,id:String(f.id),titulo:f.titulo||'',posicao:String(Math.floor(posicao)),tipo:ep?'tv':'movie'});
+  if(ep){q.set('temporada',String(ep.season));q.set('episodio',String(ep.number));if(ep.anime){q.set('anime','1');q.set('audio',ep.audio||'legendado');}}
+  lista.replaceChildren(Object.assign(document.createElement('p'),{className:'tela-vazio',textContent:'Mandando para '+tela.nome+'…'}));
+  try{
+   const r=await fetch('/api/tela/enviar?'+q,{cache:'no-store'});const d=await r.json().catch(()=>({}));
+   if(!r.ok||!d.ok){aviso(d.motivo||'A TV não respondeu. Confira se o Conecta TV está aberto nela.');fechar();return;}
+   try{window.StreamPlayback?.saveProgress?.();}catch{}
+   try{const v=$('direct-video');if(v&&!v.paused)v.pause();}catch{}
+   fechar();aviso('📺 Tocando em '+(d.nome||tela.nome)+'. A TV continua do mesmo ponto.',6000);
+  }catch{aviso('Sem conexão com o servidor agora.');fechar();}
+ }
+ async function abrir(){
+  folha.hidden=false;lista.replaceChildren(Object.assign(document.createElement('p'),{className:'tela-vazio',textContent:'Procurando as TVs da família…'}));
+  let telas=[];try{const r=await fetch('/api/tela/receptores?eu='+encodeURIComponent(meuId()),{cache:'no-store'});telas=r.ok?await r.json():[];}catch{telas=[];}
+  if(folha.hidden)return;lista.replaceChildren();
+  const icone=t=>/Samsung/.test(t.tipo)?'🖥️':/LG/.test(t.tipo)?'🖥️':/Android/.test(t.tipo)?'📦':'📺';
+  for(const t of (Array.isArray(telas)?telas:[]))lista.append(item(icone(t),t.nome,(t.tipo==='TV'?'TV':t.tipo)+' · Conecta TV aberto',()=>enviar(t)));
+  if(!telas.length)lista.append(Object.assign(document.createElement('p'),{className:'tela-vazio',textContent:'Nenhuma TV com o Conecta TV aberto agora. Abra o app na TV (ou o site no navegador dela) e toque de novo aqui.'}));
+  // Espelhar a tela inteira (Smart View, Screen Share, Chromecast): serve para
+  // qualquer TV que aceite espelhamento, mesmo sem o Conecta TV nela.
+  if(appCelular)lista.append(item('🪞','Espelhar a tela do celular','Smart View (Samsung), Screen Share (LG), Chromecast/Mi Box — abre o espelhamento do Android',null,'/espelhar-tela'));
+  else lista.append(Object.assign(document.createElement('p'),{className:'tela-vazio',textContent:'Dica: no Chrome do computador, menu ⋮ › Transmitir… espelha esta aba para Chromecast/Mi Box.'}));
+  lista.querySelector('button,a')?.focus();
+ }
+ botao.addEventListener('click',abrir);
+ window.StreamTela={abrir,enviar};
+})();
+</script>
 </body></html>
 
 

@@ -47,10 +47,20 @@ test('mídia direta recusa publicidade, outro título, outro episódio e URL de 
 
 test('motor 1 do anime legendado: tenta a TorBox primeiro e, se tocar, nem consulta as fontes de sempre',async()=>{
  const s=setup(),calls=[];let consultou=false;
- s.options.version=3;s.options.request=async()=>{consultou=true;return s.good;};
+ s.options.version=3;s.options.request=async url=>{if(String(url).includes('preparar=1'))return {pronto:true};consultou=true;return s.good;};
  s.host.StreamPlayback={start:async(...args)=>{calls.push(args);return true;}};
  assert.equal(await s.player.abrir(s.options),true);
  assert.equal(consultou,false);
  assert.match(String(calls[0][3]),/^\/api\/playback\/anime-legendado\/\d+\/\d+\/\d+/);
  assert.equal(calls[0][5],true);
+});
+
+test('anime legendado: espera a busca do servidor (procurando) antes de pedir o vídeo',async()=>{
+ const s=setup(),pedidos=[];let starts=0;
+ s.options.version=4;let voltas=0;
+ s.options.request=async url=>{pedidos.push(String(url));if(String(url).includes('preparar=1'))return ++voltas<2?{procurando:true}:{pronto:true};return s.good;};
+ s.host.StreamPlayback={start:async()=>{starts++;return true;}};
+ assert.equal(await s.player.abrir(s.options),true);
+ assert.equal(pedidos.filter(u=>u.includes('preparar=1')).length,2);
+ assert.equal(starts,1);
 });
