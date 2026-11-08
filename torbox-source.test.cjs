@@ -162,3 +162,17 @@ test('torrent que não entregou o arquivo fica de fora; os outros continuam', ()
     assert.ok(!depois.includes(h1) && depois.includes(h2));
     assert.equal(tb.ehRuim(h1), true);
 });
+
+test('4K vem primeiro: o 4K que cabe (até 35 GB) antes do REMUX gigante; 1080p só depois', () => {
+    const tb = require('./torbox-source');
+    const h = c => c.repeat(40);
+    const st = (c, t) => ({ infoHash: h(c), title: t });
+    const streams = [
+        st('1', 'Filme 2026 1080p WEB-DL DUAL Dublado 💾 4.2 GB'),
+        st('2', 'Filme 2026 2160p REMUX HDR DUAL Dublado 💾 72 GB'),
+        st('3', 'Filme 2026 2160p WEB-DL HDR DUAL Dublado 💾 21 GB'),
+        st('4', 'Filme 2026 720p Dublado 💾 1.4 GB'),
+    ];
+    const ordem = tb.escolherTorrents(streams, new Set(streams.map(s => s.infoHash)), 4, { hevcOk: true }).map(e => e.qualidade + ':' + e.stream.infoHash[0]);
+    assert.deepEqual(ordem, ['4K:3', '4K:2', '1080p:1', '720p:4']);
+});

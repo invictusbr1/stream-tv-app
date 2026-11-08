@@ -34,6 +34,18 @@ app.get('/api/torbox/preparar', (req, res) => {
 });
 // Vídeo da TorBox repassado pelo servidor: o aparelho só conhece o código
 // aleatório; o link real (com a chave da conta) nunca sai daqui.
+// Relatório da escolha da TorBox para um título (sem chave e sem links).
+app.get('/api/torbox/diagnostico/:tipo/:id', async (req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    const tipo = req.params.tipo === 'tv' ? 'tv' : 'movie', id = String(req.params.id);
+    if (!/^\d{1,10}$/.test(id)) return res.status(400).json({ ok: false });
+    try {
+        const tb = require('../torbox-source');
+        const d = await tb.diagnosticar(tipo, id, Number(req.query.t) || 1, Number(req.query.e) || 1);
+        const conv = require('../conversor');
+        res.json({ ...d, discoLivrePara4kGB: Math.round(conv.livrePara4k() / 1024 ** 3), pode4kAgora: conv.pode4k('diagnostico-' + id, 0) });
+    } catch (e) { res.status(500).json({ ok: false, motivo: String(e.message).slice(0, 80) }); }
+});
 app.get('/api/torbox/:id', async (req, res) => {
     const real = require('../cofre-links.cjs').pegar(req.params.id);
     if (!real) return res.status(404).send('link expirado: abra o título de novo');
@@ -184,7 +196,9 @@ async function motorTorbox(req, alvo, exceto, idBase = '') {
     //    o 4K não servir (sem áudio PT, sem disco, H.265 não suportado…), o
     //    Full HD já está pronto, sem esperar uma segunda rodada.
     const serve = d => Boolean(d && d.url && (parseInt(d.resolucao, 10) || 0) >= MOTOR1_MINIMO && !(d.converter && semConversaoNoPedido(req)));
-    const p4k = quer4k && tem4k ? tb.resolverMelhor(tipo, alvo.tmdbId, alvo.temporada, alvo.episodio, { quer4k: true, so4k: true }) : null;
+    // O 4K escolhido já tem que caber no disco (senão tenta o próximo 4K, não cai direto para 1080p).
+    const limiteBytes4k = pc ? 0 : require('../conversor').livrePara4k();
+    const p4k = quer4k && tem4k ? tb.resolverMelhor(tipo, alvo.tmdbId, alvo.temporada, alvo.episodio, { quer4k: true, so4k: true, limiteBytes4k }) : null;
     const pHd = temHd ? tb.resolverMelhor(tipo, alvo.tmdbId, alvo.temporada, alvo.episodio, { hevcOk: quer4k }) : null;
     let boa = null;
     if (p4k) {

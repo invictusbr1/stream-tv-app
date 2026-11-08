@@ -1103,7 +1103,9 @@ public final class MainActivity extends Activity {
             path+="?transporte=servidor&conversao=1&codec="+(hevc&&hevcSuportado()?"hevc":"avc")+(redeMovel()?"&rede=movel":"")+(tetoPedido!=null&&tetoPedido>0&&tetoPedido<3000?"&sem4k=1":"")+exc+(escolhaDoAparelho==null?"":escolhaDoAparelho);
             // Motor 1 (TorBox) responde rápido ou diz "indisponível": prazo menor
             // para não segurar a busca no aparelho se o servidor estiver lento.
-            JSONObject data=new JSONObject(transport.json(path,escolhaDoAparelho!=null&&escolhaDoAparelho.contains("motor=torbox")?22000:25000));
+            // 08/11/2026: com 22 s o celular desistia da TorBox (o servidor levou 33 s
+            // no Homem-Aranha) e caía nas fontes do aparelho em 534p. Espera mais.
+            JSONObject data=new JSONObject(transport.json(path,escolhaDoAparelho!=null&&escolhaDoAparelho.contains("motor=torbox")?40000:45000));
             if(!"pt-BR".equals(data.optString("audio"))||!java.util.Arrays.asList("file","hls").contains(data.optString("type")))return null;
             // Conversão (ex.: MKV da TorBox com som Dolby): o servidor copia a
             // imagem e só troca o áudio para AAC. A lista e os pedaços vêm por

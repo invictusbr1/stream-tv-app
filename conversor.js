@@ -294,17 +294,17 @@ async function iniciar(url, { titulo = '', referer = '', id = '', inicio = 0, fa
         registro.processo = processo;
         // Fonte que não entrega NADA (08/11/2026, Off Campus T1E1: TorBox dizia
         // "pronto", o ffmpeg ficou em 0 s para sempre e o app esperava até o
-        // tempo limite). Sem nenhum segundo convertido em 45 s, desiste com
+        // tempo limite). Sem nenhum segundo convertido em 25 s, desiste com
         // erro — o player passa para a próxima fonte em vez de esperar.
         const vigia = setTimeout(() => {
             if (!registro.terminou && !(registro.segundos > 0)) {
-                registro.erro = 'a fonte não entregou o vídeo (nada chegou em 45 s)';
+                registro.erro = 'a fonte não entregou o vídeo (nada chegou em 25 s)';
                 semDados.set(String(lastro).replace(/^ini\d+-/, ''), Date.now());
                 // Só ESTE torrent fica de fora por um tempo; os outros da TorBox continuam valendo.
                 if (etiqueta) { try { require('./torbox-source').marcarRuim(etiqueta); } catch { /* sem TorBox */ } }
                 try { processo.kill('SIGKILL'); } catch { /* já saiu */ }
             }
-        }, 45000);
+        }, 25000);
         if (vigia.unref) vigia.unref();
         let ultimoErro = '';
         processo.stderr.on('data', (pedaco) => {
@@ -381,14 +381,20 @@ function estado(chave) { return resumo(chave); }
 // Full HD. `id` é a obra (filme-550 / serie-1399-T1E1): a mesma obra pode
 // continuar no 4K (outro ponto do filme, mesma pessoa).
 const LIVRE_PARA_4K = Number(process.env.CONVERSOES_LIVRE_4K_GB || 30) * 1024 ** 3;
+const MAX_4K_JUNTOS = Number(process.env.CONVERSOES_4K_JUNTAS || 2);
+// Quanto cabe de um arquivo 4K agora (livre − 5 GB de folga); 0 = não sei.
+function livrePara4k() { try { fs.mkdirSync(PASTA, { recursive: true }); if (typeof fs.statfsSync !== 'function') return 0; const d = fs.statfsSync(PASTA); return Math.max(1, Number(d.bavail) * Number(d.bsize) - 5 * 1024 ** 3); } catch { return 0; } }
 function pode4k(id = '', tamanho = 0) {
     const base = String(id).replace(/^ini\d+-/, '');
+    // Até 2 filmes 4K convertendo/tocando ao mesmo tempo (era 1: o 4K de um
+    // filme deixava o outro em 1080p mesmo com espaço).
+    let emUso4k = 0;
     for (const t of trabalhos.values()) {
         if (!t.quatroK || t.erro) continue;
         if (String(t.lastro || '').replace(/^ini\d+-/, '') === base) continue;
-        const emUso = !t.terminou || Date.now() - (t.ultimoAcesso || 0) < PARADA_SEM_USO;
-        if (emUso) return false;
+        if (!t.terminou || Date.now() - (t.ultimoAcesso || 0) < PARADA_SEM_USO) emUso4k++;
     }
+    if (emUso4k >= MAX_4K_JUNTOS) return false;
     try {
         fs.mkdirSync(PASTA, { recursive: true });
         if (typeof fs.statfsSync === 'function') {
@@ -470,4 +476,4 @@ function encerrarTudo() {
 }
 
 module.exports = {
-    falhouSemDados, ajustarSrt, pode4k, arrumarDisco, iniciar, iniciarNoPonto, estado, arquivoDe, caminhoDoPedaço, resumo, encerrarTudo, PASTA, identificar };
+    livrePara4k, falhouSemDados, ajustarSrt, pode4k, arrumarDisco, iniciar, iniciarNoPonto, estado, arquivoDe, caminhoDoPedaço, resumo, encerrarTudo, PASTA, identificar };

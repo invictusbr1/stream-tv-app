@@ -517,7 +517,7 @@ window.StreamPlayback = (() => {
                     if(estado&&estado.erro){fonteIdUsada=String(data.fonteId||'');fonteUsada=String(data.source||'');analiseAtual?.falha('a conversão falhou: '+String(estado.erro).slice(0,80),0);return false;}
                     // Nada chegou em 25 s (já contando a nova tentativa): a fonte
                     // não entrega — passa para a próxima em vez de esperar o limite.
-                    if(estado&&!estado.pronto&&!(Number(estado.segundos)>0)&&Date.now()-comecouEm>25000){fonteIdUsada=String(data.fonteId||'');fonteUsada=String(data.source||'');analiseAtual?.falha('a fonte não começou a entregar o vídeo',0);return false;}
+                    if(estado&&!estado.pronto&&!(Number(estado.segundos)>0)&&Date.now()-comecouEm>30000){fonteIdUsada=String(data.fonteId||'');fonteUsada=String(data.source||'');analiseAtual?.falha('a fonte não começou a entregar o vídeo',0);return false;}
                     if(estado&&estado.parado&&!estado.pronto&&!refez){if(await refazer())continue;}
                     if(estado&&Number(estado.duracao)>0)duracaoTotal=Number(estado.duracao);
                     const vel=Number(estado&&estado.velocidade)||0;

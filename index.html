@@ -963,6 +963,10 @@ async function abrirPlayer(id,titulo,episode=null,retomada=null){
     if(estadoDaTentativa.buscaEsgotada)break;
     const tentada=estadoDaTentativa.fonteId||'';
     if(!tentada){if(attempt>=1)break;continue;}
+    // TorBox que não entregou o arquivo: o servidor já tirou ESSE torrent da
+    // escolha; tenta a TorBox mais uma vez (outro torrent, mesma qualidade)
+    // antes de cair nas fontes de qualidade menor (08/11/2026, 534p).
+    if(tentada==='torbox'&&!contexto.torboxDeNovo){contexto.torboxDeNovo=true;continue;}
     if(tentadasDubladas.includes(tentada))break;
     tentadasDubladas.push(tentada);contexto.falhas.add(tentada);
    }
