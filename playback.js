@@ -249,6 +249,13 @@ window.StreamPlayback = (() => {
     function enforceAudio(permitirOriginal=false){
         if(!hls)return true;const tracks=hls.audioTracks||[];if(!tracks.length)return true;
         if(audioChoice>=0)return true;
+        // Anime LEGENDADO: som japonês (ou o original) + legenda, mesmo que a
+        // fonte também tenha faixa dublada — antes o player trocava sozinho.
+        if(opcoesAtuais&&opcoesAtuais.preferirOriginal){
+            const jp=tracks.findIndex(t=>/^(ja|jpn)(-|_|$)/i.test(t.lang||t.language||'')||/japon|japanese|日本/i.test(t.name||t.label||''));
+            const alvo=jp>=0?jp:tracks.findIndex(t=>!portuguese(t));
+            if(alvo>=0){if(hls.audioTrack!==alvo)hls.audioTrack=alvo;rotuloAudio='Legendado';analiseAtual?.fonte({audio:rotuloAudio});sincronizarLegendas();return true;}
+        }
         const pt=tracks.findIndex(portuguese);
         if(pt>=0){if(hls.audioTrack!==pt)hls.audioTrack=pt;rotuloAudio='Dublado';analiseAtual?.fonte({audio:rotuloAudio});sincronizarLegendas();return true;}
         // A named English track is just as explicit as an ISO language tag.

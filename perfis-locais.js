@@ -26,7 +26,7 @@ let memoria = null;
 let lidoEm = 0;
 let publicada = null;
 
-function vazio() { return { atualizadoEm: '', perfis: [], listasTv: [], placar: [], listasTorbox: [] }; }
+function vazio() { return { atualizadoEm: '', perfis: [], listasTv: [], placar: [], listasTorbox: [], listasAnime: [] }; }
 
 function lerArquivo(caminho) {
     try {
@@ -38,6 +38,8 @@ function lerArquivo(caminho) {
             placar: Array.isArray(dados.placar) ? dados.placar : [],
             // Listas de torrent aprovadas pelo caçador para a TorBox.
             listasTorbox: Array.isArray(dados.listasTorbox) ? dados.listasTorbox : [],
+            // Listas aprovadas só para anime (legendado e dublado).
+            listasAnime: Array.isArray(dados.listasAnime) ? dados.listasAnime : [],
         };
     } catch { return null; }
 }
@@ -52,6 +54,7 @@ function juntar(base, novo) {
         listasTv: [...new Map([...base.listasTv, ...novo.listasTv].map(l => [l.id || l.url, l])).values()],
         placar: novo.placar.length ? novo.placar : base.placar,
         listasTorbox: [...new Map([...(base.listasTorbox || []), ...(novo.listasTorbox || [])].map(l => [l.base, { ...l }])).values()],
+        listasAnime: [...new Map([...(base.listasAnime || []), ...(novo.listasAnime || [])].map(l => [l.base, { ...l }])).values()],
     };
 }
 
@@ -71,6 +74,7 @@ function conteudo() {
 function perfis() { return conteudo().perfis; }
 function listasTv() { return conteudo().listasTv; }
 function listasTorbox() { return conteudo().listasTorbox || []; }
+function listasAnime() { return conteudo().listasAnime || []; }
 function placar() { return conteudo().placar; }
 function esquecer() { memoria = null; lidoEm = 0; }
 
@@ -83,6 +87,7 @@ function gravar(dados) {
         listasTv: Array.isArray(dados.listasTv) ? dados.listasTv : [],
         placar: Array.isArray(dados.placar) ? dados.placar : [],
         listasTorbox: Array.isArray(dados.listasTorbox) ? dados.listasTorbox : [],
+        listasAnime: Array.isArray(dados.listasAnime) ? dados.listasAnime : [],
     };
     memoria = lerTudo();
     lidoEm = Date.now();
@@ -111,4 +116,4 @@ async function atualizar() {
     }
 }
 
-module.exports = { perfis, listasTv, listasTorbox, placar, gravar, atualizar, esquecer, juntar, ARQUIVO: ARQUIVO_PROJETO, ARQUIVO_USUARIO, PUBLICADO };
+module.exports = { perfis, listasTv, listasTorbox, listasAnime, placar, gravar, atualizar, esquecer, juntar, ARQUIVO: ARQUIVO_PROJETO, ARQUIVO_USUARIO, PUBLICADO };

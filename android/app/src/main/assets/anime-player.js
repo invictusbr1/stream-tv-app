@@ -25,7 +25,9 @@
    // dentro do arquivo, em Full HD. Sem isso, segue para as fontes de sempre.
    if(host.StreamPlayback&&typeof host.StreamPlayback.start==='function'){
     const semHevc=typeof host.navegadorSemHevc==='function'&&host.navegadorSemHevc();
-    const caminho='/api/playback/anime-legendado/'+Number(opcoes.id)+'/'+Number(opcoes.episode.season)+'/'+Number(opcoes.episode.number)+(semHevc?'?codec=avc':'');
+    const exceto=(Array.isArray(opcoes.exceto)?opcoes.exceto:[]).filter(x=>/^[\w.-]{1,60}$/.test(String(x)));
+    const params=[semHevc?'codec=avc':'',exceto.length?'exceto='+encodeURIComponent(exceto.join(',')):''].filter(Boolean);
+    const caminho='/api/playback/anime-legendado/'+Number(opcoes.id)+'/'+Number(opcoes.episode.season)+'/'+Number(opcoes.episode.number)+(params.length?'?'+params.join('&'):'');
     let tocou=false;
     try{tocou=await host.StreamPlayback.start(opcoes.id,opcoes.version,opcoes.signal,caminho,undefined,true,null,opcoes.playbackOptions);}catch{tocou=false;}
     if(!valido())return false;

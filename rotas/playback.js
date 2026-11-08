@@ -468,12 +468,12 @@ app.get('/api/playback/anime-legendado/:id/:season/:episode', async (req, res) =
         ]);
         if (!achado) return res.json({ indisponivel: true });
         // O player do PC toca o arquivo original (legenda incluída) direto.
-        if (paraPlayerDoPc(req)) {
+        if (paraPlayerDoPc(req) && !achado.legendaExterna) {
             const pronto = require('../fontes-motor').prepararParaPlayer({ ...achado, final: false });
             return res.json({ url: pronto.urlAplicativo, audio: 'original', source: achado.fonte, fonteId: 'torbox-legendado', type: 'file', resolucao: achado.resolucao, legendaPortugues: true, legendaEmbutida: true, anime: true });
         }
         const conversor = require('../conversor');
-        const trabalho = await conversor.iniciarNoPonto(achado.url, { id: `anime-${id}-T${season}E${episode}`, inicio: inicioDoPedido(req), faixa: achado.faixa, legenda: achado.legenda, novo: req.query.novo === '1' });
+        const trabalho = await conversor.iniciarNoPonto(achado.url, { id: `anime-${id}-T${season}E${episode}`, inicio: inicioDoPedido(req), faixa: achado.faixa, legenda: achado.legenda, legendaExterna: achado.legendaExterna || '', novo: req.query.novo === '1' });
         res.json({
             url: `/api/convertido/${trabalho.id}/index.m3u8`, audio: 'original', source: achado.fonte, fonteId: 'torbox-legendado',
             type: 'hls', resolucao: achado.resolucao, videoCodec: achado.videoCodec || '', conversao: trabalho.id,

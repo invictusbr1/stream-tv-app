@@ -78,6 +78,26 @@ const AMOSTRAS_TORBOX = [
     { tipo: 'movie', imdb: 'tt6263850', titulo: 'Deadpool & Wolverine' },
     { tipo: 'tv', imdb: 'tt0903747', temporada: 1, episodio: 1, titulo: 'Breaking Bad T1E1' },
 ];
+// Episódios de anime para medir uma lista de torrent SÓ para anime
+// (08/11/2026): o anime legendado aceita qualquer lançamento com som japonês
+// (a legenda em português vem do arquivo ou de fora); o dublado precisa de PT.
+const AMOSTRAS_ANIME = [
+    { imdb: 'tt22248376', temporada: 1, episodio: 5, titulo: 'Frieren T1E5' },
+    { imdb: 'tt30217403', temporada: 1, episodio: 2, titulo: 'Dandadan T1E2' },
+    { imdb: 'tt12343534', temporada: 1, episodio: 3, titulo: 'Jujutsu Kaisen T1E3' },
+    { imdb: 'tt21209876', temporada: 1, episodio: 4, titulo: 'Solo Leveling T1E4' },
+    { imdb: 'tt9335498', temporada: 1, episodio: 1, titulo: 'Demon Slayer T1E1' },
+    { imdb: 'tt13706018', temporada: 1, episodio: 2, titulo: 'Spy x Family T1E2' },
+];
+// Listas de torrent conhecidas por terem anime (sementes da caçada de anime).
+const SEMENTES_ANIME = [
+    { base: 'https://torrentio.strem.fun/providers=nyaasi,tokyotosho,anidex,horriblesubs', nome: 'Torrentio (só anime)' },
+    { base: 'https://mediafusion.elfhosted.com', nome: 'MediaFusion' },
+    { base: 'https://knightcrawler.elfhosted.com', nome: 'Knightcrawler' },
+    { base: 'https://thepiratebay-plus.strem.fun', nome: 'ThePirateBay+' },
+    { base: 'https://torrentsdb.com', nome: 'TorrentsDB' },
+];
+const PISTA_ANIME = /anime|nyaa|subs?\b|crunchy|kitsu|myanimelist|anilist|torrent|debrid/i;
 const ADULTO = /adult|hentai|xxx|porn|\+18|18\+|nsfw/i;
 const BRASIL = /\b(br|pt-?br|ptbr)\b|brasil|brazil|dublad|dual ?[áa]udio|portugu|nacional|novela|filmes|s[ée]ries brasileir|globo|\bsbt\b|record/i;
 
@@ -372,6 +392,74 @@ async function avaliarParaTorbox(item, { buscarJson, torbox, amostras = AMOSTRAS
     return { aprovar: titulosComNovos >= 2, titulosComNovos, novosProntos, ptTotal, motivo: titulosComNovos ? `dublado novo pronto na TorBox: ${detalhes.join(', ')}` : ptTotal ? 'tem torrent dublado, mas nada novo pronto na TorBox' : 'sem torrent dublado' };
 }
 
+// Lista de torrent vale para ANIME? Para cada episódio de teste: os torrents
+// (720p/1080p) que ela tem e as listas atuais NÃO têm, e quantos já estão
+// prontos na TorBox — separados em legendado (som original) e dublado (PT).
+// Aprova com novidade pronta em 2+ episódios.
+async function avaliarParaAnime(item, { buscarJson, torbox, amostras = AMOSTRAS_ANIME }) {
+    const { emCache, ehPortugues, rotuloDe, hashDe, listas, qualidade } = torbox;
+    const norm = b => String(b || '').replace(/\/+$/, '');
+    const atuais = [...new Set([...(torbox.listasAnime ? torbox.listasAnime() : []), ...listas()].map(norm))].filter(b => b !== norm(item.base));
+    let titulosComNovos = 0, legendado = 0, dublado = 0, total = 0;
+    const detalhes = [];
+    for (const alvo of amostras) {
+        const caminho = `/stream/series/${alvo.imdb}:${alvo.temporada}:${alvo.episodio}.json`;
+        const dele = await buscarJson(item.base + caminho).catch(() => null);
+        const streams = (dele && Array.isArray(dele.streams) ? dele.streams : [])
+            .filter(x => x && hashDe(x) && !/\b(?:cam|hdcam|ts|telesync)\b/i.test(rotuloDe(x)))
+            .filter(x => !qualidade || ['1080p', '720p'].includes(qualidade(rotuloDe(x))));
+        total += streams.length;
+        if (!streams.length) continue;
+        const conhecidos = new Set();
+        const respostas = await Promise.all(atuais.map(base => buscarJson(base + caminho).catch(() => null)));
+        for (const r of respostas) for (const x of (r && Array.isArray(r.streams) ? r.streams : [])) { const h = hashDe(x); if (h) conhecidos.add(h); }
+        const novos = streams.filter(x => !conhecidos.has(hashDe(x)));
+        if (!novos.length) continue;
+        const prontos = await emCache([...new Set(novos.map(hashDe))]).catch(() => new Set());
+        const prontosAqui = novos.filter(x => prontos.has(hashDe(x)));
+        if (!prontosAqui.length) continue;
+        const dub = prontosAqui.filter(x => ehPortugues(rotuloDe(x))).length;
+        titulosComNovos++; dublado += dub; legendado += prontosAqui.length - dub;
+        detalhes.push(`${alvo.titulo} +${prontosAqui.length}${dub ? ` (${dub} dub)` : ''}`);
+    }
+    const novosProntos = legendado + dublado;
+    return {
+        aprovar: titulosComNovos >= 2, titulosComNovos, novosProntos, legendado, dublado, total,
+        motivo: titulosComNovos ? `anime novo pronto na TorBox: ${detalhes.join(', ')}` : total ? 'tem anime, mas nada novo pronto na TorBox' : 'sem episódios de anime',
+    };
+}
+
+// Caçada SÓ de anime: mede na TorBox as listas de torrent que a memória já
+// conhece (e as sementes de anime), ainda não medidas para anime nesta semana.
+async function cacarAnime(memoria, deps, { quantos = 30, agora = Date.now() } = {}) {
+    const { buscarJson, registrar = () => {}, torbox } = deps;
+    for (const s of SEMENTES_ANIME) memoria.ver({ base: s.base, nome: s.nome, origem: 'semente anime', prioridade: 2 });
+    const SEMANA = 7 * 24 * 3600000;
+    const fila = memoria.itens()
+        .filter(i => i && i.base && !(i.animeAvaliadoEm && agora - i.animeAvaliadoEm < SEMANA))
+        .filter(i => i.origem === 'semente anime' || i.torboxAvaliado || /torrent|torbox|conta paga/i.test(`${i.status || ''} ${i.motivo || ''}`) || PISTA_ANIME.test(`${i.nome || ''} ${i.descricao || ''}`))
+        .sort((a, b) => (b.origem === 'semente anime') - (a.origem === 'semente anime') || (PISTA_ANIME.test(`${b.nome} ${b.descricao}`) - PISTA_ANIME.test(`${a.nome} ${a.descricao}`)) || ((b.prioridade || 0) - (a.prioridade || 0)))
+        .slice(0, quantos);
+    registrar(`caçada de anime: ${fila.length} lista(s) para medir`);
+    const resultados = [];
+    for (const item of fila) {
+        const r = await avaliarParaAnime(item, { buscarJson, torbox }).catch(e => ({ aprovar: false, motivo: 'erro na medição: ' + String(e.message || e).slice(0, 60) }));
+        const atual = memoria.item(item.base);
+        if (atual) Object.assign(atual, { animeAvaliadoEm: agora, animeMotivo: String(r.motivo || '').slice(0, 160) });
+        memoria.evento(r.aprovar ? 'anime aprovado' : 'anime recusado', item.base, r.motivo);
+        const nome = item.nome || item.base;
+        if (r.aprovar) {
+            torbox.aprovarAnime({ base: item.base, nome, motivo: r.motivo, novos: r.novosProntos, legendado: r.legendado, dublado: r.dublado });
+            // Trouxe anime DUBLADO novo: também serve para o motor 1 em geral.
+            if (r.dublado > 0 && torbox.aprovar) torbox.aprovar({ base: item.base, nome, motivo: r.motivo, novos: r.dublado });
+            registrar(`  ★ ${nome}: APROVADA para anime — ${r.motivo}`);
+        } else registrar(`  · ${nome}: ${r.motivo}`);
+        resultados.push({ link: item.base, nome, status: r.aprovar ? 'aprovada' : r.titulosComNovos ? 'pouca novidade' : 'sem anime novo', qualidade: r.aprovar ? `anime · ${r.legendado} leg / ${r.dublado} dub` : '', detalhe: r.motivo });
+    }
+    memoria.gravar();
+    return resultados;
+}
+
 async function lerCatalogosDeAddons(memoria, item, catalogos, { buscarJson }) {
     let n = 0;
     for (const c of catalogos.slice(0, 3)) {
@@ -450,6 +538,6 @@ function relatorio(memoria, { dias = 7, agora = Date.now() } = {}) {
 }
 
 module.exports = {
-    baseDe, enderecoPublico, AMOSTRAS_DE_TRIAGEM, AMOSTRAS_TORBOX, avaliarParaTorbox, criarMemoria, pontuar, prontoParaTestar, coletarCatalogos, coletarDiretorios, coletarGithub, coletarListaComunidade, coletarPistas,
+    baseDe, enderecoPublico, AMOSTRAS_DE_TRIAGEM, AMOSTRAS_TORBOX, avaliarParaTorbox, AMOSTRAS_ANIME, SEMENTES_ANIME, avaliarParaAnime, cacarAnime, criarMemoria, pontuar, prontoParaTestar, coletarCatalogos, coletarDiretorios, coletarGithub, coletarListaComunidade, coletarPistas,
     detetive, triar, explorar, relatorio, normalizarNome, DIRETORIOS_PADRAO, BUSCAS_GITHUB, RETESTE,
 };

@@ -46,6 +46,33 @@ function inspecionarDisco(pasta) {
     } catch { return null; }
 }
 
+// Legenda de fora (SRT): o ffmpeg alinha cada entrada pelo PRIMEIRO trecho
+// dela — então a legenda é deslocada aqui para o ponto de início e ganha um
+// trecho invisível em 00:00, e assim casa com o vídeo (testado 08/11/2026).
+function srtTempo(t) { const m = String(t).match(/(\d+):(\d{2}):(\d{2})[,.](\d{1,3})/); return m ? Number(m[1]) * 3600 + Number(m[2]) * 60 + Number(m[3]) + Number(m[4].padEnd(3, '0')) / 1000 : NaN; }
+function srtFormato(s) { const ms = Math.max(0, Math.round(s * 1000)); const h = Math.floor(ms / 3600000), m = Math.floor(ms / 60000) % 60, seg = Math.floor(ms / 1000) % 60, r = ms % 1000; return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(seg).padStart(2, '0')},${String(r).padStart(3, '0')}`; }
+function ajustarSrt(texto, inicio = 0) {
+    const blocos = String(texto || '').replace(/^\uFEFF/, '').replace(/\r/g, '').split(/\n{2,}/);
+    const saida = [`1\n${srtFormato(0)} --> ${srtFormato(0.01)}\n\u200b`];
+    for (const bloco of blocos) {
+        const linhas = bloco.split('\n').filter(l => l.trim() !== '');
+        const i = linhas.findIndex(l => l.includes('-->'));
+        if (i < 0) continue;
+        const [a, b] = linhas[i].split('-->');
+        let ini = srtTempo(a) - inicio, fim = srtTempo(b) - inicio;
+        if (!Number.isFinite(ini) || !Number.isFinite(fim) || fim <= 0.02) continue;
+        ini = Math.max(0.02, ini);
+        const texto = linhas.slice(i + 1).join('\n').trim();
+        if (texto) saida.push(`${saida.length + 1}\n${srtFormato(ini)} --> ${srtFormato(fim)}\n${texto}`);
+    }
+    return saida.length > 1 ? saida.join('\n\n') + '\n' : '';
+}
+async function baixarLegenda(url, ms = 12000) {
+    const controle = new AbortController(); const relogio = setTimeout(() => controle.abort(), ms);
+    try { const r = await fetch(url, { signal: controle.signal, headers: { 'User-Agent': UA } }); if (!r.ok) return ''; const t = await r.text(); return t.length > 3_000_000 ? '' : t; }
+    catch { return ''; } finally { clearTimeout(relogio); }
+}
+
 function limparAntigos() {
     try {
         fs.mkdirSync(PASTA, { recursive: true });
@@ -154,7 +181,7 @@ async function lerFaixaPortuguesa(url, referer) {
 }
 
 // Inicia (ou reaproveita) a conversão de um endereço.
-async function iniciar(url, { titulo = '', referer = '', id = '', inicio = 0, faixa = null, quatroK = false, legenda = null } = {}) {
+async function iniciar(url, { titulo = '', referer = '', id = '', inicio = 0, faixa = null, quatroK = false, legenda = null, legendaExterna = '' } = {}) {
     // `id` é a identidade do TRABALHO (filme-550 / serie-1399-T1E1), estável entre
     // aberturas. A chave real leva um carimbo de tempo porque a mesma obra pode
     // voltar com endereço novo: reaproveitar a conversão velha serviria um vídeo
@@ -207,7 +234,15 @@ async function iniciar(url, { titulo = '', referer = '', id = '', inicio = 0, fa
     const lida = faixa && Number.isInteger(faixa.indice) ? { indice: faixa.indice, duracao: Number(faixa.duracao) || 0 } : await faixaPortuguesa(url, referer);
     const { indice, duracao } = lida;
     const comLegenda = Boolean(legenda && Number.isInteger(legenda.indice) && legenda.indice >= 0);
-    registro.legenda = comLegenda;
+    // Legenda de fora (OpenSubtitles, só endereço https do strem.io) vira a
+    // segunda entrada do ffmpeg; sai igual à legenda embutida.
+    const externa = !comLegenda && /^https:\/\/[a-z0-9.-]+\.strem\.io\/[\w./%-]+$/i.test(String(legendaExterna || '')) ? String(legendaExterna) : '';
+    let arquivoLegenda = '';
+    if (externa) {
+        const ajustada = ajustarSrt(await baixarLegenda(externa), registro.inicio);
+        if (ajustada) { try { fs.mkdirSync(pasta, { recursive: true }); arquivoLegenda = path.join(pasta, 'legenda-externa.srt'); fs.writeFileSync(arquivoLegenda, ajustada); } catch { arquivoLegenda = ''; } }
+    }
+    registro.legenda = comLegenda || Boolean(arquivoLegenda);
     registro.duracao = duracao;
     if (lida.semPortugues) { registro.erro = 'o arquivo não tem áudio em português'; registro.terminou = true; return resumo(chave); }
 
@@ -225,12 +260,13 @@ async function iniciar(url, { titulo = '', referer = '', id = '', inicio = 0, fa
         // conversão começa ali, em segundos, em vez de converter desde o 0.
         ...(registro.inicio > 0 ? ['-ss', String(registro.inicio)] : []),
         '-i', url,
+        ...(arquivoLegenda ? ['-i', arquivoLegenda] : []),
         '-map', '0:v:0',
         '-map', `0:a:${indice}`,
-        ...(comLegenda ? ['-map', `0:s:${legenda.indice}`] : []),
+        ...(comLegenda ? ['-map', `0:s:${legenda.indice}`] : arquivoLegenda ? ['-map', '1:0'] : []),
         '-c:v', 'copy',
         '-c:a', 'aac', '-b:a', '160k', '-ac', '2',
-        ...(comLegenda ? ['-c:s', 'webvtt'] : []),
+        ...(comLegenda || arquivoLegenda ? ['-c:s', 'webvtt'] : []),
         // HLS: o player começa com os primeiros pedaços e a lista cresce
         // enquanto a conversão continua (formato que o aplicativo já domina).
         '-f', 'hls',
@@ -241,7 +277,7 @@ async function iniciar(url, { titulo = '', referer = '', id = '', inicio = 0, fa
         // legenda do player, em pedaços junto com o vídeo. A lista principal
         // continua sendo index.m3u8 (vira a "mestra": vídeo em index0.m3u8,
         // legenda em index0_vtt.m3u8) — o resto do app não muda.
-        ...(comLegenda
+        ...(comLegenda || arquivoLegenda
             ? ['-master_pl_name', 'index.m3u8', '-var_stream_map', 'v:0,a:0,s:0,sgroup:legendas,language:por',
                 '-hls_segment_filename', path.join(pasta, 'seg%v_%05d.ts'), path.join(pasta, 'index%v.m3u8')]
             : ['-hls_segment_filename', path.join(pasta, 'seg%05d.ts'), arquivo]),
@@ -346,10 +382,10 @@ function pode4k(id = '', tamanho = 0) {
 // Conversão que já cobre o ponto `inicio` (segundos do filme) ou uma nova que
 // começa nele. Devolve o resumo + `inicio` (onde o vídeo convertido começa no
 // filme). Janelas: "filme-550" (desde o 0) e "ini1980-filme-550" (desde 33 min).
-async function iniciarNoPonto(url, { id = '', referer = '', inicio = 0, faixa = null, quatroK = false, novo = false, legenda = null } = {}) {
+async function iniciarNoPonto(url, { id = '', referer = '', inicio = 0, faixa = null, quatroK = false, novo = false, legenda = null, legendaExterna = '' } = {}) {
     const ponto = Math.max(0, Math.floor(Number(inicio) || 0));
     if (novo && ponto < 60) for (const [chave, t] of trabalhos) if (t.lastro === id && !(t.terminou && t.pronto && inspecionarDisco(t.pasta)?.completo)) { try { if (t.processo && !t.terminou) t.processo.kill(); } catch { /* já saiu */ } trabalhos.delete(chave); }
-    if (!id || ponto < 60) return { ...(await module.exports.iniciar(url, { id, titulo: id, referer, faixa, quatroK, legenda })), inicio: 0 };
+    if (!id || ponto < 60) return { ...(await module.exports.iniciar(url, { id, titulo: id, referer, faixa, quatroK, legenda, legendaExterna })), inicio: 0 };
     const deste = new RegExp(`^(?:ini(\\d+)-)?${id.replace(/[^\w-]/g, '')}$`);
     let melhor = null;
     for (const [chave, t] of trabalhos) {
@@ -384,7 +420,7 @@ async function iniciarNoPonto(url, { id = '', referer = '', inicio = 0, faixa = 
             try { t.processo.kill(); } catch { /* já saiu */ }
         }
     }
-    const resultado = await module.exports.iniciar(url, { id: `ini${ponto}-${id}`, titulo: id, referer, faixa, quatroK, legenda, inicio: ponto });
+    const resultado = await module.exports.iniciar(url, { id: `ini${ponto}-${id}`, titulo: id, referer, faixa, quatroK, legenda, legendaExterna, inicio: ponto });
     return { ...resultado, inicio: ponto };
 }
 function arquivoDe(chave) {
@@ -410,4 +446,5 @@ function encerrarTudo() {
     }
 }
 
-module.exports = { pode4k, arrumarDisco, iniciar, iniciarNoPonto, estado, arquivoDe, caminhoDoPedaço, resumo, encerrarTudo, PASTA, identificar };
+module.exports = {
+    ajustarSrt, pode4k, arrumarDisco, iniciar, iniciarNoPonto, estado, arquivoDe, caminhoDoPedaço, resumo, encerrarTudo, PASTA, identificar };

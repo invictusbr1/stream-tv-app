@@ -324,6 +324,8 @@ async function descobrir({ estado = lerEstado(), quantos = 12, forcar = false } 
         if (tb.ativa()) deps.torbox = {
             emCache: hashes => tb.emCache(tb.lerChave(), hashes), ehPortugues: tb.ehPortugues, rotuloDe: tb.rotuloDe, hashDe: tb.hashDe, listas: tb.listas,
             aprovar: registro => fichas.aprovarListaTorbox(PASTA, registro),
+            listasAnime: tb.listasAnime, qualidade: tb.qualidade,
+            aprovarAnime: registro => fichas.aprovarListaAnime(PASTA, registro),
         };
     } catch { /* sem TorBox: descoberta como antes */ }
     const memoria = descoberta.criarMemoria(PASTA);
@@ -540,6 +542,35 @@ async function principal() {
         const { linhas } = resumoDaDescoberta();
         linhas.forEach(l => log(l));
         console.log('RESULTADO:' + JSON.stringify({ resumo: linhas, resultados: descobrir.ultimos || [], publicado: publicado ? publicado.ok : null }));
+        return;
+    }
+    if (args[0] === '--anime') {
+        // Caçada SÓ de anime (legendado e dublado): mede as listas de torrent
+        // na TorBox com episódios de anime e publica as aprovadas.
+        const descoberta = require('./descoberta');
+        const deps = dependencias();
+        let tb = null;
+        try { tb = require('../torbox-source'); } catch { tb = null; }
+        if (!tb || !tb.ativa()) { log('TorBox não configurada neste PC: a caçada de anime precisa dela.'); console.log('RESULTADO:' + JSON.stringify({ resumo: ['TorBox não configurada neste PC.'], resultados: [] })); process.exitCode = 2; return; }
+        deps.torbox = {
+            emCache: hashes => tb.emCache(tb.lerChave(), hashes), ehPortugues: tb.ehPortugues, rotuloDe: tb.rotuloDe, hashDe: tb.hashDe, listas: tb.listas,
+            listasAnime: tb.listasAnime, qualidade: tb.qualidade,
+            aprovar: registro => fichas.aprovarListaTorbox(PASTA, registro),
+            aprovarAnime: registro => fichas.aprovarListaAnime(PASTA, registro),
+        };
+        const memoria = descoberta.criarMemoria(PASTA);
+        const resultados = await descoberta.cacarAnime(memoria, deps, { quantos: 30 });
+        const aprovadas = resultados.filter(r => r.status === 'aprovada');
+        let publicado = null;
+        if (aprovadas.length) { publicado = await fichas.publicar(PASTA, tokenDoGithub()); log(publicado.ok ? 'publicado no GitHub — o servidor usa depois de "Recarregar fontes na Oracle"' : 'não publiquei: ' + publicado.motivo); }
+        const ativas = fichas.listasAnime(PASTA).filter(l => l.ativo !== false).map(l => l.nome || l.base);
+        const resumo = [
+            `medidas ${resultados.length} lista(s) com 6 episódios de anime; aprovadas agora: ${aprovadas.length}`,
+            `listas de anime aprovadas no total: ${ativas.length ? ativas.join(', ') : 'nenhuma ainda (o app usa as fixas: Torrentio e Cinema)'}`,
+            'Aprovada = trouxe episódio de anime novo, já pronto na TorBox, em 2 ou mais dos 6 testes. A chave TorBox não vai para nenhuma lista.',
+        ];
+        resumo.forEach(l => log(l));
+        console.log('RESULTADO:' + JSON.stringify({ resumo, resultados, publicado: publicado ? publicado.ok : null }));
         return;
     }
     if (args[0] === '--investigar') {

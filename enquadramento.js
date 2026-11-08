@@ -64,7 +64,9 @@
     function status() { paintButton(); }
     function original() {
         if (!video) return;
-        video.style.objectFit = 'contain'; video.style.transform = ''; lastScale = 1;
+        if (video.style.objectFit !== 'contain') video.style.objectFit = 'contain';
+        if (video.style.transform !== '') video.style.transform = '';
+        lastScale = 1;
     }
     function captions() { return Array.from(video?.textTracks || []).some(track => track.mode === 'showing'); }
     function paint() {
@@ -83,21 +85,44 @@
         status(g.scale > 1.025 ? 'Bordas pretas reduzidas. A proporção da imagem foi preservada.' : 'O vídeo já está ajustado à área disponível.');
     }
     function reset() { box = null; confidence.reset(); original(); paint(); }
-    function sample() {
-        if (!video || mode !== 'auto' || blocked || video.paused || video.seeking || video.readyState < 2 || !video.videoWidth || root.document.hidden) return;
+    // Amostra das bordas SEM travar o vídeo (08/11/2026): no navegador, ler um
+    // quadro 4K direto (drawImage + getImageData) parava a página ~90 ms a
+    // cada 2 s — eram as "picotadas". Agora o quadro é reduzido pelo próprio
+    // navegador (createImageBitmap, fora da página), a leitura é de 256 px, a
+    // amostra fica espaçada depois de decidir e, se mesmo assim pesar, para.
+    let ocupado = false, lentas = 0, ritmo = 2000;
+    function agendar(ms) { if (ritmo === ms && timer) return; ritmo = ms; clearInterval(timer); timer = video ? setInterval(sample, ms) : null; }
+    async function sample() {
+        if (ocupado || !video || mode !== 'auto' || blocked || video.paused || video.seeking || video.readyState < 2 || !video.videoWidth || root.document.hidden) return;
         if (captions()) { reset(); return; }
+        const alvo = video; ocupado = true;
         try {
             canvas ||= root.document.createElement('canvas');
-            canvas.width = 256; canvas.height = Math.max(32, Math.min(256, Math.round(256 * video.videoHeight / video.videoWidth)));
+            const w = 256, h = Math.max(32, Math.min(256, Math.round(256 * alvo.videoHeight / alvo.videoWidth)));
+            let quadro = null;
+            if (typeof root.createImageBitmap === 'function') {
+                try { quadro = await root.createImageBitmap(alvo, { resizeWidth: w, resizeHeight: h, resizeQuality: 'low' }); } catch { quadro = null; }
+                if (alvo !== video) { quadro?.close?.(); return; }
+            }
+            const t0 = root.performance?.now?.() || Date.now();
+            canvas.width = w; canvas.height = h;
             const ctx = canvas.getContext('2d', { willReadFrequently: true });
-            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-            const candidate = detect(ctx.getImageData(0, 0, canvas.width, canvas.height).data, canvas.width, canvas.height);
+            ctx.drawImage(quadro || alvo, 0, 0, w, h);
+            quadro?.close?.();
+            const candidate = detect(ctx.getImageData(0, 0, w, h).data, w, h);
+            const gasto = (root.performance?.now?.() || Date.now()) - t0;
+            // Leitura pesada neste aparelho: duas seguidas e a análise para
+            // (fica a imagem como está); o vídeo vem antes do ajuste de borda.
+            if (gasto > 35) { if (++lentas >= 2) { clearInterval(timer); timer = null; return; } } else lentas = 0;
             // Return immediately to the full picture if the aspect changes or
             // content (including text) appears in a previously cropped border.
-            if (!candidate || (box && Object.keys(box).some(k => candidate[k] < box[k] - .01))) reset();
-            const accepted = confidence.add(candidate, video.currentTime);
-            if (accepted) { box = accepted; paint(); }
+            // Só mexe no vídeo se havia ajuste: reescrever o estilo de um vídeo
+            // 4K a cada 2 s refazia a camada dele e picotava (08/11/2026).
+            if (box && (!candidate || Object.keys(box).some(k => candidate[k] < box[k] - .01))) { reset(); agendar(2000); }
+            const accepted = confidence.add(candidate, alvo.currentTime);
+            if (accepted) { box = accepted; paint(); agendar(10000); }
         } catch { blocked = true; box = null; original(); paint(); }
+        finally { ocupado = false; }
     }
     function attach(next) {
         clearInterval(timer); timer = null;
@@ -105,14 +130,14 @@
             original(); video.removeEventListener('seeking', reset);
             video.removeEventListener('loadedmetadata', reset); video.textTracks?.removeEventListener?.('change', reset);
         }
-        video = next; canvas = null; box = null; blocked = false; confidence.reset();
+        video = next; canvas = null; box = null; blocked = false; confidence.reset(); lentas = 0; ocupado = false;
         if (video) mode = /StreamTVAndroidTV|SMART-TV|Tizen|Web0S/i.test(root.navigator?.userAgent || '') ? 'original' : 'auto';
         paintButton();
         if (!video) { status('Disponível no player de vídeo do aplicativo.'); return; }
         video.parentElement.classList.add('framing-area');
         video.addEventListener('seeking', reset); video.addEventListener('loadedmetadata', reset);
         video.textTracks?.addEventListener?.('change', reset);
-        timer = setInterval(sample, 2000); paint();
+        ritmo = 0; agendar(2000); paint();
     }
     function setMode(value) {
         if (!['auto', 'original', 'fill'].includes(value)) return;

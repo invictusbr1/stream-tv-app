@@ -784,7 +784,8 @@ function criarContextoReproducao(alvo){
  return contexto;
 }
 function opcoesDeReproducao(contexto,version){
- return {sessao:contexto?.sessao,posicao:contexto?.posicao,onInterrupted:dados=>recuperarInterrupcao(contexto,version,dados)};
+ // Anime LEGENDADO: o player prefere o som japonês + legenda, nunca a faixa dublada.
+ return {sessao:contexto?.sessao,posicao:contexto?.posicao,preferirOriginal:contexto?.alvo?.episode?.anime===true&&contexto.alvo.episode.audio==='legendado',onInterrupted:dados=>recuperarInterrupcao(contexto,version,dados)};
 }
 window.StreamPlaybackOptions=({id,version})=>{
  const c=contextoReproducao;
@@ -933,8 +934,10 @@ async function abrirPlayer(id,titulo,episode=null,retomada=null){
  mostrarStatus(retomada?'Retomando seu vídeo…':'Procurando a melhor fonte…');
  setLoading(retomada?'Retomando seu vídeo':'Preparando seu vídeo…',retomada?'Procurando outra opção para continuar de onde parou.':'Buscando a melhor opção disponível.');
  try{
-  if(anime&&audioAnime==='legendado'&&!retomada&&window.StreamAnimePlayer){
-   const incorporado=await StreamAnimePlayer.abrir({id,episode,audio:audioAnime,version,playbackOptions:opcoes(),signal:req.signal,valido,request:lerJson,sessao:contexto.sessao,
+  // Anime legendado: a retomada (queda no meio) também volta pelo caminho
+  // legendado — antes ela pulava para fontes dubladas e o áudio trocava.
+  if(anime&&audioAnime==='legendado'&&window.StreamAnimePlayer){
+   const incorporado=await StreamAnimePlayer.abrir({id,episode,audio:audioAnime,version,playbackOptions:opcoes(),exceto:[...contexto.falhas],signal:req.signal,valido,request:lerJson,sessao:contexto.sessao,
     onLoad:()=>{if(!valido())return;el('loading').classList.remove('vis');mostrarStatus('Legendado · use os controles do vídeo');window.StreamChrome?.wake();},
     onError:()=>{if(!valido())return;mostrarErro('O player deste anime não carregou.','Tente novamente ou escolha Dublado, conforme disponibilidade.');abrirOpcoes();}
    });

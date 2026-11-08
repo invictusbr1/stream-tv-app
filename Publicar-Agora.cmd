@@ -2,7 +2,7 @@
 cd /d "%~dp0"
 title Publicar Conecta TV
 set LOG=%~dp0publicacao.log
-set VERSAO=2.13.151
+set VERSAO=2.13.152
 set SAIDA=%USERPROFILE%\Documents\Codex\apk-%VERSAO%
 echo Publicando o Conecta TV %VERSAO%. Leva alguns minutos, nao feche esta janela...
 echo === %date% %time% > "%LOG%"
@@ -37,7 +37,7 @@ if errorlevel 1 (echo FALHOU: compilacao Android >> "%LOG%" & goto fim)
 
 echo [5/5] Publicando a atualizacao do aplicativo...
 echo --- publicando APKs >> "%LOG%"
-powershell -NoProfile -ExecutionPolicy Bypass -File android\Publicar-Atualizacao.ps1 -Canal teste -ApkPath "%SAIDA%\Conecta-TV-Android-%VERSAO%.apk" -ApkTvPath "%SAIDA%\Conecta-TV-TV-%VERSAO%.apk" -Notes "Anime legendado mais leve e rapido (arquivo de ate 2,5 GB por episodio); nova pagina de Animes (em alta, temporada, dublados, calendario, Me surpreenda); pagina do filme/serie sem sinopse repetida, com elenco, trailer, critica e comentarios da familia; anime legendado pela TorBox (so anime); proximo episodio de series ja fica pronto; TorBox nao fica mais preso em Voltando de onde voce parou." >> "%LOG%" 2>&1
+powershell -NoProfile -ExecutionPolicy Bypass -File android\Publicar-Atualizacao.ps1 -Canal teste -ApkPath "%SAIDA%\Conecta-TV-Android-%VERSAO%.apk" -ApkTvPath "%SAIDA%\Conecta-TV-TV-%VERSAO%.apk" -Notes "Video no navegador sem picotadas (ajuste de bordas mais leve); anime legendado: nao troca mais sozinho para o dublado; legenda em portugues de fora quando o arquivo nao tem; arquivo mais leve; nova pagina de Animes (em alta, temporada, dublados, calendario, Me surpreenda); pagina do filme/serie sem sinopse repetida, com elenco, trailer, critica e comentarios da familia; anime legendado pela TorBox (so anime); proximo episodio de series ja fica pronto; TorBox nao fica mais preso em Voltando de onde voce parou." >> "%LOG%" 2>&1
 if errorlevel 1 (echo FALHOU: publicacao dos APKs >> "%LOG%" & goto fim)
 echo TUDO PUBLICADO NO CANAL DE TESTE >> "%LOG%"
 echo --- salvando a versao no git >> "%LOG%"
