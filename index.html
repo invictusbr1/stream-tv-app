@@ -1493,9 +1493,15 @@ html.modo-tv #anime-pagina .ap-hero h1{font-size:48px}
 #tela-folha .tela-rodape{display:flex;justify-content:flex-end;margin-top:14px}
 #tela-aviso{position:fixed;left:50%;bottom:calc(28px + env(safe-area-inset-bottom));transform:translateX(-50%);z-index:2147483001;background:#121722f2;border:1px solid #ffffff26;color:#fff;padding:12px 18px;border-radius:12px;font-size:15px;max-width:90vw;box-shadow:0 10px 30px #0008}
 #tela-aviso[hidden]{display:none}
+#tela-folha .tela-secao{margin:16px 2px 8px;font-size:12px;text-transform:uppercase;letter-spacing:.7px;color:#8d97a8}
+#tela-controle{position:fixed;left:50%;bottom:calc(150px + env(safe-area-inset-bottom));transform:translateX(-50%);z-index:2147482999;display:flex;align-items:center;gap:8px;background:#121722f2;border:1px solid #ffffff26;border-radius:999px;padding:8px 10px 8px 16px;color:#fff;font-size:14px;box-shadow:0 10px 30px #0008;max-width:94vw}
+#tela-controle[hidden]{display:none}
+#tela-controle span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:46vw}
+#tela-controle button{background:#ffffff14;border:0;color:#fff;border-radius:999px;min-width:40px;min-height:40px;font-size:16px;cursor:pointer}
 </style>
-<div id="tela-folha" hidden role="dialog" aria-modal="true" aria-labelledby="tela-titulo"><div class="tela-caixa"><h2 id="tela-titulo">📺 Assistir na TV</h2><p class="tela-sub">A TV precisa estar com o <b>Conecta TV aberto</b> (app no Mi Box/Android TV, ou o site no navegador da Samsung/LG). Ela continua do mesmo ponto, com a melhor qualidade que conseguir.</p><div class="tela-lista" id="tela-lista"></div><div class="tela-rodape"><button class="quiet" type="button" id="tela-fechar">Fechar</button></div></div></div>
+<div id="tela-folha" hidden role="dialog" aria-modal="true" aria-labelledby="tela-titulo"><div class="tela-caixa"><h2 id="tela-titulo">📺 Assistir na TV</h2><p class="tela-sub">TVs com o <b>Conecta TV aberto</b> escolhem a melhor fonte sozinhas. No celular, também aparecem as TVs do <b>Wi-Fi da casa</b> (Samsung, LG e outras), mesmo sem o app. O vídeo continua do mesmo ponto.</p><div class="tela-lista" id="tela-lista"></div><div class="tela-rodape"><button class="quiet" type="button" id="tela-fechar">Fechar</button></div></div></div>
 <div id="tela-aviso" hidden role="status" aria-live="polite"></div>
+<div id="tela-controle" hidden role="group" aria-label="Controle da TV"><span id="tela-controle-nome"></span><button type="button" data-acao="pausar" aria-label="Pausar na TV">⏸</button><button type="button" data-acao="continuar" aria-label="Continuar na TV">▶</button><button type="button" data-acao="parar" aria-label="Parar na TV">⏹</button></div>
 <script id="tela-script">
 (()=>{
  'use strict';
@@ -1566,14 +1572,49 @@ html.modo-tv #anime-pagina .ap-hero h1{font-size:48px}
   const icone=t=>/Samsung/.test(t.tipo)?'🖥️':/LG/.test(t.tipo)?'🖥️':/Android/.test(t.tipo)?'📦':'📺';
   for(const t of (Array.isArray(telas)?telas:[]))lista.append(item(icone(t),t.nome,(t.tipo==='TV'?'TV':t.tipo)+' · Conecta TV aberto',()=>enviar(t)));
   if(!telas.length)lista.append(Object.assign(document.createElement('p'),{className:'tela-vazio',textContent:'Nenhuma TV com o Conecta TV aberto agora. Abra o app na TV (ou o site no navegador dela) e toque de novo aqui.'}));
+  // TVs do Wi-Fi SEM o app (DLNA: Samsung, LG, TCL, Philips, Sony…).
+  if(appCelular){
+   const titulo=Object.assign(document.createElement('p'),{className:'tela-secao',textContent:'TVs no Wi-Fi (sem o app)'});
+   const area=document.createElement('div');area.className='tela-lista';
+   area.append(Object.assign(document.createElement('p'),{className:'tela-vazio',textContent:'Procurando TVs no Wi-Fi da casa…'}));
+   lista.append(titulo,area);
+   procurarDlna(area);
+  }
   // Espelhar a tela inteira (Smart View, Screen Share, Chromecast): serve para
   // qualquer TV que aceite espelhamento, mesmo sem o Conecta TV nela.
   if(appCelular)lista.append(item('🪞','Espelhar a tela do celular','Smart View (Samsung), Screen Share (LG), Chromecast/Mi Box — abre o espelhamento do Android',null,'/espelhar-tela'));
   else lista.append(Object.assign(document.createElement('p'),{className:'tela-vazio',textContent:'Dica: no Chrome do computador, menu ⋮ › Transmitir… espelha esta aba para Chromecast/Mi Box.'}));
   lista.querySelector('button,a')?.focus();
  }
+ async function procurarDlna(area){
+  let tvs=[];try{const r=await fetch('/api/dlna/procurar',{cache:'no-store'});tvs=r.ok?await r.json():[];}catch{tvs=[];}
+  if(folha.hidden)return;area.replaceChildren();
+  for(const t of (Array.isArray(tvs)?tvs:[]))area.append(item('📡',t.nome,(t.fabricante||'TV')+' · direto pelo Wi-Fi, sem app',()=>enviarDlna(t)));
+  if(!tvs.length)area.append(Object.assign(document.createElement('p'),{className:'tela-vazio',textContent:'Nenhuma TV respondeu. Confira se ela está ligada e no mesmo Wi-Fi do celular (na LG, ative "LG Connect Apps"/"Compartilhamento de tela"; na Samsung, costuma funcionar direto).'}));
+ }
+ let tvAtual=null;
+ async function comandoDlna(acao){if(!tvAtual)return;try{const r=await fetch('/api/dlna/comando?'+new URLSearchParams({tv:tvAtual.id,acao}),{cache:'no-store'});const d=await r.json().catch(()=>({}));if(!d.ok)aviso(d.motivo||'A TV não respondeu.');}catch{aviso('A TV não respondeu.');}if(acao==='parar'){$('tela-controle').hidden=true;tvAtual=null;}}
+ $('tela-controle').addEventListener('click',e=>{const b=e.target.closest('button[data-acao]');if(b)comandoDlna(b.dataset.acao);});
+ async function enviarDlna(tv){
+  const atual=oQueToca();if(!atual){aviso('Abra um filme ou episódio primeiro.');return;}
+  const est=window.StreamPlayback?.estado?.()||{};
+  if(!est.conversao){aviso('Este vídeo veio de uma fonte que não dá para mandar direto à TV. Use "Espelhar a tela" ou abra o Conecta TV na TV.',7000);fechar();return;}
+  lista.replaceChildren(Object.assign(document.createElement('p'),{className:'tela-vazio',textContent:'Mandando para '+tv.nome+'… a TV pode levar alguns segundos para começar.'}));
+  try{
+   const l=await fetch('/api/tela/link?'+new URLSearchParams({conversao:est.conversao,posicao:String(Math.floor(est.naConversao||0))}),{cache:'no-store'}).then(r=>r.json()).catch(()=>({}));
+   if(!l.ok){aviso(l.motivo||'Não consegui preparar o link para a TV.');fechar();return;}
+   const {f}=atual,ep=f.episode;const nome=(f.titulo||'Conecta TV')+(ep?' · T'+ep.season+'E'+ep.number:'');
+   const r=await fetch('/api/dlna/tocar?'+new URLSearchParams({tv:tv.id,video:l.video,legenda:l.legenda||'',titulo:nome}),{cache:'no-store'});
+   const d=await r.json().catch(()=>({}));
+   if(!r.ok||!d.ok){aviso(d.motivo||'A TV recusou este vídeo. Tente "Espelhar a tela".',7000);fechar();return;}
+   try{window.StreamPlayback?.saveProgress?.();}catch{}
+   try{const v=$('direct-video');if(v&&!v.paused)v.pause();}catch{}
+   tvAtual=tv;$('tela-controle-nome').textContent='📡 '+tv.nome;$('tela-controle').hidden=false;
+   fechar();aviso('📡 Mandado para '+tv.nome+'. Se a TV pedir, aceite a conexão no controle.',7000);
+  }catch{aviso('A TV não respondeu.');fechar();}
+ }
  botao.addEventListener('click',abrir);
- window.StreamTela={abrir,enviar};
+ window.StreamTela={abrir,enviar,enviarDlna};
 })();
 </script>
 </body></html>

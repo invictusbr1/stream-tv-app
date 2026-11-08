@@ -1047,10 +1047,37 @@ public final class MainActivity extends Activity {
         }
         android.widget.Toast.makeText(this,"Puxe a barra de notificações e toque em Smart View / Transmitir tela.",android.widget.Toast.LENGTH_LONG).show();
     }
+    // DLNA (08/11/2026): a página pede /api/dlna/procurar|tocar|comando; aqui
+    // só se fala com aparelhos da rede local, e o link entregue à TV tem que ser
+    // um link temporário /tv/ do NOSSO servidor (nada de endereço qualquer).
+    private WebResourceResponse dlna(Uri uri){
+        String path=uri.getPath();
+        try{
+            if("/api/dlna/procurar".equals(path)){
+                android.net.wifi.WifiManager wifi=(android.net.wifi.WifiManager)getApplicationContext().getSystemService(android.content.Context.WIFI_SERVICE);
+                android.net.wifi.WifiManager.MulticastLock trava=wifi==null?null:wifi.createMulticastLock("conecta-dlna");
+                try{if(trava!=null){trava.setReferenceCounted(false);trava.acquire();}return respostaTexto("application/json",Dlna.json(Dlna.procurar(3000)));}
+                finally{if(trava!=null&&trava.isHeld())trava.release();}
+            }
+            Dlna.Tv tv=Dlna.tv(String.valueOf(uri.getQueryParameter("tv")));
+            if(tv==null)return respostaTexto("application/json","{\"ok\":false,\"motivo\":\"TV não encontrada. Procure de novo.\"}");
+            if("/api/dlna/tocar".equals(path)){
+                String host=serverTransport().base.getHost();
+                String prefixo="http://"+host+"/tv/";
+                String video=String.valueOf(uri.getQueryParameter("video")),legenda=uri.getQueryParameter("legenda");
+                if(!video.startsWith(prefixo)||!video.matches("http://[^/]+/tv/[A-Za-z0-9_.-]{1,500}/video\\.ts"))return error(403);
+                if(legenda!=null&&!legenda.isEmpty()&&(!legenda.startsWith(prefixo)||!legenda.matches("http://[^/]+/tv/[A-Za-z0-9_.-]{1,500}/legenda\\.srt")))return error(403);
+                Dlna.tocar(tv,video,legenda,String.valueOf(uri.getQueryParameter("titulo")).replaceAll("[\\p{Cntrl}]"," "));
+                return respostaTexto("application/json","{\"ok\":true}");
+            }
+            if("/api/dlna/comando".equals(path)){Dlna.comando(tv,String.valueOf(uri.getQueryParameter("acao")));return respostaTexto("application/json","{\"ok\":true}");}
+            return error(404);
+        }catch(Exception falhou){return respostaTexto("application/json","{\"ok\":false,\"motivo\":\"A TV não respondeu. Confira se ela está ligada e no mesmo Wi-Fi.\"}");}
+    }
     private WebResourceResponse rotaDoServidor(Uri uri){
         java.net.HttpURLConnection c=null;
         try{
-            String path=uri.getPath();if(path==null||!path.matches("/api/tv/futemax(/jogos)?|/api/torbox/preparar|/api/playback/anime-legendado/[0-9]{1,10}/[0-9]{1,3}/[1-9][0-9]{0,3}|/api/anime/pagina|/api/anime/recomendacoes|/api/ficha/(movie|tv)/[0-9]{1,10}|/api/comentarios/(movie|tv)/[0-9]{1,10}(/enviar|/apagar)?|/api/tela/(receber|receptores|enviar)"))return error(404);
+            String path=uri.getPath();if(path==null||!path.matches("/api/tv/futemax(/jogos)?|/api/torbox/preparar|/api/playback/anime-legendado/[0-9]{1,10}/[0-9]{1,3}/[1-9][0-9]{0,3}|/api/anime/pagina|/api/anime/recomendacoes|/api/ficha/(movie|tv)/[0-9]{1,10}|/api/comentarios/(movie|tv)/[0-9]{1,10}(/enviar|/apagar)?|/api/tela/(receber|receptores|enviar|link)"))return error(404);
             ServerPlaybackTransport transport=serverTransport();
             String query=uri.getEncodedQuery();
             URL url=new URL(transport.base,path+(query==null||query.isEmpty()?"":"?"+query));
@@ -1749,7 +1776,9 @@ public final class MainActivity extends Activity {
                 // Ficha do título e comentários da família: ficam no servidor.
                 if (path != null && path.matches("/api/(ficha|comentarios)/(movie|tv)/[0-9]{1,10}(/enviar|/apagar)?")) return rotaDoServidor(uri);
                 // "Assistir na TV": o celular manda o título; a TV (Mi Box) pergunta se há pedido.
-                if (path != null && path.matches("/api/tela/(receber|receptores|enviar)")) return rotaDoServidor(uri);
+                if (path != null && path.matches("/api/tela/(receber|receptores|enviar|link)")) return rotaDoServidor(uri);
+                // TV sem o app (DLNA): procurar no Wi-Fi e mandar tocar o link.
+                if (path != null && path.startsWith("/api/dlna/")) return dlna(uri);
                 // Anime legendado pela TorBox (só anime): quem resolve é o servidor.
                 if (path != null && path.matches("/api/playback/anime-legendado/[0-9]{1,10}/[0-9]{1,3}/[1-9][0-9]{0,3}")) return rotaDoServidor(uri);
                 if (path != null && "/api/futebol/agenda".equals(path)) return futebolAgenda(uri);

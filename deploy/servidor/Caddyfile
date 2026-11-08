@@ -11,3 +11,16 @@ https://{$PUBLIC_IP} {
     }
     reverse_proxy app:3000
 }
+
+# TVs sem o app (DLNA: Samsung, LG...) não abrem HTTPS de endereço IP: só os
+# links temporários /tv/... vão em HTTP; todo o resto continua indo para HTTPS.
+http://{$PUBLIC_IP} {
+    handle /tv/* {
+        reverse_proxy app:3000 {
+            flush_interval -1
+        }
+    }
+    handle {
+        redir https://{host}{uri} permanent
+    }
+}

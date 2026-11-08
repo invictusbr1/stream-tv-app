@@ -106,6 +106,7 @@ for (const registrar of [
     require('./rotas/anime'),
     require('./rotas/ficha'),
     require('./rotas/tela'),
+    require('./rotas/tela-dlna'),
     require('./rotas/catalogo'),
     require('./rotas/legado-players'),
 ]) Object.assign(ctx, registrar(app, ctx));

@@ -198,6 +198,12 @@ window.StreamPlayback = (() => {
     let pcAtivo=false,pcSessao='',pcPosicao=0,pcDuracao=0;
     let travamentoTimer=null,ajusteTimer=null,voltarMelhorTimer=null,restaurado=false,removerAbort=null,verificarAtual=null,intencaoTocar=false,pausadoPeloUsuario=false,qualidadeEscolhida='best',ajustouConexao=false;
     function limparEspera(){clearTimeout(travamentoTimer);clearTimeout(ajusteTimer);travamentoTimer=null;ajusteTimer=null;}
+    // Para mandar à TV (DLNA): qual conversão do servidor está tocando e o
+    // ponto dentro dela (o celular pode passar por /api/rede-midia).
+    function conversaoTocando(){
+        try{const fonte=decodeURIComponent(String(hls?.url||video?.currentSrc||''));const m=fonte.match(/\/api\/convertido\/([A-Za-z0-9_-]{1,96})\//);
+        return m?{conversao:m[1],naConversao:Math.max(0,Number(video?.currentTime)||0)}:{conversao:'',naConversao:0};}catch{return {conversao:'',naConversao:0};}
+    }
     function posicaoAtual(){if(pcAtivo)return imagemConfirmada?pcPosicao:Math.max(0,retomadaAlvo||0);const ponto=Number(video?.currentTime);return imagemConfirmada?(Number.isFinite(ponto)&&ponto>=0?(video?.error&&ponto===0&&!video.seeking?ultimaPosicao:ponto):ultimaPosicao):Math.max(0,retomadaAlvo||0);}
     function esperando(current){
         if(!current()||!imagemConfirmada||!intencaoTocar||video.paused||video.seeking||video.ended||document.hidden)return;
@@ -651,7 +657,7 @@ video.addEventListener('playing',()=>{if(!current())return;window.StreamEpisodes
     function seek(seconds){if(!aoVivo&&video&&Number.isFinite(video.duration)&&foraDoConvertido(posicaoNoFilme()+seconds)&&posicaoNoFilme()+seconds<totalDoFilme()){reabrirNoPonto(Math.max(0,posicaoNoFilme()+seconds));showControls();return;}if(!aoVivo&&video&&Number.isFinite(video.duration)){const destino=Math.max(0,Math.min(video.duration,video.currentTime+seconds));ultimaPosicao=destino;analiseAtual?.buscar(destino);video.currentTime=destino;}showControls();}
     // Mover o dedo ou o mouse traz os controles de volta enquanto o vídeo roda.
     // StreamChrome centraliza toque, mouse e o relógio de todos os controles.
-    return {preparar,injetar,start,stop,play,quality,toggle,seek,showControls,setSubtitle:index=>setSubtitle(index,true),saveProgress,setSpeed,setAudio,audioMenu,setVolume,toggleMute,irPara,isActive:()=>direct,estado:()=>({buscaEsgotada,audio:rotuloAudio,legenda:subtitleChoice,fonte:fonteUsada,fonteId:fonteIdUsada,resolucao:alturaAtual?alturaAtual+'p':'',taxa:taxaAtual,posicao:posicaoAtual()})};
+    return {preparar,injetar,start,stop,play,quality,toggle,seek,showControls,setSubtitle:index=>setSubtitle(index,true),saveProgress,setSpeed,setAudio,audioMenu,setVolume,toggleMute,irPara,isActive:()=>direct,estado:()=>({buscaEsgotada,audio:rotuloAudio,legenda:subtitleChoice,fonte:fonteUsada,fonteId:fonteIdUsada,resolucao:alturaAtual?alturaAtual+'p':'',taxa:taxaAtual,posicao:posicaoAtual(),...conversaoTocando()})};
 })();
 function mostrarIconeTelaCheia(ativo){const b=el('fullscreen-toggle');if(!b)return;b.textContent=ativo?'⤡':'⛶';b.setAttribute('aria-label',ativo?'Sair da tela cheia':'Tela cheia');}
 window.StreamSetFullscreen=function(enabled){el('player').classList.toggle('expanded',enabled);mostrarIconeTelaCheia(enabled);};

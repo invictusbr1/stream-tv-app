@@ -209,7 +209,9 @@ function criarPortao(opcoes = {}) {
         || caminho === '/api/evento'
         // Cadastro do aparelho (nome/aparelho) feito na primeira abertura.
         || caminho === '/api/acesso'
-        || caminho === '/manifest.webmanifest' || caminho.startsWith('/pwa/') || caminho === '/favicon.ico';
+        || caminho === '/manifest.webmanifest' || caminho.startsWith('/pwa/') || caminho === '/favicon.ico'
+        // TV sem o app (DLNA): vale o link temporário assinado (rotas/tela-dlna.js).
+        || /^\/tv\/[A-Za-z0-9_-]{1,400}\.[A-Za-z0-9_-]{32}\/(video\.ts|legenda\.srt)$/.test(caminho);
 
     function middleware(req, res, next) {
         if (!codigo) return next();
