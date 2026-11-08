@@ -191,7 +191,13 @@ async function main() {
     if (!lock(process.argv.includes('--once'))) throw new Error('O monitor já está em execução.');
     if (process.argv.includes('--once')) { await publish(fingerprint()); return; }
     if (!process.argv.includes('--watch')) throw new Error('Use --watch, --once ou --status.');
-    log('Monitor iniciado. Aguardando dois minutos sem alterações.');
+    // Publicação AUTOMÁTICA só de madrugada (08/11/2026): de dia, cada ajuste
+    // na pasta virava uma atualização (com aviso e reinício para quem estava
+    // assistindo) — e uma edição pela metade chegou a ser enviada e "adiada".
+    // De dia, quem publica é o botão "Atualizar servidor"; a madrugada pega o
+    // que ficou pendente, com 20 min sem alterações.
+    const madrugada = () => { const h = new Date().getHours(); return h >= 3 && h < 6; };
+    log('Monitor iniciado. Publica sozinho só de madrugada (3h–6h), com 20 minutos sem alterações; de dia use "Atualizar servidor".');
     let observed = '', changedAt = Date.now(), failed = '';
     for (;;) {
         try {
@@ -200,10 +206,10 @@ async function main() {
             if (current.id !== observed) { observed = current.id; changedAt = Date.now(); failed = ''; }
             const previous = readJson(STATUS);
             if (current.id === previous.ultimoSucesso) status({ fase: 'aguardando', observado: current.id });
-            else if (current.id !== failed && Date.now() - changedAt >= 120000) {
+            else if (current.id !== failed && Date.now() - changedAt >= 20 * 60000 && madrugada()) {
                 try { await publish(current); }
                 catch (error) { failed = current.id; status({ fase: 'erro', erro: error.message }); log('Publicação não confirmada: ' + error.message); }
-            } else if (current.id !== failed) status({ fase: 'estabilizando', observado: current.id });
+            } else if (current.id !== failed) status({ fase: madrugada() ? 'estabilizando' : 'pendente (publica de madrugada ou pelo botão)', observado: current.id });
         } catch (error) { status({ fase: 'erro', erro: error.message }); }
         await pause(15000);
     }

@@ -52,7 +52,9 @@
    items=next;save(KEY,items);
    if(dialog.open){for(const a of items){read.add(signature(a));shown.add(signature(a));}save(READ,[...read].slice(-100));save(TOAST,[...shown].slice(-100));}
    paint();
-   const fresh=[...items].reverse().find(a=>!shown.has(signature(a))&&(a.fase==='preparando'||a.fase==='reiniciando'||a.fase==='falha'||(!first&&previous.has(a.id)))&&Date.now()-a.em<45*60000);
+   // Só interrompe com aviso o que afeta quem assiste: o reinício, a falha e a
+   // volta depois deles. "Preparando" e "adiada" (nada mudou) ficam só no sino.
+   const fresh=[...items].reverse().find(a=>!shown.has(signature(a))&&(a.fase==='reiniciando'||a.fase==='falha'||(!first&&previous.has(a.id)&&(a.fase==='concluida'||a.fase==='restaurada')))&&Date.now()-a.em<45*60000);
    if(fresh)show(fresh);first=false;
   }catch{ /* Uma indisponibilidade não interrompe nem recarrega o vídeo. */ }
   finally{busy=false;}
