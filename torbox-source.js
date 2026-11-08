@@ -35,6 +35,16 @@ const LISTAS = [
     // dublados prontos na TorBox que as outras listas não tinham.
     'https://torrentio.strem.fun/brazuca',
 ];
+// Listas aprovadas pelo caçador (perfis.json → "listasTorbox"): somam às fixas
+// acima, sem precisar atualizar o servidor. TODAS são consultadas ao mesmo
+// tempo (4 s cada, no máximo): um título que só uma delas tem não pode ficar
+// de fora. O teto de 20 só existe contra uma lista publicada com erro.
+function listas() {
+    let extras = [];
+    try { extras = require('./perfis-locais').listasTorbox(); } catch { extras = []; }
+    const bases = (Array.isArray(extras) ? extras : []).filter(l => l && l.ativo !== false && /^https:\/\/[^\s"']+$/.test(String(l.base || ''))).map(l => String(l.base).replace(/\/+$/, ''));
+    return [...new Set([...LISTAS, ...bases])].slice(0, 20);
+}
 const VALIDADE = 2 * 60 * 60 * 1000;      // link e resultado por título
 const VALIDADE_VAZIO = 20 * 60 * 1000;    // "não tem" é revisto em 20 min
 // Teste de 06/11/2026 (botão "TorBox: testar slots"): filme já pronto no
@@ -173,11 +183,18 @@ async function pedir(url, opcoes = {}, ms = 8000) {
 
 async function emCacheNaTorBox(chave, hashes) {
     const achados = new Set();
-    if (!hashes.length) return achados;
-    const r = await pedir(`${API}/torrents/checkcached?hash=${hashes.slice(0, 100).join(',')}&format=object`, { headers: { Authorization: `Bearer ${chave}` } });
-    const dados = r.json && r.json.data;
-    if (dados && typeof dados === 'object' && !Array.isArray(dados)) for (const h of Object.keys(dados)) achados.add(h.toLowerCase());
-    else if (Array.isArray(dados)) for (const d of dados) if (d && d.hash) achados.add(String(d.hash).toLowerCase());
+    // Com várias listas o número de torrents passa de 100: consulta TODOS,
+    // em lotes de 80 ao mesmo tempo (antes, o que passava de 100 era ignorado).
+    const unicos = [...new Set(hashes.filter(Boolean).map(h => String(h).toLowerCase()))].slice(0, 800);
+    if (!unicos.length) return achados;
+    const lotes = [];
+    for (let i = 0; i < unicos.length; i += 80) lotes.push(unicos.slice(i, i + 80));
+    await Promise.all(lotes.map(async lote => {
+        const r = await pedir(`${API}/torrents/checkcached?hash=${lote.join(',')}&format=object`, { headers: { Authorization: `Bearer ${chave}` } });
+        const dados = r.json && r.json.data;
+        if (dados && typeof dados === 'object' && !Array.isArray(dados)) for (const h of Object.keys(dados)) achados.add(h.toLowerCase());
+        else if (Array.isArray(dados)) for (const d of dados) if (d && d.hash) achados.add(String(d.hash).toLowerCase());
+    }));
     return achados;
 }
 
@@ -248,7 +265,7 @@ async function buscar(chave, tipo, tmdbId, temporada, episodio, rastro = [], { q
     const guardado = preludios.get(caminho);
     if (guardado && guardado.expira > Date.now()) return depoisDoPreludio(chave, guardado.valor, { ehSerie, temporada, episodio, rastro, qualidades, primeiro, hevcOk });
     // Lista lenta não segura as outras: 4 s cada, todas ao mesmo tempo.
-    const respostas = await Promise.all(LISTAS.map(base => pedir(`${base}/stream/${caminho}.json`, {}, 4000)));
+    const respostas = await Promise.all(listas().map(base => pedir(`${base}/stream/${caminho}.json`, {}, 4000)));
     const streams = juntar(respostas.map(r => (r.json && Array.isArray(r.json.streams) ? r.json.streams : [])));
     const hashes = streams.filter(s => ehPortugues(rotuloDe(s))).map(hashDe);
     const emCache = await emCacheNaTorBox(chave, hashes);
@@ -272,7 +289,7 @@ async function preludio(tipo, tmdbId, temporada, episodio, { hevcOk = false } = 
     const caminho = ehSerie ? `series/${imdb}:${temporada || 1}:${episodio || 1}` : `movie/${imdb}`;
     let guardado = preludios.get(caminho);
     if (!guardado || guardado.expira <= Date.now()) {
-        const respostas = await Promise.all(LISTAS.map(base => pedir(`${base}/stream/${caminho}.json`, {}, 4000)));
+        const respostas = await Promise.all(listas().map(base => pedir(`${base}/stream/${caminho}.json`, {}, 4000)));
         const streams = juntar(respostas.map(r => (r.json && Array.isArray(r.json.streams) ? r.json.streams : [])));
         const emCache = await emCacheNaTorBox(chave, streams.filter(s => ehPortugues(rotuloDe(s))).map(hashDe));
         guardado = { valor: { streams, emCache, imdb }, expira: Date.now() + PRELUDIO_VALIDADE };
@@ -443,10 +460,11 @@ async function resolverAnimeLegendado(tmdbId, temporada, episodio, { hevcOk = fa
         const imdb = await require('./fenix-source').imdbDe(id, 'tv');
         if (!imdb) { const v = []; v.semCandidatos = true; return v; }
         const caminho = `series/${imdb}:${temporada}:${episodio}`;
-        const respostas = await Promise.all(LISTAS_ANIME.map(base => pedir(`${base}/stream/${caminho}.json`, {}, 4000)));
+        // Anime: as listas de anime + as aprovadas pelo caçador (várias têm anime).
+        const respostas = await Promise.all([...new Set([...LISTAS_ANIME, ...listas()])].map(base => pedir(`${base}/stream/${caminho}.json`, {}, 4000)));
         const streams = juntar(respostas.map(r => (r.json && Array.isArray(r.json.streams) ? r.json.streams : [])))
             .filter(st => !/\b(?:cam|ts|hdcam|telesync)\b/i.test(rotuloDe(st)) && !dubladoExplicito(rotuloDe(st)));
-        const emCache = await emCacheNaTorBox(chave, streams.map(hashDe).slice(0, 100));
+        const emCache = await emCacheNaTorBox(chave, streams.map(hashDe));
         const candidatos = streams.filter(st => emCache.has(hashDe(st)))
             .map(st => ({ st, r: rotuloDe(st) }))
             .map(x => ({ ...x, q: qualidade(x.r), hevc: ehHevc(x.r), dica: DICA_LEGENDA.test(x.r) }))
@@ -495,4 +513,4 @@ async function resolver(tipo, tmdbId, temporada, episodio) {
     return (await resolverTodos(tipo, tmdbId, temporada, episodio))[0] || null;
 }
 
-module.exports = { resolverAnimeLegendado, legendaPortuguesa, preludio, resolver, resolverMelhor, resolverTodos, ativa, lerChave, ehPortugues, dubladoExplicito, qualidade, ehHevc, escolherTorrents, escolherArquivo, tamanhoGB, hashDe, juntar, LISTAS };
+module.exports = { listas, emCache: emCacheNaTorBox, rotuloDe, resolverAnimeLegendado, legendaPortuguesa, preludio, resolver, resolverMelhor, resolverTodos, ativa, lerChave, ehPortugues, dubladoExplicito, qualidade, ehHevc, escolherTorrents, escolherArquivo, tamanhoGB, hashDe, juntar, LISTAS };

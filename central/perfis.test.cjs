@@ -229,3 +229,15 @@ test('publicação envia a suspensão e preserva receitas ativas sem publicar re
         assert.deepEqual(publicado.perfis.find(p => p.id === 'suspensa'), { id: 'suspensa', ativo: false });
     } finally { fs.rmSync(pasta, { recursive: true, force: true }); }
 });
+
+test('listas da TorBox: aprovar grava, e publicar junta com as já publicadas (a local vence)', () => {
+    const fs = require('node:fs'), os = require('node:os'), path = require('node:path');
+    const perfis = require('./perfis');
+    const pasta = fs.mkdtempSync(path.join(os.tmpdir(), 'tbl-'));
+    perfis.aprovarListaTorbox(pasta, { base: 'https://lista.nova.net/', nome: 'Nova', motivo: 'teste', novos: 3 });
+    assert.equal(perfis.aprovarListaTorbox(pasta, { base: 'http://inseguro.net' }), null);
+    const local = perfis.ler(pasta);
+    assert.deepEqual(local.listasTorbox.map(l => l.base), ['https://lista.nova.net']);
+    const juntos = perfis.juntarPublicado({ listasTorbox: [{ base: 'https://antiga.net', ativo: true }, { base: 'https://lista.nova.net', ativo: false }] }, local);
+    assert.deepEqual(juntos.listasTorbox.map(l => [l.base, l.ativo]), [['https://antiga.net', true], ['https://lista.nova.net', true]]);
+});

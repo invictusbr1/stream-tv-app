@@ -137,3 +137,31 @@ test('lista da comunidade (stremio-addons.net): pega o manifest das issues brasi
     assert.equal(vistos[0].origem, 'lista-comunidade');
     assert.match(vistos[0].base, /brazuca-torrents\.baby-beamup\.club/);
 });
+
+test('TorBox: lista de torrent com dublado NOVO pronto na TorBox é aprovada; sem novidade, não', async () => {
+    const tb = require('../torbox-source');
+    const p = pasta();
+    const m = d.criarMemoria(p);
+    for (const b of ['https://novo.torrent.net', 'https://repetido.torrent.net']) m.ver({ base: b, origem: 'teste' });
+    const h = c => c.repeat(40);
+    const manifest = { id: 'x', name: 'Torrents BR', resources: ['stream'], types: ['movie', 'series'] };
+    const buscarJson = async u => {
+        if (u.endsWith('/manifest.json')) return manifest;
+        if (/external_ids|discover|tv\//.test(u)) return null;
+        const filme = (u.match(/tt\d+/) || [''])[0];
+        if (u.startsWith('https://atual.lista')) return { streams: [{ infoHash: h('a'), title: `${filme} 1080p DUBLADO` }] };
+        if (u.startsWith('https://novo.torrent.net')) return { streams: [{ infoHash: h('a'), title: 'x 1080p DUBLADO' }, { infoHash: (filme + 'b'.repeat(40)).slice(-40).replace(/[^a-f0-9]/g, 'b'), title: 'x 1080p DUBLADO' }] };
+        if (u.startsWith('https://repetido.torrent.net')) return { streams: [{ infoHash: h('a'), title: 'x 1080p DUBLADO' }] };
+        return null;
+    };
+    const aprovadas = [];
+    const torbox = { emCache: async hashes => new Set(hashes), ehPortugues: tb.ehPortugues, rotuloDe: tb.rotuloDe, hashDe: tb.hashDe, listas: () => ['https://atual.lista'], aprovar: r => aprovadas.push(r) };
+    const deps = { buscarJson, torbox, validar: async () => ({ aprovada: false }), registrarFicha: () => null, fichasAtuais: () => [], pastaDados: p };
+    const r = await d.explorar(m, deps, { quantos: 10 });
+    const st = Object.fromEntries(r.map(x => [x.link, x.status]));
+    assert.equal(st['https://novo.torrent.net'], 'aprovada');
+    assert.equal(aprovadas.length, 1);
+    assert.equal(aprovadas[0].base, 'https://novo.torrent.net');
+    assert.notEqual(st['https://repetido.torrent.net'], 'aprovada');
+    assert.equal(m.item('https://novo.torrent.net').status, 'lista TorBox');
+});

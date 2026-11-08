@@ -317,6 +317,15 @@ async function rodada({ forcarNovelas = false, quantos = 12 } = {}) {
 async function descobrir({ estado = lerEstado(), quantos = 12, forcar = false } = {}) {
     const descoberta = require('./descoberta');
     const deps = dependencias();
+    // TorBox (a conta é nossa): lista de torrent achada é medida e, se trouxer
+    // dublado novo pronto, entra no motor 1 (publicada em "listasTorbox").
+    try {
+        const tb = require('../torbox-source');
+        if (tb.ativa()) deps.torbox = {
+            emCache: hashes => tb.emCache(tb.lerChave(), hashes), ehPortugues: tb.ehPortugues, rotuloDe: tb.rotuloDe, hashDe: tb.hashDe, listas: tb.listas,
+            aprovar: registro => fichas.aprovarListaTorbox(PASTA, registro),
+        };
+    } catch { /* sem TorBox: descoberta como antes */ }
     const memoria = descoberta.criarMemoria(PASTA);
     const reg = deps.registrar;
     const marca = estado.descoberta || (estado.descoberta = {});
@@ -428,7 +437,7 @@ function errosRecentes(sessoes, { horas = 48, filtro = '', agora = Date.now() } 
 function resumoDaDescoberta() {
     const descoberta = require('./descoberta');
     const rel = descoberta.relatorio(descoberta.criarMemoria(PASTA), { dias: 7 });
-    const nomes = { novo: 'na fila (nunca testados)', aprovada: 'aprovados', 'já ativa': 'já usados pelo app', recusada: 'recusados na validação', promissora: 'promissores', 'sem dublado': 'sem dublado', 'fora do ar': 'fora do ar', 'pede configuração': 'pedem configuração', 'conta paga': 'pedem conta paga', 'sem vídeo': 'sem filmes/séries', erro: 'com erro' };
+    const nomes = { novo: 'na fila (nunca testados)', aprovada: 'aprovados', 'já ativa': 'já usados pelo app', recusada: 'recusados na validação', promissora: 'promissores', 'sem dublado': 'sem dublado', 'fora do ar': 'fora do ar', 'pede configuração': 'pedem configuração', 'conta paga': 'pedem conta paga', 'sem vídeo': 'sem filmes/séries', erro: 'com erro', 'lista TorBox': 'listas de torrent aprovadas para a TorBox', 'só torrent': 'torrent sem novidade na TorBox' };
     const linhas = [
         `Fornecedores conhecidos: ${rel.conhecidos} · vistos pela primeira vez na semana: ${rel.vistosNoPeriodo}`,
         `Testados na semana: ${rel.testadosNoPeriodo} · aprovados: ${rel.aprovadasNoPeriodo} · na fila para testar: ${rel.naFila}`,

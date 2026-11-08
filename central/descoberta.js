@@ -41,7 +41,7 @@ function enderecoPublico(url) {
 
 const DIA = 24 * 60 * 60 * 1000;
 const TRIAGEM = 2; // sobe quando a triagem melhora: os descartados antes são revistos
-const RETESTE = { 'só torrent': 60 * DIA, 'sem os títulos': 14 * DIA, 'fora do ar': 3 * DIA, 'sem dublado': 14 * DIA, recusada: 7 * DIA, 'pede configuração': 30 * DIA, 'sem vídeo': 30 * DIA, 'conta paga': 60 * DIA, erro: 2 * DIA };
+const RETESTE = { 'lista TorBox': 30 * DIA, 'só torrent': 14 * DIA, 'sem os títulos': 14 * DIA, 'fora do ar': 3 * DIA, 'sem dublado': 14 * DIA, recusada: 7 * DIA, 'pede configuração': 30 * DIA, 'sem vídeo': 30 * DIA, 'conta paga': 60 * DIA, erro: 2 * DIA };
 const DIRETORIOS_PADRAO = [
     'https://raw.githubusercontent.com/doingodswork/awesome-stremio/master/README.md',
 ];
@@ -62,7 +62,22 @@ const AMOSTRAS_DE_TRIAGEM = [
     { tipo: 'movie', id: '519182', imdb: 'tt7510222', titulo: 'Meu Malvado Favorito 4' },
     { tipo: 'movie', id: '299534', imdb: 'tt4154796', titulo: 'Vingadores: Ultimato' },
 ];
-const PAGO = /torrent|debrid|magnet|usenet|easynews|jackett|premiumize|torbox|alldebrid|real-?debrid|offcloud/i;
+// 07/11/2026 (TorBox): torrent deixou de ser "conta paga" — a conta é nossa.
+// Só conta como paga a conta de debrid/usenet de OUTRA pessoa, ou o que exige
+// configurar. Antes, "torrent" no nome já descartava (Torrentio, Brazuca…).
+const PAGO = /debrid|usenet|easynews|jackett|premiumize|torbox|alldebrid|real-?debrid|offcloud/i;
+// Stream entregue pela conta de debrid de outra pessoa ([RD+], [TB+]…).
+const PAGO_STREAM = /\[(?:rd|ad|tb|pm|dl|oc|ed)\+?\]|real-?debrid|alldebrid|premiumize|torbox|offcloud|easynews|\bdebrid\b/i;
+// Títulos para medir uma lista de torrent na TorBox (filmes e série populares
+// dublados, ao menos um recente).
+const AMOSTRAS_TORBOX = [
+    { tipo: 'movie', imdb: 'tt1375666', titulo: 'A Origem' },
+    { tipo: 'movie', imdb: 'tt22022452', titulo: 'Divertida Mente 2' },
+    { tipo: 'movie', imdb: 'tt15398776', titulo: 'Oppenheimer' },
+    { tipo: 'movie', imdb: 'tt13622970', titulo: 'Moana 2' },
+    { tipo: 'movie', imdb: 'tt6263850', titulo: 'Deadpool & Wolverine' },
+    { tipo: 'tv', imdb: 'tt0903747', temporada: 1, episodio: 1, titulo: 'Breaking Bad T1E1' },
+];
 const ADULTO = /adult|hentai|xxx|porn|\+18|18\+|nsfw/i;
 const BRASIL = /\b(br|pt-?br|ptbr)\b|brasil|brazil|dublad|dual ?[áa]udio|portugu|nacional|novela|filmes|s[ée]ries brasileir|globo|\bsbt\b|record/i;
 
@@ -76,6 +91,11 @@ function criarMemoria(pasta, { agora = () => Date.now() } = {}) {
     for (const [base, item] of Object.entries(dados.itens)) {
         if (!enderecoPublico(base)) { delete dados.itens[base]; continue; }
         if ((item.triagem || 1) < TRIAGEM && ['sem dublado', 'fora do ar'].includes(item.status)) { item.status = 'novo'; item.testadoEm = 0; }
+        // Com a TorBox, quem foi descartado por "só torrent"/"conta paga" (o
+        // "torrent" no nome bastava) volta para a fila uma vez, para ser medido.
+        // (uma vez só: revistoTorbox; e só os descartados pela regra antiga).
+        const regraAntiga = item.status === 'só torrent' || (item.status === 'conta paga' && /torrent\/debrid|conta paga configurada|debrid\/usenet/i.test(String(item.motivo || '')));
+        if (regraAntiga && !item.torboxAvaliado && (item.regraTorbox || 0) < 2 && !item.revistoTorbox2) { item.status = 'novo'; item.testadoEm = 0; item.revistoTorbox2 = true; item.prioridade = Math.max(item.prioridade || 0, 1); }
     }
     const gravar = () => { try { fs.mkdirSync(pasta, { recursive: true }); fs.writeFileSync(arquivo, JSON.stringify(dados)); } catch { /* segue sem memória */ } };
     function evento(tipo, base, detalhe = '') {
@@ -199,7 +219,8 @@ async function coletarGithub(memoria, { buscarJson, buscarTexto, token = '', bus
 // enviado ao catálogo stremio-addons.net vira uma "issue" com o endereço do
 // manifest. Busca as brasileiras/dubladas mais novas — é por aqui que addon
 // novo aparece primeiro. Funciona sem token (limite baixo, uma vez por dia).
-const BUSCAS_LISTA_COMUNIDADE = ['dublado', 'brasil', 'pt-br', 'brazuca', 'portugues', 'português', 'nacional', 'novelas', 'legendado'];
+// Também os de torrent (etiqueta "torrents"): com a TorBox eles viram fonte.
+const BUSCAS_LISTA_COMUNIDADE = ['dublado', 'brasil', 'pt-br', 'brazuca', 'portugues', 'português', 'nacional', 'novelas', 'legendado', 'label:torrents', 'torrent'];
 async function coletarListaComunidade(memoria, { buscarJson, token = '', buscas = BUSCAS_LISTA_COMUNIDADE, registrar = () => {} }) {
     const cab = { Accept: 'application/vnd.github+json', ...(token ? { Authorization: `Bearer ${token}` } : {}) };
     const vistas = new Set();
@@ -282,13 +303,16 @@ async function detetive(memoria, { fichas = [], buscarJson, registrar = () => {}
 async function triar(item, { buscarJson, amostras }) {
     const m = await buscarJson(item.base + '/manifest.json').catch(() => null);
     if (!m || typeof m !== 'object' || !m.id) return { status: 'fora do ar', motivo: 'o endereço não respondeu como addon' };
-    const extra = { manifestId: String(m.id).slice(0, 120), nome: String(m.name || item.nome || '').slice(0, 60), descricao: String(m.description || item.descricao || '').slice(0, 200) };
+    const extra = { regraTorbox: 2, manifestId: String(m.id).slice(0, 120), nome: String(m.name || item.nome || '').slice(0, 60), descricao: String(m.description || item.descricao || '').slice(0, 200) };
     const recursos = JSON.stringify(m.resources || '');
     const tipos = Array.isArray(m.types) ? m.types.map(String) : [];
     // Addon que lista outros addons: tudo o que ele lista vira candidato.
     const catalogosDeAddons = Array.isArray(m.addonCatalogs) ? m.addonCatalogs : [];
     if (ADULTO.test(`${m.name} ${m.description}`)) return { status: 'sem vídeo', motivo: 'conteúdo adulto', extra };
-    if (PAGO.test(`${m.name} ${m.id} ${m.description || ''}`)) return { status: 'conta paga', motivo: 'precisa de conta paga (torrent/debrid)', extra, catalogosDeAddons };
+    // Citar debrid no manifesto não basta para descartar: muito addon só
+    // OFERECE debrid e funciona sem conta (Torrentio, Mico-Leão V2…). Só é
+    // "conta paga" se não entregar nada sem a conta (ver o fim da triagem).
+    const mencionaPago = PAGO.test(`${m.name} ${m.id} ${m.description || ''}`);
     if (m.behaviorHints && m.behaviorHints.configurationRequired) return { status: 'pede configuração', motivo: 'o addon pede configuração/conta antes de usar', extra, catalogosDeAddons };
     if (!/stream/.test(recursos) || !tipos.some(t => t === 'movie' || t === 'series')) return { status: 'sem vídeo', motivo: 'não entrega filmes/séries', extra, catalogosDeAddons };
     const tiposDoAddon = tipos.filter(t => t === 'movie' || t === 'series');
@@ -308,15 +332,44 @@ async function triar(item, { buscarJson, amostras }) {
         if (!streams.length) continue;
         comTitulo++;
         const diretos = streams.filter(x => x && typeof x.url === 'string' && /^https?:\/\//i.test(x.url));
-        if (streams.some(x => PAGO.test(`${x && x.name || ''} ${x && (x.title || x.description) || ''}`))) return { status: 'conta paga', motivo: 'entrega pelo TorBox/Real-Debrid de outra pessoa (conta paga configurada no endereço)', extra, catalogosDeAddons };
+        if (streams.some(x => PAGO_STREAM.test(`${x && x.name || ''} ${x && (x.title || x.description) || ''}`))) return { status: 'conta paga', motivo: 'entrega pelo TorBox/Real-Debrid de outra pessoa (conta paga configurada no endereço)', extra, catalogosDeAddons };
         if (!diretos.length) { if (streams.some(x => x && (x.infoHash || /^magnet:/i.test(String(x.url || ''))))) soTorrent++; continue; }
         http++;
         if (cacada.streamsUteis(diretos).length) return { status: 'promissora', motivo: `tem "${alvo.titulo}" com rótulo dublado`, extra, catalogosDeAddons };
         if (declaraDublado) return { status: 'promissora', motivo: `tem "${alvo.titulo}" e o addon se declara dublado`, extra, catalogosDeAddons };
     }
+    if (!comTitulo && mencionaPago) return { status: 'conta paga', motivo: 'precisa de conta paga (debrid/usenet)', extra, catalogosDeAddons };
     if (!comTitulo) return { status: 'sem os títulos', motivo: `não tem nenhum dos ${amostras.length} títulos populares de teste`, extra, catalogosDeAddons };
-    if (!http && soTorrent) return { status: 'só torrent', motivo: 'só entrega torrent (o app não toca torrent)', extra, catalogosDeAddons };
+    if (!http && soTorrent) return { status: 'só torrent', motivo: 'só entrega torrent (vai para a medição da TorBox)', extra, catalogosDeAddons, torrent: true };
+    if (soTorrent) return { status: 'sem dublado', motivo: `tem ${comTitulo} dos títulos, sem link direto dublado (tem torrent: vai para a medição da TorBox)`, extra, catalogosDeAddons, torrent: true };
     return { status: 'sem dublado', motivo: `tem ${comTitulo} dos títulos, mas sem versão dublada`, extra, catalogosDeAddons };
+}
+
+// Lista de torrent vale para a TorBox? Para cada título de teste: os
+// torrents com português que ela tem e as listas atuais NÃO têm, e quantos
+// desses já estão prontos na TorBox. Aprova com novidade pronta em 2+ títulos.
+async function avaliarParaTorbox(item, { buscarJson, torbox, amostras = AMOSTRAS_TORBOX }) {
+    const { emCache, ehPortugues, rotuloDe, hashDe, listas } = torbox;
+    let titulosComNovos = 0, novosProntos = 0, ptTotal = 0;
+    const detalhes = [];
+    for (const alvo of amostras) {
+        const caminho = alvo.tipo === 'tv' ? `/stream/series/${alvo.imdb}:${alvo.temporada || 1}:${alvo.episodio || 1}.json` : `/stream/movie/${alvo.imdb}.json`;
+        const dele = await buscarJson(item.base + caminho).catch(() => null);
+        const streams = (dele && Array.isArray(dele.streams) ? dele.streams : []).filter(x => x && ehPortugues(rotuloDe(x)));
+        const hashes = [...new Set(streams.map(hashDe).filter(Boolean))];
+        ptTotal += hashes.length;
+        if (!hashes.length) continue;
+        const conhecidos = new Set();
+        for (const base of listas()) {
+            if (base.replace(/\/+$/, '') === item.base.replace(/\/+$/, '')) continue;
+            const r = await buscarJson(base + caminho).catch(() => null);
+            for (const x of (r && Array.isArray(r.streams) ? r.streams : [])) { const h = hashDe(x); if (h) conhecidos.add(h); }
+        }
+        const novos = hashes.filter(h => !conhecidos.has(h));
+        const prontos = novos.length ? await emCache(novos).catch(() => new Set()) : new Set();
+        if (prontos.size) { titulosComNovos++; novosProntos += prontos.size; detalhes.push(`${alvo.titulo} +${prontos.size}`); }
+    }
+    return { aprovar: titulosComNovos >= 2, titulosComNovos, novosProntos, ptTotal, motivo: titulosComNovos ? `dublado novo pronto na TorBox: ${detalhes.join(', ')}` : ptTotal ? 'tem torrent dublado, mas nada novo pronto na TorBox' : 'sem torrent dublado' };
 }
 
 async function lerCatalogosDeAddons(memoria, item, catalogos, { buscarJson }) {
@@ -341,15 +394,28 @@ async function explorar(memoria, deps, { quantos = 6, agora = Date.now() } = {})
     registrar(`exploração: ${fila.length} candidato(s) na fila, testando ${escolhidos.length}`);
     const resultados = [];
     for (const item of escolhidos) {
-        const t = await triar(item, { buscarJson, amostras }).catch(e => ({ status: 'erro', motivo: String(e.message || e).slice(0, 80) }));
+        let t = await triar(item, { buscarJson, amostras }).catch(e => ({ status: 'erro', motivo: String(e.message || e).slice(0, 80) }));
         if (t.catalogosDeAddons && t.catalogosDeAddons.length) {
             const n = await lerCatalogosDeAddons(memoria, item, t.catalogosDeAddons, { buscarJson }).catch(() => 0);
             if (n) registrar(`  ${item.nome || item.base} lista outros addons: ${n} candidato(s) novo(s)`);
         }
+        // Lista de torrent: mede na TorBox (a conta é nossa) antes de descartar.
+        if (t.torrent && deps.torbox) {
+            const tb = await avaliarParaTorbox(item, { buscarJson, torbox: deps.torbox }).catch(e => ({ aprovar: false, motivo: 'erro na medição: ' + String(e.message || e).slice(0, 60) }));
+            if (tb.aprovar) {
+                const nome = t.extra && t.extra.nome || item.nome || item.base;
+                deps.torbox.aprovar({ base: item.base, nome, motivo: tb.motivo, novos: tb.novosProntos });
+                memoria.anotar(item.base, 'lista TorBox', tb.motivo, { ...(t.extra || {}), torboxAvaliado: true });
+                registrar(`  ★ ${nome}: lista de torrent APROVADA para a TorBox — ${tb.motivo}`);
+                resultados.push({ link: item.base, nome, status: 'aprovada', qualidade: 'TorBox', detalhe: tb.motivo });
+                continue;
+            }
+            t = { ...t, rotulo: tb.titulosComNovos ? 'torrent: pouca novidade' : 'torrent sem dublado novo', motivo: `TorBox: ${tb.motivo}${tb.titulosComNovos ? ' (precisa de novidade em 2 títulos)' : ''}`, extra: { ...(t.extra || {}), torboxAvaliado: true } };
+        }
         if (t.status !== 'promissora') {
             memoria.anotar(item.base, t.status, t.motivo, t.extra || {});
             registrar(`  · ${t.extra && t.extra.nome || item.base}: ${t.status} — ${t.motivo}`);
-            resultados.push({ link: item.base, nome: t.extra && t.extra.nome || item.base, status: t.status, detalhe: t.motivo });
+            resultados.push({ link: item.base, nome: t.extra && t.extra.nome || item.base, status: t.rotulo || t.status, detalhe: t.motivo });
             continue;
         }
         registrar(`  ★ ${t.extra.nome}: ${t.motivo} — validando de verdade…`);
@@ -384,6 +450,6 @@ function relatorio(memoria, { dias = 7, agora = Date.now() } = {}) {
 }
 
 module.exports = {
-    baseDe, enderecoPublico, AMOSTRAS_DE_TRIAGEM, criarMemoria, pontuar, prontoParaTestar, coletarCatalogos, coletarDiretorios, coletarGithub, coletarListaComunidade, coletarPistas,
+    baseDe, enderecoPublico, AMOSTRAS_DE_TRIAGEM, AMOSTRAS_TORBOX, avaliarParaTorbox, criarMemoria, pontuar, prontoParaTestar, coletarCatalogos, coletarDiretorios, coletarGithub, coletarListaComunidade, coletarPistas,
     detetive, triar, explorar, relatorio, normalizarNome, DIRETORIOS_PADRAO, BUSCAS_GITHUB, RETESTE,
 };

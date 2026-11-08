@@ -103,6 +103,8 @@ for (const registrar of [
     require('./rotas/playback'),
     require('./rotas/downloads'),
     require('./rotas/tv'),
+    require('./rotas/anime'),
+    require('./rotas/ficha'),
     require('./rotas/catalogo'),
     require('./rotas/legado-players'),
 ]) Object.assign(ctx, registrar(app, ctx));

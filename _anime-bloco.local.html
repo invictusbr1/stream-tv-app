@@ -1,0 +1,175 @@
+<style id="anime-pagina-estilo">
+/* Página de Animes (07/11/2026): destaque, fileiras do AniList, calendário,
+   "Me surpreenda" e selos. Usa as mesmas fileiras e capas do resto do app. */
+#anime-pagina{padding:0 0 30px}
+#anime-pagina .ap-hero{position:relative;min-height:min(56vh,520px);display:flex;align-items:flex-end;margin:0 0 8px;border-radius:0 0 18px 18px;overflow:hidden;background:#11141b}
+#anime-pagina .ap-hero img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:.55}
+#anime-pagina .ap-hero::after{content:'';position:absolute;inset:0;background:linear-gradient(0deg,var(--bg,#0b0d12) 4%,#0b0d1299 45%,#0b0d1200 80%),linear-gradient(90deg,#0b0d12dd,#0b0d1200 65%)}
+#anime-pagina .ap-hero-texto{position:relative;z-index:1;padding:28px 4vw;max-width:760px}
+#anime-pagina .ap-eyebrow{color:var(--accent,#ed3348);font-weight:700;letter-spacing:.5px;text-transform:uppercase;font-size:12.5px}
+#anime-pagina .ap-hero h1{margin:6px 0 8px;font-size:clamp(26px,4.4vw,48px);line-height:1.05}
+#anime-pagina .ap-hero p{margin:8px 0 14px;color:#d6dbe5;line-height:1.5;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+#anime-pagina .ap-meta{color:#c3cad6;font-size:14px}
+#anime-pagina .ap-botoes{display:flex;gap:10px;flex-wrap:wrap}
+#anime-pagina .ap-chips{display:flex;gap:10px;flex-wrap:wrap;padding:10px 4vw 4px}
+#anime-pagina .ap-chip{border:1px solid #ffffff22;background:#ffffff0f;color:#f5f6f8;border-radius:999px;padding:9px 16px;font-weight:600;cursor:pointer}
+#anime-pagina .ap-chip:hover,#anime-pagina .ap-chip:focus{background:#ffffff22;outline:2px solid var(--accent,#ed3348);outline-offset:1px}
+#anime-pagina .ap-painel{margin:10px 4vw;padding:16px;border-radius:14px;background:#151922;border:1px solid #ffffff14}
+#anime-pagina .ap-dias{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:6px}
+#anime-pagina .ap-dia[aria-pressed="true"]{background:var(--accent,#ed3348);border-color:transparent}
+#anime-pagina .ap-sorteado{display:flex;gap:16px;align-items:flex-start;margin-top:12px}
+#anime-pagina .ap-sorteado img{width:140px;border-radius:12px;box-shadow:0 10px 24px #0008}
+#anime-pagina .ap-sorteado h3{margin:2px 0 6px;font-size:22px}
+#anime-pagina .ap-sorteado p{color:#c3cad6;margin:0 0 12px;line-height:1.5;display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden}
+#anime-pagina .ap-aviso{padding:30px 4vw;color:#a8afbd}
+.card .anime-selo{position:absolute;left:8px;top:8px;z-index:2;background:#ed3348;color:#fff;font-size:11.5px;font-weight:700;padding:3px 8px;border-radius:7px;box-shadow:0 2px 8px #0007;pointer-events:none}
+.card .anime-selo.dub{background:#1f9d55}
+html.modo-tv #anime-pagina .ap-chip{font-size:20px;padding:12px 22px}
+html.modo-tv #anime-pagina .ap-hero h1{font-size:48px}
+</style>
+<script>
+// Página de ANIMES: abre ao tocar em "Animes". Os dados vêm do servidor
+// (/api/anime/pagina: AniList + TMDB + TorBox). O resto do app não muda;
+// "Séries de anime" e "Filmes de anime" continuam como estavam.
+(function(){
+ 'use strict';
+ const el=id=>document.getElementById(id);
+ const CHAVE_IDS='streamtv-anime-ids';
+ let secao=null,dados=null,pedido=null,escondidos=[];
+ function lerIds(){try{return new Set(JSON.parse(localStorage.getItem(CHAVE_IDS)||'[]'));}catch(e){return new Set();}}
+ function guardarIds(ids){try{const atual=lerIds();for(const i of ids)atual.add(String(i));localStorage.setItem(CHAVE_IDS,JSON.stringify([...atual].slice(-2000)));}catch(e){}}
+ function garantirSecao(){
+  if(secao)return secao;
+  secao=document.createElement('section');secao.id='anime-pagina';secao.hidden=true;secao.setAttribute('aria-label','Animes');
+  const main=el('catalogo')?.parentElement||document.body;main.insertBefore(secao,main.firstChild);
+  return secao;
+ }
+ // Esconde o resto da página enquanto os animes estão abertos — e devolve
+ // tudo exatamente como estava ao sair.
+ const PARA_ESCONDER=['hero','anime-types','library-note','library-filters','catalogo','continuar-view','resultados'];
+ // Estes só fecham (cada categoria abre o seu de novo quando precisa).
+ const SO_FECHAR=['search-history','futebol','tv'];
+ function esconderResto(){
+  escondidos=[];
+  for(const id of SO_FECHAR){const n=el(id);if(n)n.hidden=true;}
+  for(const id of PARA_ESCONDER){const n=el(id);if(n&&!n.hidden){escondidos.push(n);n.hidden=true;}}
+  const cab=document.querySelector('main.secao > .section-head');if(cab&&!cab.hidden){escondidos.push(cab);cab.hidden=true;}
+ }
+ function mostrarResto(){for(const n of escondidos)n.hidden=false;escondidos=[];}
+ function sair(){if(secao&&!secao.hidden){secao.hidden=true;mostrarResto();}}
+ function criarCartao(f){
+  const c=typeof window.criarCard==='function'?window.criarCard(f):null;if(!c)return null;
+  const texto=f.selo||(f.dublado?'Dublado':'');
+  if(texto){const s=document.createElement('span');s.className='anime-selo'+(!f.selo&&f.dublado?' dub':'');s.textContent=texto;c.append(s);}
+  return c;
+ }
+ function fileira(titulo,subtitulo,itens){
+  const s=document.createElement('section');
+  const cab=document.createElement('div');cab.className='colecao-cabecalho';
+  const h=document.createElement('h2');h.textContent=titulo;cab.append(h);
+  if(subtitulo){const sp=document.createElement('span');sp.textContent=subtitulo;cab.append(sp);}
+  const row=document.createElement('div');row.className='poster-row';
+  for(const f of itens){const c=criarCartao(f);if(c)row.append(c);}
+  s.append(cab,row);return s;
+ }
+ function botao(texto,classe,acao){const b=document.createElement('button');b.type='button';b.className=classe;b.textContent=texto;b.onclick=acao;return b;}
+ function abrir(f){if(window.StreamLibrary)StreamLibrary.open(f);else if(window.abrirPlayer)abrirPlayer(f.id,f.titulo);}
+ function hero(f){
+  const h=document.createElement('div');h.className='ap-hero';
+  if(f.fundo){const i=document.createElement('img');i.src=f.fundo;i.alt='';h.append(i);}
+  const t=document.createElement('div');t.className='ap-hero-texto';
+  const eb=document.createElement('div');eb.className='ap-eyebrow';eb.textContent='🔥 Anime mais em alta da semana';
+  const h1=document.createElement('h1');h1.textContent=f.titulo;
+  const meta=document.createElement('div');meta.className='ap-meta';meta.textContent=[f.ano,f.nota&&'★ '+f.nota,f.dublado&&'Dublado',f.proximo&&`Próximo: ep. ${f.proximo.episodio} · ${f.proximo.dia} ${f.proximo.hora}`].filter(Boolean).join('  ·  ');
+  const p=document.createElement('p');p.textContent=f.sinopse||'';
+  const bs=document.createElement('div');bs.className='ap-botoes';
+  bs.append(botao('▶ Assistir','primary',()=>abrir(f)));
+  t.append(eb,h1,meta,p,bs);h.append(t);return h;
+ }
+ function painelCalendario(){
+  const p=document.createElement('div');p.className='ap-painel';p.hidden=true;
+  const dias=document.createElement('div');dias.className='ap-dias';const lista=document.createElement('div');
+  const ordem=(dados.ordemDias||[]).filter(d=>(dados.calendario||{})[d]?.length);
+  const mostrar=d=>{for(const b of dias.children)b.setAttribute('aria-pressed',String(b.dataset.dia===d));lista.replaceChildren(fileira(d==='hoje'?'Hoje':d[0].toUpperCase()+d.slice(1),'Episódios novos neste dia (horário de Brasília)',dados.calendario[d]||[]));};
+  ordem.forEach((d,i)=>{const b=botao(i===0?'Hoje':d[0].toUpperCase()+d.slice(1),'ap-chip ap-dia',()=>mostrar(d));b.dataset.dia=d;dias.append(b);});
+  if(!ordem.length){lista.textContent='Sem episódios marcados para os próximos dias.';}
+  p.append(dias,lista);p.mostrar=()=>{if(ordem.length)mostrar(ordem[0]);};return p;
+ }
+ const CLIMAS=[['','🎲 Qualquer um'],['leve','😊 Algo leve'],['acao','⚔️ Ação'],['chorar','😢 Para chorar'],['romance','💞 Romance'],['curto','⏱️ Curto (até 13 ep.)']];
+ function painelSorteio(){
+  const p=document.createElement('div');p.className='ap-painel';p.hidden=true;
+  const opcoes=document.createElement('div');opcoes.className='ap-dias';const resultado=document.createElement('div');
+  let ultimo='';
+  const sortear=clima=>{
+   ultimo=clima;const pool=(dados.sorteio||[]).filter(f=>!clima||(f.climas||[]).includes(clima));
+   if(!pool.length){resultado.textContent='Nada com esse clima agora. Tente outro.';return;}
+   const f=pool[Math.floor(Math.random()*pool.length)];
+   const box=document.createElement('div');box.className='ap-sorteado';
+   if(f.capa){const i=document.createElement('img');i.src=f.capa;i.alt='';box.append(i);}
+   const info=document.createElement('div');const h=document.createElement('h3');h.textContent=f.titulo;
+   const meta=document.createElement('div');meta.className='ap-meta';meta.textContent=[f.ano,f.nota&&'★ '+f.nota,f.episodios&&f.episodios+' episódios',f.dublado&&'Dublado'].filter(Boolean).join('  ·  ');
+   const sp=document.createElement('p');sp.textContent=f.sinopse||'';
+   const bs=document.createElement('div');bs.className='ap-botoes';bs.append(botao('▶ Assistir','primary',()=>abrir(f)),botao('🎲 Sortear outro','ap-chip',()=>sortear(ultimo)));
+   info.append(h,meta,sp,bs);box.append(info);resultado.replaceChildren(box);bs.firstChild.focus?.();
+  };
+  for(const [c,t] of CLIMAS)opcoes.append(botao(t,'ap-chip',()=>sortear(c)));
+  p.append(opcoes,resultado);return p;
+ }
+ function continuarAnimes(){
+  try{const ids=lerIds();return (window.StreamPersonal?.history?.()||[]).filter(e=>e&&(e.anime===true||ids.has(String(e.id)))).slice(0,20);}catch(e){return [];}
+ }
+ async function porqueAssistiu(destino){
+  const ultimo=continuarAnimes()[0];if(!ultimo)return;
+  try{const r=await fetch(`/api/anime/recomendacoes?tipo=${ultimo.tipo==='movie'?'movie':'tv'}&id=${encodeURIComponent(ultimo.id)}`,{cache:'no-store'});if(!r.ok)return;const itens=await r.json();
+   if(Array.isArray(itens)&&itens.length&&secao&&!secao.hidden){guardarIds(itens.map(i=>i.id));destino.replaceWith(fileira(`✨ Porque você assistiu ${ultimo.titulo||'um anime'}`,'Recomendações parecidas',itens));}}catch(e){}
+ }
+ function pintar(){
+  const s=garantirSecao();s.replaceChildren();
+  if(!dados){const a=document.createElement('p');a.className='ap-aviso';a.textContent='Não foi possível carregar os animes agora. Toque em Animes de novo para tentar.';s.append(a,chipsBasicas());return;}
+  guardarIds([...(dados.fileiras||[]).flatMap(f=>f.itens.map(i=>i.id)),...Object.values(dados.calendario||{}).flat().map(i=>i.id)]);
+  if(dados.destaque)s.append(hero(dados.destaque));
+  const cal=painelCalendario(),sor=painelSorteio();
+  const chips=document.createElement('div');chips.className='ap-chips';
+  chips.append(
+   botao('🎲 Me surpreenda','ap-chip',()=>{sor.hidden=!sor.hidden;cal.hidden=true;}),
+   botao('📆 Calendário da semana','ap-chip',()=>{cal.hidden=!cal.hidden;sor.hidden=true;if(!cal.hidden)cal.mostrar();}),
+   ...chipsBasicas().children);
+  s.append(chips,sor,cal);
+  const cont=continuarAnimes();
+  const fileiras=dados.fileiras||[];
+  fileiras.forEach((f,i)=>{
+   s.append(fileira(f.titulo,f.subtitulo,f.itens));
+   if(i===0&&cont.length)s.append(fileira('▶️ Continuar assistindo','Seus animes, no episódio certo',cont));
+   if(i===1){const lugar=document.createElement('div');s.append(lugar);porqueAssistiu(lugar);}
+  });
+ }
+ function chipsBasicas(){
+  const d=document.createElement('div');
+  d.append(botao('📚 Todas as séries de anime','ap-chip',()=>{sair();StreamLibrary?.browse('anime');}),botao('🎞️ Todos os filmes de anime','ap-chip',()=>{sair();StreamLibrary?.browse('anime-film');}));
+  return d;
+ }
+ async function carregar(){
+  if(pedido)return pedido;
+  pedido=(async()=>{try{const r=await fetch('/api/anime/pagina',{cache:'no-store'});dados=r.ok?await r.json():null;if(dados&&!Array.isArray(dados.fileiras))dados=null;}catch(e){dados=null;}finally{pedido=null;}})();
+  return pedido;
+ }
+ async function abrirPagina(){
+  const s=garantirSecao();
+  if(s.hidden){esconderResto();s.hidden=false;}
+  window.scrollTo?.(0,0);
+  if(!dados){s.replaceChildren(Object.assign(document.createElement('p'),{className:'ap-aviso',textContent:'Carregando os animes em alta…'}));await carregar();}
+  else carregar().then(()=>{});
+  if(!s.hidden)pintar();
+ }
+ const original=window.irParaCategoria;
+ if(typeof original==='function'){
+  window.irParaCategoria=function(tipo){
+   if(tipo==='anime'){try{window.fecharGaveta?.();window.marcarCategoria?.('anime');}catch(e){}const fut=el('futebol');if(fut)fut.hidden=true;const tv=el('tv');if(tv)tv.hidden=true;return abrirPagina();}
+   sair();return original.apply(this,arguments);
+  };
+ }
+ // Busca e outros atalhos que mudam a tela também tiram a página de anime.
+ document.addEventListener('submit',()=>sair(),true);
+ window.StreamAnimePagina={abrir:abrirPagina,sair,_dados:()=>dados};
+})();
+</script>

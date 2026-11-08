@@ -1038,7 +1038,7 @@ public final class MainActivity extends Activity {
     private WebResourceResponse rotaDoServidor(Uri uri){
         java.net.HttpURLConnection c=null;
         try{
-            String path=uri.getPath();if(path==null||!path.matches("/api/tv/futemax(/jogos)?|/api/torbox/preparar|/api/playback/anime-legendado/[0-9]{1,10}/[0-9]{1,3}/[1-9][0-9]{0,3}"))return error(404);
+            String path=uri.getPath();if(path==null||!path.matches("/api/tv/futemax(/jogos)?|/api/torbox/preparar|/api/playback/anime-legendado/[0-9]{1,10}/[0-9]{1,3}/[1-9][0-9]{0,3}|/api/anime/pagina|/api/anime/recomendacoes|/api/ficha/(movie|tv)/[0-9]{1,10}|/api/comentarios/(movie|tv)/[0-9]{1,10}(/enviar|/apagar)?"))return error(404);
             ServerPlaybackTransport transport=serverTransport();
             String query=uri.getEncodedQuery();
             URL url=new URL(transport.base,path+(query==null||query.isEmpty()?"":"?"+query));
@@ -1732,6 +1732,10 @@ public final class MainActivity extends Activity {
                 if (path != null && ("/api/tv/futemax".equals(path) || "/api/tv/futemax/jogos".equals(path))) return rotaDoServidor(uri);
                 // Deixa a TorBox do próximo episódio pronta (o servidor só confere; não toca).
                 if (path != null && "/api/torbox/preparar".equals(path)) return rotaDoServidor(uri);
+                // Página de Animes (AniList + TMDB + TorBox): quem monta é o servidor.
+                if (path != null && ("/api/anime/pagina".equals(path) || "/api/anime/recomendacoes".equals(path))) return rotaDoServidor(uri);
+                // Ficha do título e comentários da família: ficam no servidor.
+                if (path != null && path.matches("/api/(ficha|comentarios)/(movie|tv)/[0-9]{1,10}(/enviar|/apagar)?")) return rotaDoServidor(uri);
                 // Anime legendado pela TorBox (só anime): quem resolve é o servidor.
                 if (path != null && path.matches("/api/playback/anime-legendado/[0-9]{1,10}/[0-9]{1,3}/[1-9][0-9]{0,3}")) return rotaDoServidor(uri);
                 if (path != null && "/api/futebol/agenda".equals(path)) return futebolAgenda(uri);

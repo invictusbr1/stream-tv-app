@@ -394,7 +394,7 @@ async function procurar() {
     const alvo = /^tt\d{5,10}(:\d+:\d+)?$/.test(process.argv[i + 1] || '') ? process.argv[i + 1] : 'tt2083383';
     const tipo = alvo.includes(':') ? 'series' : 'movie';
     const tb = require('../torbox-source');
-    const respostas = await Promise.all(tb.LISTAS.map(base => pedir(`${base}/stream/${tipo}/${alvo}.json`, {}, 20000).catch(() => ({ status: 0, json: null }))));
+    const respostas = await Promise.all(tb.listas().map(base => pedir(`${base}/stream/${tipo}/${alvo}.json`, {}, 20000).catch(() => ({ status: 0, json: null }))));
     const streams = tb.juntar(respostas.map(r => (r.json && Array.isArray(r.json.streams) ? r.json.streams : [])));
     const rotulo = s => `${s.name || ''} ${s.title || ''} ${s.description || ''} ${(s.behaviorHints || {}).filename || ''}`;
     // Mostra também os "suspeitos" (DUAL/MULTI sem dizer o idioma) e os latinos.

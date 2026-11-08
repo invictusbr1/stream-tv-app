@@ -37,8 +37,9 @@ function ler(pastaDados) {
             perfis: Array.isArray(dados.perfis) ? dados.perfis : [],
             listasTv: Array.isArray(dados.listasTv) ? dados.listasTv : [],
             placar: Array.isArray(dados.placar) ? dados.placar : [],
+            listasTorbox: Array.isArray(dados.listasTorbox) ? dados.listasTorbox : [],
         };
-    } catch { return { atualizadoEm: '', perfis: [], listasTv: [], placar: [] }; }
+    } catch { return { atualizadoEm: '', perfis: [], listasTv: [], placar: [], listasTorbox: [] }; }
 }
 
 function gravar(pastaDados, dados) {
@@ -52,6 +53,7 @@ function gravar(pastaDados, dados) {
             perfis: dados.perfis || [],
             listasTv: dados.listasTv || [],
             placar: dados.placar || [],
+            listasTorbox: dados.listasTorbox || [],
         }, null, 1));
         fs.renameSync(temporario, destino);
         return true;
@@ -385,6 +387,7 @@ async function publicar(pastaDados, token, { api = axios } = {}) {
         perfis: juntos.perfis.map(p => p.ativo === false ? { id: p.id, ativo: false } : p),
         listasTv: juntos.listasTv,
         placar: juntos.placar,
+        listasTorbox: juntos.listasTorbox,
     }, null, 1);
     try {
         const sha = atual && atual.data && atual.data.sha ? atual.data.sha : undefined;
@@ -409,12 +412,26 @@ function juntarPublicado(publicado, local) {
     for (const p of Array.isArray(local.perfis) ? local.perfis : []) if (p && p.id) porId.set(p.id, p);
     const listas = Array.isArray(local.listasTv) && local.listasTv.length ? local.listasTv : (Array.isArray(pub.listasTv) ? pub.listasTv : []);
     const placar = Array.isArray(local.placar) && local.placar.length ? local.placar : (Array.isArray(pub.placar) ? pub.placar : []);
-    return { perfis: [...porId.values()], listasTv: listas, placar };
+    // Listas de torrent da TorBox: junta as duas (a local vence pelo endereço).
+    const listasTorbox = [...new Map([...(Array.isArray(pub.listasTorbox) ? pub.listasTorbox : []), ...(Array.isArray(local.listasTorbox) ? local.listasTorbox : [])].filter(l => l && l.base).map(l => [l.base, l])).values()];
+    return { perfis: [...porId.values()], listasTv: listas, placar, listasTorbox };
 }
+
+// Lista de torrent aprovada para a TorBox (achada pela descoberta do caçador):
+// traz dublado pronto na TorBox que as listas atuais não tinham.
+function aprovarListaTorbox(pastaDados, { base, nome = '', motivo = '', novos = 0 } = {}) {
+    if (!/^https:\/\/[^\s"']+$/.test(String(base || ''))) return null;
+    const dados = ler(pastaDados);
+    const registro = { base: String(base).replace(/\/+$/, ''), nome: String(nome || base).slice(0, 60), ativo: true, motivo: String(motivo).slice(0, 160), novos: Number(novos) || 0, aprovadaEm: new Date().toISOString() };
+    const outras = dados.listasTorbox.filter(l => l.base !== registro.base);
+    gravar(pastaDados, { ...dados, listasTorbox: [...outras, registro] });
+    return registro;
+}
+function listasTorbox(pastaDados) { return ler(pastaDados).listasTorbox; }
 
 module.exports = {
     juntarPublicado,
-    arquivo, ler, gravar, listar, registrarFicha, removerFicha, publicar, registrarLista, listasTv, gravarPlacar,
+    arquivo, ler, gravar, listar, registrarFicha, removerFicha, publicar, registrarLista, listasTv, gravarPlacar, aprovarListaTorbox, listasTorbox,
     inferirDePagina, inferirDeStremio, modeloDeUrl, padraoPara, padraoDeIframe, validar, buscarTexto,
     ARQUIVO_PUBLICADO, REPOSITORIO,
 };

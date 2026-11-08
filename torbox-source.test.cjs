@@ -133,3 +133,18 @@ test('anime legendado: escolhe a legenda portuguesa em texto (Brasil antes de Po
     assert.strictEqual(tb.legendaPortuguesa([{ ordem: 0, idioma: 'eng', codec: 'subrip' }]), null);
     assert.strictEqual(tb.legendaPortuguesa([{ ordem: 0, idioma: 'por', codec: 'hdmv_pgs_subtitle' }]), null);
 });
+
+test('listas: fixas + TODAS as aprovadas pelo caçador (sem cortar em 8), só https, sem repetir', () => {
+    const pl = require('./perfis-locais'), original = pl.listasTorbox;
+    pl.listasTorbox = () => [
+        ...['meteor', 'torrentsdb', 'mico', 'peerflix', 'extra1', 'extra2'].map(n => ({ base: `https://${n}.example.net/`, ativo: true })),
+        { base: 'http://inseguro.example.net', ativo: true }, { base: 'https://desligada.example.net', ativo: false },
+        { base: 'https://torrentio.strem.fun', ativo: true },
+    ];
+    try {
+        const l = tb.listas();
+        assert.equal(l.length, tb.LISTAS.length + 6);
+        assert.ok(l.includes('https://peerflix.example.net') && l.includes('https://extra2.example.net'));
+        assert.ok(!l.some(x => /inseguro|desligada/.test(x)));
+    } finally { pl.listasTorbox = original; }
+});
