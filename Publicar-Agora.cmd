@@ -2,10 +2,13 @@
 cd /d "%~dp0"
 title Publicar Conecta TV
 set LOG=%~dp0publicacao.log
-set VERSAO=2.14.2
+set VERSAO=2.14.3
 set SAIDA=%USERPROFILE%\Documents\Codex\apk-%VERSAO%
 echo Publicando o Conecta TV %VERSAO%. Leva alguns minutos, nao feche esta janela...
 echo === %date% %time% > "%LOG%"
+rem A versao do site/navegador (config.json) vem do package.json: acompanha a do app.
+rem Antes ficava parada em 2.13.136 e todo mundo no navegador/iPhone aparecia "desatualizado".
+node -e "const f=require('fs'),p='package.json',j=JSON.parse(f.readFileSync(p,'utf8'));if(j.version!==process.argv[1]){j.version=process.argv[1];f.writeFileSync(p,JSON.stringify(j,null,2)+'\n');}" %VERSAO% >> "%LOG%" 2>&1
 
 echo [1/5] Testes...
 echo --- testes >> "%LOG%"
@@ -25,7 +28,7 @@ node deploy\servidor\publicar-automatico.cjs --status >> "%LOG%" 2>&1
 
 echo [3/5] Procurando as ferramentas do Android...
 set TOOLS=
-for %%d in ("%USERPROFILE%\android-tools" "C:\android-tools" "%USERPROFILE%\Documents\android-tools") do if not defined TOOLS if exist "%%~d\sdk" set "TOOLS=%%~d"
+for %%d in ("%USERPROFILE%\Documents\Codex\android-tools" "%USERPROFILE%\android-tools" "C:\android-tools" "%USERPROFILE%\Documents\android-tools") do if not defined TOOLS if exist "%%~d\sdk" set "TOOLS=%%~d"
 if not defined TOOLS for /d /r "%USERPROFILE%\Documents\Codex" %%d in (android-tools) do if not defined TOOLS if exist "%%d\sdk" set "TOOLS=%%d"
 echo TOOLS=%TOOLS% >> "%LOG%"
 if not defined TOOLS (echo FALHOU: pasta android-tools nao encontrada >> "%LOG%" & goto fim)
@@ -37,7 +40,7 @@ if errorlevel 1 (echo FALHOU: compilacao Android >> "%LOG%" & goto fim)
 
 echo [5/5] Publicando a atualizacao do aplicativo...
 echo --- publicando APKs >> "%LOG%"
-powershell -NoProfile -ExecutionPolicy Bypass -File android\Publicar-Atualizacao.ps1 -Canal teste -ApkPath "%SAIDA%\Conecta-TV-Android-%VERSAO%.apk" -ApkTvPath "%SAIDA%\Conecta-TV-TV-%VERSAO%.apk" -Notes "TV ao vivo organizada por setores (TV Aberta, Esportes, Filmes e Series, Noticias, Infantil, Documentarios, Musica e Fornecedores IPTV) e nova Central de Futebol com 18 campeonatos simultaneos discriminados." >> "%LOG%" 2>&1
+powershell -NoProfile -ExecutionPolicy Bypass -File android\Publicar-Atualizacao.ps1 -Canal teste -ApkPath "%SAIDA%\Conecta-TV-Android-%VERSAO%.apk" -ApkTvPath "%SAIDA%\Conecta-TV-TV-%VERSAO%.apk" -Notes "Hubs de streaming (Top 10 Netflix, Max/HBO, Prime, Apple TV+, Disney+, DreamWorks, Terror), TV ao vivo por setores, animes com audio original japones + legendas e busca de torrents." >> "%LOG%" 2>&1
 if errorlevel 1 (echo FALHOU: publicacao dos APKs >> "%LOG%" & goto fim)
 echo TUDO PUBLICADO NO CANAL DE TESTE >> "%LOG%"
 echo --- salvando a versao no git >> "%LOG%"

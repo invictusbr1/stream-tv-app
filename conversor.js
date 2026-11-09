@@ -105,7 +105,7 @@ function limparAntigos() {
 // Agora: conversão sem ninguém pedindo pedaços há 10 min é parada, e a pasta
 // inteira tem teto — passou dele, apaga as mais antigas que não estão em uso.
 const LIMITE_DISCO = Number(process.env.CONVERSOES_LIMITE_GB || 8) * 1024 ** 3;
-const PARADA_SEM_USO = 10 * 60 * 1000;
+const PARADA_SEM_USO = 2 * 60 * 1000;
 
 function tamanhoDaPasta(pasta) {
     let total = 0;
@@ -257,6 +257,7 @@ async function iniciar(url, { titulo = '', referer = '', id = '', inicio = 0, fa
     const cabecalhos = `User-Agent: ${UA}\r\n` + (refererSeguro ? `Referer: ${refererSeguro}\r\n` : '');
     const argumentos = [
         '-hide_banner', '-y', '-loglevel', 'info',
+        '-threads', '2',
         '-headers', cabecalhos,
         // Conexão com o arquivo (TorBox/CDN) que trava no meio: sem isto o
         // ffmpeg ficava parado para sempre e o player esperava "Voltando de
@@ -449,8 +450,9 @@ async function iniciarNoPonto(url, { id = '', referer = '', inicio = 0, faixa = 
     if (melhor) { melhor.t.ultimoAcesso = Date.now(); return { ...resumo(melhor.chave), inicio: melhor.ini }; }
     // Janela nova: para as conversões deste filme que ninguém está vendo.
     for (const [, t] of trabalhos) {
-        if (deste.test(String(t.lastro || '')) && !t.terminou && t.processo && Date.now() - (t.ultimoAcesso || 0) > 30000) {
+        if (deste.test(String(t.lastro || '')) && !t.terminou && t.processo) {
             try { t.processo.kill(); } catch { /* já saiu */ }
+            t.terminou = true;
         }
     }
     const resultado = await module.exports.iniciar(url, { id: `ini${ponto}-${id}`, titulo: id, referer, faixa, quatroK, legenda, legendaExterna, etiqueta, inicio: ponto });
