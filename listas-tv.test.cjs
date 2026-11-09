@@ -1,16 +1,21 @@
-const {test}=require('node:test'),assert=require('node:assert/strict'),{SETORES,comExtras,parseM3u,gruposTv,setorDoCanal,pertenceAoSetor,textoBusca}=require('./listas-tv');
+const {test}=require('node:test'),assert=require('node:assert/strict'),{SETORES,comExtras,parseM3u,gruposTv,setorDoCanal,pertenceAoSetor,ehCanalEstrangeiro,textoBusca}=require('./listas-tv');
 test('M3U aceita tags entre descrição e HTTPS, preserva vírgulas nos atributos e remove repetidos',()=>{const s='#EXTM3U\n#EXTINF:-1 tvg-logo="https://x/a,b.png" group-title="Sports;News",Futebol\n#EXTVLCOPT:http-referrer=https://x\nhttps://x/live.m3u8\n#EXTINF:-1,Repetido\nhttps://x/live.m3u8\n#EXTINF:-1,Inseguro\nhttp://x/live\n#EXTINF:-1,Credenciais\nhttps://user:pass@x/live';const c=parseM3u(s,'brasil');assert.equal(c.length,1);assert.equal(c[0].nome,'Futebol');assert.deepEqual(c[0].categorias,['sports','news']);assert.equal(c[0].setor,'esportes');});
 test('categorias usam a lista quando ausentes e busca ignora acentos',()=>{assert.deepEqual(gruposTv('','Canal','esportes'),['sports']);assert.deepEqual(gruposTv('Esportes;Notícias','Canal','brasil'),['sports','news']);assert.equal(textoBusca('Brasileirão'),'brasileirao');});
-test('setores de TV separam TV aberta, esportes, filmes, notícias, infantil e fornecedores IPTV',()=>{
+test('setores de TV separam TV aberta, esportes, filmes, notícias, infantil, fornecedores IPTV e isolam canais estrangeiros',()=>{
  assert(SETORES.some(s=>s.id==='tv-aberta'));
  assert(SETORES.some(s=>s.id==='esportes'));
  assert(SETORES.some(s=>s.id==='filmes'));
  assert(SETORES.some(s=>s.id==='fornecedores'));
+ assert(SETORES.some(s=>s.id==='estrangeiros'));
  assert.equal(setorDoCanal({nome:'Rede Globo (1080p)',grupo:'general',categorias:['general'],lista:'brasil'}),'tv-aberta');
  assert.equal(setorDoCanal({nome:'Band Sports (1080p)',grupo:'sports',categorias:['sports'],lista:'brasil'}),'esportes');
  assert.equal(setorDoCanal({nome:'Telecine Premium',grupo:'general',categorias:['general'],lista:'fornecedor-extra',doCacador:true}),'filmes');
  assert.equal(setorDoCanal({nome:'CNN Brasil',grupo:'news',categorias:['news'],lista:'brasil'}),'noticias');
  assert.equal(setorDoCanal({nome:'Gloob',grupo:'kids',categorias:['kids'],lista:'brasil'}),'infantil');
+ assert.equal(ehCanalEstrangeiro({nome:'Pluto TV Juniorklubben DK (720p)',grupo:'kids',lista:'infantil'}),true);
+ assert.equal(setorDoCanal({nome:'Pluto TV Juniorklubben DK (720p)',grupo:'kids',lista:'infantil'}),'estrangeiros');
+ assert.equal(pertenceAoSetor({nome:'Pluto TV Juniorklubben DK (720p)',grupo:'kids',lista:'infantil'},'infantil'),false);
+ assert.equal(pertenceAoSetor({nome:'Pluto TV Juniorklubben DK (720p)',grupo:'kids',lista:'infantil'},'estrangeiros'),true);
  const m3uFornecedor='#EXTM3U\n#EXTINF:-1 group-title="Esportes",Premiere Clubes\nhttps://fornecedor.exemplo/premiere.m3u8\n#EXTINF:-1 group-title="Geral",Canal Extra\nhttps://fornecedor.exemplo/extra.m3u8\n#EXTINF:-1 group-title="Fornecedores IPTV",BeardedSmoker\nhttps://cam4-hls.xcdnpro.com/405/live.m3u8';
  const extraCanais=parseM3u(m3uFornecedor,'cacador-verificados',{doCacador:true});
  assert.equal(extraCanais.length,2);

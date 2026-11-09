@@ -66,6 +66,7 @@ const ROTULO_SETOR = {
     'documentarios': 'Documentários',
     'musica': 'Música',
     'fornecedores': 'Fornecedores IPTV',
+    'estrangeiros': 'Canais Estrangeiros',
 };
 
 function idLimpo(texto) {
@@ -299,22 +300,37 @@ async function medirAddonTvStremio(addon, { buscarJson, buscarTexto, torbox = nu
     }
 
     const metas = [];
+    const idsMetasVistos = new Set();
     for (const cat of catalogos.slice(0, 3)) {
-        const catJson = await buscarJson(`${base}/catalog/${encodeURIComponent(cat.type)}/${encodeURIComponent(cat.id)}.json`).catch(() => null);
-        for (const m of (catJson && Array.isArray(catJson.metas) ? catJson.metas : [])) {
-            if (!m || !m.id || !m.name) continue;
-            if (listasTvModulo.ehCanalAdulto(`${m.name} ${m.poster || ''} ${m.logo || ''} ${(m.genres || []).join(' ')}`)) continue;
-            metas.push({ ...m, catalogType: cat.type });
+        for (const skip of [0, 100, 200, 300, 400]) {
+            const sufixo = skip === 0 ? '.json' : `/skip=${skip}.json`;
+            const catJson = await buscarJson(`${base}/catalog/${encodeURIComponent(cat.type)}/${encodeURIComponent(cat.id)}${sufixo}`).catch(() => null);
+            const listaMetas = catJson && Array.isArray(catJson.metas) ? catJson.metas : [];
+            if (!listaMetas.length) break;
+            let novos = 0;
+            for (const m of listaMetas) {
+                if (!m || !m.id || !m.name || idsMetasVistos.has(m.id)) continue;
+                if (listasTvModulo.ehCanalAdulto(`${m.name} ${m.poster || ''} ${m.logo || ''} ${(m.genres || []).join(' ')}`)) continue;
+                idsMetasVistos.add(m.id);
+                metas.push({ ...m, catalogType: cat.type });
+                novos++;
+            }
+            if (novos === 0 || skip === 0 && listaMetas.length < 50) break;
         }
-        if (metas.length >= 60) break;
+        if (metas.length >= 600) break;
     }
     if (!metas.length) {
         return { id, nome, url: base, status: 'catálogo vazio', nota: 0, aprovada: false, canais: 0, responderam: 0, vivos: [], porSetor: {}, detalhe: 'catálogo de TV não devolveu canais' };
     }
 
-    // Prioriza canais brasileiros/português ou esportes
-    const relevantes = metas.filter(m => ehCanalRelevanteParaBrasil({ nome: m.name, url: '' }, nome));
-    const escolhidos = (relevantes.length >= 3 ? relevantes : metas).slice(0, limiteCanais);
+    // Prioriza canais brasileiros e distribui por setor (TV aberta, esportes, filmes, infantil, notícias, documentários)
+    const relevantes = metas.filter(m => {
+        const g = Array.isArray(m.genres) ? m.genres.join(';') : String(m.genre || '');
+        if (listasTvModulo.ehCanalEstrangeiro({ nome: m.name, grupo: g, url: '' })) return false;
+        return ehCanalRelevanteParaBrasil({ nome: m.name, url: '' }, nome);
+    });
+    const baseEscolhida = relevantes.length >= 3 ? relevantes : metas;
+    const escolhidos = escolherAmostraDeCanais(baseEscolhida.map(m => ({ ...m, nome: m.name, url: '' })), id, limiteCanais);
 
     const vivos = [];
     const porSetor = {};

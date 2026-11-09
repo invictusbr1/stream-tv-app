@@ -600,19 +600,13 @@ body{background:radial-gradient(1100px 520px at 85% -8%,#123a8a33,transparent 70
   <div class="section-head"><h2>TV ao vivo</h2><span id="tv-info">canais públicos</span></div>
   <div class="tv-barra">
     <select id="tv-lista" aria-label="Lista de canais" onchange="trocarListaTv(this.value)">
-      <option value="setor">✨ Automático por setor (todas as fontes aprovadas)</option>
-      <option value="brasil">🇧🇷 Canais do Brasil</option>
-      <option value="cacador-verificados">✅ Verificados pelo Caçador (IPTV)</option>
+      <option value="setor">🇧🇷 Canais do Brasil (Verificados e ao vivo)</option>
+      <option value="cacador-verificados">✅ Somente testados pelo Caçador (100% online)</option>
+      <option value="brasil">📡 Lista Completa do Brasil (iptv-org)</option>
       <option value="free-tv-brasil">📡 Free-TV Brasil (TV Aberta)</option>
       <option value="iptv-brazil">🇧🇷 Brasil Extra (IPTV)</option>
-      <option value="portugues">🇵🇹 Canais em português</option>
-      <option value="esportes">⚽ Esportes (Mundial + BR)</option>
-      <option value="filmes">🎬 Filmes (TV aberta)</option>
-      <option value="series">📺 Séries (TV aberta)</option>
-      <option value="noticias">📰 Notícias</option>
-      <option value="infantil">🧒 Infantil e Animação</option>
-      <option value="documentarios">🌍 Documentários e Cultura</option>
-      <option value="musica">🎵 Música</option>
+      <option value="portugues">🇵🇹 Canais em português (+ Portugal)</option>
+      <option value="latam">🌎 América Latina / Estrangeiros</option>
     </select>
     <input id="tv-busca" type="search" placeholder="Procurar canal (ex.: Globo, SBT, Record, BandSports, CNN…)" aria-label="Procurar canal" oninput="filtrarCanais()">
     <button class="quiet" type="button" onclick="irParaCategoria('futebol')">⚽ Ir para Futebol</button>
@@ -764,21 +758,22 @@ async function abrirFutemax(enderecoJogo,tituloJogo){
 }
 async function abrirTv(){const secao=el('tv');secao.hidden=false;el('futebol').hidden=true;el('catalogo')?.classList.add('oculto');el('resultados')?.classList.add('oculto');el('continuar-view')&&(el('continuar-view').hidden=true);el('hero')&&(el('hero').hidden=true);mostrarCabecalhoDoCatalogo(false);secao.scrollIntoView({block:'start'});await carregarListasTv();await carregarCanais(listaTvAtual);}
 function fecharTv(){irParaCategoria('inicio');}
-let listaTvAtual='brasil',setorTvAtual='todos',listasTvCarregadas=false;
+let listaTvAtual='setor',setorTvAtual='todos',listasTvCarregadas=false;
 const SETORES_TV_PADRAO=[
- {id:'todos',nome:'Todos',icone:'📺',descricao:'Todos os canais disponíveis nesta lista'},
- {id:'tv-aberta',nome:'TV Aberta',icone:'📡',descricao:'Emissoras abertas, regionais e variedades do Brasil'},
- {id:'esportes',nome:'Esportes',icone:'⚽',descricao:'Canais de esporte, futebol e transmissões ao vivo'},
- {id:'filmes',nome:'Filmes e Séries',icone:'🎬',descricao:'Canais de cinema, séries, novelas e clássicos 24h'},
- {id:'noticias',nome:'Notícias',icone:'📰',descricao:'Jornalismo 24 horas, economia e canais públicos'},
- {id:'infantil',nome:'Infantil',icone:'🧒',descricao:'Desenhos, animação e programação para a família'},
- {id:'documentarios',nome:'Documentários e Cultura',icone:'🌍',descricao:'História, ciência, natureza, culinária e educação'},
- {id:'musica',nome:'Música',icone:'🎵',descricao:'Clipes, shows e canais musicais ao vivo'},
- {id:'fornecedores',nome:'Fornecedores IPTV',icone:'✅',descricao:'Canais e listas extras verificados pelo caçador da Central'}
+ {id:'todos',nome:'Todos (Brasil)',icone:'🇧🇷',descricao:'Todos os canais brasileiros verificados e separados por categoria'},
+ {id:'tv-aberta',nome:'TV Aberta',icone:'📡',descricao:'Globo, SBT, Record, Band, Cultura, RedeTV!, Gazeta, Aparecida e regionais do Brasil'},
+ {id:'esportes',nome:'Esportes',icone:'⚽',descricao:'Premiere, SporTV, ESPN Brasil, BandSports, CazéTV, Combate, GOAT e jogos ao vivo'},
+ {id:'filmes',nome:'Filmes e Séries',icone:'🎬',descricao:'Telecine, HBO, Megapix, TNT, Space, Warner, AXN, Universal, Canal Brasil e séries 24h'},
+ {id:'infantil',nome:'Infantil e Desenhos',icone:'🧒',descricao:'Cartoon Network, Gloob, Discovery Kids, Nickelodeon, Cartoonito, Rá-Tim-Bum e animes BR'},
+ {id:'noticias',nome:'Notícias',icone:'📰',descricao:'CNN Brasil, GloboNews, BandNews, Jovem Pan News, Record News, SBT News e Canal UOL'},
+ {id:'documentarios',nome:'Documentários e Cultura',icone:'🌍',descricao:'Discovery Channel, History, Animal Planet, Discovery Science, Curta!, Arte1 e culinária'},
+ {id:'musica',nome:'Música e Variedades',icone:'🎵',descricao:'Multishow, Bis, MTV Brasil, clipes, shows e variedades brasileiras ao vivo'},
+ {id:'fornecedores',nome:'Verificados IPTV',icone:'✅',descricao:'Canais brasileiros testados e aprovados diretamente pelo caçador da Central'},
+ {id:'estrangeiros',nome:'Canais Estrangeiros',icone:'🌎',descricao:'Canais internacionais (Portugal, EUA, América Latina e Europa) separados dos brasileiros'}
 ];
 function obterSetoresTv(){return window.StreamListasTv?.SETORES||SETORES_TV_PADRAO;}
 function setorDoCanalLocal(canal){if(window.StreamListasTv?.setorDoCanal)return window.StreamListasTv.setorDoCanal(canal);return canal?.setor||'tv-aberta';}
-function pertenceAoSetorLocal(canal,setor){if(!setor||setor==='todos')return true;if(window.StreamListasTv?.pertenceAoSetor)return window.StreamListasTv.pertenceAoSetor(canal,setor);if(setor==='fornecedores')return Boolean(canal?.doCacador||/cacador|iptv|fornecedor/i.test(String(canal?.lista||'')));return setorDoCanalLocal(canal)===setor;}
+function pertenceAoSetorLocal(canal,setor){if(window.StreamListasTv?.pertenceAoSetor)return window.StreamListasTv.pertenceAoSetor(canal,setor);if(setor==='estrangeiros')return Boolean(canal?.estrangeiro||canal?.setor==='estrangeiros');if(canal?.estrangeiro||canal?.setor==='estrangeiros')return false;if(!setor||setor==='todos')return true;if(setor==='fornecedores')return Boolean(canal?.doCacador||/cacador|iptv|fornecedor/i.test(String(canal?.lista||'')));return setorDoCanalLocal(canal)===setor;}
 async function carregarListasTv(){
  if(listasTvCarregadas)return;
  try{
@@ -788,6 +783,8 @@ async function carregarListasTv(){
    const existentes=new Set(Array.from(seletor.options).map(o=>o.value));
    for(const l of d.listas){
     if(!l||!l.id||existentes.has(l.id))continue;
+    // Só adiciona no seletor listas brasileiras ou do caçador para não poluir com listas mundiais
+    if(!l.doCacador&&!/brasil|portugues|latam|cacador/i.test(l.id))continue;
     existentes.add(l.id);
     const opt=document.createElement('option');
     opt.value=l.id;
@@ -799,8 +796,9 @@ async function carregarListasTv(){
  }catch{}
 }
 async function trocarListaTv(idLista){
- listaTvAtual=idLista||'brasil';
+ listaTvAtual=idLista||'setor';
  if(idLista==='cacador-verificados')setorTvAtual='fornecedores';
+ else if(idLista==='latam')setorTvAtual='estrangeiros';
  else if((idLista==='free-tv-brasil'||idLista==='iptv-brazil')&&setorTvAtual!=='tv-aberta')setorTvAtual='tv-aberta';
  else if(idLista==='esportes'&&setorTvAtual!=='esportes')setorTvAtual='esportes';
  else if((idLista==='filmes'||idLista==='series')&&setorTvAtual!=='filmes')setorTvAtual='filmes';
@@ -811,8 +809,9 @@ async function trocarListaTv(idLista){
  await carregarCanais(listaTvAtual);
 }
 async function selecionarSetorTv(setor){
+ const anterior=setorTvAtual;
  setorTvAtual=setor||'todos';
- if(listaTvAtual==='brasil'||listaTvAtual==='setor'){
+ if((setorTvAtual==='estrangeiros'||anterior==='estrangeiros')&&(listaTvAtual==='setor'||listaTvAtual==='brasil')){
   await carregarCanais(listaTvAtual);
   return;
  }
@@ -823,12 +822,12 @@ function renderizarSetoresTv(){
  barra.replaceChildren();
  const setores=obterSetoresTv();
  for(const s of setores){
-  const total=s.id==='todos'?canaisTv.length:canaisTv.filter(c=>pertenceAoSetorLocal(c,s.id)).length;
+  const total=canaisTv.filter(c=>pertenceAoSetorLocal(c,s.id)).length;
   const b=document.createElement('button');
   b.type='button';b.className='tv-cat';b.setAttribute('role','tab');
   if(setorTvAtual===s.id){b.setAttribute('data-ativo','');b.setAttribute('aria-selected','true');}
   else b.setAttribute('aria-selected','false');
-  b.textContent=(listaTvAtual==='setor'&&s.id!==setorTvAtual&&total===0)?`${s.icone} ${s.nome}`:`${s.icone} ${s.nome} (${total})`;
+  b.textContent=`${s.icone} ${s.nome} (${total})`;
   b.onclick=()=>selecionarSetorTv(s.id);
   barra.append(b);
  }
@@ -837,27 +836,18 @@ function renderizarSetoresTv(){
  if(nota&&infoSetor)nota.textContent=`${infoSetor.icone} ${infoSetor.nome}: ${infoSetor.descricao}`;
 }
 async function carregarCanais(idLista){
- const alvo=idLista||listaTvAtual||'brasil';
+ const alvo=idLista||listaTvAtual||'setor';
  listaTvAtual=alvo;
  const seletor=el('tv-lista');if(seletor&&seletor.value!==alvo)seletor.value=alvo;
  const grade=el('tv-grade');grade.textContent='Carregando canais…';
  try{
-  const listasPorSetor={
-   'todos':['brasil','cacador-verificados','free-tv-brasil','iptv-brazil'],
-   'tv-aberta':['brasil','cacador-verificados','free-tv-brasil','iptv-brazil','portugues'],
-   'esportes':['cacador-verificados','esportes','brasil'],
-   'filmes':['cacador-verificados','filmes','series','brasil'],
-   'noticias':['cacador-verificados','noticias','brasil'],
-   'infantil':['cacador-verificados','infantil','animacao','brasil'],
-   'documentarios':['cacador-verificados','documentarios','cultura','brasil'],
-   'musica':['cacador-verificados','musica','brasil'],
-   'fornecedores':['cacador-verificados','iptv-brazil','free-tv-brasil']
-  };
   let idsParaBuscar=[alvo];
-  if(alvo==='setor'||(alvo==='brasil'&&setorTvAtual!=='todos')){
-   idsParaBuscar=listasPorSetor[setorTvAtual]||listasPorSetor['todos'];
-  }else if(alvo==='brasil'){
-   idsParaBuscar=['brasil','cacador-verificados','free-tv-brasil','iptv-brazil'];
+  if(alvo==='setor'||alvo==='brasil'){
+   // No modo padrão brasileiro, prioriza primeiro os canais testados pelo caçador
+   // (que já estão 100% funcionando) e depois complementa com as listas brasileiras.
+   idsParaBuscar=setorTvAtual==='estrangeiros'
+    ? ['cacador-verificados','portugues','latam']
+    : ['cacador-verificados','free-tv-brasil','iptv-brazil','brasil'];
   }
   const promessas=idsParaBuscar.map((id,idx)=>
    lerJson('/api/tv/canais?lista='+encodeURIComponent(id))
@@ -865,7 +855,7 @@ async function carregarCanais(idLista){
   );
   const resultados=await Promise.all(promessas);
   const juntos=[];const vistos=new Set();
-  const canalPremiere={nome:'LA18HD · Premiere 1 (Futebol ao vivo)',logo:'',grupo:'sports',categorias:['sports'],setor:'esportes',url:'la18hd://premiere1',lista:'esportes',acaoEspecial:'la18hd'};
+  const canalPremiere={nome:'LA18HD · Premiere 1 (Futebol ao vivo)',logo:'',grupo:'sports',categorias:['sports'],setor:'esportes',url:'la18hd://premiere1',lista:'esportes',doCacador:true,acaoEspecial:'la18hd'};
   juntos.push(canalPremiere);
   for(let i=0;i<resultados.length;i++){
    const r=resultados[i];
@@ -884,7 +874,7 @@ async function carregarCanais(idLista){
  }catch{grade.textContent='Não consegui carregar os canais agora.';}
 }
 function traduzirCategoria(nome,canal){
- const mapaSetor={'tv-aberta':'TV Aberta','esportes':'Esportes','filmes':'Filmes e Séries','noticias':'Notícias','infantil':'Infantil','documentarios':'Documentários e Cultura','musica':'Música','fornecedores':'Verificado IPTV'};
+ const mapaSetor={'tv-aberta':'TV Aberta BR','esportes':'Esportes BR','filmes':'Filmes e Séries BR','noticias':'Notícias BR','infantil':'Infantil e Desenhos BR','documentarios':'Documentários BR','musica':'Música e Variedades BR','fornecedores':'Verificado IPTV','estrangeiros':'Canal Estrangeiro'};
  const setor=canal?setorDoCanalLocal(canal):'';
  if(canal?.doCacador)return (mapaSetor[setor]||'Canal')+' · ✅ IPTV';
  if(mapaSetor[setor])return mapaSetor[setor];
