@@ -321,7 +321,10 @@ async function iniciar(url, { titulo = '', referer = '', id = '', inicio = 0, fa
                 // com folga maior (60 s prontos) para aguentar as oscilações.
                 const vel = texto.match(/speed=\s*([\d.]+)x/);
                 if (vel) { const v = Number(vel[1]) || 0; registro.velocidade = registro.velocidade ? Math.round((registro.velocidade * 0.7 + v * 0.3) * 10) / 10 : v; }
-                const folga = (registro.velocidade || 0) >= 1.5 ? MINIMO_TOCAVEL : 60;
+                // Folga para começar sem engasgar (teste de 08/11/2026: a 1,6x,
+                // começando com 12 s prontos, travou nos primeiros segundos).
+                const v = registro.velocidade || 0;
+                const folga = v >= 2.5 ? MINIMO_TOCAVEL : v >= 1.5 ? 24 : 60;
                 if (!registro.pronto && (registro.progresso >= PRONTO_PARA_TOCAR * 100 && registro.segundos >= folga || registro.segundos >= folga)) registro.pronto = true;
             }
             if (/error|Invalid data|Server returned/i.test(texto)) ultimoErro = require('./cofre-links.cjs').semSegredo(texto.trim()).slice(-120);

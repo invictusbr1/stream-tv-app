@@ -162,8 +162,11 @@ function escolherTorrents(streams, emCache, porQualidade = 1, { hevcOk = false }
         // Agora: primeiro os 4K que cabem, do maior para o menor; os gigantes
         // ficam por último (e o limite de disco é conferido arquivo a arquivo).
         const faixa4k = s => { const gb = tamanhoGB(rotuloDe(s)); return !gb ? 1 : gb <= MAX_GB_4K_BOM ? 2 : 0; };
+        // Full HD: até 14 GB (~10 Mbps num filme longo) converte a 4–5x no
+        // servidor e não engasga; os de 20–40 GB iam a 1,6x (teste 08/11/2026).
+        const faixaHd = s => { const gb = tamanhoGB(rotuloDe(s)); return !gb ? 1 : gb <= 14 ? 2 : 0; };
         const daQualidade = pt.filter(s => qualidade(rotuloDe(s)) === q && serve(s, q))
-            .sort((a, b) => (q === '4K' ? faixa4k(b) - faixa4k(a) : 0)
+            .sort((a, b) => (q === '4K' ? faixa4k(b) - faixa4k(a) : q === '1080p' ? faixaHd(b) - faixaHd(a) : 0)
                 || (dubladoExplicito(rotuloDe(b)) - dubladoExplicito(rotuloDe(a)))
                 || (q !== '4K' ? ehHevc(rotuloDe(a)) - ehHevc(rotuloDe(b)) : 0)
                 || (tamanhoGB(rotuloDe(b)) - tamanhoGB(rotuloDe(a))));

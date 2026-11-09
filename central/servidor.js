@@ -335,7 +335,16 @@ app.get('/api/reproducao', exigirChave, (req, res) => res.json(reproducao.resumo
 // Relatório da semana (abriu de primeira, tempo até abrir, fontes, quem teve problema).
 app.get('/api/feedback', exigirChave, (req, res) => res.json({ novos: feedback.novos(), itens: feedback.listar().slice(0, 100) }));
 app.post('/api/feedback/resolver', exigirChave, (req, res) => res.json({ ok: feedback.resolver(String((req.body && req.body.id) || ''), req.body && req.body.status) }));
-app.get('/api/relatorio', exigirChave, (req, res) => res.json(require('./relatorio').relatorio(reproducao.resumo(200).sessoes, { dias: Math.max(1, Math.min(21, Number(req.query.dias) || 7)) })));
+// Marco zero do relatório (08/11/2026): os números recomeçam de um ponto
+// escolhido no painel. Os relatos antigos continuam guardados; só não contam.
+const ARQ_MARCO_ZERO = path.join(DADOS, 'marco-zero.json');
+const lerMarcoZero = () => { try { return Number(JSON.parse(fs.readFileSync(ARQ_MARCO_ZERO, 'utf8')).desde) || 0; } catch { return 0; } };
+app.get('/api/relatorio', exigirChave, (req, res) => res.json(require('./relatorio').relatorio(reproducao.resumo(200).sessoes, { dias: Math.max(1, Math.min(21, Number(req.query.dias) || 7)), desde: lerMarcoZero() })));
+app.post('/api/relatorio/zerar', exigirChave, (req, res) => {
+    const desde = req.body && req.body.desfazer ? 0 : Date.now();
+    try { fs.mkdirSync(DADOS, { recursive: true }); fs.writeFileSync(ARQ_MARCO_ZERO, JSON.stringify({ desde })); } catch { return res.status(500).json({ ok: false }); }
+    res.json({ ok: true, desde });
+});
 app.get('/api/health', (req, res) => res.json({ status: 'ok', app: 'central-conecta-tv' }));
 
 // ------------------------------------------------------------------ ações

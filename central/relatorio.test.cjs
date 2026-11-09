@@ -20,3 +20,13 @@ test('relatório da semana: de primeira, com troca, falhas, fontes e quem teve p
     const mgeb = r.fontes.find(f => f.id === 'mgeb'); assert.equal(mgeb.abriu, 1); assert.equal(mgeb.falhou, 1); assert.equal(mgeb.taxa, 50);
     assert.equal(mediana([]), null);
 });
+
+test('marco zero: só conta as sessões depois de "Zerar contagem"', () => {
+    const { relatorio } = require('./relatorio');
+    const agora = Date.parse('2026-11-08T20:00:00Z');
+    const s = (h, ok) => ({ criadoEm: new Date(agora - h * 3600000).toISOString(), nome: 'A', tentativas: [{ fonteId: 'x', resultado: ok ? 'abriu' : 'falhou', tempoAberturaMs: ok ? 3000 : 0 }] });
+    const sessoes = [s(30, false), s(20, false), s(2, true), s(1, true)];
+    assert.equal(relatorio(sessoes, { agora }).total, 4);
+    const r = relatorio(sessoes, { agora, desde: agora - 5 * 3600000 });
+    assert.equal(r.total, 2); assert.equal(r.taxaDePrimeira, 100); assert.equal(r.falharam, 0);
+});

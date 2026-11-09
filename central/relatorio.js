@@ -13,8 +13,10 @@ function mediana(lista) {
     return v.length % 2 ? v[meio] : Math.round((v[meio - 1] + v[meio]) / 2);
 }
 
-function relatorio(sessoes, { dias = 7, agora = Date.now() } = {}) {
-    const corte = agora - dias * 86400000;
+// `desde`: marco zero (botão "Zerar contagem" do painel) — conta só o que
+// aconteceu depois dele, para medir se as mudanças estão melhorando.
+function relatorio(sessoes, { dias = 7, agora = Date.now(), desde = 0 } = {}) {
+    const corte = Math.max(agora - dias * 86400000, Number(desde) || 0);
     const lista = (Array.isArray(sessoes) ? sessoes : []).filter(s => Date.parse(s.criadoEm || s.atualizadoEm) >= corte);
     const fontes = new Map(), pessoas = new Map(), titulos = new Map();
     let deprimeira = 0, comTroca = 0, falharam = 0, travamentos = 0, tempoTravadoMs = 0;
@@ -44,7 +46,7 @@ function relatorio(sessoes, { dias = 7, agora = Date.now() } = {}) {
     const total = lista.length;
     const pct = n => total ? Math.round(n / total * 100) : 0;
     return {
-        dias, total,
+        dias, total, desde: Number(desde) || 0,
         deprimeira, comTroca, falharam,
         taxaDePrimeira: pct(deprimeira), taxaQueAbriu: pct(deprimeira + comTroca),
         aberturaMedianaMs: mediana(tempos),

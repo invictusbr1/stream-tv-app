@@ -89,7 +89,7 @@ code{background:#ffffff10;padding:2px 6px;border-radius:6px;font-size:12.5px}
         <div id="relatos-lista" style="padding:0 14px 14px"></div>
       </section>
       <section class="bloco" id="relatorio-semana">
-        <h2>Relatório da semana <small id="relatorio-nota">últimos 7 dias</small></h2>
+        <h2>Relatório da semana <small id="relatorio-nota">últimos 7 dias</small> <button type="button" id="relatorio-zerar" style="margin-left:8px;font-size:12px;padding:4px 10px;border-radius:8px;border:1px solid #ffffff2a;background:#ffffff10;color:inherit;cursor:pointer">Zerar contagem</button></h2>
         <div id="relatorio-cartoes" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;padding:0 14px 12px"></div>
         <table><thead><tr><th>Fonte</th><th>Abriu</th><th>Falhou</th><th>Acerto</th><th>Travamentos</th></tr></thead><tbody id="relatorio-fontes"></tbody></table>
         <p class="mini" id="relatorio-pessoas" style="padding:10px 14px 0"></p>
@@ -526,12 +526,20 @@ function pintar(dados) {
 }
 function esc(t){return String(t??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 let ultimoRelatorio=0;
+document.addEventListener('click',async e=>{
+  if(e.target&&e.target.id==='relatorio-zerar'){
+    if(!confirm('Zerar a contagem do relatório? Os números recomeçam de agora (os relatos antigos ficam guardados, só não contam).'))return;
+    try{await fetch('/api/relatorio/zerar',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});}catch{}
+    ultimoRelatorio=0;carregarRelatorio();
+  }
+});
 async function carregarRelatorio(){
   if(Date.now()-ultimoRelatorio<60000)return;ultimoRelatorio=Date.now();
   try{
     const r=await (await fetch('/api/relatorio?dias=7',{cache:'no-store'})).json();
     const seg=ms=>ms?(ms/1000).toFixed(1).replace('.',',')+' s':'—';
     const cartao=(titulo,valor,cor)=>`<div style="background:#ffffff08;border:1px solid #ffffff14;border-radius:12px;padding:12px"><div class="mini">${esc(titulo)}</div><div style="font-size:24px;font-weight:800;color:${cor||'inherit'}">${esc(valor)}</div></div>`;
+    el('relatorio-nota').textContent=r.desde?'desde '+new Date(r.desde).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})+' (contagem zerada)':'últimos 7 dias';
     el('relatorio-cartoes').innerHTML=[cartao('Sessões',r.total),cartao('Abriram de primeira',r.taxaDePrimeira+'%',r.taxaDePrimeira>=80?'#5ce08d':r.taxaDePrimeira>=60?'#ffd166':'#ff6b6b'),cartao('Abriram no fim',r.taxaQueAbriu+'%'),cartao('Não abriram',r.falharam,r.falharam?'#ff6b6b':'#5ce08d'),cartao('Tempo até abrir (mediana)',seg(r.aberturaMedianaMs)),cartao('Travamentos',r.travamentos)].join('');
     el('relatorio-fontes').innerHTML=r.fontes.length?r.fontes.map(f=>`<tr><td>${esc(f.nome)}</td><td>${f.abriu}</td><td>${f.falhou}</td><td>${f.taxa}%</td><td>${f.travamentos}</td></tr>`).join(''):'<tr><td class="vazio" colspan="5">Sem sessões nesta semana.</td></tr>';
     el('relatorio-pessoas').innerHTML='<b>Quem teve problema:</b> '+(r.pessoas.filter(p=>p.falhas).map(p=>`${esc(p.nome)} (${p.falhas} de ${p.sessoes})`).join(' · ')||'ninguém 🎉');

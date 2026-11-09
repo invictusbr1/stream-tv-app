@@ -194,7 +194,7 @@ window.StreamPlayback = (() => {
     // Fora do trecho já convertido: pede ao servidor uma conversão nova a
     // partir do ponto (o ffmpeg pula direto para lá, sem converter o meio).
     function foraDoConvertido(absoluto){if(!conversaoAtiva||!video||!Number.isFinite(video.duration))return false;const rel=absoluto-deslocamento;return rel<0||(rel>video.duration-2&&totalDoFilme()>deslocamento+video.duration+5);}
-    function reabrirNoPonto(absoluto){const u=ultimoInicio;if(!u)return;try{window.setLoading?.('Indo para '+clock(absoluto),'Preparando em alta qualidade…');}catch(e){}start(u.id,u.version,u.signal,u.caminho,undefined,u.originalPermitido,null,{...(opcoesAtuais||{}),posicao:Math.floor(absoluto)});}
+    function reabrirNoPonto(absoluto){const u=ultimoInicio;if(!u)return;{const total=totalDoFilme();if(total>60)absoluto=Math.min(absoluto,total-20);}try{window.setLoading?.('Indo para '+clock(absoluto),'Preparando em alta qualidade…');}catch(e){}start(u.id,u.version,u.signal,u.caminho,undefined,u.originalPermitido,null,{...(opcoesAtuais||{}),posicao:Math.floor(absoluto)});}
     let pcAtivo=false,pcSessao='',pcPosicao=0,pcDuracao=0;
     let travamentoTimer=null,ajusteTimer=null,voltarMelhorTimer=null,restaurado=false,removerAbort=null,verificarAtual=null,intencaoTocar=false,pausadoPeloUsuario=false,qualidadeEscolhida='best',ajustouConexao=false;
     function limparEspera(){clearTimeout(travamentoTimer);clearTimeout(ajusteTimer);travamentoTimer=null;ajusteTimer=null;}
@@ -204,7 +204,10 @@ window.StreamPlayback = (() => {
         try{const fonte=decodeURIComponent(String(hls?.url||video?.currentSrc||''));const m=fonte.match(/\/api\/convertido\/([A-Za-z0-9_-]{1,96})\//);
         return m?{conversao:m[1],naConversao:Math.max(0,Number(video?.currentTime)||0)}:{conversao:'',naConversao:0};}catch{return {conversao:'',naConversao:0};}
     }
-    function posicaoAtual(){if(pcAtivo)return imagemConfirmada?pcPosicao:Math.max(0,retomadaAlvo||0);const ponto=Number(video?.currentTime);return imagemConfirmada?(Number.isFinite(ponto)&&ponto>=0?(video?.error&&ponto===0&&!video.seeking?ultimaPosicao:ponto):ultimaPosicao):Math.max(0,retomadaAlvo||0);}
+    // Ponto NO FILME (08/11/2026): numa conversão que começa no meio (retomada
+    // ou "pular para"), o vídeo conta do 0 — antes, uma queda depois de pular
+    // para 30 min recomeçava o filme em ~25 s. Agora soma o início da conversão.
+    function posicaoAtual(){if(pcAtivo)return imagemConfirmada?pcPosicao:Math.max(0,retomadaAlvo||0);const desloc=conversaoAtiva?Math.max(0,Number(deslocamento)||0):0;const ponto=Number(video?.currentTime);return desloc+(imagemConfirmada?(Number.isFinite(ponto)&&ponto>=0?(video?.error&&ponto===0&&!video.seeking?ultimaPosicao:ponto):ultimaPosicao):Math.max(0,retomadaAlvo||0));}
     function esperando(current){
         if(!current()||!imagemConfirmada||!intencaoTocar||video.paused||video.seeking||video.ended||document.hidden)return;
         analiseAtual?.esperar(posicaoAtual());
@@ -524,7 +527,7 @@ window.StreamPlayback = (() => {
                     // Porcentagem de "pronto para começar" (o servidor libera com
                     // 12 s prontos, ou 60 s se a conversão for lenta), não do filme
                     // inteiro — antes ficava parado em 1–3% e parecia travado.
-                    const pct=Math.max(0,Math.min(99,Math.round((Number(estado&&estado.segundos)||0)/(vel>=1.5?12:60)*100)));
+                    const pct=Math.max(0,Math.min(99,Math.round((Number(estado&&estado.segundos)||0)/(vel>=2.5?12:vel>=1.5?24:60)*100)));
                     try{window.setLoading?.('Preparando em alta qualidade',(data.audio==='pt-BR'?'Convertendo o áudio para português… ':'Preparando o episódio legendado… ')+pct+'%'+(vel?' · '+vel.toFixed(1)+'x':''));}catch(e){}
                     if(estado&&estado.pronto)break;
                     // Consulta a cada 1 s: o filme começa assim que o trecho fica pronto.
