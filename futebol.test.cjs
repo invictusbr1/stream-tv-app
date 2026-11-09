@@ -14,7 +14,7 @@ test('agenda não oferece o canal fixo como transmissão de uma partida sem vín
  vm.runInNewContext(fs.readFileSync(require.resolve('./futebol'),'utf8'),{window,document,Intl,Date,URL,AbortController,setInterval,clearInterval});
  await window.StreamFutebol.load();
  const flatten=n=>[n,...n.children.flatMap(flatten)];
- assert.deepEqual(flatten(ids['futebol-jogos']).filter(n=>n.tag==='button').map(n=>n.textContent),['Ver canais de futebol','Ver canais de futebol','Ver canais de futebol']);
+ assert.deepEqual(flatten(ids['futebol-jogos']).filter(n=>n.tag==='button').map(n=>n.textContent),Object.keys(agenda.leagues).map(()=>'Ver canais de futebol'));
  assert.ok(flatten(ids['futebol-jogos']).some(n=>n.textContent.includes('Transmissão neste app não confirmada')));
  await window.StreamFutebol.sources({home:'São Paulo',away:'Vitória'});
  assert.equal(ids['futebol-fontes-titulo'].textContent,'São Paulo × Vitória · Canais de futebol');
@@ -31,4 +31,19 @@ test('canais correspondem ao nome exato da programação sem misturar ESPN e ESP
 test('programação estrangeira e nomes sem região não atribuem um canal brasileiro ao jogo',()=>{
  const [g]=agenda.normalize({events:[{id:'1',date:'2026-10-11T21:00Z',competitions:[{competitors:[{homeAway:'home',team:{displayName:'A'}},{homeAway:'away',team:{displayName:'B'}}],broadcasts:[{names:['ESPN']}],geoBroadcasts:[{region:'us',media:{shortName:'ESPN'}},{region:'br',media:{shortName:'SporTV'}}]}]}]},'bra.1');
  assert.deepEqual(g.channels,['SporTV']);
+});
+test('futebol discrimina múltiplos campeonatos simultâneos e agrupa jogos por competição',()=>{
+ for(const liga of ['bra.1','bra.2','bra.copa_do_brazil','conmebol.libertadores','conmebol.sudamericana','uefa.champions','eng.1','esp.1','ita.1','ger.1']){
+  assert.ok(agenda.leagues[liga],`campeonato ${liga} precisa estar registrado`);
+ }
+ const games=[
+  {id:'1',league:'eng.1',name:agenda.leagues['eng.1'],state:'pre'},
+  {id:'2',league:'bra.1',name:agenda.leagues['bra.1'],state:'in'},
+  {id:'3',league:'bra.1',name:agenda.leagues['bra.1'],state:'pre'}
+ ];
+ const grupos=agenda.groupByLeague(games);
+ assert.equal(grupos.length,2);
+ assert.equal(grupos[0].league,'bra.1','campeonato com jogo ao vivo vem primeiro');
+ assert.equal(grupos[0].games.length,2);
+ assert.equal(grupos[1].league,'eng.1');
 });

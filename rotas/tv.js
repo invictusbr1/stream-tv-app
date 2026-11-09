@@ -29,6 +29,7 @@ app.post('/api/vigia/rodar', async (req, res) => {
 // ============================================================
 const tvAoVivo = require('../tv-ao-vivo');
 const futebolCache = new Map();
+app.get('/listas-tv.js', (req,res) => {res.setHeader('Cache-Control','no-store');res.type('js').send(fs.readFileSync(path.join(RAIZ,'listas-tv.js')));});
 app.get('/futebol.js', (req,res) => {res.setHeader('Cache-Control','no-store');res.type('js').send(fs.readFileSync(path.join(RAIZ,'futebol.js')));});
 app.get('/api/futebol/agenda', async (req,res) => {
     res.setHeader('Cache-Control','no-store');
@@ -114,16 +115,20 @@ app.get('/api/tv/futemax/jogos', async (req, res) => {
 });
 app.get('/api/tv/listas', (req, res) => {
     res.setHeader('Cache-Control', 'no-store');
-    res.json({ listas: tvAoVivo.LISTAS.map(l => ({ id: l.id, nome: l.nome, nota: l.nota })) });
+    const todas = typeof tvAoVivo.listarTodas === 'function' ? tvAoVivo.listarTodas() : tvAoVivo.LISTAS;
+    res.json({ listas: todas.map(l => ({ id: l.id, nome: l.nome, nota: l.nota, setor: l.setor || '', doCacador: Boolean(l.doCacador) })) });
 });
 app.get('/api/tv/canais', async (req, res) => {
     res.setHeader('Cache-Control', 'no-store');
     try {
-        const lista = String(req.query.lista || 'brasil').slice(0, 20);
+        const lista = String(req.query.lista || 'brasil').slice(0, 40);
+        const setor = String(req.query.setor || '').slice(0, 30);
         const canais = await tvAoVivo.canais(lista);
+        const listasTv = require('../listas-tv');
         const busca = String(req.query.q || '').toLowerCase().slice(0, 40);
-        const filtrados = busca ? canais.filter(c => c.nome.toLowerCase().includes(busca) || c.grupo.toLowerCase().includes(busca)) : canais;
-        res.json({ lista, total: filtrados.length, canais: filtrados.slice(0, 400) });
+        const porSetor = setor ? canais.filter(c => listasTv.pertenceAoSetor(c, setor)) : canais;
+        const filtrados = busca ? porSetor.filter(c => c.nome.toLowerCase().includes(busca) || c.grupo.toLowerCase().includes(busca)) : porSetor;
+        res.json({ lista, setor: setor || 'todos', total: filtrados.length, canais: filtrados.slice(0, 400) });
     } catch {
         res.status(502).json({ error: 'Não foi possível carregar os canais agora.' });
     }

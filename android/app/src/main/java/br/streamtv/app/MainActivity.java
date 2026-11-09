@@ -586,9 +586,18 @@ public final class MainActivity extends Activity {
         } catch (Exception e) { return error(502); }
     }
 
+    private static final java.util.Set<String> LIGAS_FUTEBOL = new java.util.HashSet<>(java.util.Arrays.asList(
+        "bra.1", "bra.2", "bra.copa_do_brazil",
+        "conmebol.libertadores", "conmebol.sudamericana",
+        "uefa.champions", "uefa.europa",
+        "eng.1", "esp.1", "ita.1", "ger.1", "fra.1", "por.1",
+        "arg.1", "usa.1",
+        "fifa.world", "fifa.worldq.conmebol", "fifa.friendly"
+    ));
+
     private WebResourceResponse futebolAgenda(Uri uri) {
         String league = uri.getQueryParameter("liga"), date = uri.getQueryParameter("data");
-        if (league == null || !(league.equals("eng.1") || league.equals("bra.1") || league.equals("bra.copa_do_brazil")) || date == null || !date.matches("\\d{4}-\\d{2}-\\d{2}")) return error(400);
+        if (league == null || !LIGAS_FUTEBOL.contains(league) || date == null || !date.matches("\\d{4}-\\d{2}-\\d{2}")) return error(400);
         try {
             java.text.SimpleDateFormat format = new java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.ROOT);
             format.setLenient(false);

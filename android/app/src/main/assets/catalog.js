@@ -83,7 +83,7 @@
                 for (const lista of (dados && dados.listasTv) || []) {
                     if (!lista || !lista.url || !lista.id || vistos.has(lista.id)) continue;
                     vistos.add(lista.id);
-                    juntas.push({ id: lista.id, nome: lista.nome || lista.id, url: lista.url, nota: Number(lista.nota) || 0 });
+                    juntas.push({ id: lista.id, nome: lista.nome || lista.id, url: lista.url, nota: Number(lista.nota) || 0, setor: String(lista.setor || ''), doCacador: true });
                 }
                 return juntas.sort((a, b) => (Number(b.nota) || 0) - (Number(a.nota) || 0));
             } catch { return base; }
@@ -96,7 +96,7 @@
             const resposta = await fetcher(lista.url, { signal });
             if (!resposta.ok) throw new Error('Lista de canais indisponível');
             const parser = root.StreamListasTv || (typeof require === 'function' ? require('../../../../../listas-tv') : null);
-            const canais = parser.parseM3u(await resposta.text(), lista.id);
+            const canais = parser.parseM3u(await resposta.text(), lista.id, { doCacador: Boolean(lista.doCacador), setor: lista.setor || '' });
             canaisTvCache.set(lista.id, { canais, ate: Date.now() + 30 * 60 * 1000 });
             return canais;
         }
@@ -137,8 +137,8 @@
                 else data=await tmdb(`discover/${kind}`,params,signal);
                 return {items:(data.results||[]).filter(x=>!x.media_type||['movie','tv'].includes(x.media_type)).map(x=>movie({...x,media_type:x.media_type||kind})),page:data.page||page,pages:Math.min(data.total_pages||1,500)};
             }
-            if(url.pathname==='/api/tv/listas'){const listas=await listasComFichas(signal).catch(()=>LISTAS_TV);return {listas:listas.map(l=>({id:l.id,nome:l.nome,nota:l.nota,url:l.url}))};}
-            if(url.pathname==='/api/tv/canais'){return {canais:await canaisTv(url.searchParams.get('lista')||'brasil', signal)};}
+            if(url.pathname==='/api/tv/listas'){const listas=await listasComFichas(signal).catch(()=>LISTAS_TV);return {listas:listas.map(l=>({id:l.id,nome:l.nome,nota:l.nota,url:l.url,setor:l.setor||'',doCacador:Boolean(l.doCacador)}))};}
+            if(url.pathname==='/api/tv/canais'){const canais=await canaisTv(url.searchParams.get('lista')||'brasil', signal);const setor=url.searchParams.get('setor')||'';const parser=root.StreamListasTv||(typeof require==='function'?require('../../../../../listas-tv'):null);return {canais:setor&&parser?.pertenceAoSetor?canais.filter(c=>parser.pertenceAoSetor(c,setor)):canais};}
             if(url.pathname==='/api/tv/categorias'){
                 const canais=await canaisTv(url.searchParams.get('lista')||'brasil', signal);
                 const contagem=new Map();
