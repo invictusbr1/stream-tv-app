@@ -48,7 +48,10 @@
         }
         // ---- TV ao vivo no aparelho (mesmas listas públicas do servidor) ----
         const LISTAS_TV = [
-            { id: 'brasil', nome: 'Canais do Brasil', url: 'https://iptv-org.github.io/iptv/countries/br.m3u', nota: 9.0 },
+            { id: 'brasil', nome: 'Canais do Brasil', url: 'https://iptv-org.github.io/iptv/countries/br.m3u', nota: 9.0, setor: 'tv-aberta' },
+            { id: 'cacador-verificados', nome: 'Verificados pelo Ca?ador (IPTV)', url: 'https://raw.githubusercontent.com/invictusbr1/stream-tv-atualizacoes/main/tv-cacador-verificados.m3u', nota: 9.8, setor: 'fornecedores', doCacador: true },
+            { id: 'free-tv-brasil', nome: 'Free-TV Brasil (TV Aberta)', url: 'https://raw.githubusercontent.com/Free-TV/IPTV/master/playlists/playlist_brazil.m3u8', nota: 8.8, setor: 'tv-aberta', doCacador: true },
+            { id: 'iptv-brazil', nome: 'Brasil Extra (IPTV)', url: 'https://github.com/iptv-com/iptv/raw/refs/heads/main/lists/brazil.m3u', nota: 8.4, setor: 'tv-aberta', doCacador: true },
             { id: 'portugues', nome: 'Canais em português', url: 'https://iptv-org.github.io/iptv/languages/por.m3u', nota: 8.5 },
             { id: 'esportes', nome: 'Esportes', url: 'https://iptv-org.github.io/iptv/categories/sports.m3u', nota: 9.8 },
             { id: 'noticias', nome: 'Notícias', url: 'https://iptv-org.github.io/iptv/categories/news.m3u', nota: 10 },

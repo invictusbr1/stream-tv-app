@@ -346,6 +346,11 @@ function registrarLista(pastaDados, lista) {
         url: String(lista.url),
         nota: Number(lista.nota) || 0,
         medidoEm: new Date().toISOString(),
+        ...(lista.setor ? { setor: String(lista.setor).slice(0, 30) } : {}),
+        ...(Number.isFinite(Number(lista.canais)) ? { canais: Number(lista.canais) } : {}),
+        ...(lista.qualidade ? { qualidade: String(lista.qualidade).slice(0, 20) } : {}),
+        ...(Number.isFinite(Number(lista.taxaSucesso)) ? { taxaSucesso: Number(lista.taxaSucesso) } : {}),
+        ...(lista.reproducaoConfirmada ? { reproducaoConfirmada: true } : {}),
     };
     const indice = dados.listasTv.findIndex(l => l.id === id || l.url === registro.url);
     if (indice >= 0) dados.listasTv[indice] = registro; else dados.listasTv.push(registro);
@@ -413,7 +418,10 @@ function juntarPublicado(publicado, local) {
     const porId = new Map();
     for (const p of Array.isArray(pub.perfis) ? pub.perfis : []) if (p && p.id) porId.set(p.id, p);
     for (const p of Array.isArray(local.perfis) ? local.perfis : []) if (p && p.id) porId.set(p.id, p);
-    const listas = Array.isArray(local.listasTv) && local.listasTv.length ? local.listasTv : (Array.isArray(pub.listasTv) ? pub.listasTv : []);
+    const listas = [...new Map([
+        ...(Array.isArray(pub.listasTv) ? pub.listasTv : []),
+        ...(Array.isArray(local.listasTv) ? local.listasTv : []),
+    ].filter(l => l && (l.id || l.url)).map(l => [l.id || l.url, l])).values()];
     const placar = Array.isArray(local.placar) && local.placar.length ? local.placar : (Array.isArray(pub.placar) ? pub.placar : []);
     // Listas de torrent da TorBox: junta as duas (a local vence pelo endereço).
     const listasTorbox = [...new Map([...(Array.isArray(pub.listasTorbox) ? pub.listasTorbox : []), ...(Array.isArray(local.listasTorbox) ? local.listasTorbox : [])].filter(l => l && l.base).map(l => [l.base, l])).values()];

@@ -11,7 +11,7 @@ test('setores de TV separam TV aberta, esportes, filmes, notícias, infantil e f
  assert.equal(setorDoCanal({nome:'Telecine Premium',grupo:'general',categorias:['general'],lista:'fornecedor-extra',doCacador:true}),'filmes');
  assert.equal(setorDoCanal({nome:'CNN Brasil',grupo:'news',categorias:['news'],lista:'brasil'}),'noticias');
  assert.equal(setorDoCanal({nome:'Gloob',grupo:'kids',categorias:['kids'],lista:'brasil'}),'infantil');
- const m3uFornecedor='#EXTM3U\n#EXTINF:-1 group-title="Esportes",Premiere Clubes\nhttps://fornecedor.exemplo/premiere.m3u8\n#EXTINF:-1 group-title="Geral",Canal Extra\nhttps://fornecedor.exemplo/extra.m3u8';
+ const m3uFornecedor='#EXTM3U\n#EXTINF:-1 group-title="Esportes",Premiere Clubes\nhttps://fornecedor.exemplo/premiere.m3u8\n#EXTINF:-1 group-title="Geral",Canal Extra\nhttps://fornecedor.exemplo/extra.m3u8\n#EXTINF:-1 group-title="Fornecedores IPTV",BeardedSmoker\nhttps://cam4-hls.xcdnpro.com/405/live.m3u8';
  const extraCanais=parseM3u(m3uFornecedor,'cacador-verificados',{doCacador:true});
  assert.equal(extraCanais.length,2);
  assert.equal(extraCanais[0].setor,'esportes');

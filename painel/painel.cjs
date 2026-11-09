@@ -47,6 +47,7 @@ const ACOES = {
     'torbox-slots': { grupo: 'cacador-relatorio', titulo: 'TorBox: testar slots (gasta 1 download, ~1 min)', node: ['central/testar-torbox.cjs', '--slots'] },
     'torbox-procurar': { grupo: 'cacador-relatorio', titulo: 'TorBox: procurar Curvas da Vida (não gasta downloads)', node: ['central/testar-torbox.cjs', '--procurar', 'tt2083383'] },
     'cacador-anime': { grupo: 'cacador', titulo: 'Caçar fontes de ANIME (legendado e dublado)', cmd: 'Cacador-PC.cmd', args: ['--anime'] },
+    'cacador-iptv': { grupo: 'cacador', titulo: 'Caçar listas e canais de IPTV (TV aberta, esportes, filmes…)', cmd: 'Cacador-PC.cmd', args: ['--iptv'] },
     'torbox-anime': { grupo: 'cacador-relatorio', titulo: 'TorBox: testar anime legendado', node: ['central/testar-torbox.cjs', '--anime'] },
     'torbox-fonte': { grupo: 'cacador-relatorio', titulo: 'TorBox: testar a fonte do app', node: ['central/testar-torbox.cjs', '--fonte'] },
     'torbox-chave-servidor': { grupo: 'cacador-relatorio', titulo: 'TorBox: enviar chave ao servidor', node: ['deploy/servidor/enviar-chave-torbox.cjs'] },

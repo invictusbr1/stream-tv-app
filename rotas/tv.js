@@ -123,8 +123,10 @@ app.get('/api/tv/canais', async (req, res) => {
     try {
         const lista = String(req.query.lista || 'brasil').slice(0, 40);
         const setor = String(req.query.setor || '').slice(0, 30);
-        const canais = await tvAoVivo.canais(lista);
         const listasTv = require('../listas-tv');
+        const canais = (lista === 'setor' || lista === 'auto') && typeof tvAoVivo.canaisDoSetor === 'function'
+            ? await tvAoVivo.canaisDoSetor(setor || 'todos')
+            : await tvAoVivo.canais(lista);
         const busca = String(req.query.q || '').toLowerCase().slice(0, 40);
         const porSetor = setor ? canais.filter(c => listasTv.pertenceAoSetor(c, setor)) : canais;
         const filtrados = busca ? porSetor.filter(c => c.nome.toLowerCase().includes(busca) || c.grupo.toLowerCase().includes(busca)) : porSetor;

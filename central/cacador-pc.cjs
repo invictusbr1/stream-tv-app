@@ -502,19 +502,48 @@ async function principal() {
         catch { log(`não achei ${arquivo}.`); process.exitCode = 2; return; }
         if (!linhas.length) { log('nenhum link para conferir.'); return; }
         log(`conferindo ${linhas.length} link(s)…`);
+        const linksIptv = linhas.filter(l => /\.(m3u8|m3u)(\?|$)/i.test(l));
+        const linksRestantes = linhas.filter(l => !/\.(m3u8|m3u)(\?|$)/i.test(l));
         const deps = dependencias();
         try { const robo = require('./verificar-navegador'); deps.espionar = (url, o) => robo.espionarPagina(url, o); } catch { /* sem navegador escondido */ }
-        const { paginas, resultados } = await cacada.verificarPaginas(linhas, deps);
+        const paginas = [], resultados = [];
+        let publicadoIptv = false;
+        if (linksIptv.length) {
+            const { cacarIptv } = require('./cacada-iptv');
+            let torbox = null;
+            try {
+                const tb = require('../torbox-source');
+                if (tb.ativa()) torbox = {
+                    emCache: hashes => tb.emCache(tb.lerChave(), hashes),
+                    aprovar: registro => fichas.aprovarListaTorbox(PASTA, registro),
+                };
+            } catch { /* sem TorBox */ }
+            const rIptv = await cacarIptv({
+                buscarTexto: (url, timeout = 20000) => axios.get(url, { headers: { 'User-Agent': UA }, timeout, responseType: 'text', maxContentLength: 16 * 1024 * 1024, validateStatus: s => s < 400 }).then(r => String(r.data || '')),
+                buscarJson,
+                pastaDados: PASTA,
+                token: tokenDoGithub(),
+                registrar: log,
+                torbox,
+            }, { links: linksIptv, apenasLinks: true });
+            resultados.push(...(rIptv.resultados || []));
+            publicadoIptv = Boolean(rIptv.publicado);
+        }
+        if (linksRestantes.length) {
+            const rPag = await cacada.verificarPaginas(linksRestantes, deps);
+            paginas.push(...(rPag.paginas || []));
+            resultados.push(...(rPag.resultados || []));
+        }
         log('--- resultado ---');
         for (const p of paginas) log(`página ${p.link}: ${p.addons} addon(s), ${p.players} player(s), ${p.videos} vídeo(s)${p.aviso ? ' — ' + p.aviso : ''}`);
         for (const r of resultados) log(`${r.status === 'aprovada' ? '✔' : /^já/.test(r.status) ? '•' : /ignorado|código próprio/.test(r.status) ? '·' : '✘'} ${r.nome || r.link}: ${r.status}${r.qualidade ? ' ' + r.qualidade : ''}${r.detalhe ? ' — ' + r.detalhe : ''}`);
         const aprovadas = resultados.filter(r => r.status === 'aprovada' || r.atualizada);
-        let publicado = null;
-        if (aprovadas.length) {
+        let publicado = publicadoIptv ? { ok: true } : null;
+        if (aprovadas.length && !publicadoIptv) {
             publicado = await fichas.publicar(PASTA, tokenDoGithub());
             log(publicado.ok ? `publicado no GitHub (${publicado.perfis} fichas ativas). O app passa a usar em alguns minutos.` : `não publiquei: ${publicado.motivo}`);
             if (!publicado.ok) process.exitCode = 3;
-        } else log('nenhuma fonte nova aprovada desta vez.');
+        } else if (!aprovadas.length) log('nenhuma fonte nova aprovada desta vez.');
         // Linha para o painel montar a tabela de resultados.
         console.log('RESULTADO:' + JSON.stringify({ paginas, resultados, publicado: publicado ? publicado.ok : null }));
         return;
@@ -571,6 +600,28 @@ async function principal() {
         ];
         resumo.forEach(l => log(l));
         console.log('RESULTADO:' + JSON.stringify({ resumo, resultados, publicado: publicado ? publicado.ok : null }));
+        return;
+    }
+    if (args[0] === '--iptv') {
+        const { cacarIptv } = require('./cacada-iptv');
+        let torbox = null;
+        try {
+            const tb = require('../torbox-source');
+            if (tb.ativa()) torbox = {
+                emCache: hashes => tb.emCache(tb.lerChave(), hashes),
+                aprovar: registro => fichas.aprovarListaTorbox(PASTA, registro),
+            };
+        } catch { /* sem TorBox */ }
+        const r = await cacarIptv({
+            buscarTexto: (url, timeout = 20000) => axios.get(url, { headers: { 'User-Agent': UA }, timeout, responseType: 'text', maxContentLength: 16 * 1024 * 1024, validateStatus: s => s < 400 }).then(res => String(res.data || '')),
+            buscarJson,
+            pastaDados: PASTA,
+            token: tokenDoGithub(),
+            registrar: log,
+            torbox,
+        });
+        (r.resumo || []).forEach(l => log(l));
+        console.log('RESULTADO:' + JSON.stringify({ resumo: r.resumo, resultados: r.resultados, publicado: r.publicado }));
         return;
     }
     if (args[0] === '--investigar') {

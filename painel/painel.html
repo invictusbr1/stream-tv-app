@@ -107,6 +107,7 @@
       <div class="botoes">
         <button data-acao="cacador-explorar" data-confirmar="Caçar agora? Testa até 40 fornecedores novos, incluindo os de torrent para a TorBox (alguns minutos).">Caçar fontes novas (inclui TorBox)</button>
         <button data-acao="cacador-anime" data-confirmar="Caçar fontes de anime? Mede na TorBox as listas de torrent com 6 episódios de anime (legendado e dublado) — alguns minutos.">Caçar fontes de ANIME (legendado e dublado)</button>
+        <button data-acao="cacador-iptv" data-confirmar="Caçar listas e canais de IPTV agora? Testa listas públicas e descobertas no GitHub (TV aberta, esportes, filmes, notícias, infantil), separa por setor e publica os canais verificados para o app.">Caçar canais de IPTV (TV ao vivo)</button>
         <button data-acao="cacador-descobertas">Ver descobertas da semana</button>
         <button data-acao="torbox-testar">Testar TorBox</button>
         <button data-acao="torbox-tocar">TorBox: tocar 3</button>
@@ -127,8 +128,8 @@
 
     <section>
       <h2>Verificar links</h2>
-      <p class="dica">Cole um ou vários links (um por linha): páginas de sites, de addons ou de players. O caçador abre cada página, descobre os fornecedores que ela usa e testa cada um em filmes e novelas. Os que entregam vídeo dublado em HD, sem login e sem anúncio, entram no app sozinhos.</p>
-      <textarea id="links" placeholder="site-de-filmes.exemplo/filme/123&#10;outro.exemplo (pode ser com ou sem https://)"></textarea>
+      <p class="dica">Cole um ou vários links (um por linha): páginas de sites, de addons, de players ou listas de IPTV (.m3u / .m3u8). O caçador abre cada endereço, testa filmes, novelas ou canais ao vivo e aprova os que funcionam sem login e sem anúncio.</p>
+      <textarea id="links" placeholder="site-de-filmes.exemplo/filme/123&#10;lista-iptv.exemplo/canais.m3u8 (pode ser com ou sem https://)"></textarea>
       <div class="botoes" style="margin-top:8px">
         <button class="principal" id="verificarLinks">Verificar links</button>
         <button id="limparLinks">Limpar</button>

@@ -600,7 +600,11 @@ body{background:radial-gradient(1100px 520px at 85% -8%,#123a8a33,transparent 70
   <div class="section-head"><h2>TV ao vivo</h2><span id="tv-info">canais públicos</span></div>
   <div class="tv-barra">
     <select id="tv-lista" aria-label="Lista de canais" onchange="trocarListaTv(this.value)">
+      <option value="setor">✨ Automático por setor (todas as fontes aprovadas)</option>
       <option value="brasil">🇧🇷 Canais do Brasil</option>
+      <option value="cacador-verificados">✅ Verificados pelo Caçador (IPTV)</option>
+      <option value="free-tv-brasil">📡 Free-TV Brasil (TV Aberta)</option>
+      <option value="iptv-brazil">🇧🇷 Brasil Extra (IPTV)</option>
       <option value="portugues">🇵🇹 Canais em português</option>
       <option value="esportes">⚽ Esportes (Mundial + BR)</option>
       <option value="filmes">🎬 Filmes (TV aberta)</option>
@@ -609,7 +613,6 @@ body{background:radial-gradient(1100px 520px at 85% -8%,#123a8a33,transparent 70
       <option value="infantil">🧒 Infantil e Animação</option>
       <option value="documentarios">🌍 Documentários e Cultura</option>
       <option value="musica">🎵 Música</option>
-      <option value="cacador-verificados">✅ Verificados pelo Caçador (IPTV)</option>
     </select>
     <input id="tv-busca" type="search" placeholder="Procurar canal (ex.: Globo, SBT, Record, BandSports, CNN…)" aria-label="Procurar canal" oninput="filtrarCanais()">
     <button class="quiet" type="button" onclick="irParaCategoria('futebol')">⚽ Ir para Futebol</button>
@@ -798,16 +801,21 @@ async function carregarListasTv(){
 async function trocarListaTv(idLista){
  listaTvAtual=idLista||'brasil';
  if(idLista==='cacador-verificados')setorTvAtual='fornecedores';
+ else if((idLista==='free-tv-brasil'||idLista==='iptv-brazil')&&setorTvAtual!=='tv-aberta')setorTvAtual='tv-aberta';
  else if(idLista==='esportes'&&setorTvAtual!=='esportes')setorTvAtual='esportes';
  else if((idLista==='filmes'||idLista==='series')&&setorTvAtual!=='filmes')setorTvAtual='filmes';
  else if(idLista==='noticias'&&setorTvAtual!=='noticias')setorTvAtual='noticias';
  else if((idLista==='infantil'||idLista==='animacao')&&setorTvAtual!=='infantil')setorTvAtual='infantil';
- else if(idLista==='documentarios'&&setorTvAtual!=='documentarios')setorTvAtual='documentarios';
+ else if((idLista==='documentarios'||idLista==='cultura')&&setorTvAtual!=='documentarios')setorTvAtual='documentarios';
  else if(idLista==='musica'&&setorTvAtual!=='musica')setorTvAtual='musica';
  await carregarCanais(listaTvAtual);
 }
-function selecionarSetorTv(setor){
+async function selecionarSetorTv(setor){
  setorTvAtual=setor||'todos';
+ if(listaTvAtual==='brasil'||listaTvAtual==='setor'){
+  await carregarCanais(listaTvAtual);
+  return;
+ }
  filtrarCanais();
 }
 function renderizarSetoresTv(){
@@ -820,7 +828,7 @@ function renderizarSetoresTv(){
   b.type='button';b.className='tv-cat';b.setAttribute('role','tab');
   if(setorTvAtual===s.id){b.setAttribute('data-ativo','');b.setAttribute('aria-selected','true');}
   else b.setAttribute('aria-selected','false');
-  b.textContent=`${s.icone} ${s.nome} (${total})`;
+  b.textContent=(listaTvAtual==='setor'&&s.id!==setorTvAtual&&total===0)?`${s.icone} ${s.nome}`:`${s.icone} ${s.nome} (${total})`;
   b.onclick=()=>selecionarSetorTv(s.id);
   barra.append(b);
  }
@@ -834,19 +842,39 @@ async function carregarCanais(idLista){
  const seletor=el('tv-lista');if(seletor&&seletor.value!==alvo)seletor.value=alvo;
  const grade=el('tv-grade');grade.textContent='Carregando canais…';
  try{
-  const promessas=[lerJson('/api/tv/canais?lista='+encodeURIComponent(alvo))];
-  if(alvo==='brasil'){
-   promessas.push(lerJson('/api/tv/canais?lista=cacador-verificados').catch(()=>({canais:[]})));
+  const listasPorSetor={
+   'todos':['brasil','cacador-verificados','free-tv-brasil','iptv-brazil'],
+   'tv-aberta':['brasil','cacador-verificados','free-tv-brasil','iptv-brazil','portugues'],
+   'esportes':['cacador-verificados','esportes','brasil'],
+   'filmes':['cacador-verificados','filmes','series','brasil'],
+   'noticias':['cacador-verificados','noticias','brasil'],
+   'infantil':['cacador-verificados','infantil','animacao','brasil'],
+   'documentarios':['cacador-verificados','documentarios','cultura','brasil'],
+   'musica':['cacador-verificados','musica','brasil'],
+   'fornecedores':['cacador-verificados','iptv-brazil','free-tv-brasil']
+  };
+  let idsParaBuscar=[alvo];
+  if(alvo==='setor'||(alvo==='brasil'&&setorTvAtual!=='todos')){
+   idsParaBuscar=listasPorSetor[setorTvAtual]||listasPorSetor['todos'];
+  }else if(alvo==='brasil'){
+   idsParaBuscar=['brasil','cacador-verificados','free-tv-brasil','iptv-brazil'];
   }
+  const promessas=idsParaBuscar.map((id,idx)=>
+   lerJson('/api/tv/canais?lista='+encodeURIComponent(id))
+    .catch(err=>{if(idx===0&&idsParaBuscar.length===1)throw err;return {canais:[]};})
+  );
   const resultados=await Promise.all(promessas);
   const juntos=[];const vistos=new Set();
   const canalPremiere={nome:'LA18HD · Premiere 1 (Futebol ao vivo)',logo:'',grupo:'sports',categorias:['sports'],setor:'esportes',url:'la18hd://premiere1',lista:'esportes',acaoEspecial:'la18hd'};
   juntos.push(canalPremiere);
-  for(const r of resultados){
+  for(let i=0;i<resultados.length;i++){
+   const r=resultados[i];
+   const idOrigem=idsParaBuscar[i]||'';
    for(const c of (r?.canais||[])){
     if(!c||!c.url||vistos.has(c.url))continue;
+    if(window.StreamListasTv?.ehCanalAdulto?.(c))continue;
     vistos.add(c.url);
-    if(r!==resultados[0])c.doCacador=true;
+    if(idOrigem==='cacador-verificados'||idOrigem==='free-tv-brasil'||idOrigem==='iptv-brazil')c.doCacador=true;
     c.setor=setorDoCanalLocal(c);
     juntos.push(c);
    }

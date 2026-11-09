@@ -81,6 +81,8 @@ test('mesma área não roda duas vezes; RESULTADO vira tabela', () => {
 test('investigar: alvo vai como argumento; caracteres perigosos para o cmd são recusados', () => {
     const c = p.montarComando('cacador-investigar', { alvo: 'overflix.bar' }, { raiz: 'C:\\stream tv', windows: true });
     assert.match(c.args[3], /Cacador-PC\.cmd" "--investigar" "overflix\.bar"/);
+    const iptv = p.montarComando('cacador-iptv', {}, { raiz: 'C:\\stream tv', windows: true });
+    assert.match(iptv.args[3], /Cacador-PC\.cmd" "--iptv""$/);
     assert.match(p.montarComando('cacador-investigar', { alvo: 'x" & calc' }, { windows: true }).erro, /só o nome/);
     assert.match(p.montarComando('cacador-investigar', { alvo: '%PATH%' }, { windows: true }).erro, /só o nome/);
     assert.match(p.montarComando('cacador-investigar', {}, { raiz: 'C:\\stream tv', windows: true }).args[3], /"--investigar""$/);
