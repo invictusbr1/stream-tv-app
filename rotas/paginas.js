@@ -24,7 +24,7 @@ app.get('/diagnostico/controle.mp4', (req, res) => {
     res.type('video/mp4').sendFile(path.join(RAIZ, 'diagnostico-controle.mp4'));
 });
 app.get('/sw.js',(req,res)=>{res.setHeader('Cache-Control','no-cache');res.type('js').sendFile(path.join(RAIZ,'pwa/sw.js'));});
-app.get(['/pwa/install.js','/pwa/icon-180.png','/pwa/icon-192.png','/pwa/icon-512.png'],(req,res)=>res.sendFile(path.join(RAIZ,req.path)));
+app.get(['/pwa/install.js','/pwa/icon-180.png','/pwa/icon-192.png','/pwa/icon-512.png','/pwa/grupo-conecta.webp'],(req,res)=>res.sendFile(path.join(RAIZ,req.path)));
 app.get('/api/health', (req, res) => res.json({ status: 'ok', app: 'stream-tv' }));
 
 // ============================================================

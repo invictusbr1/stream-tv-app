@@ -20,7 +20,7 @@ function pagina(tituloPadrao) {
   #area{margin-top:16px;display:flex;gap:14px;flex-wrap:wrap}
   video{width:420px;height:236px;background:#000;border-radius:10px;border:1px solid #ffffff22}
   .ok{color:#5ce08d}.ruim{color:#ff8f8f}
-  button{background:#e50914;color:#fff;border:0;border-radius:14px;padding:16px 30px;font:700 20px system-ui;margin:0 0 16px}
+  button{background:#12b8ef;color:#fff;border:0;border-radius:14px;padding:16px 30px;font:700 20px system-ui;margin:0 0 16px}
 </style>
 </head>
 <body>

@@ -1,4 +1,8 @@
 'use strict';
+// OBSOLETO desde 08/11/2026 (marca Grupo Conecta): os ícones agora são as
+// imagens em app/src/main/res/drawable-nodpi (conecta_*.png) e pwa/icon-*.png.
+// Não rode este script — ele recriaria a marca antiga.
+if (require.main === module) { console.log('Marca antiga desativada: use os PNG do Grupo Conecta.'); process.exit(0); }
 // Geometria única da marca aprovada: gera SVG, ícones PWA e vetores Android.
 const fs=require('node:fs'),path=require('node:path');
 const root=path.resolve(__dirname,'..');

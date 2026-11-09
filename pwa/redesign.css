@@ -1,6 +1,6 @@
 /* Web-only presentation. Android assets and TV keep their existing UI. */
-html.web-redesign{--bg:#080b12;--panel:#151b28;--accent:#ee4055}
-.web-redesign .header{background:linear-gradient(#080b12f5,#080b12cc);border-bottom:1px solid #ffffff0b;padding:18px 4vw}
+html.web-redesign{--bg:#050a1c;--panel:#0e1730;--accent:#22d3ee}
+.web-redesign .header{background:linear-gradient(#050a1cf5,#050a1ccc);border-bottom:1px solid #ffffff0b;padding:18px 4vw}
 .web-redesign .hero{min-height:70vh;padding-bottom:85px}
 .web-redesign .hero-content{max-width:650px}
 .web-redesign .hero h1{font-size:clamp(36px,5vw,72px)}
@@ -9,7 +9,7 @@ html.web-redesign{--bg:#080b12;--panel:#151b28;--accent:#ee4055}
 .web-redesign .card img{border-radius:9px}
 .web-redesign #series-dialog{position:fixed;inset:0;width:100%!important;max-width:100%!important;height:100dvh;max-height:100dvh!important;margin:0!important;border:0;border-radius:0;padding:0;background:var(--bg);z-index:15;overflow:auto}
 .web-redesign #series-dialog .series-cover{min-height:62vh;padding:100px max(6vw,24px) 40px}
-.web-redesign #series-dialog .series-shade{background:linear-gradient(0deg,#080b12 0%,#080b1244 80%),linear-gradient(90deg,#080b12ee,#080b1230)}
+.web-redesign #series-dialog .series-shade{background:linear-gradient(0deg,#050a1c 0%,#050a1c44 80%),linear-gradient(90deg,#050a1cee,#050a1c30)}
 .web-redesign .series-heading{max-width:760px}
 .web-redesign .series-heading h2{font-size:clamp(34px,5vw,66px);letter-spacing:-1.5px}
 .web-redesign #series-close{top:24px;left:6vw;border:1px solid #ffffff24;min-height:44px}
@@ -30,11 +30,11 @@ html.web-redesign{--bg:#080b12;--panel:#151b28;--accent:#ee4055}
 .web-redesign #direct-controls{padding:50px max(24px,env(safe-area-inset-right)) max(22px,env(safe-area-inset-bottom)) max(24px,env(safe-area-inset-left))}
 .web-redesign #direct-controls .ctl{width:44px;min-width:44px;background:transparent;border-radius:50%;font-size:14px}
 .web-redesign .ctl svg,.web-redesign .icon-btn svg{width:25px;height:25px;display:block;pointer-events:none}
-.web-redesign #direct-toggle{background:#ffffff!important;color:#080b12;width:52px!important;height:52px;border-radius:50%}
+.web-redesign #direct-toggle{background:#ffffff!important;color:#050a1c;width:52px!important;height:52px;border-radius:50%}
 .web-redesign .seek-icon{position:relative;display:grid;place-items:center}
 .web-redesign .seek-icon svg{width:34px;height:34px}
 .web-redesign .seek-icon small{position:absolute;font-size:10px;font-weight:800}
-.web-redesign #volume-range{position:absolute;bottom:90px;left:200px;width:130px;display:none;background:#151b28;border-radius:12px;padding:15px!important;box-sizing:content-box}
+.web-redesign #volume-range{position:absolute;bottom:90px;left:200px;width:130px;display:none;background:#0e1730;border-radius:12px;padding:15px!important;box-sizing:content-box}
 .web-redesign #direct-controls.volume-open #volume-range{display:block}
 .web-redesign .rotate-hint{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);color:#d6dce8;background:#111827d9;border:1px solid #ffffff24;border-radius:16px;padding:16px 22px;max-width:80%;text-align:center;z-index:1;pointer-events:none;font-size:14px}
 .web-redesign #direct-video~.rotate-hint{top:30%}
@@ -82,7 +82,7 @@ html.web-redesign{--bg:#080b12;--panel:#151b28;--accent:#ee4055}
 .web-redesign .ficha-critica footer{margin-top:8px;font-size:12px;color:#8d97a8}
 .web-redesign .ficha-comentarios{margin-top:10px}
 .web-redesign .ficha-coment{padding:12px 16px;background:#ffffff08;border-radius:10px;margin-bottom:10px}
-.web-redesign .ficha-coment.meu{border:1px solid #ee405566}
+.web-redesign .ficha-coment.meu{border:1px solid #22d3ee66}
 .web-redesign .ficha-coment-topo{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
 .web-redesign .ficha-coment-topo small{color:#8d97a8;margin-left:auto}
 .web-redesign .ficha-coment p{margin:6px 0 0;color:#cfd6e3}
@@ -90,7 +90,7 @@ html.web-redesign{--bg:#080b12;--panel:#151b28;--accent:#ee4055}
 .web-redesign .ficha-form{display:grid;gap:10px;margin-top:14px;max-width:620px}
 .web-redesign .ficha-notas{display:flex;gap:4px}
 .web-redesign .ficha-nota{background:none;border:0;color:#ffc94d;font-size:26px;cursor:pointer;padding:0 2px;min-height:auto}
-.web-redesign .ficha-form textarea{background:#151b28;color:#fff;border:1px solid #ffffff24;border-radius:10px;padding:10px 12px;font:inherit;resize:vertical}
+.web-redesign .ficha-form textarea{background:#0e1730;color:#fff;border:1px solid #ffffff24;border-radius:10px;padding:10px 12px;font:inherit;resize:vertical}
 .web-redesign .ficha-form .primary{justify-self:start}
 .web-redesign .ficha-aviso{color:#9ba6b8}
-.web-redesign .ficha-sem-foto{width:112px;height:140px;border-radius:10px;background:linear-gradient(135deg,#232b3d,#151b28);display:grid;place-items:center;font-size:38px;font-weight:700;color:#5d6a82}
+.web-redesign .ficha-sem-foto{width:112px;height:140px;border-radius:10px;background:linear-gradient(135deg,#232b3d,#0e1730);display:grid;place-items:center;font-size:38px;font-weight:700;color:#5d6a82}

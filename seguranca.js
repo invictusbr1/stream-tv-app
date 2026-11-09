@@ -326,16 +326,16 @@ function paginaDeEntrada(dados = {}) {
     return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1"><title>Conecta TV · entrada</title>
 <style>
-body{margin:0;background:#0b0e15;color:#e8ecf3;font:15px system-ui;display:grid;place-items:center;min-height:100vh}
+body{margin:0;background:#050a1c;color:#e8ecf3;font:15px system-ui;display:grid;place-items:center;min-height:100vh}
 .caixa{background:#141924;border:1px solid #ffffff14;border-radius:18px;padding:28px;width:min(360px,90vw)}
 h1{margin:0 0 6px;font-size:20px}p{margin:0 0 18px;color:#8d97a8;font-size:13px}
 label{display:block;font-size:12px;color:#9aa4b4;margin:14px 0 6px}
 input{width:100%;box-sizing:border-box;background:#1c2230;border:1px solid #2c3444;color:#fff;border-radius:10px;padding:12px}
-button{margin-top:18px;width:100%;background:#e50914;border:0;color:#fff;border-radius:10px;padding:13px;font-size:15px;font-weight:600}
+button{margin-top:18px;width:100%;background:#12b8ef;border:0;color:#fff;border-radius:10px;padding:13px;font-size:15px;font-weight:600}
 .erro{color:#ff8f8f;font-size:13px;margin:10px 0 0}
 </style></head><body>
 <form class="caixa" id="forma">
-<h1>Conecta TV</h1><p>Aplicativo privado. Informe o código de acesso que você recebeu.</p>
+<img src="/pwa/grupo-conecta.webp" alt="Grupo Conecta" style="display:block;width:100%;border-radius:12px;margin:0 0 16px"><h1>Conecta TV</h1><p>Aplicativo privado. Informe o código de acesso que você recebeu.</p>
 <label for="nome">Seu nome</label><input id="nome" autocomplete="name" placeholder="Como devemos chamar você">
 <label for="codigo">Código de acesso</label><input id="codigo" type="password" autocomplete="off" placeholder="Código">
 ${erro}
