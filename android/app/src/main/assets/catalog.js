@@ -216,61 +216,66 @@
             const match = url.pathname.match(/^\/api\/player\/(\d{1,10})$/);
             if (match) return { players: await sources(match[1], signal) };
             if (url.pathname === '/api/colecoes') {
-                const chaveCache = 'colecoes:home';
+                const chaveCache = 'colecoes:home:v2';
                 const salvo = cache.get(chaveCache);
                 if (salvo && salvo.until > Date.now()) return salvo.value;
 
-                const buscarStreaming = async (providers) => {
+                const plataformasConfig = [
+                    { id: 'netflix', nome: 'Top 10 Netflix', subtitulo: 'Originais e sucessos em alta no Brasil', icone: '🔴', cor: '#e50914', network: '213', provider: '8' },
+                    { id: 'max', nome: 'Top 10 Max · HBO', subtitulo: 'O melhor do universo HBO e Warner', icone: '🟣', cor: '#9933ff', network: '49|3186', provider: '1899|384' },
+                    { id: 'prime', nome: 'Top 10 Prime Video', subtitulo: 'Originais e grandes produções da Amazon', icone: '🔵', cor: '#00a8e1', network: '1024', provider: '119' },
+                    { id: 'apple', nome: 'Top 10 Apple TV+', subtitulo: 'Produções originais aclamadas da Apple', icone: '⚪', cor: '#d4d4d4', network: '2552', provider: '350' },
+                    { id: 'disney', nome: 'Top 10 Disney+', subtitulo: 'Universo Disney, Pixar, Marvel e Star Wars', icone: '🔷', cor: '#113ccf', network: '2739', provider: '337' }
+                ];
+
+                const vistosStreamings = new Set();
+                const streamings = await Promise.all(plataformasConfig.map(async p => {
                     try {
                         const [filmes, series] = await Promise.all([
-                            tmdb('discover/movie', { watch_region: 'BR', with_watch_providers: providers, sort_by: 'popularity.desc', page: '1' }, signal).catch(() => ({ results: [] })),
-                            tmdb('discover/tv', { watch_region: 'BR', with_watch_providers: providers, sort_by: 'popularity.desc', page: '1' }, signal).catch(() => ({ results: [] }))
+                            tmdb('discover/movie', { watch_region: 'BR', with_watch_providers: p.provider, with_watch_monetization_types: 'flatrate', sort_by: 'popularity.desc', page: '1' }, signal).catch(() => ({ results: [] })),
+                            tmdb('discover/tv', { with_networks: p.network, sort_by: 'popularity.desc', page: '1' }, signal).catch(() => ({ results: [] }))
                         ]);
                         const mistos = [
                             ...(filmes.results || []).map(x => ({ ...x, media_type: 'movie' })),
                             ...(series.results || []).map(x => ({ ...x, media_type: 'tv' }))
-                        ].sort((a, b) => (b.popularity || 0) - (a.popularity || 0)).slice(0, 10);
-                        return mistos.map(movie);
-                    } catch { return []; }
-                };
+                        ].sort((a, b) => (b.popularity || 0) - (a.popularity || 0));
 
-                const buscarTematica = async (params, tipo = 'movie') => {
+                        const itensUnicos = [];
+                        for (const item of mistos) {
+                            const chaveItem = `${item.media_type}:${item.id}`;
+                            if (!vistosStreamings.has(chaveItem)) {
+                                vistosStreamings.add(chaveItem);
+                                itensUnicos.push(movie(item));
+                                if (itensUnicos.length === 10) break;
+                            }
+                        }
+                        return { id: p.id, nome: p.nome, subtitulo: p.subtitulo, icone: p.icone, cor: p.cor, itens: itensUnicos };
+                    } catch { return { id: p.id, nome: p.nome, subtitulo: p.subtitulo, icone: p.icone, cor: p.cor, itens: [] }; }
+                }));
+
+                const buscarTematica = async (params, tipo = 'movie', maxItens = 12) => {
                     try {
                         const r = await tmdb(`discover/${tipo}`, { sort_by: 'popularity.desc', page: '1', ...params }, signal).catch(() => ({ results: [] }));
-                        return (r.results || []).slice(0, 12).map(x => movie({ ...x, media_type: tipo }));
+                        return (r.results || []).slice(0, maxItens).map(x => movie({ ...x, media_type: tipo }));
                     } catch { return []; }
                 };
 
-                const [
-                    netflix, max, prime, apple, disney,
-                    dreamworks, terror, acao, ficcao, comedia
-                ] = await Promise.all([
-                    buscarStreaming('8|1796'),
-                    buscarStreaming('1899|384|1825'),
-                    buscarStreaming('119|2100'),
-                    buscarStreaming('350|2'),
-                    buscarStreaming('337'),
-                    buscarTematica({ with_companies: '521', 'vote_count.gte': '150', sort_by: 'vote_average.desc' }),
-                    buscarTematica({ with_genres: '27', 'vote_count.gte': '100' }),
-                    buscarTematica({ with_genres: '28', 'vote_count.gte': '180' }),
-                    buscarTematica({ with_genres: '878', 'vote_count.gte': '180' }),
-                    buscarTematica({ with_genres: '35', 'vote_count.gte': '120' })
+                const [dreamworks, terror, acao, ficcao, comedia] = await Promise.all([
+                    buscarTematica({ with_companies: '521', 'vote_count.gte': '150', sort_by: 'vote_average.desc' }, 'movie', 12),
+                    buscarTematica({ with_genres: '27', 'vote_count.gte': '200' }, 'movie', 12),
+                    buscarTematica({ with_genres: '28', without_genres: '16', 'vote_count.gte': '300' }, 'movie', 12),
+                    buscarTematica({ with_genres: '878', without_genres: '27', 'vote_count.gte': '300' }, 'movie', 12),
+                    buscarTematica({ with_genres: '35', without_genres: '16,27,10751', 'vote_count.gte': '400' }, 'movie', 12)
                 ]);
 
                 const resultado = {
-                    streamings: [
-                        { id: 'netflix', nome: 'Top 10 Netflix', subtitulo: 'Filmes e séries em alta no Brasil', icone: '🔴', cor: '#e50914', itens: netflix },
-                        { id: 'max', nome: 'Top 10 Max · HBO', subtitulo: 'O melhor do universo HBO e Warner', icone: '🟣', cor: '#9933ff', itens: max },
-                        { id: 'prime', nome: 'Top 10 Prime Video', subtitulo: 'Grandes sucessos e originais Prime', icone: '🔵', cor: '#00a8e1', itens: prime },
-                        { id: 'apple', nome: 'Top 10 Apple TV+', subtitulo: 'Produções originais e premiadas', icone: '⚪', cor: '#d4d4d4', itens: apple },
-                        { id: 'disney', nome: 'Top 10 Disney+', subtitulo: 'Grandes sagas, Disney e Pixar', icone: '🔷', cor: '#113ccf', itens: disney }
-                    ],
+                    streamings,
                     tematicas: [
                         { id: 'dreamworks', nome: 'O Mundo da DreamWorks', subtitulo: 'Shrek, Dragões, Kung Fu Panda e clássicos', icone: '🏰', itens: dreamworks },
                         { id: 'terror', nome: 'Noite de Arrepio · Terror', subtitulo: 'Filmes aterrorizantes e sobrenaturais', icone: '👻', itens: terror },
                         { id: 'acao', nome: 'Pura Adrenalina · Ação', subtitulo: 'Tiros, lutas e perseguições eletrizantes', icone: '⚡', itens: acao },
-                        { id: 'ficcao', nome: 'Ficção Científica & Futuro', subtitulo: 'Multiverso, IA, viagens espaciais e distopias', icone: '🚀', itens: ficcao },
-                        { id: 'comedia', nome: 'Para Morrer de Rir · Comédias', subtitulo: 'Comédias leves e divertidas para relaxar', icone: '😂', itens: comedia }
+                        { id: 'ficcao', nome: 'Ficção Científica & Futuro', subtitulo: 'Espaço, IA, multiverso e viagens no tempo', icone: '🚀', itens: ficcao },
+                        { id: 'comedia', nome: 'Para Morrer de Rir · Comédias', subtitulo: 'Comédias consagradas para relaxar e se divertir', icone: '😂', itens: comedia }
                     ],
                     atualizadoEm: new Date().toISOString()
                 };
