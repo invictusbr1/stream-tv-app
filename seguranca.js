@@ -18,6 +18,24 @@ const crypto = require('crypto');
 
 const COOKIE = 'conecta_acesso';
 
+// Comparação em tempo constante (SHA-256 + timingSafeEqual): impede ataques de
+// medição de tempo (timing side-channel) ao verificar códigos, chaves e tokens.
+function compararSegredo(informado, esperado) {
+    const a = String(informado || '');
+    const b = String(esperado || '');
+    if (!a || !b) return false;
+    const ha = crypto.createHash('sha256').update(a, 'utf8').digest();
+    const hb = crypto.createHash('sha256').update(b, 'utf8').digest();
+    return crypto.timingSafeEqual(ha, hb);
+}
+
+// Escapa caracteres especiais para inserção segura em páginas HTML (anti-XSS).
+function escaparHtml(valor) {
+    return String(valor ?? '').replace(/[&<>"']/g, c => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    }[c]));
+}
+
 // Endereço de quem fez o pedido.
 // O cabeçalho X-Forwarded-For pode ser inventado por qualquer um. Por isso ele
 // só vale quando o pedido chegou de um intermediário nosso (Caddy, túnel do
@@ -26,30 +44,73 @@ const COOKIE = 'conecta_acesso';
 // acrescentou. O primeiro é o que o cliente mandou e não prova nada.
 // Antes, mandar "X-Forwarded-For: 1.2.3.4" com valor novo a cada pedido
 // escapava do limite de uso.
+function ipRedeInterna(ip) {
+    const limpo = String(ip || '').trim().toLowerCase().replace(/^::ffff:/, '');
+    if (!limpo || limpo === '::1' || limpo === '127.0.0.1' || limpo === 'localhost') return true;
+    const m = limpo.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+    if (m) {
+        const [a, b] = [Number(m[1]), Number(m[2])];
+        if (a === 10 || a === 127 || a === 0) return true;
+        if (a === 169 && b === 254) return true;
+        if (a === 172 && b >= 16 && b <= 31) return true;
+        if (a === 192 && b === 168) return true;
+        if (a === 100 && b >= 64 && b <= 127) return true;
+        return false;
+    }
+    return /^(fc|fd|fe80)/i.test(limpo);
+}
+
 function ipDoPedido(req) {
     const limpar = valor => String(valor || '').trim().replace(/^::ffff:/, '');
     const direto = limpar(req.socket?.remoteAddress);
-    if (direto && !hostInterno(direto)) return direto;
+    if (direto && !ipRedeInterna(direto)) return direto;
     const lista = String(req.headers?.['x-forwarded-for'] || '').split(',').map(limpar).filter(Boolean);
     return lista.length ? lista[lista.length - 1] : direto;
 }
 
-// Endereço de rede interna: nunca deve ser buscado pelo servidor.
+// Endereço de rede interna: nunca deve ser buscado pelo servidor (anti-SSRF).
 function hostInterno(host) {
-    const nome = String(host || '').trim().toLowerCase().replace(/^\[|\]$/g, '');
+    let nome = String(host || '').trim().toLowerCase().replace(/^\[|\]$/g, '').replace(/\.+$/, '');
     if (!nome) return true;
-    if (nome === 'localhost' || nome.endsWith('.localhost') || nome.endsWith('.local') || nome.endsWith('.internal')) return true;
-    if (nome === '::1' || nome === '0:0:0:0:0:0:0:1' || nome === '0.0.0.0') return true;
+    if (nome === 'localhost' || nome.endsWith('.localhost') || nome.endsWith('.local') || nome.endsWith('.internal') || nome.endsWith('.home.arpa') || nome.endsWith('.lan')) return true;
+    // Domínios coringa de DNS rebinding (resolvem para qualquer IP embutido no subdomínio).
+    if (/\.(nip\.io|sslip\.io|xip\.io|localtest\.me|lvh\.me|vcap\.me)$/i.test(nome)) return true;
+    if (nome === '::' || nome === '::1' || nome === '0:0:0:0:0:0:0:0' || nome === '0:0:0:0:0:0:0:1' || nome === '0.0.0.0') return true;
+    // IPv6-mapped IPv4: ::ffff:127.0.0.1 ou ::ffff:7f00:1 / 0:0:0:0:0:ffff:...
+    const mapeado = nome.match(/^(?:::ffff:|0:0:0:0:0:ffff:)(.+)$/i);
+    if (mapeado) {
+        const sufixo = mapeado[1];
+        const hex = sufixo.match(/^([0-9a-f]{1,4}):([0-9a-f]{1,4})$/i);
+        if (hex) {
+            const n1 = parseInt(hex[1], 16), n2 = parseInt(hex[2], 16);
+            nome = `${(n1 >> 8) & 255}.${n1 & 255}.${(n2 >> 8) & 255}.${n2 & 255}`;
+        } else {
+            nome = sufixo;
+        }
+    }
+    // Host puramente numérico ou hexadecimal (ex.: 2130706433, 0x7f000001) ou formato abreviado 127.1
+    if (/^(0x[0-9a-f]+|\d+)$/i.test(nome)) return true;
+    if (/^(0x[0-9a-f]+|\d+)(\.(0x[0-9a-f]+|\d+)){1,3}$/i.test(nome)) {
+        const partes = nome.split('.');
+        if (partes.length !== 4) return true;
+        if (partes.some(o => /^0x/i.test(o) || (o.length > 1 && o.startsWith('0')) || Number(o) > 255)) return true;
+    }
     const ip = nome.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
     if (ip) {
-        const [a, b] = [Number(ip[1]), Number(ip[2])];
+        // Octetos com zero à esquerda (notação octal, ex.: 0177.0.0.1) ou > 255 são bloqueados.
+        if (ip.slice(1).some(o => (o.length > 1 && o.startsWith('0')) || Number(o) > 255)) return true;
+        const [a, b, c] = [Number(ip[1]), Number(ip[2]), Number(ip[3])];
         if (a === 10 || a === 127 || a === 0) return true;
-        if (a === 169 && b === 254) return true;          // link-local
+        if (a === 169 && b === 254) return true;          // link-local / metadados cloud (169.254.169.254)
         if (a === 172 && b >= 16 && b <= 31) return true;  // faixa privada
         if (a === 192 && b === 168) return true;           // faixa privada
-        if (a === 100 && b >= 64 && b <= 127) return true; // operadora
+        if (a === 192 && b === 0 && c === 0) return true;  // IETF reservado
+        if (a === 198 && (b === 18 || b === 19)) return true; // benchmark
+        if (a === 100 && b >= 64 && b <= 127) return true; // CGNAT operadora / Tailscale
+        if (a >= 224) return true;                         // multicast (224-239) e reservado/broadcast (240-255)
     }
-    if (/^(fc|fd|fe80)/i.test(nome)) return true; // IPv6 privado
+    if (/^(fc|fd|fe[89ab]|ff)/i.test(nome)) return true; // IPv6 privado (ULA), link-local e multicast
+    if (nome.includes(':')) return true; // Qualquer outro literal IPv6 não mapeado como público
     return false;
 }
 
@@ -61,6 +122,7 @@ function cabecalhos(opcoes = {}) {
         res.setHeader('X-Content-Type-Options', 'nosniff');
         res.setHeader('Referrer-Policy', 'no-referrer');
         res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+        res.setHeader('X-Permitted-Cross-Domain-Policies', 'none');
         res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), payment=()');
         res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
         res.setHeader('Content-Security-Policy', [
@@ -75,6 +137,8 @@ function cabecalhos(opcoes = {}) {
             "worker-src 'self' blob:",
             "frame-src https:",
             "font-src 'self' data:",
+            "object-src 'none'",
+            "frame-ancestors 'self'",
             "base-uri 'none'",
             "form-action 'self'"
         ].join('; '));
@@ -232,11 +296,26 @@ function criarPortao(opcoes = {}) {
         // não pode se perder só porque o crachá antigo era de outro endereço.
         // Vale apenas para status (os relatos são de uso, sem dado sensível).
         const informado = String(req.body?.codigo || req.query?.codigo || req.headers['x-conecta-codigo'] || '').trim();
-        if (informado && informado === codigo) {
-            if (req.body?.dispositivo) {
-                req.dispositivoAutorizado = { dispositivo: String(req.body.dispositivo).slice(0, 40), nome: String(req.body.nome || '').slice(0, 60) };
+        if (informado) {
+            const ip = ipDoPedido(req);
+            const agora = Date.now();
+            const marca = tentativas.get(ip) || { desde: agora, erros: 0 };
+            if (agora - marca.desde > 600000) { marca.desde = agora; marca.erros = 0; }
+            if (marca.erros >= 8) return res.status(429).json({ error: 'Muitas tentativas. Tente novamente em alguns minutos.' });
+            if (compararSegredo(informado, codigo)) {
+                marca.erros = 0;
+                tentativas.set(ip, marca);
+                const disp = String(req.body?.dispositivo || '').slice(0, 40);
+                if (disp && bloqueados().includes(disp)) {
+                    return res.status(403).json({ error: 'Este aparelho foi removido pelo dono do aplicativo.' });
+                }
+                if (disp) {
+                    req.dispositivoAutorizado = { dispositivo: disp, nome: String(req.body.nome || '').slice(0, 60) };
+                }
+                return next();
             }
-            return next();
+            marca.erros++;
+            tentativas.set(ip, marca);
         }
         const aceitaHtml = String(req.headers.accept || '').includes('text/html');
         if (aceitaHtml && !req.path.startsWith('/api/')) return res.status(401).type('html').send(paginaDeEntrada({ erro: '' }));
@@ -252,7 +331,7 @@ function criarPortao(opcoes = {}) {
         if (agora - marca.desde > 600000) { marca.desde = agora; marca.erros = 0; }
         if (marca.erros >= 8) return res.status(429).json({ error: 'Muitas tentativas. Tente novamente em alguns minutos.' });
         const enviado = String(req.body?.codigo || '').trim();
-        if (enviado !== codigo) {
+        if (!compararSegredo(enviado, codigo)) {
             marca.erros++;
             tentativas.set(ip, marca);
             return res.status(401).json({ error: 'Código incorreto.' });
@@ -322,7 +401,7 @@ function criarPortao(opcoes = {}) {
 
 // Tela de entrada (mostrada só quando o aplicativo está hospedado).
 function paginaDeEntrada(dados = {}) {
-    const erro = dados.erro ? `<p class="erro">${dados.erro}</p>` : '';
+    const erro = dados.erro ? `<p class="erro">${escaparHtml(dados.erro)}</p>` : '';
     return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1"><title>Conecta TV · entrada</title>
 <style>
@@ -366,6 +445,8 @@ if(codigoDoEndereco&&nomeDoEndereco){document.getElementById('forma').dispatchEv
 
 module.exports = {
     COOKIE,
+    compararSegredo,
+    escaparHtml,
     ipDoPedido,
     hostInterno,
     cabecalhos,

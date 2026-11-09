@@ -215,6 +215,69 @@
             }
             const match = url.pathname.match(/^\/api\/player\/(\d{1,10})$/);
             if (match) return { players: await sources(match[1], signal) };
+            if (url.pathname === '/api/colecoes') {
+                const chaveCache = 'colecoes:home';
+                const salvo = cache.get(chaveCache);
+                if (salvo && salvo.until > Date.now()) return salvo.value;
+
+                const buscarStreaming = async (providers) => {
+                    try {
+                        const [filmes, series] = await Promise.all([
+                            tmdb('discover/movie', { watch_region: 'BR', with_watch_providers: providers, sort_by: 'popularity.desc', page: '1' }, signal).catch(() => ({ results: [] })),
+                            tmdb('discover/tv', { watch_region: 'BR', with_watch_providers: providers, sort_by: 'popularity.desc', page: '1' }, signal).catch(() => ({ results: [] }))
+                        ]);
+                        const mistos = [
+                            ...(filmes.results || []).map(x => ({ ...x, media_type: 'movie' })),
+                            ...(series.results || []).map(x => ({ ...x, media_type: 'tv' }))
+                        ].sort((a, b) => (b.popularity || 0) - (a.popularity || 0)).slice(0, 10);
+                        return mistos.map(movie);
+                    } catch { return []; }
+                };
+
+                const buscarTematica = async (params, tipo = 'movie') => {
+                    try {
+                        const r = await tmdb(`discover/${tipo}`, { sort_by: 'popularity.desc', page: '1', ...params }, signal).catch(() => ({ results: [] }));
+                        return (r.results || []).slice(0, 12).map(x => movie({ ...x, media_type: tipo }));
+                    } catch { return []; }
+                };
+
+                const [
+                    netflix, max, prime, apple, disney,
+                    dreamworks, terror, acao, ficcao, comedia
+                ] = await Promise.all([
+                    buscarStreaming('8|1796'),
+                    buscarStreaming('1899|384|1825'),
+                    buscarStreaming('119|2100'),
+                    buscarStreaming('350|2'),
+                    buscarStreaming('337'),
+                    buscarTematica({ with_companies: '521', 'vote_count.gte': '150', sort_by: 'vote_average.desc' }),
+                    buscarTematica({ with_genres: '27', 'vote_count.gte': '100' }),
+                    buscarTematica({ with_genres: '28', 'vote_count.gte': '180' }),
+                    buscarTematica({ with_genres: '878', 'vote_count.gte': '180' }),
+                    buscarTematica({ with_genres: '35', 'vote_count.gte': '120' })
+                ]);
+
+                const resultado = {
+                    streamings: [
+                        { id: 'netflix', nome: 'Top 10 Netflix', subtitulo: 'Filmes e séries em alta no Brasil', icone: '🔴', cor: '#e50914', itens: netflix },
+                        { id: 'max', nome: 'Top 10 Max · HBO', subtitulo: 'O melhor do universo HBO e Warner', icone: '🟣', cor: '#9933ff', itens: max },
+                        { id: 'prime', nome: 'Top 10 Prime Video', subtitulo: 'Grandes sucessos e originais Prime', icone: '🔵', cor: '#00a8e1', itens: prime },
+                        { id: 'apple', nome: 'Top 10 Apple TV+', subtitulo: 'Produções originais e premiadas', icone: '⚪', cor: '#d4d4d4', itens: apple },
+                        { id: 'disney', nome: 'Top 10 Disney+', subtitulo: 'Grandes sagas, Disney e Pixar', icone: '🔷', cor: '#113ccf', itens: disney }
+                    ],
+                    tematicas: [
+                        { id: 'dreamworks', nome: 'O Mundo da DreamWorks', subtitulo: 'Shrek, Dragões, Kung Fu Panda e clássicos', icone: '🏰', itens: dreamworks },
+                        { id: 'terror', nome: 'Noite de Arrepio · Terror', subtitulo: 'Filmes aterrorizantes e sobrenaturais', icone: '👻', itens: terror },
+                        { id: 'acao', nome: 'Pura Adrenalina · Ação', subtitulo: 'Tiros, lutas e perseguições eletrizantes', icone: '⚡', itens: acao },
+                        { id: 'ficcao', nome: 'Ficção Científica & Futuro', subtitulo: 'Multiverso, IA, viagens espaciais e distopias', icone: '🚀', itens: ficcao },
+                        { id: 'comedia', nome: 'Para Morrer de Rir · Comédias', subtitulo: 'Comédias leves e divertidas para relaxar', icone: '😂', itens: comedia }
+                    ],
+                    atualizadoEm: new Date().toISOString()
+                };
+
+                cache.set(chaveCache, { value: resultado, until: Date.now() + 30 * 60 * 1000 });
+                return resultado;
+            }
             if (url.pathname !== '/api/rankings') throw new Error('Rota inválida');
             const selectionPage=Number(url.searchParams.get('page')||1);if(!Number.isInteger(selectionPage)||selectionPage<1||selectionPage>10)throw Error('Página inválida');
             const [relevantes, melhores, recentes, awards] = await Promise.all([

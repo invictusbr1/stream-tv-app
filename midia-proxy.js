@@ -53,7 +53,9 @@ function cabecalhosDaMidia(url) {
 
 function liberarHost(host) {
     const nome = String(host || '').trim().toLowerCase();
-    if (nome) HOSTS_DESCOBERTOS.add(nome);
+    if (!nome) return;
+    try { if (require('./seguranca').hostInterno(nome)) return; } catch { /* segue */ }
+    HOSTS_DESCOBERTOS.add(nome);
 }
 
 const REFERERS_CONHECIDOS = {

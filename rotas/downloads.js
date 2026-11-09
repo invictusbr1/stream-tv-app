@@ -86,16 +86,28 @@ app.get('/api/converter', async (req, res) => {
     res.setHeader('Cache-Control', 'no-store');
     let endereco = '';
     try { endereco = midia.textoDeBase64url(req.query.url || ''); } catch { return res.status(400).json({ erro: 'endereço inválido' }); }
-    // Aceita https de fora e o endereço local (127.0.0.1) — este último serve
-    // para conferir conversões de arquivos guardados no próprio computador.
-    const ehLocal = /^http:\/\/127\.0\.0\.1(:\d+)?\//i.test(endereco);
-    const bloqueado = seguranca.hostInterno(new URL(endereco).hostname) && !ehLocal;
-    if ((!ehLocal && !/^https:\/\//i.test(endereco)) || bloqueado) return res.status(400).json({ erro: 'endereço inválido' });
+    if (!endereco || /[\u0000-\u0020\u007f]/.test(endereco)) return res.status(400).json({ erro: 'endereço inválido' });
+    let urlParsed;
+    try { urlParsed = new URL(endereco); } catch { return res.status(400).json({ erro: 'endereço inválido' }); }
+    if (urlParsed.username || urlParsed.password) return res.status(400).json({ erro: 'endereço inválido' });
+    // Aceita https de host permitido e o endereço local do próprio servidor (127.0.0.1 na mesma porta).
+    const portaLocal = String(req.socket?.localPort || process.env.PORT || 3000);
+    const ehLocal = urlParsed.protocol === 'http:' && urlParsed.hostname === '127.0.0.1' && (!urlParsed.port || urlParsed.port === portaLocal);
+    const hostOk = ehLocal || (urlParsed.protocol === 'https:' && !seguranca.hostInterno(urlParsed.hostname) && midia.hostPermitido(urlParsed.hostname));
+    if (!hostOk) return res.status(400).json({ erro: 'endereço inválido' });
+    const refererBruto = String(req.query.referer || '').replace(/[\r\n\u0000-\u001f\u007f]/g, '').slice(0, 200);
+    let refererLimpo = '';
+    if (refererBruto) {
+        try {
+            const refUrl = new URL(refererBruto);
+            if (refUrl.protocol === 'https:' && !refUrl.username && !refUrl.password && !seguranca.hostInterno(refUrl.hostname)) refererLimpo = refUrl.href;
+        } catch { refererLimpo = ''; }
+    }
     try {
         const conversor = require('../conversor');
-        const trabalho = await conversor.iniciar(endereco, {
+        const trabalho = await conversor.iniciar(urlParsed.href, {
             titulo: String(req.query.titulo || 'video').slice(0, 60),
-            referer: String(req.query.referer || '').slice(0, 200),
+            referer: refererLimpo,
         });
         res.json({ ok: true, ...trabalho });
     } catch (erro) {

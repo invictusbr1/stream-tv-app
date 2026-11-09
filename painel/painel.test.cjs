@@ -88,6 +88,19 @@ test('investigar: alvo vai como argumento; caracteres perigosos para o cmd são 
     assert.match(p.montarComando('cacador-investigar', {}, { raiz: 'C:\\stream tv', windows: true }).args[3], /"--investigar""$/);
 });
 
+test('torbox: procurar e adicionar validam parâmetros e montam argumentos corretos', () => {
+    const c1 = p.montarComando('torbox-procurar', { alvo: 'Quem Ama Cuida 1x137' }, { raiz: 'C:\\stream tv', windows: true });
+    assert.equal(c1.args[1], '--procurar');
+    assert.equal(c1.args[2], 'Quem Ama Cuida 1x137');
+    const c2 = p.montarComando('torbox-procurar', {}, { raiz: 'C:\\stream tv', windows: true });
+    assert.equal(c2.args[1], '--procurar');
+    assert.equal(c2.args.length, 2);
+    const c3 = p.montarComando('torbox-adicionar', { magnet: 'magnet:?xt=urn:btih:0123456789abcdef0123456789abcdef01234567&dn=Teste' }, { raiz: 'C:\\stream tv', windows: true });
+    assert.equal(c3.args[1], '--adicionar');
+    assert.match(c3.args[2], /^magnet:\?xt=urn:btih:/);
+    assert.match(p.montarComando('torbox-adicionar', { magnet: 'invalido' }).erro, /link magnet/);
+});
+
 test('aprovadas recentes: últimas da semana, mais nova primeiro', () => {
     const arq = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'apr-')), 'a.jsonl');
     const agora = Date.parse('2026-11-02T12:00:00Z');

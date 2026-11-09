@@ -84,6 +84,18 @@ app.get('/api/rankings', async (req, res) => {
 });
 
 // ============================================================
+// ROTA 1C — Coleções de Streamings & Temáticas (Netflix, HBO, Prime, Apple, DreamWorks, Terror...)
+// ============================================================
+app.get('/api/colecoes', async (req, res) => {
+    try {
+        res.json(await libraryCatalog.request(req.originalUrl));
+    } catch (e) {
+        console.error('[colecoes] falha:', e.message);
+        res.status(502).json({ error: 'Não foi possível carregar as coleções.' });
+    }
+});
+
+// ============================================================
 // ROTA 2 — Busca
 // ============================================================
 app.get('/api/buscar', async (req, res) => {

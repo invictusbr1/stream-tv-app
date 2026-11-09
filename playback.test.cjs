@@ -711,3 +711,21 @@ test('continuar do minuto 33 em conversão: pede ao servidor a conversão começ
  assert.equal(s.el('direct-progress').value, Math.round(1985 / 7568 * 1000));
  s.controller.stop(); await p;
 });
+
+test('TV ao vivo ativa ignorePlaylistParsingErrors para não cair em playlists com URLs assinadas rotativas (ex.: Combate / NTC TV)', async () => {
+ const s = harness();
+ let reconectou = 0;
+ const p = s.controller.start(0, 1, null, null, 'https://ntcstudios.com.br/ntctv/play/live/ntctv-br-combate-4k.m3u8?s=3567', true, { nome: 'Combate 4K', live: true }, { onInterrupted: () => { reconectou++; return true; } });
+ await new Promise(setImmediate);
+ assert.equal(s.Hls.instance.config.ignorePlaylistParsingErrors, true, 'TV ao vivo deve ignorar falso positivo de URL rotativa em mesmo MEDIA-SEQUENCE');
+ assert.equal(s.Hls.instance.config.manifestLoadingMaxRetry, 6);
+ assert.equal(s.Hls.instance.config.levelLoadingMaxRetry, 6);
+ assert.equal(s.Hls.instance.config.fragLoadingMaxRetry, 10);
+ const v = s.el('direct-video'); v.videoWidth = 1920; v.videoHeight = 1080; v.webkitDecodedFrameCount = 1;
+ s.Hls.instance.emit('manifest'); v.fire('loadedmetadata'); v.fire('playing');
+ assert.equal(await p, true);
+ v.fire('error');
+ assert.equal(reconectou, 1, 'queda na TV ao vivo deve acionar onInterrupted para trocar de sinal ou reconectar');
+ assert.equal(s.failures(), 0);
+ s.controller.stop();
+});

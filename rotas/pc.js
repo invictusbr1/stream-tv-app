@@ -17,11 +17,12 @@ function registrarPc(app, ctx = {}) {
     let ultimoUso = Date.now();
 
     const local = endereco => /^(::1|127\.0\.0\.1|::ffff:127\.0\.0\.1)$/.test(String(endereco || ''));
+    const seguranca = require('../seguranca');
     function guarda(req, res, next) {
         const host = String(req.headers.host || '');
         const porta = String(req.socket.localPort || '');
         const hostOk = host === `127.0.0.1:${porta}` || host === `localhost:${porta}`;
-        if (!local(req.socket.remoteAddress) || !hostOk || !chave() || req.headers['x-conecta-pc'] !== chave()) return res.status(403).json({ erro: 'pedido não permitido' });
+        if (!local(req.socket.remoteAddress) || !hostOk || !chave() || !seguranca.compararSegredo(req.headers['x-conecta-pc'], chave())) return res.status(403).json({ erro: 'pedido não permitido' });
         ultimoUso = Date.now();
         res.setHeader('Cache-Control', 'no-store');
         next();

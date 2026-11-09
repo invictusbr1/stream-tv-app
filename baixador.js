@@ -56,7 +56,8 @@ async function iniciar(url, { rotulo = '', referer = '', id = '' } = {}) {
     catch (erro) { registro.erro = 'sem ffmpeg: ' + String(erro.message).slice(0, 80); registro.terminou = true; return resumo(chave); }
 
     registro.duracao = await duracaoDe(url, referer);
-    const cabecalhos = `User-Agent: ${UA}\r\n` + (referer ? `Referer: ${referer}\r\n` : '');
+    const refererSeguro = String(referer || '').replace(/[\r\n\u0000-\u001f\u007f]/g, '');
+    const cabecalhos = `User-Agent: ${UA}\r\n` + (refererSeguro ? `Referer: ${refererSeguro}\r\n` : '');
     const argumentos = [
         '-hide_banner', '-y', '-loglevel', 'info',
         '-headers', cabecalhos,

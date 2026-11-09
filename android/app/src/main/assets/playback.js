@@ -312,7 +312,7 @@ window.StreamPlayback = (() => {
         // (Antes exigia imagem já confirmada E "intenção de tocar": um engasgo
         // podia zerar a intenção e o player caía em "tente novamente".)
         void intencao;
-        if(!aoVivo&&!pausadoPeloUsuario&&!document.hidden&&opcoes?.onInterrupted){
+        if(!pausadoPeloUsuario&&!document.hidden&&opcoes?.onInterrupted){
             try{if(opcoes.onInterrupted(resumo)===true)return;}catch{}
         }
         mostrarErro('A reprodução foi interrompida.','Seu ponto foi preservado. Tente novamente ou escolha outra fonte em Opções.');
@@ -624,14 +624,15 @@ video.addEventListener('playing',()=>{if(!current())return;window.StreamEpisodes
             if(data.type==='file'){
                 video.src=data.url;el('direct-quality').hidden=false;el('quality-select').hidden=true;qualityInfo();subtitleMenu();play();
             }else if(window.Hls?.isSupported()){
-                hls=new Hls({startPosition:retomadaAlvo===null?(data.conversao?0:-1):retomadaAlvo,enableWorker:true,maxBufferLength:45,maxMaxBufferLength:90,backBufferLength:30,manifestLoadingMaxRetry:4,levelLoadingMaxRetry:4,fragLoadingMaxRetry:8,fragLoadingRetryDelay:1200,abrEwmaDefaultEstimate:1200000,subtitlePreference:{id:-1}});
+                hls=new Hls({startPosition:retomadaAlvo===null?(data.conversao?0:-1):retomadaAlvo,enableWorker:true,ignorePlaylistParsingErrors:aoVivo,maxBufferLength:45,maxMaxBufferLength:90,backBufferLength:30,manifestLoadingMaxRetry:aoVivo?6:4,levelLoadingMaxRetry:aoVivo?6:4,fragLoadingMaxRetry:aoVivo?10:8,fragLoadingRetryDelay:1200,abrEwmaDefaultEstimate:1200000,subtitlePreference:{id:-1}});
                 hls.on(Hls.Events.MANIFEST_PARSED,()=>{if(!current())return;if(!enforceAudio(originalPermitido&&data.audio!=='pt-BR'))return;qualityMenu();quality('best');audioMenu();subtitleMenu();sincronizarLegendas();play();});
                 hls.on(Hls.Events.LEVEL_SWITCHED,(_,d)=>{if(current()){const l=hls.levels[d.level];qualityInfo(l);}});
                 hls.on(Hls.Events.SUBTITLE_TRACKS_UPDATED,()=>{if(!current())return;subtitleMenu();sincronizarLegendas();});
                 hls.on(Hls.Events.SUBTITLE_TRACK_SWITCH,conferirLegendas);
                 hls.on(Hls.Events.AUDIO_TRACKS_UPDATED,()=>{if(current()){if(!enforceAudio(originalPermitido&&data.audio!=='pt-BR'))return;audioMenu();}});
                 hls.on(Hls.Events.AUDIO_TRACK_SWITCHED,()=>{if(current()){if(!enforceAudio(originalPermitido&&data.audio!=='pt-BR'))return;audioMenu();qualityInfo();}});
-                hls.on(Hls.Events.ERROR,(_,d)=>{if(!current()||!d.fatal)return;if(d.type==='mediaError'&&!recovered){recovered=true;analiseAtual?.esperar(posicaoAtual());hls.recoverMediaError();clearTimeout(startupTimer);startupTimer=setTimeout(()=>{if(current())failure();},15000);}else failure();});hls.loadSource(data.url);hls.attachMedia(video);
+                let networkRetries=0;
+                hls.on(Hls.Events.ERROR,(_,d)=>{if(!current()||!d.fatal)return;if(d.type==='mediaError'&&!recovered){recovered=true;analiseAtual?.esperar(posicaoAtual());hls.recoverMediaError();clearTimeout(startupTimer);startupTimer=setTimeout(()=>{if(current())failure();},15000);}else if(aoVivo&&d.type==='networkError'&&networkRetries<3){networkRetries++;analiseAtual?.esperar(posicaoAtual());hls.startLoad?.();clearTimeout(startupTimer);startupTimer=setTimeout(()=>{if(current())failure();},15000);}else failure();});hls.loadSource(data.url);hls.attachMedia(video);
             }else if(video.canPlayType('application/vnd.apple.mpegurl')){video.src=data.url;el('direct-quality').hidden=false;el('quality-select').hidden=true;play();}else failure();
             }
             carregarFonte();

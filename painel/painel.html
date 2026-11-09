@@ -113,11 +113,19 @@
         <button data-acao="torbox-tocar">TorBox: tocar 3</button>
         <button data-acao="torbox-fonte">TorBox: testar fonte</button>
         <button data-acao="torbox-anime">TorBox: testar anime legendado</button>
-        <button data-acao="torbox-procurar">TorBox: procurar Curvas da Vida</button>
         <button data-acao="torbox-slots">TorBox: testar slots</button>
         <button data-acao="torbox-link">TorBox: examinar link</button>
         <button data-acao="addons-testar">Conferir lista fixa de addons</button>
         <button data-acao="torbox-chave-servidor">TorBox: chave no servidor</button>
+      </div>
+      <p class="dica" style="margin:12px 0 8px">TorBox e Torrents: procure qualquer título nas listas públicas ou cole um magnet para a TorBox baixar.</p>
+      <div class="linha" style="margin-bottom:8px">
+        <input id="torboxProcurarAlvo" placeholder="Título para procurar (ex.: Quem Ama Cuida 1x137, Duna 2, tt42751057)">
+        <button id="torboxProcurarBtn" class="principal">Procurar torrent</button>
+      </div>
+      <div class="linha">
+        <input id="torboxMagnetAlvo" placeholder="Cole o link magnet (magnet:?xt=urn:btih:...) para adicionar à TorBox">
+        <button id="torboxAdicionarBtn">Adicionar à TorBox</button>
       </div>
       <p class="dica" style="margin:12px 0 8px">Investigação: fonte que caiu ou mudou de endereço é rastreada (redirecionamento, recado na página, certificados, arquivo da internet, GitHub e variações do nome) até o endereço novo.</p>
       <div class="linha">
@@ -223,6 +231,17 @@ $('limparLinks').addEventListener('click', () => { $('links').value = ''; salvar
 $('verErros').addEventListener('click', () => { const filtro = $('errosFiltro').value.trim(); executar('central-erros', filtro ? { filtro } : {}); });
 $('investigar').addEventListener('click', () => { const alvo = $('investigarAlvo').value.trim(); if (!alvo && !confirm('Investigar todas as fontes que caíram? Pode levar alguns minutos por fonte.')) return; executar('cacador-investigar', alvo ? { alvo } : {}); });
 $('diagnostico').addEventListener('click', () => executar('samsung-diagnostico', { ip: $('ipTv').value.trim() }));
+$('torboxProcurarBtn').addEventListener('click', () => {
+  const alvo = $('torboxProcurarAlvo').value.trim();
+  executar('torbox-procurar', alvo ? { alvo } : {});
+});
+$('torboxProcurarAlvo').addEventListener('keydown', e => { if (e.key === 'Enter') $('torboxProcurarBtn').click(); });
+$('torboxAdicionarBtn').addEventListener('click', () => {
+  const magnet = $('torboxMagnetAlvo').value.trim();
+  if (!magnet) { avisar('Cole um link magnet válido (magnet:?xt=urn:btih:...)'); return; }
+  executar('torbox-adicionar', { magnet });
+});
+$('torboxMagnetAlvo').addEventListener('keydown', e => { if (e.key === 'Enter') $('torboxAdicionarBtn').click(); });
 $('pararBotao').addEventListener('click', () => { if (selecionada && confirm('Parar esta tarefa?')) parar(selecionada); });
 $('fechar').addEventListener('click', async () => {
   const rodando = tarefas.filter(t => t.fim === null);

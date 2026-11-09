@@ -253,7 +253,8 @@ async function iniciar(url, { titulo = '', referer = '', id = '', inicio = 0, fa
         return resumo(chave);
     }
 
-    const cabecalhos = `User-Agent: ${UA}\r\n` + (referer ? `Referer: ${referer}\r\n` : '');
+    const refererSeguro = String(referer || '').replace(/[\r\n\u0000-\u001f\u007f]/g, '');
+    const cabecalhos = `User-Agent: ${UA}\r\n` + (refererSeguro ? `Referer: ${refererSeguro}\r\n` : '');
     const argumentos = [
         '-hide_banner', '-y', '-loglevel', 'info',
         '-headers', cabecalhos,

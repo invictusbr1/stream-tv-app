@@ -15,6 +15,7 @@ const path = require('node:path');
 const RAIZ = path.resolve(__dirname, '..');
 const ARQUIVO_CHAVE = path.join(RAIZ, 'CHAVE-TORBOX.local.txt');
 const API = 'https://api.torbox.app/v1/api';
+const TMDB_KEY = 'b803dfcad0baeafbb66a673ffe98a5ef';
 const TORRENTIO = 'https://torrentio.strem.fun/providers=yts,eztv,rarbg,1337x,thepiratebay,kickasstorrents,torrentgalaxy,magnetdl,comando,bludv|language=portuguese|qualityfilter=scr,cam';
 
 const TITULOS = [
@@ -387,29 +388,160 @@ async function slots() {
 // Procura TUDO de um título nas listas que a TorBox usa e mostra cada torrent
 // com cara de português: rótulo, tamanho, se está pronto na TorBox e o motivo
 // de o app ter (ou não) usado. Não gasta download. Padrão: Curvas da Vida.
+async function resolverAlvoParaProcura(entrada) {
+    let s = String(entrada || '').trim();
+    if (!s) return { tipo: 'movie', imdbId: 'tt2083383', rotulo: 'Curvas da Vida (padrão)' };
+    if (/^magnet:\?xt=urn:btih:[a-f0-9]{32,40}/i.test(s)) {
+        const hash = s.match(/urn:btih:([a-f0-9]{32,40})/i)[1].toLowerCase();
+        return { tipo: 'magnet', magnet: s, hash, rotulo: `Magnet (${hash.slice(0, 10)}...)` };
+    }
+    if (/^[a-f0-9]{40}$/i.test(s)) {
+        return { tipo: 'hash', hash: s.toLowerCase(), rotulo: `Hash (${s.slice(0, 10)}...)` };
+    }
+    if (/^tt\d{5,10}(:\d+:\d+)?$/.test(s)) {
+        return { tipo: s.includes(':') ? 'series' : 'movie', imdbId: s, rotulo: s };
+    }
+    if (/^(tv|movie):\d+/i.test(s)) {
+        const partes = s.split(':');
+        const mediaTipo = partes[0].toLowerCase();
+        const tmdbId = partes[1];
+        const t = partes[2] || '1';
+        const e = partes[3] || '1';
+        try {
+            const ext = await pedir(`https://api.themoviedb.org/3/${mediaTipo}/${tmdbId}/external_ids?api_key=${TMDB_KEY}`);
+            const imdb = ext.json && ext.json.imdb_id;
+            if (imdb) {
+                const alvoFinal = mediaTipo === 'tv' ? `${imdb}:${t}:${e}` : imdb;
+                return { tipo: mediaTipo === 'tv' ? 'series' : 'movie', imdbId: alvoFinal, rotulo: `${s} (${alvoFinal})` };
+            }
+        } catch { /* segue para busca */ }
+    }
+    let temporada = null, episodio = null;
+    const mEp = s.match(/(?:[sS](\d{1,2})[eE](\d{1,3})|(\d{1,2})x(\d{1,3})|[tT](\d{1,2})\s*[eE](\d{1,3})|ep(?:is[oó]dio)?\s*(\d{1,3}))/i);
+    if (mEp) {
+        temporada = Number(mEp[1] || mEp[3] || mEp[5] || 1);
+        episodio = Number(mEp[2] || mEp[4] || mEp[6] || mEp[7] || 1);
+        s = s.replace(mEp[0], '').trim();
+    }
+    try {
+        const busca = await pedir(`https://api.themoviedb.org/3/search/multi?api_key=${TMDB_KEY}&language=pt-BR&query=${encodeURIComponent(s)}`);
+        const item = ((busca.json && busca.json.results) || []).find(x => x.media_type === 'movie' || x.media_type === 'tv');
+        if (item) {
+            const ext = await pedir(`https://api.themoviedb.org/3/${item.media_type}/${item.id}/external_ids?api_key=${TMDB_KEY}`);
+            const imdb = ext.json && ext.json.imdb_id;
+            const nome = item.name || item.title || s;
+            if (imdb) {
+                const epSufixo = item.media_type === 'tv' ? `:${temporada || 1}:${episodio || 1}` : '';
+                const epNome = item.media_type === 'tv' ? ` T${temporada || 1}E${episodio || 1}` : '';
+                return {
+                    tipo: item.media_type === 'tv' ? 'series' : 'movie',
+                    imdbId: `${imdb}${epSufixo}`,
+                    rotulo: `${nome}${epNome} (${imdb}${epSufixo})`,
+                    tmdbId: item.id
+                };
+            }
+            return { erro: `O título "${nome}" foi localizado no TMDB (${item.id}), mas não possui IMDb ID cadastrado.` };
+        }
+    } catch (e) { return { erro: 'Erro ao consultar TMDB: ' + e.message }; }
+    return { erro: `Não encontrei nenhum filme ou série com o nome "${s}".` };
+}
+
 async function procurar() {
     const chave = lerChave();
     if (!chave) { console.log('Sem chave.'); return; }
     const i = process.argv.indexOf('--procurar');
-    const alvo = /^tt\d{5,10}(:\d+:\d+)?$/.test(process.argv[i + 1] || '') ? process.argv[i + 1] : 'tt2083383';
-    const tipo = alvo.includes(':') ? 'series' : 'movie';
+    const entrada = process.argv[i + 1] || '';
+    const alvoInfo = await resolverAlvoParaProcura(entrada);
+    if (alvoInfo.erro) {
+        console.log(alvoInfo.erro);
+        console.log('RESULTADO:' + JSON.stringify({ resumo: [alvoInfo.erro], resultados: [{ nome: entrada || '?', status: 'sem dublado', qualidade: '', detalhe: alvoInfo.erro }] }));
+        return;
+    }
+    if (alvoInfo.tipo === 'magnet' || alvoInfo.tipo === 'hash') {
+        const emCacheSet = await emCache(chave, [alvoInfo.hash]);
+        const pronto = emCacheSet.has(alvoInfo.hash);
+        const resultados = [{
+            nome: alvoInfo.rotulo,
+            status: pronto ? 'forte' : 'dublado sem cache',
+            qualidade: 'TorBox',
+            detalhe: pronto ? 'PRONTO no cache da TorBox! Toca instantaneamente no app.' : 'Não está no cache da TorBox ainda. Use "Adicionar à TorBox" para baixar.'
+        }];
+        const resumo = [pronto ? 'Torrent encontrado em cache na TorBox!' : 'Torrent não está no cache da TorBox.'];
+        resultados.forEach(r => console.log(`${r.nome}: ${r.detalhe}`));
+        resumo.forEach(l => console.log(l));
+        console.log('RESULTADO:' + JSON.stringify({ resumo, resultados }));
+        return;
+    }
+    const alvo = alvoInfo.imdbId;
+    const tipo = alvoInfo.tipo;
     const tb = require('../torbox-source');
     const respostas = await Promise.all(tb.listas().map(base => pedir(`${base}/stream/${tipo}/${alvo}.json`, {}, 20000).catch(() => ({ status: 0, json: null }))));
     const streams = tb.juntar(respostas.map(r => (r.json && Array.isArray(r.json.streams) ? r.json.streams : [])));
     const rotulo = s => `${s.name || ''} ${s.title || ''} ${s.description || ''} ${(s.behaviorHints || {}).filename || ''}`;
-    // Mostra também os "suspeitos" (DUAL/MULTI sem dizer o idioma) e os latinos.
     const interessa = s => tb.ehPortugues(rotulo(s)) || /\b(dual|multi)\b|🇵🇹|🇧🇷|lat(ino)?\b|castellano/i.test(rotulo(s));
     const candidatos = streams.filter(interessa);
     const prontos = await emCache(chave, candidatos.map(s => tb.hashDe(s)));
-    const resultados = candidatos.map(s => {
+    let resultados = candidatos.map(s => {
         const r = rotulo(s).replace(/\s+/g, ' ');
         const dublado = tb.dubladoExplicito(r) ? 'dublado PT declarado' : tb.ehPortugues(r) ? 'DUAL sem dizer o idioma' : 'outro idioma (latino/espanhol/multi)';
         const pronto = prontos.has(tb.hashDe(s));
         return { nome: `${tb.qualidade(r) || '?'} · ${tamanho(r) || '?'} · ${origem(r) || ''}`.trim(), status: pronto && tb.ehPortugues(r) ? 'forte' : tb.ehPortugues(r) ? 'dublado sem cache' : 'sem dublado', qualidade: tb.qualidade(r) || '', detalhe: `${pronto ? 'PRONTO na TorBox' : 'não está pronto'} · ${dublado} · ${r.slice(0, 160)}` };
     });
+    if (!resultados.length) {
+        resultados = [{
+            nome: alvoInfo.rotulo,
+            status: 'dublado sem cache',
+            qualidade: '',
+            detalhe: 'Nenhum torrent público encontrado nas listas para este episódio/título (comum em mininovelas verticais de aplicativos). Se você tiver o magnet ou torrent, use o botão "Adicionar à TorBox" no painel.'
+        }];
+    }
     const resumo = [
-        `${alvo}: listas ${respostas.map(r => r.status + '/' + ((r.json && r.json.streams) || []).length).join(' ')} · ${streams.length} torrents no total · ${candidatos.length} com cara de português/dual · ${resultados.filter(r => /PRONTO/.test(r.detalhe)).length} prontos na TorBox.`,
+        `${alvoInfo.rotulo}: listas ${respostas.map(r => r.status + '/' + ((r.json && r.json.streams) || []).length).join(' ')} · ${streams.length} torrents no total · ${candidatos.length} com cara de português/dual · ${candidatos.filter(s => prontos.has(tb.hashDe(s))).length} prontos na TorBox.`,
         'Verde = dublado pronto (o app já usa). Amarelo = dublado, mas a TorBox ainda não tem o arquivo — dá para pedir para ela baixar.',
+    ];
+    resultados.forEach(r => console.log(`${r.nome}: ${r.detalhe}`));
+    resumo.forEach(l => console.log(l));
+    console.log('RESULTADO:' + JSON.stringify({ resumo, resultados }));
+}
+
+// ------------------------------------------------------------ modo --adicionar
+// Adiciona um link magnet à conta da TorBox diretamente.
+async function adicionar() {
+    const chave = lerChave();
+    if (!chave) { console.log('Sem chave.'); return; }
+    const i = process.argv.indexOf('--adicionar');
+    const magnet = process.argv[i + 1] || '';
+    if (!magnet || !/^magnet:\?xt=urn:btih:[a-zA-Z0-9]{32,40}/i.test(magnet)) {
+        console.log('Link magnet inválido.');
+        process.exitCode = 1;
+        return;
+    }
+    const hash = magnet.match(/urn:btih:([a-zA-Z0-9]{32,40})/i)[1].toLowerCase();
+    const auth = { Authorization: `Bearer ${chave}` };
+    const emCacheSet = await emCache(chave, [hash]);
+    const form = new FormData();
+    form.append('magnet', magnet);
+    const resp = await pedir(`${API}/torrents/createtorrent`, { method: 'POST', body: form, headers: auth }, 30000);
+    const dados = resp.json && resp.json.data;
+    const sucesso = resp.status === 200 && resp.json && resp.json.success !== false;
+    const torrentId = dados && dados.torrent_id;
+    const resultados = [];
+    const status = emCacheSet.has(hash) ? 'forte' : sucesso ? 'dublado sem cache' : 'sem dublado';
+    const detalhe = emCacheSet.has(hash)
+        ? `PRONTO na TorBox (em cache instantâneo)! Torrent ID: ${torrentId || 'ok'}`
+        : sucesso
+            ? `Enviado para download na TorBox com sucesso! Torrent ID: ${torrentId}`
+            : `Erro ao adicionar: ${resp.json && resp.json.detail || 'HTTP ' + resp.status}`;
+    resultados.push({
+        nome: `Magnet ${hash.slice(0, 10)}...`,
+        status,
+        qualidade: 'TorBox',
+        detalhe
+    });
+    const resumo = [
+        sucesso
+            ? (emCacheSet.has(hash) ? 'O torrent já estava em cache e está pronto para tocar no app!' : 'O torrent foi adicionado para download na TorBox. Assim que concluir o download, ele tocará direto no app.')
+            : 'Não foi possível adicionar o torrent na TorBox.'
     ];
     resultados.forEach(r => console.log(`${r.nome}: ${r.detalhe}`));
     resumo.forEach(l => console.log(l));
@@ -437,5 +569,5 @@ async function anime() {
     console.log('RESULTADO:' + JSON.stringify({ resumo: ['Anime legendado (só anime): verde = achou episódio com legenda em português dentro do arquivo, pronto na TorBox. Não gasta conversão.'], resultados }));
 }
 
-if (require.main === module) (process.argv.includes('--anime') ? anime() : process.argv.includes('--procurar') ? procurar() : process.argv.includes('--slots') ? slots() : process.argv.includes('--link') ? link() : process.argv.includes('--fonte') ? fonte() : process.argv.includes('--tocar') ? tocar() : principal()).catch(erro => { console.log('erro: ' + erro.message); process.exitCode = 1; });
-module.exports = { lerChave, ehPortugues, qualidade, tamanho, origem, TITULOS, escolherArquivo, veredito };
+if (require.main === module) (process.argv.includes('--adicionar') ? adicionar() : process.argv.includes('--anime') ? anime() : process.argv.includes('--procurar') ? procurar() : process.argv.includes('--slots') ? slots() : process.argv.includes('--link') ? link() : process.argv.includes('--fonte') ? fonte() : process.argv.includes('--tocar') ? tocar() : principal()).catch(erro => { console.log('erro: ' + erro.message); process.exitCode = 1; });
+module.exports = { lerChave, ehPortugues, qualidade, tamanho, origem, TITULOS, escolherArquivo, veredito, resolverAlvoParaProcura };

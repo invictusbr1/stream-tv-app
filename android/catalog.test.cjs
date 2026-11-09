@@ -149,3 +149,18 @@ test('a TV ao vivo funciona no aparelho com as listas públicas', async () => {
     assert.deepEqual(categorias.categorias.map((c) => c.nome).sort(), ['news', 'sports']);
     assert.equal(categorias.categorias.find((c) => c.nome === 'news').total, 1);
 });
+
+test('rota /api/colecoes entrega os hubs de streamings e coleções temáticas', async () => {
+    const catalog = createCatalog(async () => {
+        return good({ results: [{ id: 101, title: 'Item Teste', vote_average: 8.5 }] });
+    }, 'test-key');
+    const d = await catalog.request('/api/colecoes');
+    assert.ok(Array.isArray(d.streamings));
+    assert.equal(d.streamings.length, 5);
+    assert.ok(d.streamings.some(s => s.id === 'netflix'));
+    assert.ok(d.streamings.some(s => s.id === 'max'));
+    assert.ok(d.streamings.some(s => s.id === 'apple'));
+    assert.ok(Array.isArray(d.tematicas));
+    assert.ok(d.tematicas.some(t => t.id === 'dreamworks'));
+    assert.ok(d.tematicas.some(t => t.id === 'terror'));
+});

@@ -186,14 +186,23 @@ function escolherArquivo(arquivos, { nome = '', temporada = 0, episodio = 0, ind
     }
     if (temporada && episodio) {
         const s = Number(temporada), e = Number(episodio);
-        const padrao = new RegExp(`(?:s0*${s}[ ._-]*e0*${e}(?!\\d))|(?:\\b0*${s}x0*${e}(?!\\d))`, 'i');
-        const achado = videos.find(a => padrao.test(curto(a)));
-        if (achado) return achado;
+        // s01e01, 01x01, Season 2 - 01, S2 - 01, S02 - 01, Season 02 Episode 01
+        const padraoTemporada = new RegExp(`(?:s0*${s}[ ._-]*e0*${e}(?!\\d))|(?:\\b0*${s}x0*${e}(?!\\d))|(?:s(?:eason)?[ ._-]*0*${s}[ ._-]*(?:ep?|epis[oó]dio|episode)?[ ._#-]*0*${e}(?!\\d))`, 'i');
+        const achadoTemporada = videos.find(a => padraoTemporada.test(curto(a)));
+        if (achadoTemporada) return achadoTemporada;
         // Nome fora do padrão (ex.: "Episodio 03.mkv"): vale o arquivo que a
         // lista indicou (fileIdx), desde que o nome traga o número do episódio.
         if (indice !== null && indice !== undefined) {
             const porIndice = videos.find(a => Number(a.id) === Number(indice));
             if (porIndice && new RegExp(`(?:^|[^a-z0-9])(?:e|ep|episodio|episódio|episode|cap|capitulo)?[ ._-]*0*${e}(?!\\d)`, 'i').test(curto(porIndice))) return porIndice;
+            return null;
+        }
+        // Anime em pacote sem menção de temporada no nome do arquivo (ex.: "[SubsPlease] Dandadan - 01 (1080p).mkv"):
+        // aceita se não indicar outra temporada no nome
+        if (s === 1 || videos.length === 1) {
+            const padraoAnime = new RegExp(`(?: - | \\[| _)[0]*${e}(?:\\b| |\\]|\\.[a-z0-9]+)`, 'i');
+            const achadoAnime = videos.find(a => padraoAnime.test(curto(a)) && !new RegExp(`(?:s(?:eason)?[ ._-]*0*(?!${s})\\d+)`, 'i').test(curto(a)));
+            if (achadoAnime) return achadoAnime;
         }
         if (videos.length > 1) return null; // pacote sem o episódio: melhor nada que o errado
     }
@@ -479,9 +488,13 @@ function legendaPortuguesa(legendas) {
     // Só legenda em texto (ASS/SRT/WebVTT) vira legenda do player; imagem (PGS) não.
     const texto = l => /^(ass|ssa|subrip|srt|webvtt|mov_text|text)$/.test(String(l.codec || ''));
     const pt = l => /^(por|pt|pob|pt-br|ptbr)$/.test(String(l.idioma || '')) || /portugu|brazil|brasil|pt-?br/i.test(String(l.titulo || ''));
+    // Legenda "forçada" (Forced) só traduz placas e letreiros: o anime tocava
+    // "legendado" quase sem legenda (09/11/2026, Black Clover T2E2 pegou
+    // "Brazilian (Forced)"). Ela só vale se for a única em português.
+    const parcial = l => /forced|for[çc]ad|sign|song|placa|letreiro/i.test(String(l.titulo || '')) || Number(l.forcada) === 1;
     const todas = (legendas || []).filter(l => texto(l) && pt(l));
-    // Português do Brasil antes de Portugal; legenda completa antes de "sinais".
-    return todas.sort((a, b) => (/brazil|brasil|pt-?br/i.test(b.titulo) - /brazil|brasil|pt-?br/i.test(a.titulo)) || (/sign|song|placa/i.test(a.titulo) - /sign|song|placa/i.test(b.titulo)))[0] || null;
+    // Completa antes de parcial; Português do Brasil antes de Portugal.
+    return todas.sort((a, b) => (parcial(a) - parcial(b)) || (/brazil|brasil|pt-?br/i.test(String(b.titulo || '')) - /brazil|brasil|pt-?br/i.test(String(a.titulo || ''))) || (b.padrao === true) - (a.padrao === true))[0] || null;
 }
 // Legenda em português de FORA do arquivo (08/11/2026): muitos episódios
 // legendados não trazem português embutido. O addon público OpenSubtitles do
@@ -519,6 +532,55 @@ async function legendaOnlinePt(imdb, temporada, episodio, nomeArquivo = '') {
 }
 const ANIME_GB_LEVE = 2.5;   // GB por episódio
 const ANIME_MBPS_MAX = 14;   // taxa máxima preferida (Mbps)
+
+// Mapeamento de numeração entre TMDB e IMDb para animes com temporadas divididas / cours / numeração absoluta
+const cinemetaVideos = new Map();
+async function videosCinemeta(imdb) {
+    if (!/^tt\d{5,10}$/.test(String(imdb || ''))) return [];
+    let guardado = cinemetaVideos.get(imdb);
+    if (guardado && guardado.expira > Date.now()) return guardado.videos;
+    try {
+        const r = await pedir(`https://v3-cinemeta.strem.io/meta/series/${imdb}.json`, {}, 5000);
+        const videos = (r.json && r.json.meta && Array.isArray(r.json.meta.videos)) ? r.json.meta.videos : [];
+        cinemetaVideos.set(imdb, { videos, expira: Date.now() + 60 * 60 * 1000 });
+        if (cinemetaVideos.size > 200) cinemetaVideos.delete(cinemetaVideos.keys().next().value);
+        return videos;
+    } catch { return []; }
+}
+
+async function episodiosEquivalentes(imdb, temporada, episodio) {
+    const t = Number(temporada), e = Number(episodio);
+    const pares = [];
+    // 1) Animes onde a Temporada 2 é continuação direta na T1 do TMDB (ex.: Solo Leveling T1E13 -> S02E01)
+    // T1E13..24 -> S2E1..12
+    if (t === 1 && e > 12 && e <= 30) pares.push([2, e - 12]);
+    // 2) Consulta Cinemeta para encontrar o episódio pelo número absoluto ou mapeamento
+    try {
+        const videos = await videosCinemeta(imdb);
+        if (videos.length) {
+            // Se o usuário pediu T23 E1180 (ex.: One Piece no TMDB), procurar se no Cinemeta existe season 1 com esse número ou vice-versa
+            const achadoPorEpisodio = videos.find(v => Number(v.episode || v.number) === e);
+            if (achadoPorEpisodio && (Number(achadoPorEpisodio.season) !== t || Number(achadoPorEpisodio.number || achadoPorEpisodio.episode) !== e)) {
+                pares.push([Number(achadoPorEpisodio.season), Number(achadoPorEpisodio.number || achadoPorEpisodio.episode)]);
+            }
+            // Procurar por número absoluto se for episódio grande (ex.: One Piece ep 1100 -> pode estar na T1 ou T21/22/23)
+            if (t > 1 && e > 50) {
+                pares.push([1, e]);
+            }
+        }
+    } catch {}
+    // Filtra duplicados e o par original
+    const unicos = [];
+    const vistos = new Set([`${t}:${e}`]);
+    for (const [s, ep] of pares) {
+        const chave = `${s}:${ep}`;
+        if (!vistos.has(chave) && s >= 1 && ep >= 1) {
+            vistos.add(chave);
+            unicos.push([s, ep]);
+        }
+    }
+    return unicos;
+}
 async function resolverAnimeLegendado(tmdbId, temporada, episodio, { hevcOk = false } = {}) {
     const chave = lerChave();
     const id = String(tmdbId || '').trim();
@@ -530,72 +592,102 @@ async function resolverAnimeLegendado(tmdbId, temporada, episodio, { hevcOk = fa
     const trabalho = (async () => {
         const imdb = await require('./fenix-source').imdbDe(id, 'tv');
         if (!imdb) { const v = []; v.semCandidatos = true; return v; }
-        const caminho = `series/${imdb}:${temporada}:${episodio}`;
         // Lista de legendas online já em paralelo (o resultado fica guardado).
         legendaOnlinePt(imdb, temporada, episodio, '').catch(() => null);
-        // Anime: as listas de anime + as aprovadas pelo caçador (várias têm anime).
-        const respostas = await Promise.all([...new Set([...listasAnime(), ...listas()])].map(base => pedir(`${base}/stream/${caminho}.json`, {}, 4000)));
-        const streams = juntar(respostas.map(r => (r.json && Array.isArray(r.json.streams) ? r.json.streams : [])))
-            // "Legendado PT-BR" / Multi-Subs NÃO é dublado (antes era descartado).
-            .filter(st => !/\b(?:cam|ts|hdcam|telesync)\b/i.test(rotuloDe(st)) && !(dubladoExplicito(rotuloDe(st)) && !/legendad|multi.?subs?|\bsubs?\b/i.test(rotuloDe(st))));
-        const emCache = await emCacheNaTorBox(chave, streams.map(hashDe));
-        const candidatos = streams.filter(st => emCache.has(hashDe(st)))
-            .map(st => ({ st, r: rotuloDe(st) }))
-            .map(x => ({ ...x, q: qualidade(x.r), hevc: ehHevc(x.r), dica: DICA_LEGENDA.test(x.r) }))
-            .filter(x => (x.q === '1080p' || x.q === '720p') && (hevcOk || !x.hevc))
-            .map(x => ({ ...x, gb: tamanhoGB(x.r) }))
-            // Arquivo LEVE primeiro (08/11/2026): o remux de 5–6 GB por episódio
-            // (~30 Mbps) convertia a 1,2x e não chegava no celular. Até 2,5 GB
-            // por episódio é Full HD de sobra e flui pela rede de casa e móvel.
-            .map(x => ({ ...x, leve: x.gb > 0 && x.gb <= ANIME_GB_LEVE ? 1 : x.gb === 0 ? 0.5 : 0 }))
-            .sort((a, b) => (b.dica - a.dica) || (b.leve - a.leve) || ((b.q === '1080p') - (a.q === '1080p')) || (a.hevc - b.hevc) || (a.leve ? b.gb - a.gb : a.gb - b.gb))
-            .slice(0, 6);
+        // Torrents prontos na TorBox para um par temporada/episódio (IMDb).
+        const procurar = async (t, e) => {
+            const caminho = `series/${imdb}:${t}:${e}`;
+            // Anime: as listas de anime + as aprovadas pelo caçador (várias têm anime).
+            const respostas = await Promise.all([...new Set([...listasAnime(), ...listas()])].map(base => pedir(`${base}/stream/${caminho}.json`, {}, 4000)));
+            const streams = juntar(respostas.map(r => (r.json && Array.isArray(r.json.streams) ? r.json.streams : [])))
+                // "Legendado PT-BR" / Multi-Subs NÃO é dublado (antes era descartado).
+                .filter(st => !/\b(?:cam|ts|hdcam|telesync)\b/i.test(rotuloDe(st)) && !(dubladoExplicito(rotuloDe(st)) && !/legendad|multi.?subs?|\bsubs?\b/i.test(rotuloDe(st))));
+            const emCache = await emCacheNaTorBox(chave, streams.map(hashDe));
+            const candidatos = streams.filter(st => emCache.has(hashDe(st)) && !ehRuim(hashDe(st)))
+                .map(st => ({ st, r: rotuloDe(st) }))
+                .map(x => ({ ...x, q: qualidade(x.r), hevc: ehHevc(x.r), dica: DICA_LEGENDA.test(x.r) }))
+                .filter(x => (x.q === '1080p' || x.q === '720p') && (hevcOk || !x.hevc))
+                .map(x => ({ ...x, gb: tamanhoGB(x.r) }))
+                // Arquivo LEVE primeiro (08/11/2026): o remux de 5–6 GB por episódio
+                // (~30 Mbps) convertia a 1,2x e não chegava no celular. Até 2,5 GB
+                // por episódio é Full HD de sobra e flui pela rede de casa e móvel.
+                .map(x => ({ ...x, leve: x.gb > 0 && x.gb <= ANIME_GB_LEVE ? 1 : x.gb === 0 ? 0.5 : 0 }))
+                .sort((a, b) => (b.dica - a.dica) || (b.leve - a.leve) || ((b.q === '1080p') - (a.q === '1080p')) || (a.hevc - b.hevc) || (a.leve ? b.gb - a.gb : a.gb - b.gb))
+                .slice(0, 6)
+                .map(x => ({ ...x, t, e }));
+            return { candidatos, respostas };
+        };
+        let { candidatos, respostas } = await procurar(temporada, episodio);
+        const equivalentes = await episodiosEquivalentes(imdb, temporada, episodio);
+        // Traz também candidatos de pares equivalentes (ex.: Solo Leveling T1E13 -> S02E01)
+        for (const [t, e] of equivalentes) {
+            legendaOnlinePt(imdb, t, e, '').catch(() => null);
+            const outra = await procurar(t, e);
+            if (outra.candidatos.length) {
+                candidatos = [...candidatos, ...outra.candidatos];
+                respostas = [...respostas, ...outra.respostas];
+            }
+        }
+        // Reordena o conjunto dando prioridade máxima para quem tem dica de legenda em português e 1080p leve
+        candidatos.sort((a, b) => (b.dica - a.dica) || (b.leve - a.leve) || ((b.q === '1080p') - (a.q === '1080p')) || (a.hevc - b.hevc) || (a.leve ? b.gb - a.gb : a.gb - b.gb));
         // Lista que não respondeu (servidor ocupado, por exemplo durante uma
         // atualização) não pode virar "não tem legendado" por 20 min: com metade
         // ou mais das listas fora, o "não achei" vale só 2 min (08/11/2026).
         const foraDoAr = respostas.filter(r => !r || !r.json).length;
         if (!candidatos.length) { const v = []; if (foraDoAr * 2 < respostas.length) v.semCandidatos = true; else v.instavel = true; return v; }
+        const verificar = require('./central/verificar-midia');
         // Os 3 melhores conferidos AO MESMO TEMPO (não segura o anime quando
         // nenhum tem legenda em português); vale o primeiro da ordem que servir.
-        const conferir = async ({ st, q }) => {
+        const conferir = async ({ st, q, t, e }) => {
             const torrent = await torrentNaConta(chave, hashDe(st), []);
             if (!torrent) return null;
-            const arquivo = escolherArquivo(torrent.files, { nome: (st.behaviorHints || {}).filename, temporada, episodio, indice: Number.isInteger(st.fileIdx) ? st.fileIdx : null });
+            const arquivo = escolherArquivo(torrent.files, { nome: (st.behaviorHints || {}).filename, temporada: t, episodio: e, indice: Number.isInteger(st.fileIdx) ? st.fileIdx : null });
             if (!arquivo) return null;
             const { url } = await linkDoArquivo(chave, torrent.id, arquivo.id);
             if (!url) return null;
-            const info = await require('./central/verificar-midia').faixasDeAudio(url, '', { timeout: 8000 }).catch(() => null);
+            // Leitura rápida primeiro; se o servidor do arquivo estiver lento, a
+            // completa com mais prazo (antes 8 s fixos: na Oracle a leitura
+            // levava 7–8 s e o melhor arquivo era descartado por tempo).
+            let info = await verificar.faixasDeAudio(url, '', { timeout: 12000, rapido: true }).catch(() => null);
+            if (!info || !info.faixas || !info.faixas.length) info = await verificar.faixasDeAudio(url, '', { timeout: 15000 }).catch(() => null);
             if (!info || !info.faixas || !info.faixas.length) return null;
             const legenda = legendaPortuguesa(info.legendas);
-            // Sem português no arquivo: legenda PT-BR de fora (OpenSubtitles).
-            const externa = legenda ? null : await legendaOnlinePt(imdb, temporada, episodio, arquivo.short_name || arquivo.name || (st.behaviorHints || {}).filename || rotuloDe(st)).catch(() => null);
+            const parcial = legenda && (/forced|for[çc]ad|sign|song|placa/i.test(String(legenda.titulo || '')) || Number(legenda.forcada) === 1);
+            // Sem português completo no arquivo: legenda PT-BR de fora (OpenSubtitles).
+            const externa = legenda && !parcial ? null : await legendaOnlinePt(imdb, t, e, arquivo.short_name || arquivo.name || (st.behaviorHints || {}).filename || rotuloDe(st)).catch(() => null);
             if (!legenda && !externa) return null;
+            const usarExterna = Boolean(externa && (!legenda || parcial));
             const img = info.imagem || {};
             if (!hevcOk && /^(hevc|h265)$/.test(String(img.codec || ''))) return null;
             const audio = info.faixas.find(f => /^(jpn|ja)$/.test(f.idioma)) || info.faixas.find(f => f.padrao) || info.faixas[0];
             // Legenda de fora só serve com o som japonês (não para uma dublagem em inglês).
-            if (externa && !/^(jpn|ja)$/.test(audio.idioma || '') && !(info.faixas.length === 1 && !/^(eng|en|por|pt)$/.test(audio.idioma || ''))) return null;
+            if (usarExterna && !/^(jpn|ja)$/.test(audio.idioma || '') && !(info.faixas.length === 1 && !/^(eng|en|por|pt)$/.test(audio.idioma || ''))) { if (!legenda) return null; }
+            const comExterna = usarExterna && (/^(jpn|ja)$/.test(audio.idioma || '') || (info.faixas.length === 1 && !/^(eng|en|por|pt)$/.test(audio.idioma || '')));
             const duracao = Number(info.duracao) || 0;
             const mbps = duracao > 0 && Number(arquivo.size) > 0 ? Math.round(Number(arquivo.size) * 8 / duracao / 1e5) / 10 : 0;
             return {
-                mbps,
-                url, audio: 'original', fonte: `TorBox · legendado ${q}${externa ? ' · legenda online' : ''}`, fonteId: 'torbox-legendado', resolucao: q,
+                mbps, parcial: Boolean(parcial && !comExterna),
+                url, audio: 'original', fonte: `TorBox · legendado ${q}${comExterna ? ' · legenda online' : ''}`, fonteId: 'torbox-legendado', resolucao: q,
                 type: 'convertido', final: false, segredo: true, converter: true, efemera: true, anime: true,
                 legendaPortugues: true, legendaEmbutida: true,
-                faixa: { indice: audio.ordem, duracao: Number(info.duracao) || 0 }, legenda: legenda ? { indice: legenda.ordem } : null, legendaExterna: externa ? externa.url : '', externa: Boolean(externa),
+                faixa: { indice: audio.ordem, duracao: Number(info.duracao) || 0 }, legenda: comExterna ? null : { indice: legenda.ordem }, legendaExterna: comExterna ? externa.url : '', externa: comExterna,
                 videoCodec: String(img.codec || ''), validadeMs: VALIDADE,
             };
         };
-        // Duas rodadas de 3 (08/11/2026): os 3 primeiros às vezes não têm
-        // legenda em português nem online; os 3 seguintes costumam ter.
+        // Três rodadas de 3: os 3 primeiros às vezes não têm legenda em português nem online;
+        // os seguintes costumam ter ou trazem o episódio equivalente.
+        // Só legenda "forçada" (placas) não encerra a busca: as próximas rodadas rodam.
+        const completo = x => x && !x.parcial;
         let achados = await Promise.all(candidatos.slice(0, 3).map(c => conferir(c).catch(() => null)));
-        if (!achados.some(Boolean) && candidatos.length > 3) achados = await Promise.all(candidatos.slice(3, 6).map(c => conferir(c).catch(() => null)));
+        if (!achados.some(completo) && candidatos.length > 3) achados = [...achados, ...await Promise.all(candidatos.slice(3, 6).map(c => conferir(c).catch(() => null)))];
+        if (!achados.some(completo) && candidatos.length > 6) achados = [...achados, ...await Promise.all(candidatos.slice(6, 9).map(c => conferir(c).catch(() => null)))];
         // Vale o primeiro da ordem com taxa que a rede aguenta; se todos forem
         // pesados, o mais leve deles.
         const validos = achados.filter(Boolean);
-        // Legenda do próprio arquivo antes da de fora (o tempo de fala é exato).
+        // Legenda completa do próprio arquivo antes da de fora (o tempo de fala é
+        // exato); a legenda só de placas fica por último.
         const leve = x => !x.mbps || x.mbps <= ANIME_MBPS_MAX;
-        const bom = validos.find(x => leve(x) && !x.externa) || validos.find(leve) || validos.sort((a, b) => a.mbps - b.mbps)[0];
+        const bom = validos.find(x => leve(x) && !x.externa && !x.parcial) || validos.find(x => leve(x) && !x.parcial) || validos.filter(x => !x.parcial).sort((a, b) => a.mbps - b.mbps)[0] || validos[0];
         return bom ? [bom] : [];
     })().catch(() => []);
     emAndamento.set(marca, trabalho);

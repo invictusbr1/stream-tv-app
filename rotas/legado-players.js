@@ -368,13 +368,17 @@ app.get('/debug/player/:filmeId/:fonteIndex', async (req, res) => {
 // ============================================================
 // Helpers HTML
 // ============================================================
+function escaparHtml(valor) {
+    return String(valor ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
 function htmlErro(nome, motivo) {
     return `<!DOCTYPE html><html><body style="background:#111;color:#fff;font-family:sans-serif;
 display:flex;align-items:center;justify-content:center;height:100vh;flex-direction:column;gap:14px;text-align:center;padding:24px">
 <div style="font-size:2.5rem">⚠️</div>
 <h2 style="color:#E50914">Fonte indisponível</h2>
-<p style="color:#888">${nome}</p>
-<p style="color:#555;font-size:.8rem">${motivo || ''}</p>
+<p style="color:#888">${escaparHtml(nome)}</p>
+<p style="color:#555;font-size:.8rem">${escaparHtml(motivo || '')}</p>
 <p style="color:#444;font-size:.75rem">Tente outra fonte na barra acima.</p>
 </body></html>`;
 }

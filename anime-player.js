@@ -31,7 +31,7 @@
     // Primeiro pergunta se o episódio legendado existe (a 1ª busca pode
     // levar mais de 20 s); só pede o vídeo quando ele está pronto.
     let preparo=null;
-    for(let volta=0;volta<2;volta++){
+    for(let volta=0;volta<3;volta++){
      try{preparo=await opcoes.request(caminho+(caminho.includes('?')?'&':'?')+'preparar=1',opcoes.signal);}catch{preparo=null;}
      if(!valido())return false;
      if(!preparo||!preparo.procurando)break;

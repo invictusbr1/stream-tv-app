@@ -142,3 +142,114 @@ test('limite de uso: X-Forwarded-For inventado pelo cliente não troca o IP', ()
     assert.equal(ipDoPedido(pedido('172.18.0.3', '1.2.3.4, 198.51.100.7')), '198.51.100.7');
     assert.equal(ipDoPedido(pedido('::ffff:127.0.0.1')), '127.0.0.1');
 });
+
+test('hostInterno bloqueia IPv6-mapped IPv4, DNS rebinding, hex/octal e faixas reservadas', () => {
+    for (const host of [
+        '[::1]', '::', '0.0.0.0', '::ffff:127.0.0.1', '[::ffff:127.0.0.1]',
+        '::ffff:7f00:1', '::ffff:169.254.169.254', '0:0:0:0:0:ffff:10.0.0.1',
+        '2130706433', '0x7f000001', '0177.0.0.1', '127.1', '224.0.0.1', '255.255.255.255',
+        '169.254.169.254.nip.io', '127.0.0.1.sslip.io', 'sub.localtest.me', 'teste.lvh.me',
+        'roteador.home.arpa', 'nas.lan'
+    ]) {
+        assert.equal(seguranca.hostInterno(host), true, host + ' precisa ser bloqueado');
+    }
+});
+
+test('compararSegredo e escaparHtml protegem contra timing attack e XSS', () => {
+    assert.equal(seguranca.compararSegredo('segredo-123', 'segredo-123'), true);
+    assert.equal(seguranca.compararSegredo('segredo-123', 'segredo-124'), false);
+    assert.equal(seguranca.compararSegredo('', 'segredo-123'), false);
+    assert.equal(seguranca.compararSegredo('segredo-123', ''), false);
+    assert.equal(seguranca.escaparHtml('<img src=x onerror="alert(\'xss\')">&'), '&lt;img src=x onerror=&quot;alert(&#39;xss&#39;)&quot;&gt;&amp;');
+    assert.equal(seguranca.paginaDeEntrada({ erro: '<script>alert(1)</script>' }).includes('<script>alert(1)</script>'), false);
+});
+
+test('central e rotas de aparelhos escapam XSS, bloqueiam acesso indevido e barram SSRF em /api/converter', () => {
+    const pasta = fs.mkdtempSync(path.join(os.tmpdir(), 'conecta-rotas-seg-'));
+    const arqAcessos = path.join(pasta, 'acessos.json');
+    const arqAut = path.join(pasta, 'autorizados.json');
+    const portao = seguranca.criarPortao({ codigo: 'codigo-familia', arquivo: arqAut });
+    const rotasGet = new Map(), rotasPost = new Map();
+    const appFalso = {
+        get: (c, ...fn) => rotasGet.set(c, fn[fn.length - 1]),
+        post: (c, ...fn) => rotasPost.set(c, fn[fn.length - 1]),
+    };
+    const midia = require('./midia-proxy');
+    require('./rotas/acessos')(appFalso, {
+        ARQ_ACESSOS: arqAcessos,
+        LOCAL_CONFIG: { centralKey: 'chave-super-secreta', acessoCodigo: 'codigo-familia' },
+        fs,
+        seguranca,
+        portao,
+    });
+    require('./rotas/aparelhos')(appFalso, {
+        portao,
+        seguranca,
+        LOCAL_CONFIG: { centralKey: 'chave-super-secreta' },
+    });
+    require('./rotas/downloads')(appFalso, {
+        LOCAL_CONFIG: {},
+        fs,
+        midia,
+        seguranca,
+    });
+
+    // 1. Stored XSS em /api/acesso -> /central é neutralizado com escape HTML
+    const resAcesso = resposta();
+    rotasPost.get('/api/acesso')(pedido({
+        method: 'POST',
+        body: {
+            nome: '<img src=x onerror=alert(1)>',
+            aparelho: '<script>evil()</script>',
+            assistindo: '"><svg onload=alert(2)>',
+            dispositivo: 'disp-xss',
+        }
+    }), resAcesso);
+    assert.equal(resAcesso.statusCode, 200);
+
+    const resCentral = resposta();
+    rotasGet.get('/central')(pedido({ query: { chave: 'chave-super-secreta' } }), resCentral);
+    assert.equal(resCentral.statusCode, 200);
+    assert.equal(String(resCentral.corpo).includes('<script>evil()</script>'), false);
+    assert.equal(String(resCentral.corpo).includes('<img src=x'), false);
+    assert.match(String(resCentral.corpo), /&lt;img src=x onerror=alert\(1\)&gt;/);
+
+    // 2. Aparelho comum de fora não pode listar tokens nem bloquear dispositivos
+    const resDispComum = resposta();
+    rotasGet.get('/api/dispositivos')(pedido({
+        socket: { remoteAddress: '203.0.113.55' },
+        dispositivoAutorizado: { dispositivo: 'celular-comum', nome: 'Visitante' },
+    }), resDispComum);
+    assert.equal(resDispComum.statusCode, 403);
+
+    // A Central autenticada consegue listar normalmente
+    const resDispCentral = resposta();
+    rotasGet.get('/api/dispositivos')(pedido({
+        socket: { remoteAddress: '203.0.113.55' },
+        dispositivoAutorizado: { dispositivo: 'central-conecta-tv', nome: 'Central Conecta TV' },
+    }), resDispCentral);
+    assert.equal(resDispCentral.statusCode, 200);
+
+    // 3. /api/converter bloqueia portas internas arbitrárias (ex.: 127.0.0.1:4100) e hosts não autorizados
+    const resConvInterna = resposta();
+    rotasGet.get('/api/converter')(pedido({
+        socket: { localPort: 3000 },
+        query: { url: midia.base64url('http://127.0.0.1:4100/api/status') },
+    }), resConvInterna);
+    assert.equal(resConvInterna.statusCode, 400);
+
+    const resConvHostEstranho = resposta();
+    rotasGet.get('/api/converter')(pedido({
+        socket: { localPort: 3000 },
+        query: { url: midia.base64url('https://atacante-qualquer.example.com/video.mkv') },
+    }), resConvHostEstranho);
+    assert.equal(resConvHostEstranho.statusCode, 400);
+
+    // 4. midia.liberarHost nunca libera host interno
+    midia.liberarHost('169.254.169.254');
+    midia.liberarHost('127.0.0.1');
+    assert.equal(midia.hostPermitido('169.254.169.254'), false);
+    assert.equal(midia.hostPermitido('127.0.0.1'), false);
+
+    fs.rmSync(pasta, { recursive: true, force: true });
+});

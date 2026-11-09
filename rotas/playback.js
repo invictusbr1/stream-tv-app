@@ -109,6 +109,17 @@ app.get('/api/hls', async (req, res) => {
     }
     if (!resposta) return res.sendStatus(502);
     const { r: respostaFinal, referencia: referenciaFinal } = resposta;
+    // Confere se um redirecionamento HTTP (301/302) não desviou para a rede interna (Redirect SSRF).
+    try {
+        const urlFinal = new URL(respostaFinal.url || endereco.href);
+        const finalHttpOk = urlFinal.protocol === 'http:' && midia.httpPermitido(urlFinal.hostname);
+        if ((urlFinal.protocol !== 'https:' && !finalHttpOk) || seguranca.hostInterno(urlFinal.hostname)) {
+            try { await respostaFinal.body?.cancel?.(); } catch { /* ok */ }
+            return res.sendStatus(403);
+        }
+    } catch {
+        return res.sendStatus(403);
+    }
     try {
         const tipo = String(respostaFinal.headers.get('content-type') || '');
         const ehLista = /mpegurl|m3u8/i.test(tipo) || /\.m3u8$/i.test(endereco.pathname);
@@ -116,14 +127,20 @@ app.get('/api/hls', async (req, res) => {
             const texto = await respostaFinal.text();
             // O provedor pode ter redirecionado a lista para outro servidor:
             // libera também o endereço final antes de reescrever os pedaços.
-            try { midia.liberarHost(new URL(respostaFinal.url || endereco.href).hostname.toLowerCase()); } catch { /* endereço estranho */ }
+            try {
+                const hostFinal = new URL(respostaFinal.url || endereco.href).hostname.toLowerCase();
+                if (!seguranca.hostInterno(hostFinal)) midia.liberarHost(hostFinal);
+            } catch { /* endereço estranho */ }
             // A lista pode apontar para servidores de vídeo de outros domínios
             // (é assim no FenixFlix: a lista vem de um endereço e os pedaços do
             // filme vêm de outro). Como a lista veio de uma fonte já autorizada,
             // liberamos os domínios que ELA indica — sem isso o navegador tenta
             // falar direto com eles e o vídeo não abre.
             for (const achado of texto.matchAll(/https?:\/\/([a-z0-9.-]+\.[a-z]{2,})/gi)) {
-                try { midia.liberarHost(achado[1].toLowerCase()); } catch { /* endereço estranho */ }
+                try {
+                    const hostAchado = achado[1].toLowerCase();
+                    if (!seguranca.hostInterno(hostAchado)) midia.liberarHost(hostAchado);
+                } catch { /* endereço estranho */ }
             }
             res.setHeader('Content-Type', 'application/vnd.apple.mpegurl');
             res.setHeader('Cache-Control', 'no-store');
@@ -482,11 +499,11 @@ app.get('/api/playback/anime-legendado/:id/:season/:episode', async (req, res) =
         // anime + conferir o arquivo na TorBox + legenda). Antes ela perdia o
         // prazo e o app dizia "não tem" — e na 2ª vez tocava (08/11/2026,
         // Black Clover T2E2). Agora o app pergunta com ?preparar=1 (espera até
-        // 20 s, e repete) e só depois pede o vídeo, que já sai na hora.
+        // 25 s, e repete) e só depois pede o vídeo, que já sai na hora.
         const ESGOTOU = Symbol('esgotou');
         const achado = await Promise.race([
             tb.resolverAnimeLegendado(id, season, episode, { hevcOk }).catch(() => null),
-            new Promise(ok => setTimeout(() => ok(ESGOTOU), req.query.preparar === '1' ? 20000 : 14000)),
+            new Promise(ok => setTimeout(() => ok(ESGOTOU), req.query.preparar === '1' ? 25000 : 20000)),
         ]);
         if (req.query.preparar === '1') return res.json(achado === ESGOTOU ? { procurando: true } : achado ? { pronto: true, resolucao: achado.resolucao, legendaOnline: Boolean(achado.legendaExterna) } : { indisponivel: true });
         if (!achado || achado === ESGOTOU) return res.json(achado === ESGOTOU ? { indisponivel: true, procurando: true } : { indisponivel: true });

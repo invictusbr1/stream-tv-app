@@ -45,7 +45,8 @@ const ACOES = {
     'addons-testar': { grupo: 'cacador-relatorio', titulo: 'Conferir lista fixa de addons (manual)', node: ['central/testar-addons.cjs'] },
     'torbox-link': { grupo: 'cacador-relatorio', titulo: 'TorBox: examinar o link (gasta 1 download)', node: ['central/testar-torbox.cjs', '--link'] },
     'torbox-slots': { grupo: 'cacador-relatorio', titulo: 'TorBox: testar slots (gasta 1 download, ~1 min)', node: ['central/testar-torbox.cjs', '--slots'] },
-    'torbox-procurar': { grupo: 'cacador-relatorio', titulo: 'TorBox: procurar Curvas da Vida (não gasta downloads)', node: ['central/testar-torbox.cjs', '--procurar', 'tt2083383'] },
+    'torbox-procurar': { grupo: 'cacador-relatorio', titulo: 'TorBox: procurar torrents de título (não gasta downloads)', node: ['central/testar-torbox.cjs', '--procurar'] },
+    'torbox-adicionar': { grupo: 'cacador-relatorio', titulo: 'TorBox: adicionar magnet/torrent', node: ['central/testar-torbox.cjs', '--adicionar'] },
     'cacador-anime': { grupo: 'cacador', titulo: 'Caçar fontes de ANIME (legendado e dublado)', cmd: 'Cacador-PC.cmd', args: ['--anime'] },
     'cacador-iptv': { grupo: 'cacador', titulo: 'Caçar listas e canais de IPTV (TV aberta, esportes, filmes…)', cmd: 'Cacador-PC.cmd', args: ['--iptv'] },
     'torbox-anime': { grupo: 'cacador-relatorio', titulo: 'TorBox: testar anime legendado', node: ['central/testar-torbox.cjs', '--anime'] },
@@ -105,6 +106,16 @@ function montarComando(nome, extra = {}, { raiz = RAIZ, windows = WINDOWS, pasta
         const ip = ipValido(extra.ip);
         if (!ip) return { erro: 'digite o IP da TV (ex.: 192.168.1.7)' };
         psParams = ` -IpDaTv '${ip}'`;
+    }
+    if (nome === 'torbox-procurar' && extra.alvo) {
+        const alvo = String(extra.alvo).trim().slice(0, 150);
+        if (!/^[\p{L}\p{N} .:/_?&=#+%-]+$/u.test(alvo)) return { erro: 'título ou identificador com caracteres inválidos' };
+        args = [alvo];
+    }
+    if (nome === 'torbox-adicionar') {
+        const magnet = String(extra.magnet || '').trim();
+        if (!/^magnet:\?xt=urn:btih:[a-zA-Z0-9]{32,40}/i.test(magnet)) return { erro: 'cole um link magnet válido (magnet:?xt=urn:btih:...)' };
+        args = [magnet];
     }
     const opcoes = { cwd: raiz, env: { ...process.env, PYTHONIOENCODING: 'utf-8', FORCE_COLOR: '0' } };
     if (acao.node) return { exe: process.execPath, args: [...acao.node.map((a, i) => i === 0 ? juntar(raiz, a) : a), ...args], opcoes };
@@ -249,14 +260,19 @@ function criarServidor({ token, aoMexer = () => {}, aoSair = () => {} }) {
         };
         // Só aceita quem chama este PC pelo endereço exato (bloqueia DNS rebinding).
         if (req.headers.host !== `127.0.0.1:${porta}`) return responder(403, { erro: 'endereço não permitido' });
+        const comparar = (a, b) => {
+            const sa = String(a || ''), sb = String(b || '');
+            if (!sa || !sb) return false;
+            return crypto.timingSafeEqual(crypto.createHash('sha256').update(sa, 'utf8').digest(), crypto.createHash('sha256').update(sb, 'utf8').digest());
+        };
         const url = new URL(req.url, `http://127.0.0.1:${porta}`);
         if (req.method === 'GET' && url.pathname === '/') {
-            if (url.searchParams.get('t') !== token) return responder(403, '<meta charset="utf-8"><p style="font:16px sans-serif;padding:24px">Abra o painel pelo atalho <b>Painel Conecta TV</b>.</p>', 'text/html; charset=utf-8');
+            if (!comparar(url.searchParams.get('t'), token)) return responder(403, '<meta charset="utf-8"><p style="font:16px sans-serif;padding:24px">Abra o painel pelo atalho <b>Painel Conecta TV</b>.</p>', 'text/html; charset=utf-8');
             aoMexer();
             return responder(200, html(), 'text/html; charset=utf-8');
         }
         if (!url.pathname.startsWith('/api/')) return responder(404, { erro: 'não encontrado' });
-        if (req.headers['x-painel'] !== token) return responder(403, { erro: 'chave inválida' });
+        if (!comparar(req.headers['x-painel'], token)) return responder(403, { erro: 'chave inválida' });
         const origem = req.headers.origin;
         if (req.method === 'POST' && origem && origem !== `http://127.0.0.1:${porta}`) return responder(403, { erro: 'origem não permitida' });
         aoMexer();

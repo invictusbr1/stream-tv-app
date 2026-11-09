@@ -37,11 +37,13 @@ function ehEnderecoSeguro(valor) {
         const url = new URL(String(valor));
         if (url.protocol !== 'https:' && !(url.protocol === 'http:' && require('./midia-proxy').httpPermitido(url.hostname))) return false;
         if (url.username || url.password) return false;
-        const host = url.hostname.toLowerCase();
-        if (host === 'localhost' || host.endsWith('.local')) return false;
-        if (/^(127\.|10\.|192\.168\.|169\.254\.|0\.)/.test(host)) return false;
+        const host = url.hostname.toLowerCase().replace(/^\[|\]$/g, '');
+        if (!host || host === 'localhost' || host.endsWith('.localhost') || host.endsWith('.local') || host.endsWith('.internal')) return false;
+        if (/\.(nip\.io|sslip\.io|xip\.io|localtest\.me|lvh\.me|vcap\.me)$/i.test(host)) return false;
+        if (/^(127\.|10\.|192\.168\.|169\.254\.|0\.|22[4-9]\.|2[3-5]\d\.)/.test(host)) return false;
         if (/^172\.(1[6-9]|2\d|3[01])\./.test(host)) return false;
-        if (host === '[::1]' || host === '::1') return false;
+        if (/^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./.test(host)) return false;
+        if (/^(0x[0-9a-f]+|\d+)$/i.test(host) || host.includes(':')) return false;
         return true;
     } catch { return false; }
 }

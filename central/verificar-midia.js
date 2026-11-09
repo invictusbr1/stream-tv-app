@@ -160,7 +160,8 @@ function rodar(programa, argumentos, timeout = 120000) {
 
 function cabecalho(referer) {
     const linhas = [`User-Agent: ${UA}`];
-    if (referer) linhas.push(`Referer: ${referer}`);
+    const limpo = String(referer || '').replace(/[\r\n\u0000-\u001f\u007f]/g, '');
+    if (limpo) linhas.push(`Referer: ${limpo}`);
     return linhas.join('\r\n') + '\r\n';
 }
 
@@ -170,6 +171,10 @@ async function faixasDeAudio(url, referer = '', opcoes = {}) {
     if (!f.ffprobe) return null;
     const { erro, saida } = await rodar(f.ffprobe, [
         '-v', 'error', '-headers', cabecalho(referer),
+        // Leitura rápida (anime legendado, 09/11/2026): o MKV já declara as
+        // faixas no cabeçalho; ler 5 MB em vez do padrão baixava o tempo de
+        // 7–8 s para ~2 s na Oracle (antes estourava o prazo de 8 s).
+        ...(opcoes.rapido ? ['-probesize', '5000000', '-analyzeduration', '3000000'] : []),
         '-print_format', 'json',
         '-show_streams', '-show_format',
         url,
@@ -196,6 +201,7 @@ async function faixasDeAudio(url, referer = '', opcoes = {}) {
             titulo: String((s.tags || {}).title || ''),
             codec: String(s.codec_name || '').toLowerCase(),
             padrao: Number((s.disposition || {}).default || 0) === 1,
+            forcada: Number((s.disposition || {}).forced || 0),
         })),
         faixas: audio.map((s, i) => ({
             ordem: i,

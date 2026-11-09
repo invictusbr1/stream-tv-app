@@ -494,6 +494,21 @@ body{padding-bottom:76px}
 .card .card-meta{margin-top:2px}
 .card .card-stream{display:inline-block;align-self:flex-start;margin-top:6px;padding:2px 8px;border-radius:999px;background:#ffd16614;border:1px solid #ffd16633;color:#ffd166!important;font-size:10.5px!important;font-weight:600;max-width:100%}
 .colecao-cabecalho h2{letter-spacing:-.3px}
+/* ---- Hubs de Plataformas & Coleções ---- */
+.hubs-streamings{display:flex;gap:10px;overflow-x:auto;padding:4px 2px 18px;margin-bottom:6px;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+.hubs-streamings::-webkit-scrollbar{display:none}
+.hub-chip{display:inline-flex;align-items:center;gap:8px;background:#131a2b;border:1px solid #ffffff1c;color:#e2e8f0;padding:10px 16px;border-radius:999px;font-size:13.5px;font-weight:600;white-space:nowrap;transition:all .2s ease;cursor:pointer}
+.hub-chip:hover,.hub-chip:focus-visible{transform:translateY(-2px);background:#1e293b;border-color:#ffffff38;color:#fff}
+.hub-chip.hub-netflix:hover{border-color:#e5091480;box-shadow:0 0 14px #e5091433}
+.hub-chip.hub-max:hover{border-color:#9933ff80;box-shadow:0 0 14px #9933ff33}
+.hub-chip.hub-prime:hover{border-color:#00a8e180;box-shadow:0 0 14px #00a8e133}
+.hub-chip.hub-apple:hover{border-color:#ffffff80;box-shadow:0 0 14px #ffffff22}
+.hub-chip.hub-disney:hover{border-color:#113ccf80;box-shadow:0 0 14px #113ccf33}
+.hub-chip.hub-dreamworks:hover{border-color:#ffd16680;box-shadow:0 0 14px #ffd16633}
+.hub-chip.hub-terror:hover{border-color:#ff475780;box-shadow:0 0 14px #ff475733}
+.hub-chip.hub-acao:hover{border-color:#e056fd80;box-shadow:0 0 14px #e056fd33}
+.hub-chip.hub-ficcao:hover{border-color:#22d3ee80;box-shadow:0 0 14px #22d3ee33}
+.hub-chip.hub-comedia:hover{border-color:#f9ca2480;box-shadow:0 0 14px #f9ca2433}
 /* ---- Episódios ---- */
 .episode-row.episode-proximo{background:linear-gradient(90deg,#12b8ef14,#0000 70%);border-left:3px solid #12b8ef;padding-left:10px!important;border-radius:6px}
 .episode-row .episode-art{box-shadow:0 6px 18px #0007}
@@ -591,8 +606,30 @@ body{background:radial-gradient(1100px 520px at 85% -8%,#123a8a33,transparent 70
 <nav class="bottom-nav" id="bottom-nav" aria-label="Navegação principal"><button data-cat="inicio" onclick="irParaCategoria('inicio')"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 10.5 12 4l8 6.5"></path><path d="M6.5 10v9h11v-9"></path></svg><span>Início</span></button><button data-cat="favoritos" onclick="irParaCategoria('favoritos')"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4.5h10v15l-5-4-5 4z"></path></svg><span>Favoritos</span></button><button data-cat="continuar" onclick="irParaContinuar()"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"></circle><path d="M10.5 9.2l4.3 2.8-4.3 2.8z"></path></svg><span>Continuar</span></button><button data-cat="futebol" onclick="irParaCategoria('futebol')"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"></circle><path d="M12 7.5l3 2.2-1.1 3.5H10.1L9 9.7z"></path></svg><span>Futebol</span></button><button data-cat="tv" onclick="irParaCategoria('tv')"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="6" width="17" height="12" rx="2.2"></rect><path d="M9 21h6"></path><path d="M12 18v3"></path></svg><span>TV ao vivo</span></button><button onclick="abrirBusca()"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.6-3.6"></path></svg><span>Buscar</span></button></nav>
 <main class="secao"><div class="section-head"><p id="label">Escolhidos para a sua próxima sessão</p><button onclick="emAlta()" aria-label="Atualizar catálogo">↻ Atualizar</button></div>
 <div id="anime-types" hidden><button class="quiet" onclick="StreamLibrary.browse('anime')">Séries de anime</button> <button class="quiet" onclick="StreamLibrary.browse('anime-film')">Filmes de anime</button></div><p id="library-note" class="top-note"></p><div id="library-filters" hidden><label>Categoria <select id="genre-filter" aria-label="Categoria"></select></label><button class="quiet" id="library-prev">Anterior</button><span id="library-page"></span><button class="quiet" id="library-next">Próxima</button></div>
+<div class="hubs-streamings" id="hubs-streamings" aria-label="Navegar por plataformas e temas">
+  <button class="hub-chip hub-netflix" type="button" onclick="irParaSecao('col-netflix')"><span>🔴</span> Netflix</button>
+  <button class="hub-chip hub-max" type="button" onclick="irParaSecao('col-max')"><span>🟣</span> Max HBO</button>
+  <button class="hub-chip hub-prime" type="button" onclick="irParaSecao('col-prime')"><span>🔵</span> Prime Video</button>
+  <button class="hub-chip hub-apple" type="button" onclick="irParaSecao('col-apple')"><span>⚪</span> Apple TV+</button>
+  <button class="hub-chip hub-disney" type="button" onclick="irParaSecao('col-disney')"><span>🔷</span> Disney+</button>
+  <button class="hub-chip hub-dreamworks" type="button" onclick="irParaSecao('col-dreamworks')"><span>🏰</span> DreamWorks</button>
+  <button class="hub-chip hub-terror" type="button" onclick="irParaSecao('col-terror')"><span>👻</span> Terror</button>
+  <button class="hub-chip hub-acao" type="button" onclick="irParaSecao('col-acao')"><span>⚡</span> Ação</button>
+  <button class="hub-chip hub-ficcao" type="button" onclick="irParaSecao('col-ficcao')"><span>🚀</span> Ficção</button>
+  <button class="hub-chip hub-comedia" type="button" onclick="irParaSecao('col-comedia')"><span>😂</span> Comédias</button>
+</div>
 <div class="catalogo" id="catalogo"><section><div class="colecao-cabecalho"><h2>Top 10 em alta hoje · Filmes</h2></div><p class="top-note" id="alta-filmes-nota">Consultando…</p><div class="poster-row" id="row-alta-filmes"></div></section><section><div class="colecao-cabecalho"><h2>Top 10 em alta hoje · Séries</h2></div><p class="top-note" id="alta-series-nota">Consultando…</p><div class="poster-row" id="row-alta-series"></div></section>
+<section id="col-netflix"><div class="colecao-cabecalho"><h2>🔴 Top 10 Netflix</h2><span>Filmes e séries em alta no Brasil</span></div><div class="poster-row" id="row-netflix"><p class="catalogo-carregando">Carregando catálogo Netflix…</p></div></section>
+<section id="col-max"><div class="colecao-cabecalho"><h2>🟣 Top 10 Max · HBO</h2><span>O melhor do universo HBO e Warner</span></div><div class="poster-row" id="row-max"><p class="catalogo-carregando">Carregando catálogo Max…</p></div></section>
+<section id="col-prime"><div class="colecao-cabecalho"><h2>🔵 Top 10 Prime Video</h2><span>Grandes sucessos e originais Prime</span></div><div class="poster-row" id="row-prime"><p class="catalogo-carregando">Carregando Prime Video…</p></div></section>
+<section id="col-apple"><div class="colecao-cabecalho"><h2>⚪ Top 10 Apple TV+</h2><span>Produções originais e premiadas</span></div><div class="poster-row" id="row-apple"><p class="catalogo-carregando">Carregando Apple TV+…</p></div></section>
+<section id="col-disney"><div class="colecao-cabecalho"><h2>🔷 Top 10 Disney+</h2><span>Grandes sagas, Disney e Pixar</span></div><div class="poster-row" id="row-disney"><p class="catalogo-carregando">Carregando Disney+…</p></div></section>
 <section><div class="colecao-cabecalho"><h2>Em destaque</h2><span>Os filmes mais procurados</span></div><div class="poster-row" id="row-relevantes"><p class="catalogo-carregando">Carregando seleção…</p></div></section>
+<section id="col-dreamworks"><div class="colecao-cabecalho"><h2>🏰 O Mundo da DreamWorks</h2><span>Shrek, Dragões, Kung Fu Panda e clássicos</span></div><div class="poster-row" id="row-dreamworks"><p class="catalogo-carregando">Carregando DreamWorks…</p></div></section>
+<section id="col-terror"><div class="colecao-cabecalho"><h2>👻 Noite de Arrepio · Terror</h2><span>Filmes aterrorizantes e sobrenaturais</span></div><div class="poster-row" id="row-terror"><p class="catalogo-carregando">Carregando terror…</p></div></section>
+<section id="col-acao"><div class="colecao-cabecalho"><h2>⚡ Pura Adrenalina · Ação</h2><span>Tiros, lutas e perseguições eletrizantes</span></div><div class="poster-row" id="row-acao"><p class="catalogo-carregando">Carregando ação…</p></div></section>
+<section id="col-ficcao"><div class="colecao-cabecalho"><h2>🚀 Ficção Científica & Futuro</h2><span>Multiverso, IA, espaço e distopias</span></div><div class="poster-row" id="row-ficcao"><p class="catalogo-carregando">Carregando ficção científica…</p></div></section>
+<section id="col-comedia"><div class="colecao-cabecalho"><h2>😂 Para Morrer de Rir · Comédias</h2><span>Comédias leves e divertidas para relaxar</span></div><div class="poster-row" id="row-comedia"><p class="catalogo-carregando">Carregando comédias…</p></div></section>
 <section><div class="colecao-cabecalho"><h2>Entre os melhores</h2><span>Maiores notas, com pelo menos 500 votos</span></div><div class="poster-row" id="row-melhores"></div></section>
 <section><div class="colecao-cabecalho"><h2>Histórias premiadas</h2><span>Uma seleção de vencedores e indicados ao Oscar</span></div><div class="poster-row" id="row-oscar"></div></section>
 <section><div class="colecao-cabecalho"><h2>Chegaram recentemente</h2><span>Novas histórias para descobrir</span></div><div class="poster-row" id="row-recentes"></div></section>
@@ -650,6 +687,7 @@ let tentadas=new Set(),searchVersion=0,rankRequest=null;
 const el=id=>document.getElementById(id);
 function timeoutSignal(ms){const c=new AbortController();setTimeout(()=>c.abort(),ms);return c.signal;}
 async function lerJson(url,signal){const r=await fetch(url,{signal});if(!r.ok)throw Error('Indisponível');return r.json();}
+function ehAnimeId(id){try{const ids=JSON.parse(localStorage.getItem('streamtv-anime-ids')||'[]');return Array.isArray(ids)&&ids.includes(String(id));}catch{return false;}}
 function favoritoMarcado(id){return Boolean(window.StreamPersonal?.isFavorite?.(id));}
 function atualizarEstrela(botao,marcado){botao.textContent=marcado?'★':'☆';botao.setAttribute('aria-pressed',String(marcado));botao.title=marcado?'Remover dos favoritos':'Guardar em Favoritos';botao.setAttribute('aria-label',marcado?'Remover dos favoritos':'Guardar em Favoritos');}
 function criarBotaoFavorito(f){const b=document.createElement('span');b.className='fav-btn';b.setAttribute('role','button');b.tabIndex=0;atualizarEstrela(b,favoritoMarcado(f.id));const alternar=evento=>{evento.preventDefault();evento.stopPropagation();const personal=window.StreamPersonal;if(!personal?.toggleFavorite)return;atualizarEstrela(b,personal.toggleFavorite(f));personal.renderFavoritos?.();};b.onclick=alternar;b.onkeydown=evento=>{if(evento.key==='Enter'||evento.key===' '){evento.stopPropagation();alternar(evento);}};return b;}
@@ -658,8 +696,12 @@ function criarCard(f,pos=null,premiado=false){window.StreamPersonal?.remember(f)
 function limparStreamings(lista){const vistos=new Set(),saida=[];for(const bruto of Array.isArray(lista)?lista:[]){const nome=String(bruto||'').replace(/\s+(Standard|Basic)?\s*with Ads$/i,'').replace(/\s+Amazon Channel$/i,'').replace(/^Amazon Prime Video$/i,'Prime Video').trim();const chave=nome.toLowerCase();if(nome&&!vistos.has(chave)){vistos.add(chave);saida.push(nome);}}return saida;}
 function renderizar(lista,id='grid',rank=false,premiado=false){const g=el(id);g.replaceChildren();if(!lista?.length){const p=document.createElement('p');p.className='msg';p.textContent='Nenhum título disponível.';g.append(p);return;}(id==='grid'?lista:lista.slice(0,12)).forEach((f,i)=>g.append(criarCard(f,rank?i+1:null,premiado)));}
 async function carregarRankings(){rankRequest?.abort();const req=new AbortController();rankRequest=req;const t=setTimeout(()=>req.abort(),25000);try{let round=1;try{round=(Number(localStorage.getItem('streamtv-round'))||0)%10+1;localStorage.setItem('streamtv-round',String(round));}catch{}const d=await lerJson(`${API}/rankings?page=${round}`,req.signal);if(rankRequest!==req)return;renderizar(d.relevantes,'row-relevantes',true);renderizar(d.melhores,'row-melhores',true);renderizar(d.oscar,'row-oscar',false,true);renderizar(d.recentes,'row-recentes');const f=d.relevantes?.[0];if(f&&!window.StreamLibrary?.destaqueAtivo?.()){window.StreamPersonal?.remember(f);el('hero-title').textContent=f.titulo;el('hero-meta').textContent=`${f.ano||''}  ·  ★ ${f.nota||'N/A'}  ·  Em destaque`;el('hero-description').textContent=f.sinopse||'Uma nova história para a sua próxima sessão.';el('hero-image').hidden=!f.fundo;if(f.fundo)el('hero-image').src=f.fundo;el('hero-play').hidden=false;el('hero-play').onclick=()=>abrirPlayer(f.id,f.titulo);}}catch{if(rankRequest!==req)return;for(const id of ['row-relevantes','row-melhores','row-oscar','row-recentes'])el(id).textContent='Não foi possível carregar. Use Atualizar para tentar novamente.';}finally{clearTimeout(t);}}
+let colecoesRequest=null;
+function irParaSecao(id){const alvo=el(id);if(alvo)alvo.scrollIntoView({behavior:'smooth',block:'start'});}
+function renderizarColecoesNaTela(d){if(!d)return;for(const s of (d.streamings||[])){const filaId='row-'+s.id;if(el(filaId)&&Array.isArray(s.itens)&&s.itens.length)renderizar(s.itens,filaId,true);}for(const t of (d.tematicas||[])){const filaId='row-'+t.id;if(el(filaId)&&Array.isArray(t.itens)&&t.itens.length)renderizar(t.itens,filaId,false);}}
+async function carregarColecoes(forcar=false){const CHAVE='streamtv-colecoes-cache-v1';try{const salvo=JSON.parse(localStorage.getItem(CHAVE)||'null');if(salvo&&salvo.dados&&(!forcar&&Date.now()-(salvo.salvoEm||0)<12*3600*1000)){renderizarColecoesNaTela(salvo.dados);if(Date.now()-(salvo.salvoEm||0)<4*3600*1000)return;}}catch{}colecoesRequest?.abort();const req=new AbortController();colecoesRequest=req;try{const d=await lerJson(`${API}/colecoes`,req.signal);if(colecoesRequest!==req)return;renderizarColecoesNaTela(d);try{localStorage.setItem(CHAVE,JSON.stringify({dados:d,salvoEm:Date.now()}));}catch{}}catch{}}
 function mostrarCabecalhoDoCatalogo(mostrar){const cabecalho=document.querySelector('.section-head');if(cabecalho)cabecalho.hidden=!mostrar;}
-function emAlta(){if(window.StreamLibrary)StreamLibrary.home();++searchVersion;el('q').value='';el('hero').hidden=false;if(el('continuar-view'))el('continuar-view').hidden=true;mostrarCabecalhoDoCatalogo(true);el('label').textContent='Escolhidos para a sua próxima sessão';el('catalogo').classList.remove('oculto');el('resultados').classList.add('oculto');carregarRankings();}
+function emAlta(){if(window.StreamLibrary)StreamLibrary.home();++searchVersion;el('q').value='';el('hero').hidden=false;if(el('continuar-view'))el('continuar-view').hidden=true;mostrarCabecalhoDoCatalogo(true);el('label').textContent='Escolhidos para a sua próxima sessão';el('catalogo').classList.remove('oculto');el('resultados').classList.add('oculto');carregarRankings();carregarColecoes();carregarColecoes(true);}
 // Gaveta de categorias (abre pelo ☰), no estilo dos streamings: as categorias
 // e os gêneros ficam guardados aqui, sem poluir a barra de cima.
 let gavetaMontada=false;
@@ -920,7 +962,58 @@ function renderizarCanais(lista){
  }
  lista.slice(0,300).forEach(canal=>{const b=document.createElement('button');b.type='button';b.className='card tv-card';const nome=document.createElement('div');nome.className='tv-nome';nome.textContent=canal.nome;const grupo=document.createElement('div');grupo.className='tv-grupo';grupo.textContent=traduzirCategoria(canal.grupo||'ao vivo',canal);b.append(capaDoCanal(canal),nome,grupo);b.onclick=()=>tocarCanal(canal);grade.append(b);});
 }
-async function tocarCanal(canal){if(canal?.acaoEspecial==='la18hd'||canal?.url==='la18hd://premiere1')return abrirLa18hd();if(contextoReproducao)contextoReproducao.ativo=false;playerRequest?.abort();pararFrame(true);filmeAtual=null;players=[];fonteAtual=-1;const version=++playerVersion;document.body.style.overflow='hidden';el('player').classList.add('ativo');el('titulo-player').textContent=canal.nome;mostrarStatus('TV ao vivo · '+canal.nome);setLoading('Abrindo o canal',traduzirCategoria(canal.grupo||'',canal));const ok=await StreamPlayback.start(0,version,null,null,canal.url,true,{nome:canal.nome,id:canal.id||'',live:true});if(version!==playerVersion)return;if(!ok)mostrarErro('Este canal não abriu agora.','Muitos canais públicos ficam fora do ar. Tente outro da lista.');}
+function nomeBaseDoCanal(nome){
+ return String(nome||'')
+  .normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase()
+  .replace(/\b(4k|uhd|fhd|full\s*hd|hd|sd|1080p|720p|480p|h265|hevc|alternativo|op[cç][aã]o\s*\d+|backup)\b/gi,' ')
+  .replace(/\[.*?\]|\(.*?\)/g,' ')
+  .replace(/[^\p{L}\p{N}]+/gu,' ')
+  .trim();
+}
+function candidatosDoCanal(canal,tentados=new Set()){
+ const base=nomeBaseDoCanal(canal?.nome);
+ const irmãos=base?canaisTv.filter(c=>c&&c.url&&c.url!==canal?.url&&!tentados.has(c.url)&&nomeBaseDoCanal(c.nome)===base):[];
+ return [canal,...irmãos].filter(c=>c&&c.url&&!tentados.has(c.url));
+}
+async function tocarCanal(canal,opcoesCanal=null){
+ if(canal?.acaoEspecial==='la18hd'||canal?.url==='la18hd://premiere1')return abrirLa18hd();
+ const tentados=opcoesCanal?.tentados instanceof Set?opcoesCanal.tentados:new Set();
+ const reconexoes=Number(opcoesCanal?.reconexoes)||0;
+ const fila=candidatosDoCanal(canal,tentados);
+ if(!fila.length)fila.push(canal);
+ if(contextoReproducao)contextoReproducao.ativo=false;
+ playerRequest?.abort();pararFrame(true);filmeAtual=null;players=[];fonteAtual=-1;
+ const version=++playerVersion;
+ document.body.style.overflow='hidden';
+ el('player').classList.add('ativo');
+ for(let i=0;i<fila.length;i++){
+  const atual=fila[i];
+  if(!atual?.url)continue;
+  tentados.add(atual.url);
+  el('titulo-player').textContent=atual.nome;
+  mostrarStatus('TV ao vivo · '+atual.nome);
+  setLoading(i>0?'Trocando para sinal alternativo…':reconexoes>0?'Reconectando ao canal…':'Abrindo o canal',atual.nome+' · '+traduzirCategoria(atual.grupo||'',atual));
+  const ok=await StreamPlayback.start(0,version,null,null,atual.url,true,{nome:atual.nome,id:atual.id||'',live:true},{
+   onInterrupted:()=>{
+    if(version!==playerVersion||!el('player')?.classList.contains('ativo'))return false;
+    const restantes=candidatosDoCanal(atual,tentados);
+    if(restantes.length>0){
+     setTimeout(()=>{if(el('player')?.classList.contains('ativo'))tocarCanal(restantes[0],{tentados,reconexoes:0});},400);
+     return true;
+    }
+    if(reconexoes<2){
+     const novasTentativas=new Set(tentados);novasTentativas.delete(atual.url);
+     setTimeout(()=>{if(el('player')?.classList.contains('ativo'))tocarCanal(atual,{tentados:novasTentativas,reconexoes:reconexoes+1});},900);
+     return true;
+    }
+    return false;
+   }
+  });
+  if(version!==playerVersion)return;
+  if(ok)return;
+ }
+ mostrarErro('Este canal não abriu agora.','Muitos canais públicos ficam fora do ar. Tente outro da lista.');
+}
 async function buscar(){const q=el('q').value.trim();if(!q)return emAlta();const version=++searchVersion;el('hero').hidden=true;el('catalogo').classList.add('oculto');el('resultados').classList.remove('oculto');el('label').textContent='Seu catálogo';el('resultados-titulo').textContent=`Resultados para “${q}”`;el('grid').textContent='Buscando…';try{const list=await lerJson(`${API}/buscar?nome=${encodeURIComponent(q)}`,timeoutSignal(15000));if(version===searchVersion)renderizar(list);}catch{if(version===searchVersion)el('grid').textContent='Não foi possível buscar. Tente novamente.';}}
 function pararFrame(limparEpisodios=false){if(limparEpisodios)window.StreamEpisodes?.cancel();el('player')?.classList.remove('anime-mode');window.StreamAnimePlayer?.parar();el('menu-anime-btn')&&(el('menu-anime-btn').hidden=true);el('source-help').hidden=true;const ferramentas=el('player-tools');if(ferramentas)ferramentas.hidden=true;mostrarStatus('');el('player')?.classList.remove('fonte-externa');window.StreamPlayback?.stop();clearTimeout(playerTimer);const f=el('frame');if(f&&typeof f.setAttribute==='function'&&typeof f.hasAttribute==='function'&&!f.hasAttribute('sandbox'))f.setAttribute('sandbox','allow-scripts allow-same-origin allow-presentation');f.onload=null;f.onerror=null;f.src='about:blank';}
 function setLoading(msg,sub=''){el('loading').classList[/\d+%/.test(sub)?'add':'remove']('loading-detailed');el('loading').classList.remove('erro');el('acoes-erro').hidden=true;el('load-msg').textContent=msg;el('load-sub').textContent=sub;el('loading').classList.add('vis');pintarSalaDeEspera();}
@@ -1085,9 +1178,9 @@ function cancelarBuscaPlayer(){
  ++playerVersion;playerRequest?.abort();playerRequest=null;
 }
 async function abrirPlayer(id,titulo,episode=null,retomada=null){
- const anime=episode?.anime===true;
- const audioAnime=anime?(['legendado','dublado'].includes(episode.audio)?episode.audio:window.StreamAnimePlayer?.preferencia?.()||'legendado'):null;
- if(anime)episode={...episode,audio:audioAnime};
+ const anime=episode?.anime===true||ehAnimeId(id);
+ const audioAnime=anime?(['legendado','dublado'].includes(episode?.audio)?episode.audio:window.StreamAnimePlayer?.preferencia?.()||'legendado'):null;
+ if(anime&&episode)episode={...episode,anime:true,audio:audioAnime};
  if(retomada&&(retomada.contexto!==contextoReproducao||!retomada.contexto.ativo||!el('player').classList.contains('ativo')))return;
  if(!retomada&&contextoReproducao)contextoReproducao.ativo=false;
  playerRequest?.abort();pararFrame(true);
@@ -1372,7 +1465,7 @@ async function alternarFullHd(){
 }
 function fechar(){if(fonteAtual>=0&&players[fonteAtual])lembrarFonte(players[fonteAtual].nome);if(contextoReproducao){contextoReproducao.ativo=false;contextoReproducao.recuperando=false;}window.StreamExitFullscreen?.();++playerVersion;playerRequest?.abort();pararFrame(true);if(document.fullscreenElement)document.exitFullscreen().catch(()=>{});el('player').classList.remove('expanded');fecharOpcoes(false);el('player').classList.remove('ativo');el('player').classList.remove('dublado-pendente');el('loading').classList.remove('vis');el('abrir-externo')?.removeAttribute('href');players=[];fonteAtual=-1;document.body.style.overflow='';ultimoFoco?.focus();window.StreamPersonal?.render();}
 document.addEventListener('keydown',e=>{if(!el('player').classList.contains('ativo'))return;if(e.key==='Escape'){e.preventDefault();if(!el('opcoes').hidden)fecharOpcoes();else fechar();}if(e.key==='Tab'&&!el('opcoes').hidden){const nodes=[...el('opcoes').querySelectorAll('button:not(:disabled),select,a[href],summary')].filter(n=>n.getClientRects().length);const first=nodes[0],last=nodes[nodes.length-1];if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus();}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus();}}});
-carregarRankings();
+carregarRankings();carregarColecoes();
 </script><script src="/hls.min.js"></script><script src="/reproducao-sessao.js"></script><script src="/anime-player.js"></script><script src="/enquadramento.js"></script><script src="/abertura.js"></script><script src="/creditos.js"></script><script src="/playback.js"></script><script src="/library.js"></script><script src="/personal.js"></script><script src="/episodios.js"></script><script src="/auth.js"></script><script src="/avatares.js"></script><script src="/perfis-conta.js"></script><script src="/jarvis.js"></script><script src="/acesso.js"></script><script src="/avisos-servidor.js"></script><script src="/legendas.js"></script>
 <div id="update-aviso" class="toast" hidden><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" style="fill:none;stroke:#22d3ee;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round"><path d="M12 4v10"></path><path d="M8 10.5l4 4 4-4"></path><path d="M5 19h14"></path></svg><strong>Nova versão disponível</strong><span>Atualize sem perder o histórico.</span><a href="/check-updates">Atualizar</a><button class="fechar" aria-label="Fechar aviso" onclick="document.getElementById('update-aviso').hidden=true">×</button></div>
 <script>

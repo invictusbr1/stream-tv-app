@@ -163,8 +163,13 @@ function lerEventos(limite = 4000) {
 }
 
 // ---------------------------------------------------------------- utilidades
-function ipDoPedido(req) {
-    return String(req.headers['x-forwarded-for'] || '').split(',')[0].trim() || String(req.socket?.remoteAddress || '').replace(/^::ffff:/, '');
+const ipDoPedido = seguranca.ipDoPedido;
+const compararSegredo = seguranca.compararSegredo;
+const escaparHtml = seguranca.escaparHtml;
+const tentativasChave = new Map();
+function tokenAppsValido(req) {
+    if (!TOKEN_APPS) return true;
+    return compararSegredo(String(req.headers['x-central'] || ''), TOKEN_APPS);
 }
 function texto(valor, limite) { return String(valor ?? '').replace(/[\u0000-\u001f]/g, ' ').trim().slice(0, limite); }
 function minutosDesde(iso) { const t = new Date(iso || 0).getTime(); return Number.isFinite(t) ? Math.round((Date.now() - t) / 60000) : null; }
@@ -179,7 +184,7 @@ function chaveDoPedido(req) {
 }
 
 // ---------------------------------------------------------------- meio de campo
-app.set('trust proxy', true);
+app.set('trust proxy', 'loopback, linklocal, uniquelocal, 100.64.0.0/10');
 app.use(seguranca.cabecalhos({ origensPermitidas: [] }));
 app.use(express.json({ limit: '256kb' }));
 app.use(seguranca.criarLimitador({ janelaMs: 60000, maximo: 600, maximoMidia: 600 }));
@@ -189,13 +194,13 @@ const filaIdiomas=require('./qualidade-idioma').criarFila({verificar:require('./
     central:{pastaDados:DADOS},chaveIa:()=>require('./cacador').chaveDaIA(),registrar:mensagem=>console.log(mensagem)
 })});
 app.post('/api/qualidade/idiomas',(req,res)=>{
-    if(!TOKEN_APPS||String(req.headers['x-central']||'')!==TOKEN_APPS)return res.sendStatus(401);
+    if(!TOKEN_APPS||!tokenAppsValido(req))return res.sendStatus(401);
     const titulo=String(req.body?.titulo||'');
     if(!require('../provas-idioma').tituloValido(titulo))return res.sendStatus(400);
     res.json({ok:true,agendado:filaIdiomas.solicitar(titulo)});
 });
 app.post('/api/acesso', (req, res) => {
-    if (TOKEN_APPS && String(req.headers['x-central'] || '') !== TOKEN_APPS) return res.status(401).json({ error: 'token da central inválido' });
+    if (!tokenAppsValido(req)) return res.status(401).json({ error: 'token da central inválido' });
     const corpo = req.body || {};
     const nome = texto(corpo.nome, 60);
     if (!nome) return res.status(400).json({ error: 'informe o nome' });
@@ -211,7 +216,7 @@ app.post('/api/acesso', (req, res) => {
         versao: texto(corpo.versao, 20) || anterior.versao || '',
         assistindo: corpo.assistindo ? texto(corpo.assistindo, 90) : (anterior.assistindo || null),
         // O IP original só é aceito pela ponte autenticada do servidor.
-        ip: TOKEN_APPS && String(req.headers['x-central'] || '') === TOKEN_APPS && require('net').isIP(String(corpo.ip || '')) ? corpo.ip : ipDoPedido(req),
+        ip: TOKEN_APPS && tokenAppsValido(req) && require('net').isIP(String(corpo.ip || '')) ? corpo.ip : ipDoPedido(req),
         primeiroEm: anterior.primeiroEm || agora,
         ultimoEm: agora,
         vezes: Number(anterior.vezes || 0) + 1
@@ -222,7 +227,7 @@ app.post('/api/acesso', (req, res) => {
 });
 
 app.post('/api/evento', (req, res) => {
-    if (TOKEN_APPS && String(req.headers['x-central'] || '') !== TOKEN_APPS) return res.status(401).json({ error: 'token da central inválido' });
+    if (!tokenAppsValido(req)) return res.status(401).json({ error: 'token da central inválido' });
     const corpo = req.body || {};
     const medidas = normalizarEvento(corpo);
     if (corpo.tipo === 'reproducao' && (!medidas || !medidas.resultado)) return res.status(400).json({ error: 'informe sessão, tentativa e resultado válidos' });
@@ -300,7 +305,7 @@ app.post('/api/evento', (req, res) => {
             if (evento.aparelho) anterior.aparelho = evento.aparelho;
             if (evento.versao) anterior.versao = evento.versao;
             if (evento.app) anterior.app = evento.app;
-            if (TOKEN_APPS && String(req.headers['x-central'] || '') === TOKEN_APPS && require('net').isIP(String(corpo.ip || ''))) anterior.ip = corpo.ip;
+            if (TOKEN_APPS && tokenAppsValido(req) && require('net').isIP(String(corpo.ip || ''))) anterior.ip = corpo.ip;
             if (evento.titulo) anterior.assistindo = evento.titulo;
             anterior.ultimoEm = evento.em;
             lista[evento.dispositivo] = anterior;
@@ -311,20 +316,39 @@ app.post('/api/evento', (req, res) => {
 });
 
 // ---------------------------------------------------------------- painel
+function verificarTentativaChave(req, enviada) {
+    const ip = ipDoPedido(req);
+    const agora = Date.now();
+    const marca = tentativasChave.get(ip) || { desde: agora, erros: 0 };
+    if (agora - marca.desde > 600000) { marca.desde = agora; marca.erros = 0; }
+    if (marca.erros >= 8) return { bloqueado: true };
+    const aceita = enviada.length >= 8 && compararSegredo(enviada, CHAVE);
+    if (aceita) {
+        marca.erros = 0;
+        tentativasChave.set(ip, marca);
+        return { ok: true };
+    }
+    if (enviada) {
+        marca.erros++;
+        tentativasChave.set(ip, marca);
+    }
+    return { ok: false };
+}
+
 function exigirChave(req, res, next) {
     const enviada = chaveDoPedido(req);
-    // Comparação por resumo (sha256): sempre do mesmo tamanho, sem depender de
-    // acento, espaço ou tamanho da chave, e sem vazar tempo de resposta.
-    const resumo = valor => crypto.createHash('sha256').update(String(valor), 'utf8').digest();
-    const aceita = enviada.length >= 8 && crypto.timingSafeEqual(resumo(enviada), resumo(CHAVE));
-    if (aceita) return next();
+    const verificado = verificarTentativaChave(req, enviada);
+    if (verificado.bloqueado) return res.status(429).json({ error: 'Muitas tentativas. Aguarde alguns minutos.' });
+    if (verificado.ok) return next();
     if (String(req.headers.accept || '').includes('text/html')) return res.status(401).type('html').send(paginaDeChave(enviada ? 'Chave incorreta.' : ''));
     return res.status(401).json({ error: 'informe a chave da central' });
 }
 
 app.post('/api/entrar', (req, res) => {
     const enviada = String(req.body?.chave || '').trim();
-    if (enviada.length < 8 || enviada !== CHAVE) return res.status(401).json({ error: 'Chave incorreta.' });
+    const verificado = verificarTentativaChave(req, enviada);
+    if (verificado.bloqueado) return res.status(429).json({ error: 'Muitas tentativas. Aguarde alguns minutos.' });
+    if (!verificado.ok) return res.status(401).json({ error: 'Chave incorreta.' });
     const seguro = String(req.headers['x-forwarded-proto'] || '').split(',')[0].trim() === 'https';
     res.setHeader('Set-Cookie', `${COOKIE_CHAVE}=${encodeURIComponent(enviada)}; Path=/; Max-Age=15552000; HttpOnly; SameSite=Lax${seguro ? '; Secure' : ''}`);
     res.json({ ok: true });
@@ -447,6 +471,11 @@ app.post('/api/revisar-titulos', exigirChave, (req, res) => {
 app.get('/api/conferir-midia', exigirChave, async (req, res) => {
     const endereco = String(req.query.url || '');
     if (!/^https?:\/\//i.test(endereco)) return res.status(400).json({ erro: 'endereço inválido' });
+    let urlParsed;
+    try { urlParsed = new URL(endereco); } catch { return res.status(400).json({ erro: 'endereço inválido' }); }
+    if (urlParsed.username || urlParsed.password || seguranca.hostInterno(urlParsed.hostname)) {
+        return res.status(400).json({ erro: 'endereço inválido' });
+    }
     // Com `fonteId` e `tmdbId`, a medição é gravada na MESMA chave que o aplicativo
     // consulta (fonteId|movie:TMDB), então o aplicativo passa a saber o idioma real
     // em vez de acreditar na declaração do fornecedor. Sem esses campos, a medição
@@ -482,8 +511,11 @@ app.get('/api/conferir-midia', exigirChave, async (req, res) => {
 app.get('/entrar', (req, res) => {
     const enviada = String(req.query.chave || '').trim();
     res.setHeader('Cache-Control', 'no-store');
-    if (enviada.length < 8 || enviada !== CHAVE) return res.status(401).type('html').send(paginaDeChave('Chave incorreta.'));
-    res.setHeader('Set-Cookie', `${COOKIE_CHAVE}=${encodeURIComponent(enviada)}; Path=/; Max-Age=15552000; HttpOnly; SameSite=Lax`);
+    const verificado = verificarTentativaChave(req, enviada);
+    if (verificado.bloqueado) return res.status(429).type('html').send(paginaDeChave('Muitas tentativas. Aguarde alguns minutos.'));
+    if (!verificado.ok) return res.status(401).type('html').send(paginaDeChave('Chave incorreta.'));
+    const seguro = String(req.headers['x-forwarded-proto'] || '').split(',')[0].trim() === 'https';
+    res.setHeader('Set-Cookie', `${COOKIE_CHAVE}=${encodeURIComponent(enviada)}; Path=/; Max-Age=15552000; HttpOnly; SameSite=Lax${seguro ? '; Secure' : ''}`);
     res.redirect('/');
 });
 
@@ -624,7 +656,7 @@ input{width:100%;box-sizing:border-box;background:#1c2230;border:1px solid #2c34
 button{margin-top:16px;width:100%;background:#e50914;border:0;color:#fff;border-radius:10px;padding:12px;font-weight:600}
 .erro{color:#ff8f8f;font-size:13px;margin-top:10px}
 </style></head><body><form id="f"><h1>Central Conecta TV</h1><p>Painel restrito. Informe a chave da central.</p>
-<input id="chave" type="password" placeholder="Chave"><button>Entrar</button><p class="erro">${erro}</p></form>
+<input id="chave" type="password" placeholder="Chave"><button>Entrar</button><p class="erro">${escaparHtml(erro)}</p></form>
 <script>document.getElementById('f').onsubmit=async e=>{e.preventDefault();const chave=document.getElementById('chave').value.trim();
 const r=await fetch('/api/entrar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({chave})}).catch(()=>({ok:false}));
 if(r.ok){location.href='/';return;}document.querySelector('.erro').textContent='Chave incorreta.';};</script></body></html>`;
