@@ -2,7 +2,7 @@
 cd /d "%~dp0"
 title Publicar Conecta TV
 set LOG=%~dp0publicacao.log
-set VERSAO=2.14.4
+set VERSAO=2.14.5
 set SAIDA=%USERPROFILE%\Documents\Codex\apk-%VERSAO%
 echo Publicando o Conecta TV %VERSAO%. Leva alguns minutos, nao feche esta janela...
 echo === %date% %time% > "%LOG%"
@@ -40,7 +40,7 @@ if errorlevel 1 (echo FALHOU: compilacao Android >> "%LOG%" & goto fim)
 
 echo [5/5] Publicando a atualizacao do aplicativo...
 echo --- publicando APKs >> "%LOG%"
-powershell -NoProfile -ExecutionPolicy Bypass -File android\Publicar-Atualizacao.ps1 -Canal teste -ApkPath "%SAIDA%\Conecta-TV-Android-%VERSAO%.apk" -ApkTvPath "%SAIDA%\Conecta-TV-TV-%VERSAO%.apk" -Notes "Hubs de streaming (Top 10 Netflix, Max/HBO, Prime, Apple TV+, Disney+, DreamWorks, Terror), TV ao vivo por setores, animes com audio original japones + legendas e busca de torrents." >> "%LOG%" 2>&1
+powershell -NoProfile -ExecutionPolicy Bypass -File android\Publicar-Atualizacao.ps1 -Canal teste -ApkPath "%SAIDA%\Conecta-TV-Android-%VERSAO%.apk" -ApkTvPath "%SAIDA%\Conecta-TV-TV-%VERSAO%.apk" -Notes "Badges espelhados dos streamings em alta definicao, secao de Indicacoes da Familia no catalogo, avaliacoes na ficha e sala de espera do player, e busca de torrents." >> "%LOG%" 2>&1
 if errorlevel 1 (echo FALHOU: publicacao dos APKs >> "%LOG%" & goto fim)
 echo TUDO PUBLICADO NO CANAL DE TESTE >> "%LOG%"
 echo --- salvando a versao no git >> "%LOG%"
