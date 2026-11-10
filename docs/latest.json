@@ -1,14 +1,14 @@
 {
-    "versionCode":  489,
-    "versionName":  "2.14.2",
-    "apkUrl":  "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.14.2/Conecta-TV-Android-2.14.2.apk",
-    "sha256":  "17649bfabc3a25d566220fb4b9624e45d230caeb0b8d01d450d76cf2df070442",
-    "bytes":  767084,
-    "notes":  "TV ao vivo organizada por setores (TV Aberta, Esportes, Filmes e Series, Noticias, Infantil, Documentarios, Musica e Fornecedores IPTV) e nova Central de Futebol com 18 campeonatos simultaneos discriminados.",
+    "versionCode":  491,
+    "versionName":  "2.14.4",
+    "apkUrl":  "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.14.4/Conecta-TV-Android-2.14.4.apk",
+    "sha256":  "953f737fe23ef3da4afb75b9335d6012377bbf6cffb0c83da33439d66c6cfeaa",
+    "bytes":  777907,
+    "notes":  "Hubs de streaming (Top 10 Netflix, Max/HBO, Prime, Apple TV+, Disney+, DreamWorks, Terror), TV ao vivo por setores, animes com audio original japones + legendas e busca de torrents.",
     "exeUrl":  "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.13.117/Conecta.TV.exe",
     "exeSha256":  "9f1cbee5931e53e469dd488a7b3bfbfca9dd8077681a87ded02bad70ab657f7d",
     "exeBytes":  120134995,
-    "apkTvUrl":  "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.14.2/Conecta-TV-TV-2.14.2.apk",
-    "apkTvSha256":  "0e66f8565583f84ebc8bc28341a8638b9de195fdf57e1a09e89e3ef106378cae",
-    "apkTvBytes":  766705
+    "apkTvUrl":  "https://github.com/invictusbr1/stream-tv-atualizacoes/releases/download/v2.14.4/Conecta-TV-TV-2.14.4.apk",
+    "apkTvSha256":  "fbfb1adf93c00239b06b6baab51cac0aedf89e9892d6cf5db80fd8b698252201",
+    "apkTvBytes":  777523
 }
