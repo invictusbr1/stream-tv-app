@@ -35,6 +35,35 @@ const semDados = new Map(); // lastro → quando a fonte não entregou nada
 function falhouSemDados(lastro) { const em = semDados.get(String(lastro || '')); return Boolean(em && Date.now() - em < 2 * 60 * 60 * 1000); }
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36';
 
+function metaCaminho(pasta) {
+    return path.join(pasta, 'meta.json');
+}
+function salvarMeta(pasta, dados) {
+    try {
+        fs.mkdirSync(pasta, { recursive: true });
+        const atual = lerMeta(pasta) || {};
+        fs.writeFileSync(metaCaminho(pasta), JSON.stringify({ ...atual, ...dados }));
+    } catch { /* segue */ }
+}
+function lerMeta(pasta) {
+    try {
+        const arq = metaCaminho(pasta);
+        if (fs.existsSync(arq)) return JSON.parse(fs.readFileSync(arq, 'utf8'));
+    } catch { /* segue */ }
+    return null;
+}
+
+function isCompletoRegistro(registro) {
+    if (!registro || registro.erro) return false;
+    if (registro.completo) return true;
+    const dur = Number(registro.duracao || 0);
+    const seg = Number(registro.segundos || 0);
+    if (dur > 60) return seg >= dur - 30;
+    const lastro = String(registro.lastro || '');
+    if (/^filme-\d+/.test(lastro)) return seg >= 2400;
+    return Boolean(registro.terminou && !registro.parouSemUso && seg > 0);
+}
+
 function inspecionarDisco(pasta) {
     try {
         const m3u8 = path.join(pasta, 'index.m3u8');
@@ -44,7 +73,31 @@ function inspecionarDisco(pasta) {
         if (/#EXT-X-STREAM-INF/.test(texto)) { try { texto = fs.readFileSync(path.join(pasta, 'index0.m3u8'), 'utf8'); } catch { return null; } }
         let soma = 0;
         for (const m of texto.matchAll(/#EXTINF:([0-9.]+)/g)) soma += Number(m[1]) || 0;
-        return { arquivo: m3u8, completo: /#EXT-X-ENDLIST/.test(texto), segundos: Math.round(soma) };
+        const segundos = Math.round(soma);
+        const temEndlist = /#EXT-X-ENDLIST/.test(texto);
+        const meta = lerMeta(pasta);
+        const duracao = Number(meta?.duracao || 0);
+        const parouSemUso = Boolean(meta?.parouSemUso);
+
+        // Uma conversão só é verdadeiramente completa se:
+        // 1. Tem a tag de fim (#EXT-X-ENDLIST);
+        // 2. Não foi parada por inatividade (parouSemUso);
+        // 3. Se sabemos a duração total (> 60s), os segundos convertidos alcançam pelo menos (duracao - 30s);
+        // 4. Se não sabemos a duração total, filmes reais (filme-<id>) exigem pelo menos 40 min (2400s).
+        let completo = false;
+        if (temEndlist && !parouSemUso) {
+            if (duracao > 60) {
+                completo = segundos >= duracao - 30;
+            } else {
+                const nomePasta = path.basename(pasta);
+                if (/^filme-\d+/.test(nomePasta)) {
+                    completo = segundos >= 2400;
+                } else {
+                    completo = true;
+                }
+            }
+        }
+        return { arquivo: m3u8, temEndlist, completo, segundos, duracao: duracao || segundos, parouSemUso };
     } catch { return null; }
 }
 
@@ -105,7 +158,7 @@ function limparAntigos() {
 // Agora: conversão sem ninguém pedindo pedaços há 10 min é parada, e a pasta
 // inteira tem teto — passou dele, apaga as mais antigas que não estão em uso.
 const LIMITE_DISCO = Number(process.env.CONVERSOES_LIMITE_GB || 8) * 1024 ** 3;
-const PARADA_SEM_USO = 2 * 60 * 1000;
+const PARADA_SEM_USO = 10 * 60 * 1000;
 
 function tamanhoDaPasta(pasta) {
     let total = 0;
@@ -117,8 +170,9 @@ function arrumarDisco() {
     const agora = Date.now();
     for (const t of trabalhos.values()) {
         if (!t.terminou && t.processo && agora - (t.ultimoAcesso || t.iniciadoEm || 0) > PARADA_SEM_USO) {
-            try { t.processo.kill(); } catch { /* já saiu */ }
             t.parouSemUso = true;
+            try { t.processo.kill(); } catch { /* já saiu */ }
+            salvarMeta(t.pasta, { parouSemUso: true, segundos: t.segundos });
         }
     }
     try {
@@ -193,14 +247,29 @@ async function iniciar(url, { titulo = '', referer = '', id = '', inicio = 0, fa
     const chave = `${lastro}-${Date.now().toString(36)}`;
 
     // Já existe conversão desta obra que ainda serve? Reaproveita, sem reconverter.
+    const vivaOuCompleta = t => {
+        if (!t || !t.arquivo || !fs.existsSync(t.arquivo) || t.erro) return false;
+        if (!t.terminou && t.processo) return true;
+        return isCompletoRegistro(t);
+    };
+
     const prontas = [...trabalhos.entries()]
-        .filter(([, t]) => t.lastro === lastro && t.arquivo && fs.existsSync(t.arquivo))
+        .filter(([, t]) => t.lastro === lastro && vivaOuCompleta(t))
         .sort((a, b) => b[1].iniciadoEm - a[1].iniciadoEm);
     if (prontas.length) {
         const [chaveBoa, registroBom] = prontas[0];
         registroBom.ultimoAcesso = Date.now();
         return resumo(chaveBoa);
     }
+
+    // Limpa registros mortos incompletos para esta obra
+    for (const [chaveAntiga, tAntigo] of trabalhos) {
+        if (tAntigo.lastro === lastro && tAntigo.terminou && !isCompletoRegistro(tAntigo)) {
+            trabalhos.delete(chaveAntiga);
+            try { fs.rmSync(tAntigo.pasta, { recursive: true, force: true }); } catch { /* segue */ }
+        }
+    }
+
     try {
         if (fs.existsSync(PASTA)) {
             const candidatas = fs.readdirSync(PASTA)
@@ -211,8 +280,10 @@ async function iniciar(url, { titulo = '', referer = '', id = '', inicio = 0, fa
             for (const item of candidatas) {
                 const disco = inspecionarDisco(item.caminho);
                 if (disco && disco.completo) {
-                    trabalhos.set(item.nome, { arquivo: disco.arquivo, pasta: item.caminho, lastro, segundos: disco.segundos, duracao: disco.segundos, progresso: 100, pronto: true, terminou: true, erro: '', iniciadoEm: item.info.mtimeMs, ultimoAcesso: Date.now(), processo: null });
+                    trabalhos.set(item.nome, { arquivo: disco.arquivo, pasta: item.caminho, lastro, segundos: disco.segundos, duracao: disco.duracao, progresso: 100, pronto: true, terminou: true, completo: true, erro: '', iniciadoEm: item.info.mtimeMs, ultimoAcesso: Date.now(), processo: null });
                     return resumo(item.nome);
+                } else if (disco && !disco.completo && Date.now() - item.info.mtimeMs > 60000) {
+                    try { fs.rmSync(item.caminho, { recursive: true, force: true }); } catch { /* segue */ }
                 }
             }
         }
@@ -246,6 +317,7 @@ async function iniciar(url, { titulo = '', referer = '', id = '', inicio = 0, fa
     }
     registro.legenda = comLegenda || Boolean(arquivoLegenda);
     registro.duracao = duracao;
+    salvarMeta(pasta, { chave, lastro, duracao, inicio: registro.inicio, quatroK: Boolean(quatroK), criadoEm: Date.now() });
     if (lida.semPortugues) {
         registro.erro = 'o arquivo não tem áudio em português'; registro.terminou = true;
         // O rótulo dizia dublado e não era: este torrent sai da escolha (08/11/2026, Black Clover T2E2 4K).
@@ -335,10 +407,29 @@ async function iniciar(url, { titulo = '', referer = '', id = '', inicio = 0, fa
             clearTimeout(vigia);
             registro.terminou = true;
             registro.emUso = false;
-            if (codigo === 0) { registro.pronto = true; registro.progresso = 100; }
-            else if (registro.erro) { /* o vigia já explicou */ }
-            else if (!registro.pronto && !fs.existsSync(arquivo)) registro.erro = ultimoErro || 'não consegui converter o arquivo';
-            else registro.pronto = true; // parou no meio, mas o trecho já serve
+            const disco = inspecionarDisco(pasta);
+            const realmenteCompleto = isCompletoRegistro(registro) || Boolean(disco && disco.completo);
+            if (codigo === 0 && realmenteCompleto) {
+                registro.pronto = true;
+                registro.completo = true;
+                registro.progresso = 100;
+            } else if (registro.erro) {
+                /* o vigia já explicou */
+            } else if (!registro.pronto && !fs.existsSync(arquivo)) {
+                registro.erro = ultimoErro || 'não consegui converter o arquivo';
+            } else {
+                registro.pronto = Boolean(registro.segundos >= MINIMO_TOCAVEL || (disco && disco.segundos >= MINIMO_TOCAVEL));
+                if (realmenteCompleto) {
+                    registro.completo = true;
+                    registro.progresso = 100;
+                }
+            }
+            salvarMeta(pasta, {
+                terminou: true,
+                segundos: registro.segundos,
+                completo: Boolean(registro.completo),
+                parouSemUso: Boolean(registro.parouSemUso)
+            });
         });
         processo.on('error', (erro) => { registro.erro = String(erro.message).slice(0, 100); registro.terminou = true; });
     } catch (erro) { registro.erro = String(erro.message).slice(0, 100); registro.terminou = true; }
@@ -350,8 +441,23 @@ function resumo(chave) {
     if (!registro && /^[A-Za-z0-9_-]{1,96}$/.test(String(chave || ''))) {
         const pasta = path.join(PASTA, String(chave));
         const disco = inspecionarDisco(pasta);
-        if (disco && disco.completo) {
-            registro = { arquivo: disco.arquivo, pasta, lastro: String(chave).replace(/-[a-z0-9]+$/i, ''), segundos: disco.segundos, duracao: disco.segundos, progresso: 100, pronto: true, terminou: true, erro: '', iniciadoEm: Date.now(), ultimoAcesso: Date.now(), processo: null };
+        if (disco) {
+            registro = {
+                arquivo: disco.arquivo,
+                pasta,
+                lastro: String(chave).replace(/-[a-z0-9]+$/i, ''),
+                segundos: disco.segundos,
+                duracao: disco.duracao,
+                progresso: disco.completo ? 100 : (disco.duracao > 0 ? Math.min(99, Math.round((disco.segundos / disco.duracao) * 100)) : 0),
+                pronto: Boolean(disco.segundos >= MINIMO_TOCAVEL),
+                terminou: Boolean(disco.temEndlist),
+                completo: Boolean(disco.completo),
+                parouSemUso: Boolean(disco.parouSemUso),
+                erro: '',
+                iniciadoEm: Date.now(),
+                ultimoAcesso: Date.now(),
+                processo: null
+            };
             trabalhos.set(String(chave), registro);
         }
     }
@@ -364,15 +470,17 @@ function resumo(chave) {
             }, 0);
         }
     } catch { /* sem arquivo ainda */ }
+    const completo = isCompletoRegistro(registro);
+    const parado = Boolean(registro.parouSemUso || (!completo && (registro.terminou || !registro.processo)) || (!registro.terminou && Date.now() - (registro.ultimoProgresso || registro.iniciadoEm || 0) > 20000));
     return {
         id: chave,
         pronto: Boolean(registro.pronto),
-        progresso: registro.progresso || 0,
+        progresso: completo ? 100 : (registro.progresso || 0),
         velocidade: registro.velocidade || 0,
-        parado: !registro.terminou && Date.now() - (registro.ultimoProgresso || registro.iniciadoEm || 0) > 20000,
+        parado,
         segundos: registro.segundos || 0,
         duracao: registro.duracao || 0,
-        convertido: Boolean(registro.terminou),
+        convertido: completo,
         tamanho,
         erro: registro.erro || '',
         inicio: registro.inicio || 0,
@@ -418,7 +526,7 @@ function pode4k(id = '', tamanho = 0) {
 // filme). Janelas: "filme-550" (desde o 0) e "ini1980-filme-550" (desde 33 min).
 async function iniciarNoPonto(url, { id = '', referer = '', inicio = 0, faixa = null, quatroK = false, novo = false, legenda = null, legendaExterna = '', etiqueta = '' } = {}) {
     const ponto = Math.max(0, Math.floor(Number(inicio) || 0));
-    if (novo && ponto < 60) for (const [chave, t] of trabalhos) if (t.lastro === id && !(t.terminou && t.pronto && inspecionarDisco(t.pasta)?.completo)) { try { if (t.processo && !t.terminou) t.processo.kill(); } catch { /* já saiu */ } trabalhos.delete(chave); }
+    if (novo && ponto < 60) for (const [chave, t] of trabalhos) if (t.lastro === id && !(t.terminou && isCompletoRegistro(t))) { try { if (t.processo && !t.terminou) t.processo.kill(); } catch { /* já saiu */ } trabalhos.delete(chave); }
     if (!id || ponto < 60) return { ...(await module.exports.iniciar(url, { id, titulo: id, referer, faixa, quatroK, legenda, legendaExterna, etiqueta })), inicio: 0 };
     const deste = new RegExp(`^(?:ini(\\d+)-)?${id.replace(/[^\w-]/g, '')}$`);
     let melhor = null;
@@ -428,14 +536,13 @@ async function iniciarNoPonto(url, { id = '', referer = '', inicio = 0, faixa = 
         const ini = Number(m[1] || 0);
         if (ini > ponto) continue;
         const disco = t.terminou ? inspecionarDisco(t.pasta) : null;
-        const completo = Boolean(disco && disco.completo);
-        // Conversão parada no meio (sem uso / erro): só serve com folga de 5 min,
-        // senão o filme alcança o fim dela e trava.
-        const alcancou = ini + (t.segundos || 0) >= ponto + (t.terminou && !completo ? 300 : 15);
-        // Só espera uma conversão que está andando (avançou nos últimos 20 s).
-        const andando = Date.now() - (t.ultimoProgresso || t.iniciadoEm || 0) < 20000;
-        const vaiChegar = !t.terminou && andando && ponto - ini <= 180;
-        if ((completo && (!t.duracao || ini + (t.segundos || t.duracao) >= ponto + 15)) || alcancou || vaiChegar) {
+        const completo = Boolean(isCompletoRegistro(t) || (disco && disco.completo));
+        // Só aproveita conversão em andamento se o processo estiver ativo e gerando dados.
+        const andando = !t.terminou && t.processo && (Date.now() - (t.ultimoProgresso || t.iniciadoEm || 0) < 20000);
+        const alcancou = andando && (ini + (t.segundos || 0) >= ponto + 15);
+        const vaiChegar = andando && (ponto - ini <= 180);
+        const completoCobre = completo && (!t.duracao || ini + (t.segundos || t.duracao) >= ponto + 15);
+        if (completoCobre || alcancou || vaiChegar) {
             if (!melhor || ini > melhor.ini) melhor = { chave, ini, t };
         }
     }
@@ -446,7 +553,7 @@ async function iniciarNoPonto(url, { id = '', referer = '', inicio = 0, faixa = 
         melhor = null;
     }
     // A janela nova não pode cair de volta na parada (mesmo nome de trabalho).
-    if (novo) for (const [chave, t] of trabalhos) if (t.lastro === `ini${ponto}-${id}` && !(t.terminou && t.pronto && inspecionarDisco(t.pasta)?.completo)) { try { if (t.processo && !t.terminou) t.processo.kill(); } catch { /* já saiu */ } trabalhos.delete(chave); }
+    if (novo) for (const [chave, t] of trabalhos) if (t.lastro === `ini${ponto}-${id}` && !(t.terminou && isCompletoRegistro(t))) { try { if (t.processo && !t.terminou) t.processo.kill(); } catch { /* já saiu */ } trabalhos.delete(chave); }
     if (melhor) { melhor.t.ultimoAcesso = Date.now(); return { ...resumo(melhor.chave), inicio: melhor.ini }; }
     // Janela nova: para as conversões deste filme que ninguém está vendo.
     for (const [, t] of trabalhos) {

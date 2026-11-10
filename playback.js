@@ -468,6 +468,9 @@ window.StreamPlayback = (() => {
             }
             deslocamento=Math.max(0,Number(data.inicio)||0);conversaoAtiva=true;
             if(Number(data.duracao)>0)duracaoTotal=Number(data.duracao);
+            else if(!duracaoTotal&&typeof filmeAtual!=='undefined'&&filmeAtual){
+                try{const salvos=JSON.parse(localStorage.getItem('streamtv-progress')||'[]');const achado=salvos.find(x=>String(x.id)===String(filmeAtual.id)&&Number(x.duration)>60);if(achado?.duration)duracaoTotal=Number(achado.duration);}catch{}
+            }
             const alvoNoFilme=pontoSalvo;pontoSalvo=Math.max(0,pontoSalvo-deslocamento);
             // Conversão parada (sem avançar há 20 s): pede UMA vez outra ao
             // servidor (&novo=1), em vez de esperar até desistir.
@@ -602,7 +605,7 @@ window.StreamPlayback = (() => {
 // aplicativo marca como visto — o usuário não precisa tocar no círculo.
 function marcarVistoSozinho(){try{const f=(typeof filmeAtual!=='undefined'&&filmeAtual)||progressFilm;if(!f||!f.id||!f.episode)return;window.StreamPersonal?.markWatched?.({id:f.id,titulo:f.titulo,episode:{season:Number(f.episode.season)||1,number:Number(f.episode.number)||1}},true);}catch{} }
 video.addEventListener('webkitendfullscreen',()=>{if(current())window.StreamEpisodes?.visibility?.();});
-video.addEventListener('ended',()=>{if(current()){intencaoTocar=false;limparEspera();saveProgress();analiseAtual?.encerrar('concluiu',posicaoAtual());marcarVistoSozinho();window.StreamEpisodes?.finished?.(progressFilm);showControls();}});
+video.addEventListener('ended',()=>{if(current()){const ponto=posicaoAtual(),total=totalDoFilme();if(conversaoAtiva&&total>120&&ponto<total-60){failure('o trecho convertido encerrou antes do fim');return;}intencaoTocar=false;limparEspera();saveProgress();analiseAtual?.encerrar('concluiu',ponto);marcarVistoSozinho();window.StreamEpisodes?.finished?.(progressFilm);showControls();}});
 video.addEventListener('playing',()=>{if(!current())return;window.StreamEpisodes?.playing?.();intencaoTocar=true;limparEspera();analiseAtual?.tocando(posicaoAtual());el('direct-resume').hidden=true;awaitPicture();clearTimeout(relogioConfirmacao);relogioConfirmacao=setTimeout(()=>{if(!current()||!video||relatoConfirmado)return;if(video.currentTime<15)return;relatoConfirmado=true;relatar({tipo:'confirmacao',ok:true,fonte:fonteUsada,fonteId:fonteIdUsada,audio:rotuloAudio,resolucao:alturaAtual?alturaAtual+'p':'',taxa:taxaReal()?Math.round(taxaReal()/1000)+' kbps':''});},20000);el('direct-toggle').textContent='⏸';el('direct-toggle').setAttribute('aria-label','Pausar');showControls(!initialFocus);initialFocus=true;});
             video.addEventListener('canplay',()=>{if(!current())return;play();},{once:true});
             video.addEventListener('loadedmetadata',()=>{if(current()){qualityInfo();subtitleMenu();sincronizarLegendas();buscaLivre();atualizarVolume();resume();window.StreamLegendas?.anexar?.(video,progressFilm).then?.(()=>{if(!current())return;subtitleMenu();sincronizarLegendas();}).catch?.(()=>{});}});

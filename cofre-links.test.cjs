@@ -41,6 +41,25 @@ test('APK (transporte=servidor) não recebe fonte que precisa de conversão', ()
     assert.strictEqual(_filtrarPorCodec(r, 'avc', false).length, 2);
 });
 
+test('conversor não considera completo filme interrompido com EXT-X-ENDLIST e preserva a duração total', async () => {
+    const fs = require('node:fs'), path = require('node:path');
+    const conversor = require('./conversor');
+    const chave = 'filme-289-interrompido14m';
+    const pasta = path.join(conversor.PASTA, chave);
+    fs.mkdirSync(pasta, { recursive: true });
+    try {
+        fs.writeFileSync(path.join(pasta, 'meta.json'), JSON.stringify({ chave, lastro: 'filme-289', duracao: 10740, segundos: 840, parouSemUso: true }));
+        fs.writeFileSync(path.join(pasta, 'index.m3u8'), '#EXTM3U\n#EXTINF:840.0,\nseg00000.ts\n#EXT-X-ENDLIST\n');
+        const st = conversor.estado(chave);
+        assert.strictEqual(st.convertido, false, 'conversão de 14 min de filme de 3h não pode ser considerada completa');
+        assert.strictEqual(st.duracao, 10740, 'a duração total real de 3h deve ser preservada em vez de sobrescrever com 14 min');
+        assert.strictEqual(st.segundos, 840);
+        assert.strictEqual(st.parado, true);
+    } finally {
+        try { fs.rmSync(pasta, { recursive: true, force: true }); } catch {}
+    }
+});
+
 test('conversor reaproveita conversão completa do disco após reinício do processo', async () => {
     const fs = require('node:fs'), path = require('node:path');
     const conversor = require('./conversor');

@@ -729,3 +729,33 @@ test('TV ao vivo ativa ignorePlaylistParsingErrors para não cair em playlists c
  assert.equal(s.failures(), 0);
  s.controller.stop();
 });
+
+test('conversão que encerra antes do fim do filme não conclui e dispara recuperação do ponto', async () => {
+ const s = harness('StreamTVAndroid');
+ let recuperou = 0, pontoRecuperado = null;
+ s.context.filmeAtual = { id: 289, titulo: 'Encontro Marcado' };
+ s.fetch(async caminho => caminho.startsWith('/api/conversao/')
+  ? { id: 'filme-289-test', pronto: true, convertido: false, segundos: 840, duracao: 10740 }
+  : { conversao: 'filme-289-test', duracao: 10740, audio: 'pt-BR', fonteId: 'torbox', source: 'TorBox', type: 'hls' });
+ const p = s.controller.start(289, 1, null, null, null, false, null, {
+  onInterrupted: (resumo) => {
+   recuperou++;
+   pontoRecuperado = resumo.posicao;
+   return true;
+  }
+ });
+ for (let i = 0; i < 4; i++) await new Promise(setImmediate);
+ const v = s.el('direct-video');
+ v.duration = 840;
+ v.currentTime = 840;
+ v.videoWidth = 1920;
+ v.videoHeight = 1080;
+ v.webkitDecodedFrameCount = 1;
+ s.Hls.instance.emit('manifest');
+ v.fire('loadedmetadata');
+ v.fire('playing');
+ v.fire('ended');
+ assert.equal(recuperou, 1, 'fim prematuro da conversão (14m de filme de 3h) deve acionar recuperação');
+ assert.equal(Math.round(pontoRecuperado), 840);
+ s.controller.stop();
+});
