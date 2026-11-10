@@ -221,11 +221,11 @@
                 if (salvo && salvo.until > Date.now()) return salvo.value;
 
                 const plataformasConfig = [
-                    { id: 'netflix', nome: 'Top 10 Netflix', subtitulo: 'Originais e sucessos em alta no Brasil', icone: '🔴', cor: '#e50914', network: '213', provider: '8' },
-                    { id: 'max', nome: 'Top 10 Max · HBO', subtitulo: 'O melhor do universo HBO e Warner', icone: '🟣', cor: '#9933ff', network: '49|3186', provider: '1899|384' },
-                    { id: 'prime', nome: 'Top 10 Prime Video', subtitulo: 'Originais e grandes produções da Amazon', icone: '🔵', cor: '#00a8e1', network: '1024', provider: '119' },
-                    { id: 'apple', nome: 'Top 10 Apple TV+', subtitulo: 'Produções originais aclamadas da Apple', icone: '⚪', cor: '#d4d4d4', network: '2552', provider: '350' },
-                    { id: 'disney', nome: 'Top 10 Disney+', subtitulo: 'Universo Disney, Pixar, Marvel e Star Wars', icone: '🔷', cor: '#113ccf', network: '2739', provider: '337' }
+                    { id: 'netflix', nome: 'Top 10 Netflix', subtitulo: 'Originais e sucessos em alta no Brasil', icone: 'netflix', cor: '#e50914', network: '213', provider: '8' },
+                    { id: 'max', nome: 'Top 10 Max · HBO', subtitulo: 'O melhor do universo HBO e Warner', icone: 'max', cor: '#9933ff', network: '49|3186', provider: '1899|384' },
+                    { id: 'prime', nome: 'Top 10 Prime Video', subtitulo: 'Originais e grandes produções da Amazon', icone: 'prime', cor: '#00a8e1', network: '1024', provider: '119' },
+                    { id: 'apple', nome: 'Top 10 Apple TV+', subtitulo: 'Produções originais aclamadas da Apple', icone: 'apple', cor: '#d4d4d4', network: '2552', provider: '350' },
+                    { id: 'disney', nome: 'Top 10 Disney+', subtitulo: 'Universo Disney, Pixar, Marvel e Star Wars', icone: 'disney', cor: '#113ccf', network: '2739', provider: '337' }
                 ];
 
                 const vistosStreamings = new Set();
