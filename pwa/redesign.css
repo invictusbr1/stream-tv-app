@@ -94,3 +94,11 @@ html.web-redesign{--bg:#050a1c;--panel:#0e1730;--accent:#22d3ee}
 .web-redesign .ficha-form .primary{justify-self:start}
 .web-redesign .ficha-aviso{color:#9ba6b8}
 .web-redesign .ficha-sem-foto{width:112px;height:140px;border-radius:10px;background:linear-gradient(135deg,#232b3d,#0e1730);display:grid;place-items:center;font-size:38px;font-weight:700;color:#5d6a82}
+.web-redesign .ficha-familia-resumo{display:inline-flex;align-items:center;gap:10px;padding:8px 16px;background:linear-gradient(135deg,#ffc94d1f,#ffc94d0d);border:1px solid #ffc94d55;border-radius:24px;margin:12px 0 6px;font-size:14px;color:#f3f4f6;cursor:pointer;transition:transform .15s,background .2s;width:fit-content}
+.web-redesign .ficha-familia-resumo:hover{background:linear-gradient(135deg,#ffc94d33,#ffc94d1a);transform:scale(1.02)}
+.web-redesign .ficha-familia-resumo.sem-voto{background:#ffffff0d;border-color:#ffffff1c;color:#9ba6b8}
+.web-redesign .ficha-familia-resumo .familia-estrelas{color:#ffc94d;letter-spacing:1.5px;font-size:16px}
+.web-redesign .ficha-familia-resumo .familia-nota{color:#ffc94d;font-weight:700;font-size:15px}
+.web-redesign .ficha-familia-resumo .familia-votos{color:#e2e8f0;font-weight:500}
+.web-redesign .ficha-familia-resumo .familia-autores{color:#94a3b8;font-size:13px}
+.web-redesign .card .card-stream.card-familia-autor{color:#ffc94d;font-weight:600}

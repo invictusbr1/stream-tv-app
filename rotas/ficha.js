@@ -129,5 +129,94 @@ module.exports = function registrar(app, ctx) {
     // O app Android só encaminha GET ao servidor: mesmas ações por GET.
     app.get('/api/comentarios/:tipo/:id/enviar', (req, res) => salvar(req, res, req.query));
     app.get('/api/comentarios/:tipo/:id/apagar', apagar);
+
+    // ------------------------------------------------ indicações da família
+    // Títulos avaliados pela família reunidos em uma coleção para a tela inicial
+    app.get(['/api/indicacoes-familia', '/api/comentarios/indicacoes'], async (req, res) => {
+        res.setHeader('Cache-Control', 'no-store');
+        const todos = ler();
+        const chaves = Object.keys(todos).filter(k => Array.isArray(todos[k]) && todos[k].length > 0);
+        if (!chaves.length) return res.json({ itens: [], total: 0 });
+
+        const listaResumo = [];
+        for (const k of chaves) {
+            const posDoisPontos = k.indexOf(':');
+            if (posDoisPontos === -1) continue;
+            const tipo = tipoOk(k.slice(0, posDoisPontos));
+            const id = k.slice(posDoisPontos + 1);
+            if (!tipo || !/^\d{1,10}$/.test(id)) continue;
+
+            const lista = todos[k] || [];
+            const comNota = lista.filter(c => typeof c.nota === 'number' && c.nota >= 1 && c.nota <= 5);
+            const soma = comNota.reduce((acc, c) => acc + c.nota, 0);
+            const mediaNota = comNota.length ? Math.round((soma / comNota.length) * 10) / 10 : null;
+            const ordenada = lista.slice().sort((a, b) => (b.em || 0) - (a.em || 0));
+            const ultimo = ordenada[0] || {};
+            const autores = [...new Set(lista.map(c => c.nome).filter(Boolean))];
+
+            listaResumo.push({
+                tipo,
+                id: Number(id),
+                mediaNota,
+                totalVotos: comNota.length,
+                totalComentarios: lista.length,
+                autores,
+                ultimoAutor: ultimo.nome || '',
+                ultimoTexto: ultimo.texto || '',
+                ultimoEm: ultimo.em || 0
+            });
+        }
+
+        // Ordena: títulos com maior nota primeiro; em empate, os avaliados mais recentemente
+        listaResumo.sort((a, b) => {
+            const nA = typeof a.mediaNota === 'number' ? a.mediaNota : 0;
+            const nB = typeof b.mediaNota === 'number' ? b.mediaNota : 0;
+            if (nB !== nA) return nB - nA;
+            return (b.ultimoEm || 0) - (a.ultimoEm || 0);
+        });
+
+        // Limita a até 24 títulos para manter carregamento ultra-rápido
+        const selecionados = listaResumo.slice(0, 24);
+
+        const itens = await Promise.all(selecionados.map(async item => {
+            try {
+                const chaveFicha = item.tipo + ':' + item.id;
+                let guardada = fichas.get(chaveFicha);
+                let f = guardada ? guardada.ficha : null;
+                let dadosTmdb = null;
+                if (!f) {
+                    dadosTmdb = await pedirJson(`https://api.themoviedb.org/3/${item.tipo}/${item.id}?api_key=${TMDB_KEY}&language=pt-BR`);
+                }
+                const titulo = (f && (f.tituloOriginal || f.frase)) || (dadosTmdb && (dadosTmdb.title || dadosTmdb.name)) || 'Sem título';
+                const capa = dadosTmdb && dadosTmdb.poster_path ? IMG + 'w500' + dadosTmdb.poster_path : '';
+                const fundo = dadosTmdb && dadosTmdb.backdrop_path ? IMG + 'w1280' + dadosTmdb.backdrop_path : '';
+                const ano = (dadosTmdb && (dadosTmdb.release_date || dadosTmdb.first_air_date || '').slice(0, 4)) || (f && f.estreia ? f.estreia.slice(0, 4) : '');
+                const sinopse = (dadosTmdb && dadosTmdb.overview) || (f && (f.frase || '')) || '';
+                const notaTmdb = (dadosTmdb && dadosTmdb.vote_average ? String(Math.round(Number(dadosTmdb.vote_average) * 10) / 10) : (f && f.nota ? String(f.nota) : 'N/A'));
+
+                return {
+                    id: item.id,
+                    tipo: item.tipo,
+                    titulo,
+                    sinopse,
+                    capa,
+                    fundo,
+                    ano,
+                    nota: notaTmdb,
+                    notaFamilia: item.mediaNota,
+                    votosFamilia: item.totalVotos,
+                    comentariosFamilia: item.totalComentarios,
+                    autoresFamilia: item.autores,
+                    ultimoAutor: item.ultimoAutor,
+                    ultimoTexto: item.ultimoTexto,
+                    ultimoEm: item.ultimoEm
+                };
+            } catch {
+                return null;
+            }
+        }));
+
+        res.json({ itens: itens.filter(Boolean), total: chaves.length });
+    });
     return {};
 };

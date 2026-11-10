@@ -283,6 +283,13 @@
                 cache.set(chaveCache, { value: resultado, until: Date.now() + 30 * 60 * 1000 });
                 return resultado;
             }
+            if (url.pathname === '/api/indicacoes-familia' || url.pathname === '/api/comentarios/indicacoes') {
+                try {
+                    const r = await fetcher(url.toString(), { signal });
+                    if (r && r.ok) return await r.json();
+                } catch {}
+                return { itens: [], total: 0 };
+            }
             if (url.pathname !== '/api/rankings') throw new Error('Rota inválida');
             const selectionPage=Number(url.searchParams.get('page')||1);if(!Number.isInteger(selectionPage)||selectionPage<1||selectionPage>10)throw Error('Página inválida');
             const [relevantes, melhores, recentes, awards] = await Promise.all([

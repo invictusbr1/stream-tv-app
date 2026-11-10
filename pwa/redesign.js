@@ -51,8 +51,34 @@
   // Comentários da família.
   const sec=novo('section','ficha-comentarios');sec.append(novo('h3','','💬 Comentários da família'));
   const lista=novo('div','ficha-lista');
-  const desenhar=itens=>{lista.replaceChildren();if(!itens.length)lista.append(novo('p','ficha-vazio','Ninguém comentou ainda. Seja o primeiro a dizer o que achou!'));
-   for(const c of itens){const b=novo('div','ficha-coment'+(c.meu?' meu':''));const topo=novo('div','ficha-coment-topo');topo.append(novo('strong','',c.nome+(c.meu?' (você)':'')),c.nota?novo('span','ficha-estrelas',estrelas(c.nota)):novo('span'),novo('small','',new Date(c.em).toLocaleDateString('pt-BR')));b.append(topo);if(c.texto)b.append(novo('p','',c.texto));if(c.meu){const x=novo('button','quiet ficha-apagar','Apagar meu comentário');x.type='button';x.onclick=async()=>{try{const r=viaGet?await fetch(comQ('/api/comentarios/'+chave+'/apagar',quem()),{cache:'no-store'}):await fetch('/api/comentarios/'+chave,{method:'DELETE'});if(r.ok){desenhar(await r.json());nota=0;pintarNotas();texto.value='';enviar.textContent='Comentar';aviso.textContent='Comentário apagado.';}}catch(e){}};b.append(x);}lista.append(b);}};
+  const atualizarResumoFamilia=itens=>{
+   let resumo=byId('ficha-familia-resumo');
+   if(!resumo){
+    resumo=novo('div','ficha-familia-resumo');resumo.id='ficha-familia-resumo';
+    const heading=dialog.querySelector('.series-heading');
+    if(heading){const meta=byId('series-meta');if(meta)meta.after(resumo);else heading.append(resumo);}
+   }
+   const comNota=(itens||[]).filter(c=>typeof c.nota==='number'&&c.nota>=1&&c.nota<=5);
+   if(comNota.length>0){
+    const soma=comNota.reduce((a,b)=>a+b.nota,0);
+    const media=(soma/comNota.length).toFixed(1);
+    const autores=[...new Set((itens||[]).map(c=>c.nome).filter(Boolean))];
+    resumo.className='ficha-familia-resumo';
+    resumo.replaceChildren(
+     novo('span','familia-estrelas',estrelas(Math.round(Number(media)))),
+     novo('strong','familia-nota','★ '+media),
+     novo('span','familia-votos','pela família ('+comNota.length+' voto'+(comNota.length>1?'s':'')+')'),
+     novo('span','familia-autores','· '+autores.join(', '))
+    );
+    resumo.onclick=()=>sec.scrollIntoView({behavior:'smooth',block:'start'});
+   }else{
+    resumo.className='ficha-familia-resumo sem-voto';
+    resumo.replaceChildren(novo('span','','⭐ Seja o primeiro da família a avaliar este filme! Dê sua nota abaixo'));
+    resumo.onclick=()=>sec.scrollIntoView({behavior:'smooth',block:'start'});
+   }
+  };
+  const desenhar=itens=>{lista.replaceChildren();atualizarResumoFamilia(itens);if(!itens.length)lista.append(novo('p','ficha-vazio','Ninguém comentou ainda. Seja o primeiro a dizer o que achou!'));
+   for(const c of itens){const b=novo('div','ficha-coment'+(c.meu?' meu':''));const topo=novo('div','ficha-coment-topo');topo.append(novo('strong','',c.nome+(c.meu?' (você)':'')),c.nota?novo('span','ficha-estrelas',estrelas(c.nota)):novo('span'),novo('small','',new Date(c.em).toLocaleDateString('pt-BR')));b.append(topo);if(c.texto)b.append(novo('p','',c.texto));if(c.meu){const x=novo('button','quiet ficha-apagar','Apagar meu comentário');x.type='button';x.onclick=async()=>{try{const r=viaGet?await fetch(comQ('/api/comentarios/'+chave+'/apagar',quem()),{cache:'no-store'}):await fetch('/api/comentarios/'+chave,{method:'DELETE'});if(r.ok){const novos=await r.json();desenhar(novos);nota=0;pintarNotas();texto.value='';enviar.textContent='Comentar';aviso.textContent='Comentário apagado.';try{window.atualizarIndicacoesFamilia?.(true);}catch(e){}}}catch(e){}};b.append(x);}lista.append(b);}};
   const meu=(Array.isArray(comentarios)?comentarios:[]).find(c=>c.meu);
   const form=novo('form','ficha-form');let nota=meu?.nota||0;
   const notas=novo('div','ficha-notas');notas.setAttribute('aria-label','Sua nota');
@@ -64,7 +90,7 @@
   const aviso=novo('small','ficha-aviso','');
   form.append(notas,texto,enviar,aviso);
   form.onsubmit=async e=>{e.preventDefault();e.stopPropagation();if(!nota&&!texto.value.trim()){aviso.textContent='Dê uma nota ou escreva algo.';return;}
-   enviar.disabled=true;try{const r=viaGet?await fetch(comQ('/api/comentarios/'+chave+'/enviar?nota='+nota+'&texto='+encodeURIComponent(texto.value),quem()),{cache:'no-store'}):await fetch('/api/comentarios/'+chave,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({nota,texto:texto.value})});if(r.ok){desenhar(await r.json());enviar.textContent='Atualizar meu comentário';aviso.textContent='Comentário salvo — a família toda vê.';}else aviso.textContent='Não foi possível salvar agora.';}catch(err){aviso.textContent='Não foi possível salvar agora.';}finally{enviar.disabled=false;}};
+   enviar.disabled=true;try{const r=viaGet?await fetch(comQ('/api/comentarios/'+chave+'/enviar?nota='+nota+'&texto='+encodeURIComponent(texto.value),quem()),{cache:'no-store'}):await fetch('/api/comentarios/'+chave,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({nota,texto:texto.value})});if(r.ok){const novos=await r.json();desenhar(novos);enviar.textContent='Atualizar meu comentário';aviso.textContent='Comentário salvo — a família toda vê.';try{window.atualizarIndicacoesFamilia?.(true);}catch(e){}}else aviso.textContent='Não foi possível salvar agora.';}catch(err){aviso.textContent='Não foi possível salvar agora.';}finally{enviar.disabled=false;}};
   desenhar(Array.isArray(comentarios)?comentarios:[]);
   sec.append(lista,form);fichaBox.append(sec);
  }

@@ -8,7 +8,10 @@ const registrar = require('./rotas/ficha');
 
 function app() {
     const rotas = {};
-    const add = m => (p, h) => { rotas[m + ' ' + p] = h; };
+    const add = m => (p, h) => {
+        if (Array.isArray(p)) p.forEach(c => { rotas[m + ' ' + c] = h; });
+        else rotas[m + ' ' + p] = h;
+    };
     return { rotas, get: add('GET'), post: add('POST'), delete: add('DELETE') };
 }
 function chamar(a, chave, req) {
@@ -76,4 +79,63 @@ test('Android: comenta por GET com o id do aparelho e acha o nome no cadastro', 
     assert.equal(outro[0].meu, false);
     const apagado = (await chamar(a, 'GET /api/comentarios/:tipo/:id/apagar', { params: p, query: { disp: 'dabc12345' } })).d;
     assert.equal(apagado.length, 0);
+});
+
+test('indicações da família: calcula média das notas, ordena e traz metadados', async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'coment-ind-'));
+    const a = app(); registrar(a, { DADOS_DIR: dir, TMDB_KEY: 'x' });
+    
+    // Sem comentários: retorna vazio
+    const vazio = (await chamar(a, 'GET /api/indicacoes-familia', {})).d;
+    assert.deepEqual(vazio, { itens: [], total: 0 });
+
+    const marlon = { dispositivoAutorizado: { dispositivo: 'pc-1', nome: 'Marlon' } };
+    const larissa = { dispositivoAutorizado: { dispositivo: 'cel-2', nome: 'Larissa' } };
+
+    // Simula mock do fetch para o TMDB
+    const originalFetch = global.fetch;
+    global.fetch = async url => ({
+        ok: true,
+        json: async () => {
+            if (url.includes('/movie/100')) {
+                return { title: 'Interestelar', overview: 'Exploração espacial.', release_date: '2014-11-06', poster_path: '/poster1.jpg', vote_average: 8.6 };
+            }
+            if (url.includes('/tv/200')) {
+                return { name: 'Breaking Bad', overview: 'Química e crime.', first_air_date: '2008-01-20', poster_path: '/poster2.jpg', vote_average: 8.9 };
+            }
+            return null;
+        }
+    });
+
+    try {
+        // Título 1: Interestelar (Larissa nota 5, Marlon nota 5 -> média 5.0)
+        await chamar(a, 'POST /api/comentarios/:tipo/:id', { ...larissa, params: { tipo: 'movie', id: '100' }, body: { nota: 5, texto: 'Perfeito!' } });
+        await chamar(a, 'POST /api/comentarios/:tipo/:id', { ...marlon, params: { tipo: 'movie', id: '100' }, body: { nota: 5, texto: 'Obra prima' } });
+
+        // Título 2: Breaking Bad (Marlon nota 4 -> média 4.0)
+        await chamar(a, 'POST /api/comentarios/:tipo/:id', { ...marlon, params: { tipo: 'tv', id: '200' }, body: { nota: 4, texto: 'Muito bom' } });
+
+        const r = (await chamar(a, 'GET /api/indicacoes-familia', {})).d;
+        assert.equal(r.total, 2);
+        assert.equal(r.itens.length, 2);
+
+        // Maior nota primeiro: Interestelar (5.0) antes de Breaking Bad (4.0)
+        assert.equal(r.itens[0].titulo, 'Interestelar');
+        assert.equal(r.itens[0].tipo, 'movie');
+        assert.equal(r.itens[0].id, 100);
+        assert.equal(r.itens[0].notaFamilia, 5.0);
+        assert.equal(r.itens[0].votosFamilia, 2);
+        assert.deepEqual(r.itens[0].autoresFamilia.sort(), ['Larissa', 'Marlon']);
+
+        assert.equal(r.itens[1].titulo, 'Breaking Bad');
+        assert.equal(r.itens[1].tipo, 'tv');
+        assert.equal(r.itens[1].id, 200);
+        assert.equal(r.itens[1].notaFamilia, 4.0);
+        assert.equal(r.itens[1].votosFamilia, 1);
+
+        const alias = (await chamar(a, 'GET /api/comentarios/indicacoes', {})).d;
+        assert.equal(alias.total, 2);
+    } finally {
+        global.fetch = originalFetch;
+    }
 });
